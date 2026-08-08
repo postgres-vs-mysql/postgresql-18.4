@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * pg_attrdef.c
- *	  routines to support manipulation of the pg_attrdef relation
+ *    routines to support manipulation of the pg_attrdef relation
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/backend/catalog/pg_attrdef.c
+ *    src/backend/catalog/pg_attrdef.c
  *
  *-------------------------------------------------------------------------
  */
@@ -33,171 +33,172 @@
  */
 Oid
 StoreAttrDefault(Relation rel, AttrNumber attnum,
-				 Node *expr, bool is_internal)
+                 Node *expr, bool is_internal)
 {
-	char	   *adbin;
-	Relation	adrel;
-	HeapTuple	tuple;
-	Datum		values[Natts_pg_attrdef];
-	static bool nulls[Natts_pg_attrdef] = {false, false, false, false};
-	Relation	attrrel;
-	HeapTuple	atttup;
-	Form_pg_attribute attStruct;
-	Datum		valuesAtt[Natts_pg_attribute] = {0};
-	bool		nullsAtt[Natts_pg_attribute] = {0};
-	bool		replacesAtt[Natts_pg_attribute] = {0};
-	char		attgenerated;
-	Oid			attrdefOid;
-	ObjectAddress colobject,
-				defobject;
+  char     *adbin;
+  Relation  adrel;
+  HeapTuple tuple;
+  Datum   values[Natts_pg_attrdef];
+  static bool nulls[Natts_pg_attrdef] = {false, false, false, false};
+  Relation  attrrel;
+  HeapTuple atttup;
+  Form_pg_attribute attStruct;
+  Datum   valuesAtt[Natts_pg_attribute] = {0};
+  bool    nullsAtt[Natts_pg_attribute] = {0};
+  bool    replacesAtt[Natts_pg_attribute] = {0};
+  char    attgenerated;
+  Oid     attrdefOid;
+  ObjectAddress colobject,
+                defobject;
 
-	adrel = table_open(AttrDefaultRelationId, RowExclusiveLock);
+  adrel = table_open(AttrDefaultRelationId, RowExclusiveLock);
 
-	/*
-	 * Flatten expression to string form for storage.
-	 */
-	adbin = nodeToString(expr);
+  /*
+   * Flatten expression to string form for storage.
+   */
+  adbin = nodeToString(expr);
 
-	/*
-	 * Make the pg_attrdef entry.
-	 */
-	attrdefOid = GetNewOidWithIndex(adrel, AttrDefaultOidIndexId,
-									Anum_pg_attrdef_oid);
-	values[Anum_pg_attrdef_oid - 1] = ObjectIdGetDatum(attrdefOid);
-	values[Anum_pg_attrdef_adrelid - 1] = ObjectIdGetDatum(RelationGetRelid(rel));
-	values[Anum_pg_attrdef_adnum - 1] = Int16GetDatum(attnum);
-	values[Anum_pg_attrdef_adbin - 1] = CStringGetTextDatum(adbin);
+  /*
+   * Make the pg_attrdef entry.
+   */
+  attrdefOid = GetNewOidWithIndex(adrel, AttrDefaultOidIndexId,
+                                  Anum_pg_attrdef_oid);
+  values[Anum_pg_attrdef_oid - 1] = ObjectIdGetDatum(attrdefOid);
+  values[Anum_pg_attrdef_adrelid - 1] = ObjectIdGetDatum(RelationGetRelid(rel));
+  values[Anum_pg_attrdef_adnum - 1] = Int16GetDatum(attnum);
+  values[Anum_pg_attrdef_adbin - 1] = CStringGetTextDatum(adbin);
 
-	tuple = heap_form_tuple(adrel->rd_att, values, nulls);
-	CatalogTupleInsert(adrel, tuple);
+  tuple = heap_form_tuple(adrel->rd_att, values, nulls);
+  CatalogTupleInsert(adrel, tuple);
 
-	defobject.classId = AttrDefaultRelationId;
-	defobject.objectId = attrdefOid;
-	defobject.objectSubId = 0;
+  defobject.classId = AttrDefaultRelationId;
+  defobject.objectId = attrdefOid;
+  defobject.objectSubId = 0;
 
-	table_close(adrel, RowExclusiveLock);
+  table_close(adrel, RowExclusiveLock);
 
-	/* now can free some of the stuff allocated above */
-	pfree(DatumGetPointer(values[Anum_pg_attrdef_adbin - 1]));
-	heap_freetuple(tuple);
-	pfree(adbin);
+  /* now can free some of the stuff allocated above */
+  pfree(DatumGetPointer(values[Anum_pg_attrdef_adbin - 1]));
+  heap_freetuple(tuple);
+  pfree(adbin);
 
-	/*
-	 * Update the pg_attribute entry for the column to show that a default
-	 * exists.
-	 */
-	attrrel = table_open(AttributeRelationId, RowExclusiveLock);
-	atttup = SearchSysCacheCopy2(ATTNUM,
-								 ObjectIdGetDatum(RelationGetRelid(rel)),
-								 Int16GetDatum(attnum));
-	if (!HeapTupleIsValid(atttup))
-		elog(ERROR, "cache lookup failed for attribute %d of relation %u",
-			 attnum, RelationGetRelid(rel));
-	attStruct = (Form_pg_attribute) GETSTRUCT(atttup);
-	attgenerated = attStruct->attgenerated;
+  /*
+   * Update the pg_attribute entry for the column to show that a default
+   * exists.
+   */
+  attrrel = table_open(AttributeRelationId, RowExclusiveLock);
+  atttup = SearchSysCacheCopy2(ATTNUM,
+                               ObjectIdGetDatum(RelationGetRelid(rel)),
+                               Int16GetDatum(attnum));
 
-	valuesAtt[Anum_pg_attribute_atthasdef - 1] = BoolGetDatum(true);
-	replacesAtt[Anum_pg_attribute_atthasdef - 1] = true;
+  if (!HeapTupleIsValid(atttup))
+    elog(ERROR, "cache lookup failed for attribute %d of relation %u",
+         attnum, RelationGetRelid(rel));
 
-	atttup = heap_modify_tuple(atttup, RelationGetDescr(attrrel),
-							   valuesAtt, nullsAtt, replacesAtt);
+  attStruct = (Form_pg_attribute) GETSTRUCT(atttup);
+  attgenerated = attStruct->attgenerated;
 
-	CatalogTupleUpdate(attrrel, &atttup->t_self, atttup);
+  valuesAtt[Anum_pg_attribute_atthasdef - 1] = BoolGetDatum(true);
+  replacesAtt[Anum_pg_attribute_atthasdef - 1] = true;
 
-	table_close(attrrel, RowExclusiveLock);
-	heap_freetuple(atttup);
+  atttup = heap_modify_tuple(atttup, RelationGetDescr(attrrel),
+                             valuesAtt, nullsAtt, replacesAtt);
 
-	/*
-	 * Make a dependency so that the pg_attrdef entry goes away if the column
-	 * (or whole table) is deleted.  In the case of a generated column, make
-	 * it an internal dependency to prevent the default expression from being
-	 * deleted separately.
-	 */
-	colobject.classId = RelationRelationId;
-	colobject.objectId = RelationGetRelid(rel);
-	colobject.objectSubId = attnum;
+  CatalogTupleUpdate(attrrel, &atttup->t_self, atttup);
 
-	recordDependencyOn(&defobject, &colobject,
-					   attgenerated ? DEPENDENCY_INTERNAL : DEPENDENCY_AUTO);
+  table_close(attrrel, RowExclusiveLock);
+  heap_freetuple(atttup);
 
-	/*
-	 * Record dependencies on objects used in the expression, too.
-	 */
-	recordDependencyOnSingleRelExpr(&defobject, expr, RelationGetRelid(rel),
-									DEPENDENCY_NORMAL,
-									DEPENDENCY_NORMAL, false);
+  /*
+   * Make a dependency so that the pg_attrdef entry goes away if the column
+   * (or whole table) is deleted.  In the case of a generated column, make
+   * it an internal dependency to prevent the default expression from being
+   * deleted separately.
+   */
+  colobject.classId = RelationRelationId;
+  colobject.objectId = RelationGetRelid(rel);
+  colobject.objectSubId = attnum;
 
-	/*
-	 * Post creation hook for attribute defaults.
-	 *
-	 * XXX. ALTER TABLE ALTER COLUMN SET/DROP DEFAULT is implemented with a
-	 * couple of deletion/creation of the attribute's default entry, so the
-	 * callee should check existence of an older version of this entry if it
-	 * needs to distinguish.
-	 */
-	InvokeObjectPostCreateHookArg(AttrDefaultRelationId,
-								  RelationGetRelid(rel), attnum, is_internal);
+  recordDependencyOn(&defobject, &colobject,
+                     attgenerated ? DEPENDENCY_INTERNAL : DEPENDENCY_AUTO);
 
-	return attrdefOid;
+  /*
+   * Record dependencies on objects used in the expression, too.
+   */
+  recordDependencyOnSingleRelExpr(&defobject, expr, RelationGetRelid(rel),
+                                  DEPENDENCY_NORMAL,
+                                  DEPENDENCY_NORMAL, false);
+
+  /*
+   * Post creation hook for attribute defaults.
+   *
+   * XXX. ALTER TABLE ALTER COLUMN SET/DROP DEFAULT is implemented with a
+   * couple of deletion/creation of the attribute's default entry, so the
+   * callee should check existence of an older version of this entry if it
+   * needs to distinguish.
+   */
+  InvokeObjectPostCreateHookArg(AttrDefaultRelationId,
+                                RelationGetRelid(rel), attnum, is_internal);
+
+  return attrdefOid;
 }
 
 
 /*
- *		RemoveAttrDefault
+ *    RemoveAttrDefault
  *
  * If the specified relation/attribute has a default, remove it.
  * (If no default, raise error if complain is true, else return quietly.)
  */
 void
 RemoveAttrDefault(Oid relid, AttrNumber attnum,
-				  DropBehavior behavior, bool complain, bool internal)
+                  DropBehavior behavior, bool complain, bool internal)
 {
-	Relation	attrdef_rel;
-	ScanKeyData scankeys[2];
-	SysScanDesc scan;
-	HeapTuple	tuple;
-	bool		found = false;
+  Relation  attrdef_rel;
+  ScanKeyData scankeys[2];
+  SysScanDesc scan;
+  HeapTuple tuple;
+  bool    found = false;
 
-	attrdef_rel = table_open(AttrDefaultRelationId, RowExclusiveLock);
+  attrdef_rel = table_open(AttrDefaultRelationId, RowExclusiveLock);
 
-	ScanKeyInit(&scankeys[0],
-				Anum_pg_attrdef_adrelid,
-				BTEqualStrategyNumber, F_OIDEQ,
-				ObjectIdGetDatum(relid));
-	ScanKeyInit(&scankeys[1],
-				Anum_pg_attrdef_adnum,
-				BTEqualStrategyNumber, F_INT2EQ,
-				Int16GetDatum(attnum));
+  ScanKeyInit(&scankeys[0],
+              Anum_pg_attrdef_adrelid,
+              BTEqualStrategyNumber, F_OIDEQ,
+              ObjectIdGetDatum(relid));
+  ScanKeyInit(&scankeys[1],
+              Anum_pg_attrdef_adnum,
+              BTEqualStrategyNumber, F_INT2EQ,
+              Int16GetDatum(attnum));
 
-	scan = systable_beginscan(attrdef_rel, AttrDefaultIndexId, true,
-							  NULL, 2, scankeys);
+  scan = systable_beginscan(attrdef_rel, AttrDefaultIndexId, true,
+                            NULL, 2, scankeys);
 
-	/* There should be at most one matching tuple, but we loop anyway */
-	while (HeapTupleIsValid(tuple = systable_getnext(scan)))
-	{
-		ObjectAddress object;
-		Form_pg_attrdef attrtuple = (Form_pg_attrdef) GETSTRUCT(tuple);
+  /* There should be at most one matching tuple, but we loop anyway */
+  while (HeapTupleIsValid(tuple = systable_getnext(scan))) {
+    ObjectAddress object;
+    Form_pg_attrdef attrtuple = (Form_pg_attrdef) GETSTRUCT(tuple);
 
-		object.classId = AttrDefaultRelationId;
-		object.objectId = attrtuple->oid;
-		object.objectSubId = 0;
+    object.classId = AttrDefaultRelationId;
+    object.objectId = attrtuple->oid;
+    object.objectSubId = 0;
 
-		performDeletion(&object, behavior,
-						internal ? PERFORM_DELETION_INTERNAL : 0);
+    performDeletion(&object, behavior,
+                    internal ? PERFORM_DELETION_INTERNAL : 0);
 
-		found = true;
-	}
+    found = true;
+  }
 
-	systable_endscan(scan);
-	table_close(attrdef_rel, RowExclusiveLock);
+  systable_endscan(scan);
+  table_close(attrdef_rel, RowExclusiveLock);
 
-	if (complain && !found)
-		elog(ERROR, "could not find attrdef tuple for relation %u attnum %d",
-			 relid, attnum);
+  if (complain && !found)
+    elog(ERROR, "could not find attrdef tuple for relation %u attnum %d",
+         relid, attnum);
 }
 
 /*
- *		RemoveAttrDefaultById
+ *    RemoveAttrDefaultById
  *
  * Remove a pg_attrdef entry specified by OID.  This is the guts of
  * attribute-default removal.  Note it should be called via performDeletion,
@@ -206,65 +207,67 @@ RemoveAttrDefault(Oid relid, AttrNumber attnum,
 void
 RemoveAttrDefaultById(Oid attrdefId)
 {
-	Relation	attrdef_rel;
-	Relation	attr_rel;
-	Relation	myrel;
-	ScanKeyData scankeys[1];
-	SysScanDesc scan;
-	HeapTuple	tuple;
-	Oid			myrelid;
-	AttrNumber	myattnum;
+  Relation  attrdef_rel;
+  Relation  attr_rel;
+  Relation  myrel;
+  ScanKeyData scankeys[1];
+  SysScanDesc scan;
+  HeapTuple tuple;
+  Oid     myrelid;
+  AttrNumber  myattnum;
 
-	/* Grab an appropriate lock on the pg_attrdef relation */
-	attrdef_rel = table_open(AttrDefaultRelationId, RowExclusiveLock);
+  /* Grab an appropriate lock on the pg_attrdef relation */
+  attrdef_rel = table_open(AttrDefaultRelationId, RowExclusiveLock);
 
-	/* Find the pg_attrdef tuple */
-	ScanKeyInit(&scankeys[0],
-				Anum_pg_attrdef_oid,
-				BTEqualStrategyNumber, F_OIDEQ,
-				ObjectIdGetDatum(attrdefId));
+  /* Find the pg_attrdef tuple */
+  ScanKeyInit(&scankeys[0],
+              Anum_pg_attrdef_oid,
+              BTEqualStrategyNumber, F_OIDEQ,
+              ObjectIdGetDatum(attrdefId));
 
-	scan = systable_beginscan(attrdef_rel, AttrDefaultOidIndexId, true,
-							  NULL, 1, scankeys);
+  scan = systable_beginscan(attrdef_rel, AttrDefaultOidIndexId, true,
+                            NULL, 1, scankeys);
 
-	tuple = systable_getnext(scan);
-	if (!HeapTupleIsValid(tuple))
-		elog(ERROR, "could not find tuple for attrdef %u", attrdefId);
+  tuple = systable_getnext(scan);
 
-	myrelid = ((Form_pg_attrdef) GETSTRUCT(tuple))->adrelid;
-	myattnum = ((Form_pg_attrdef) GETSTRUCT(tuple))->adnum;
+  if (!HeapTupleIsValid(tuple))
+    elog(ERROR, "could not find tuple for attrdef %u", attrdefId);
 
-	/* Get an exclusive lock on the relation owning the attribute */
-	myrel = relation_open(myrelid, AccessExclusiveLock);
+  myrelid = ((Form_pg_attrdef) GETSTRUCT(tuple))->adrelid;
+  myattnum = ((Form_pg_attrdef) GETSTRUCT(tuple))->adnum;
 
-	/* Now we can delete the pg_attrdef row */
-	CatalogTupleDelete(attrdef_rel, &tuple->t_self);
+  /* Get an exclusive lock on the relation owning the attribute */
+  myrel = relation_open(myrelid, AccessExclusiveLock);
 
-	systable_endscan(scan);
-	table_close(attrdef_rel, RowExclusiveLock);
+  /* Now we can delete the pg_attrdef row */
+  CatalogTupleDelete(attrdef_rel, &tuple->t_self);
 
-	/* Fix the pg_attribute row */
-	attr_rel = table_open(AttributeRelationId, RowExclusiveLock);
+  systable_endscan(scan);
+  table_close(attrdef_rel, RowExclusiveLock);
 
-	tuple = SearchSysCacheCopy2(ATTNUM,
-								ObjectIdGetDatum(myrelid),
-								Int16GetDatum(myattnum));
-	if (!HeapTupleIsValid(tuple))	/* shouldn't happen */
-		elog(ERROR, "cache lookup failed for attribute %d of relation %u",
-			 myattnum, myrelid);
+  /* Fix the pg_attribute row */
+  attr_rel = table_open(AttributeRelationId, RowExclusiveLock);
 
-	((Form_pg_attribute) GETSTRUCT(tuple))->atthasdef = false;
+  tuple = SearchSysCacheCopy2(ATTNUM,
+                              ObjectIdGetDatum(myrelid),
+                              Int16GetDatum(myattnum));
 
-	CatalogTupleUpdate(attr_rel, &tuple->t_self, tuple);
+  if (!HeapTupleIsValid(tuple)) /* shouldn't happen */
+    elog(ERROR, "cache lookup failed for attribute %d of relation %u",
+         myattnum, myrelid);
 
-	/*
-	 * Our update of the pg_attribute row will force a relcache rebuild, so
-	 * there's nothing else to do here.
-	 */
-	table_close(attr_rel, RowExclusiveLock);
+  ((Form_pg_attribute) GETSTRUCT(tuple))->atthasdef = false;
 
-	/* Keep lock on attribute's rel until end of xact */
-	relation_close(myrel, NoLock);
+  CatalogTupleUpdate(attr_rel, &tuple->t_self, tuple);
+
+  /*
+   * Our update of the pg_attribute row will force a relcache rebuild, so
+   * there's nothing else to do here.
+   */
+  table_close(attr_rel, RowExclusiveLock);
+
+  /* Keep lock on attribute's rel until end of xact */
+  relation_close(myrel, NoLock);
 }
 
 
@@ -277,37 +280,36 @@ RemoveAttrDefaultById(Oid attrdefId)
 Oid
 GetAttrDefaultOid(Oid relid, AttrNumber attnum)
 {
-	Oid			result = InvalidOid;
-	Relation	attrdef;
-	ScanKeyData keys[2];
-	SysScanDesc scan;
-	HeapTuple	tup;
+  Oid     result = InvalidOid;
+  Relation  attrdef;
+  ScanKeyData keys[2];
+  SysScanDesc scan;
+  HeapTuple tup;
 
-	attrdef = table_open(AttrDefaultRelationId, AccessShareLock);
-	ScanKeyInit(&keys[0],
-				Anum_pg_attrdef_adrelid,
-				BTEqualStrategyNumber,
-				F_OIDEQ,
-				ObjectIdGetDatum(relid));
-	ScanKeyInit(&keys[1],
-				Anum_pg_attrdef_adnum,
-				BTEqualStrategyNumber,
-				F_INT2EQ,
-				Int16GetDatum(attnum));
-	scan = systable_beginscan(attrdef, AttrDefaultIndexId, true,
-							  NULL, 2, keys);
+  attrdef = table_open(AttrDefaultRelationId, AccessShareLock);
+  ScanKeyInit(&keys[0],
+              Anum_pg_attrdef_adrelid,
+              BTEqualStrategyNumber,
+              F_OIDEQ,
+              ObjectIdGetDatum(relid));
+  ScanKeyInit(&keys[1],
+              Anum_pg_attrdef_adnum,
+              BTEqualStrategyNumber,
+              F_INT2EQ,
+              Int16GetDatum(attnum));
+  scan = systable_beginscan(attrdef, AttrDefaultIndexId, true,
+                            NULL, 2, keys);
 
-	if (HeapTupleIsValid(tup = systable_getnext(scan)))
-	{
-		Form_pg_attrdef atdform = (Form_pg_attrdef) GETSTRUCT(tup);
+  if (HeapTupleIsValid(tup = systable_getnext(scan))) {
+    Form_pg_attrdef atdform = (Form_pg_attrdef) GETSTRUCT(tup);
 
-		result = atdform->oid;
-	}
+    result = atdform->oid;
+  }
 
-	systable_endscan(scan);
-	table_close(attrdef, AccessShareLock);
+  systable_endscan(scan);
+  table_close(attrdef, AccessShareLock);
 
-	return result;
+  return result;
 }
 
 /*
@@ -319,31 +321,30 @@ GetAttrDefaultOid(Oid relid, AttrNumber attnum)
 ObjectAddress
 GetAttrDefaultColumnAddress(Oid attrdefoid)
 {
-	ObjectAddress result = InvalidObjectAddress;
-	Relation	attrdef;
-	ScanKeyData skey[1];
-	SysScanDesc scan;
-	HeapTuple	tup;
+  ObjectAddress result = InvalidObjectAddress;
+  Relation  attrdef;
+  ScanKeyData skey[1];
+  SysScanDesc scan;
+  HeapTuple tup;
 
-	attrdef = table_open(AttrDefaultRelationId, AccessShareLock);
-	ScanKeyInit(&skey[0],
-				Anum_pg_attrdef_oid,
-				BTEqualStrategyNumber, F_OIDEQ,
-				ObjectIdGetDatum(attrdefoid));
-	scan = systable_beginscan(attrdef, AttrDefaultOidIndexId, true,
-							  NULL, 1, skey);
+  attrdef = table_open(AttrDefaultRelationId, AccessShareLock);
+  ScanKeyInit(&skey[0],
+              Anum_pg_attrdef_oid,
+              BTEqualStrategyNumber, F_OIDEQ,
+              ObjectIdGetDatum(attrdefoid));
+  scan = systable_beginscan(attrdef, AttrDefaultOidIndexId, true,
+                            NULL, 1, skey);
 
-	if (HeapTupleIsValid(tup = systable_getnext(scan)))
-	{
-		Form_pg_attrdef atdform = (Form_pg_attrdef) GETSTRUCT(tup);
+  if (HeapTupleIsValid(tup = systable_getnext(scan))) {
+    Form_pg_attrdef atdform = (Form_pg_attrdef) GETSTRUCT(tup);
 
-		result.classId = RelationRelationId;
-		result.objectId = atdform->adrelid;
-		result.objectSubId = atdform->adnum;
-	}
+    result.classId = RelationRelationId;
+    result.objectId = atdform->adrelid;
+    result.objectSubId = atdform->adnum;
+  }
 
-	systable_endscan(scan);
-	table_close(attrdef, AccessShareLock);
+  systable_endscan(scan);
+  table_close(attrdef, AccessShareLock);
 
-	return result;
+  return result;
 }

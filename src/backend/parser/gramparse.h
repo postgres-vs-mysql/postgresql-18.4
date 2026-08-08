@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * gramparse.h
- *		Shared definitions for the "raw" parser (flex and bison phases only)
+ *    Shared definitions for the "raw" parser (flex and bison phases only)
  *
  * NOTE: this file is only meant to be included in the core parsing files,
  * i.e., parser.c, gram.y, and scan.l.
@@ -34,25 +34,25 @@
  */
 typedef struct base_yy_extra_type
 {
-	/*
-	 * Fields used by the core scanner.
-	 */
-	core_yy_extra_type core_yy_extra;
+  /*
+   * Fields used by the core scanner.
+   */
+  core_yy_extra_type core_yy_extra;
 
-	/*
-	 * State variables for base_yylex().
-	 */
-	bool		have_lookahead; /* is lookahead info valid? */
-	int			lookahead_token;	/* one-token lookahead */
-	core_YYSTYPE lookahead_yylval;	/* yylval for lookahead token */
-	YYLTYPE		lookahead_yylloc;	/* yylloc for lookahead token */
-	char	   *lookahead_end;	/* end of current token */
-	char		lookahead_hold_char;	/* to be put back at *lookahead_end */
+  /*
+   * State variables for base_yylex().
+   */
+  bool    have_lookahead; /* is lookahead info valid? */
+  int     lookahead_token;  /* one-token lookahead */
+  core_YYSTYPE lookahead_yylval;  /* yylval for lookahead token */
+  YYLTYPE   lookahead_yylloc; /* yylloc for lookahead token */
+  char     *lookahead_end;  /* end of current token */
+  char    lookahead_hold_char;  /* to be put back at *lookahead_end */
 
-	/*
-	 * State variables that belong to the grammar.
-	 */
-	List	   *parsetree;		/* final parse result is delivered here */
+  /*
+   * State variables that belong to the grammar.
+   */
+  List     *parsetree;    /* final parse result is delivered here */
 } base_yy_extra_type;
 
 /*
@@ -65,11 +65,11 @@ typedef struct base_yy_extra_type
 
 
 /* from parser.c */
-extern int	base_yylex(YYSTYPE *lvalp, YYLTYPE *llocp,
-					   core_yyscan_t yyscanner);
+extern int  base_yylex(YYSTYPE *lvalp, YYLTYPE *llocp,
+                       core_yyscan_t yyscanner);
 
 /* from gram.y */
 extern void parser_init(base_yy_extra_type *yyext);
-extern int	base_yyparse(core_yyscan_t yyscanner);
+extern int  base_yyparse(core_yyscan_t yyscanner);
 
-#endif							/* GRAMPARSE_H */
+#endif              /* GRAMPARSE_H */

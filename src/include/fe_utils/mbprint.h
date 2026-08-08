@@ -15,16 +15,16 @@
 
 struct lineptr
 {
-	unsigned char *ptr;
-	int			width;
+  unsigned char *ptr;
+  int     width;
 };
 
 extern unsigned char *mbvalidate(unsigned char *pwcs, int encoding);
-extern int	pg_wcswidth(const char *pwcs, size_t len, int encoding);
+extern int  pg_wcswidth(const char *pwcs, size_t len, int encoding);
 extern void pg_wcsformat(const unsigned char *pwcs, size_t len, int encoding,
-						 struct lineptr *lines, int count);
+                         struct lineptr *lines, int count);
 extern void pg_wcssize(const unsigned char *pwcs, size_t len, int encoding,
-					   int *result_width, int *result_height,
-					   int *result_format_size);
+                       int *result_width, int *result_height,
+                       int *result_format_size);
 
-#endif							/* MBPRINT_H */
+#endif              /* MBPRINT_H */

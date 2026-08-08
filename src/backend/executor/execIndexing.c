@@ -1,8 +1,8 @@
 /*-------------------------------------------------------------------------
  *
  * execIndexing.c
- *	  routines for inserting index tuples and enforcing unique and
- *	  exclusion constraints.
+ *    routines for inserting index tuples and enforcing unique and
+ *    exclusion constraints.
  *
  * ExecInsertIndexTuples() is the main entry point.  It's called after
  * inserting a tuple to the heap, and it inserts corresponding index tuples
@@ -78,9 +78,9 @@
  * another in-progress tuple, it has two options:
  *
  * 1. back out the speculatively inserted tuple, then wait for the other
- *	  transaction, and retry. Or,
+ *    transaction, and retry. Or,
  * 2. wait for the other transaction, with the speculatively inserted tuple
- *	  still in place.
+ *    still in place.
  *
  * If two backends insert at the same time, and both try to wait for each
  * other, they will deadlock.  So option 2 is not acceptable.  Option 1
@@ -100,7 +100,7 @@
  *
  *
  * IDENTIFICATION
- *	  src/backend/executor/execIndexing.c
+ *    src/backend/executor/execIndexing.c
  *
  *-------------------------------------------------------------------------
  */
@@ -120,543 +120,533 @@
 #include "utils/snapmgr.h"
 
 /* waitMode argument to check_exclusion_or_unique_constraint() */
-typedef enum
-{
-	CEOUC_WAIT,
-	CEOUC_NOWAIT,
-	CEOUC_LIVELOCK_PREVENTING_WAIT,
+typedef enum {
+  CEOUC_WAIT,
+  CEOUC_NOWAIT,
+  CEOUC_LIVELOCK_PREVENTING_WAIT,
 } CEOUC_WAIT_MODE;
 
 static bool check_exclusion_or_unique_constraint(Relation heap, Relation index,
-												 IndexInfo *indexInfo,
-												 ItemPointer tupleid,
-												 const Datum *values, const bool *isnull,
-												 EState *estate, bool newIndex,
-												 CEOUC_WAIT_MODE waitMode,
-												 bool violationOK,
-												 ItemPointer conflictTid);
+    IndexInfo *indexInfo,
+    ItemPointer tupleid,
+    const Datum *values, const bool *isnull,
+    EState *estate, bool newIndex,
+    CEOUC_WAIT_MODE waitMode,
+    bool violationOK,
+    ItemPointer conflictTid);
 
 static bool index_recheck_constraint(Relation index, const Oid *constr_procs,
-									 const Datum *existing_values, const bool *existing_isnull,
-									 const Datum *new_values);
+                                     const Datum *existing_values, const bool *existing_isnull,
+                                     const Datum *new_values);
 static bool index_unchanged_by_update(ResultRelInfo *resultRelInfo,
-									  EState *estate, IndexInfo *indexInfo,
-									  Relation indexRelation);
+                                      EState *estate, IndexInfo *indexInfo,
+                                      Relation indexRelation);
 static bool index_expression_changed_walker(Node *node,
-											Bitmapset *allUpdatedCols);
+    Bitmapset *allUpdatedCols);
 static void ExecWithoutOverlapsNotEmpty(Relation rel, NameData attname, Datum attval,
-										char typtype, Oid atttypid);
+                                        char typtype, Oid atttypid);
 
 /* ----------------------------------------------------------------
- *		ExecOpenIndices
+ *    ExecOpenIndices
  *
- *		Find the indices associated with a result relation, open them,
- *		and save information about them in the result ResultRelInfo.
+ *    Find the indices associated with a result relation, open them,
+ *    and save information about them in the result ResultRelInfo.
  *
- *		At entry, caller has already opened and locked
- *		resultRelInfo->ri_RelationDesc.
+ *    At entry, caller has already opened and locked
+ *    resultRelInfo->ri_RelationDesc.
  * ----------------------------------------------------------------
  */
 void
 ExecOpenIndices(ResultRelInfo *resultRelInfo, bool speculative)
 {
-	Relation	resultRelation = resultRelInfo->ri_RelationDesc;
-	List	   *indexoidlist;
-	ListCell   *l;
-	int			len,
-				i;
-	RelationPtr relationDescs;
-	IndexInfo **indexInfoArray;
+  Relation  resultRelation = resultRelInfo->ri_RelationDesc;
+  List     *indexoidlist;
+  ListCell   *l;
+  int     len,
+          i;
+  RelationPtr relationDescs;
+  IndexInfo **indexInfoArray;
 
-	resultRelInfo->ri_NumIndices = 0;
+  resultRelInfo->ri_NumIndices = 0;
 
-	/* fast path if no indexes */
-	if (!RelationGetForm(resultRelation)->relhasindex)
-		return;
+  /* fast path if no indexes */
+  if (!RelationGetForm(resultRelation)->relhasindex)
+    return;
 
-	/*
-	 * Get cached list of index OIDs
-	 */
-	indexoidlist = RelationGetIndexList(resultRelation);
-	len = list_length(indexoidlist);
-	if (len == 0)
-		return;
+  /*
+   * Get cached list of index OIDs
+   */
+  indexoidlist = RelationGetIndexList(resultRelation);
+  len = list_length(indexoidlist);
 
-	/* This Assert will fail if ExecOpenIndices is called twice */
-	Assert(resultRelInfo->ri_IndexRelationDescs == NULL);
+  if (len == 0)
+    return;
 
-	/*
-	 * allocate space for result arrays
-	 */
-	relationDescs = (RelationPtr) palloc(len * sizeof(Relation));
-	indexInfoArray = (IndexInfo **) palloc(len * sizeof(IndexInfo *));
+  /* This Assert will fail if ExecOpenIndices is called twice */
+  Assert(resultRelInfo->ri_IndexRelationDescs == NULL);
 
-	resultRelInfo->ri_NumIndices = len;
-	resultRelInfo->ri_IndexRelationDescs = relationDescs;
-	resultRelInfo->ri_IndexRelationInfo = indexInfoArray;
+  /*
+   * allocate space for result arrays
+   */
+  relationDescs = (RelationPtr) palloc(len * sizeof(Relation));
+  indexInfoArray = (IndexInfo **) palloc(len * sizeof(IndexInfo *));
 
-	/*
-	 * For each index, open the index relation and save pg_index info. We
-	 * acquire RowExclusiveLock, signifying we will update the index.
-	 *
-	 * Note: we do this even if the index is not indisready; it's not worth
-	 * the trouble to optimize for the case where it isn't.
-	 */
-	i = 0;
-	foreach(l, indexoidlist)
-	{
-		Oid			indexOid = lfirst_oid(l);
-		Relation	indexDesc;
-		IndexInfo  *ii;
+  resultRelInfo->ri_NumIndices = len;
+  resultRelInfo->ri_IndexRelationDescs = relationDescs;
+  resultRelInfo->ri_IndexRelationInfo = indexInfoArray;
 
-		indexDesc = index_open(indexOid, RowExclusiveLock);
+  /*
+   * For each index, open the index relation and save pg_index info. We
+   * acquire RowExclusiveLock, signifying we will update the index.
+   *
+   * Note: we do this even if the index is not indisready; it's not worth
+   * the trouble to optimize for the case where it isn't.
+   */
+  i = 0;
 
-		/* extract index key information from the index's pg_index info */
-		ii = BuildIndexInfo(indexDesc);
+  foreach(l, indexoidlist) {
+    Oid     indexOid = lfirst_oid(l);
+    Relation  indexDesc;
+    IndexInfo  *ii;
 
-		/*
-		 * If the indexes are to be used for speculative insertion, add extra
-		 * information required by unique index entries.
-		 */
-		if (speculative && ii->ii_Unique && !indexDesc->rd_index->indisexclusion)
-			BuildSpeculativeIndexInfo(indexDesc, ii);
+    indexDesc = index_open(indexOid, RowExclusiveLock);
 
-		relationDescs[i] = indexDesc;
-		indexInfoArray[i] = ii;
-		i++;
-	}
+    /* extract index key information from the index's pg_index info */
+    ii = BuildIndexInfo(indexDesc);
 
-	list_free(indexoidlist);
+    /*
+     * If the indexes are to be used for speculative insertion, add extra
+     * information required by unique index entries.
+     */
+    if (speculative && ii->ii_Unique && !indexDesc->rd_index->indisexclusion)
+      BuildSpeculativeIndexInfo(indexDesc, ii);
+
+    relationDescs[i] = indexDesc;
+    indexInfoArray[i] = ii;
+    i++;
+  }
+
+  list_free(indexoidlist);
 }
 
 /* ----------------------------------------------------------------
- *		ExecCloseIndices
+ *    ExecCloseIndices
  *
- *		Close the index relations stored in resultRelInfo
+ *    Close the index relations stored in resultRelInfo
  * ----------------------------------------------------------------
  */
 void
 ExecCloseIndices(ResultRelInfo *resultRelInfo)
 {
-	int			i;
-	int			numIndices;
-	RelationPtr indexDescs;
-	IndexInfo **indexInfos;
+  int     i;
+  int     numIndices;
+  RelationPtr indexDescs;
+  IndexInfo **indexInfos;
 
-	numIndices = resultRelInfo->ri_NumIndices;
-	indexDescs = resultRelInfo->ri_IndexRelationDescs;
-	indexInfos = resultRelInfo->ri_IndexRelationInfo;
+  numIndices = resultRelInfo->ri_NumIndices;
+  indexDescs = resultRelInfo->ri_IndexRelationDescs;
+  indexInfos = resultRelInfo->ri_IndexRelationInfo;
 
-	for (i = 0; i < numIndices; i++)
-	{
-		/* This Assert will fail if ExecCloseIndices is called twice */
-		Assert(indexDescs[i] != NULL);
+  for (i = 0; i < numIndices; i++) {
+    /* This Assert will fail if ExecCloseIndices is called twice */
+    Assert(indexDescs[i] != NULL);
 
-		/* Give the index a chance to do some post-insert cleanup */
-		index_insert_cleanup(indexDescs[i], indexInfos[i]);
+    /* Give the index a chance to do some post-insert cleanup */
+    index_insert_cleanup(indexDescs[i], indexInfos[i]);
 
-		/* Drop lock acquired by ExecOpenIndices */
-		index_close(indexDescs[i], RowExclusiveLock);
+    /* Drop lock acquired by ExecOpenIndices */
+    index_close(indexDescs[i], RowExclusiveLock);
 
-		/* Mark the index as closed */
-		indexDescs[i] = NULL;
-	}
+    /* Mark the index as closed */
+    indexDescs[i] = NULL;
+  }
 
-	/*
-	 * We don't attempt to free the IndexInfo data structures or the arrays,
-	 * instead assuming that such stuff will be cleaned up automatically in
-	 * FreeExecutorState.
-	 */
+  /*
+   * We don't attempt to free the IndexInfo data structures or the arrays,
+   * instead assuming that such stuff will be cleaned up automatically in
+   * FreeExecutorState.
+   */
 }
 
 /* ----------------------------------------------------------------
- *		ExecInsertIndexTuples
+ *    ExecInsertIndexTuples
  *
- *		This routine takes care of inserting index tuples
- *		into all the relations indexing the result relation
- *		when a heap tuple is inserted into the result relation.
+ *    This routine takes care of inserting index tuples
+ *    into all the relations indexing the result relation
+ *    when a heap tuple is inserted into the result relation.
  *
- *		When 'update' is true and 'onlySummarizing' is false,
- *		executor is performing an UPDATE that could not use an
- *		optimization like heapam's HOT (in more general terms a
- *		call to table_tuple_update() took place and set
- *		'update_indexes' to TU_All).  Receiving this hint makes
- *		us consider if we should pass down the 'indexUnchanged'
- *		hint in turn.  That's something that we figure out for
- *		each index_insert() call iff 'update' is true.
- *		(When 'update' is false we already know not to pass the
- *		hint to any index.)
+ *    When 'update' is true and 'onlySummarizing' is false,
+ *    executor is performing an UPDATE that could not use an
+ *    optimization like heapam's HOT (in more general terms a
+ *    call to table_tuple_update() took place and set
+ *    'update_indexes' to TU_All).  Receiving this hint makes
+ *    us consider if we should pass down the 'indexUnchanged'
+ *    hint in turn.  That's something that we figure out for
+ *    each index_insert() call iff 'update' is true.
+ *    (When 'update' is false we already know not to pass the
+ *    hint to any index.)
  *
- *		If onlySummarizing is set, an equivalent optimization to
- *		HOT has been applied and any updated columns are indexed
- *		only by summarizing indexes (or in more general terms a
- *		call to table_tuple_update() took place and set
- *		'update_indexes' to TU_Summarizing). We can (and must)
- *		therefore only update the indexes that have
- *		'amsummarizing' = true.
+ *    If onlySummarizing is set, an equivalent optimization to
+ *    HOT has been applied and any updated columns are indexed
+ *    only by summarizing indexes (or in more general terms a
+ *    call to table_tuple_update() took place and set
+ *    'update_indexes' to TU_Summarizing). We can (and must)
+ *    therefore only update the indexes that have
+ *    'amsummarizing' = true.
  *
- *		Unique and exclusion constraints are enforced at the same
- *		time.  This returns a list of index OIDs for any unique or
- *		exclusion constraints that are deferred and that had
- *		potential (unconfirmed) conflicts.  (if noDupErr == true,
- *		the same is done for non-deferred constraints, but report
- *		if conflict was speculative or deferred conflict to caller)
+ *    Unique and exclusion constraints are enforced at the same
+ *    time.  This returns a list of index OIDs for any unique or
+ *    exclusion constraints that are deferred and that had
+ *    potential (unconfirmed) conflicts.  (if noDupErr == true,
+ *    the same is done for non-deferred constraints, but report
+ *    if conflict was speculative or deferred conflict to caller)
  *
- *		If 'arbiterIndexes' is nonempty, noDupErr applies only to
- *		those indexes.  NIL means noDupErr applies to all indexes.
+ *    If 'arbiterIndexes' is nonempty, noDupErr applies only to
+ *    those indexes.  NIL means noDupErr applies to all indexes.
  * ----------------------------------------------------------------
  */
 List *
 ExecInsertIndexTuples(ResultRelInfo *resultRelInfo,
-					  TupleTableSlot *slot,
-					  EState *estate,
-					  bool update,
-					  bool noDupErr,
-					  bool *specConflict,
-					  List *arbiterIndexes,
-					  bool onlySummarizing)
+                      TupleTableSlot *slot,
+                      EState *estate,
+                      bool update,
+                      bool noDupErr,
+                      bool *specConflict,
+                      List *arbiterIndexes,
+                      bool onlySummarizing)
 {
-	ItemPointer tupleid = &slot->tts_tid;
-	List	   *result = NIL;
-	int			i;
-	int			numIndices;
-	RelationPtr relationDescs;
-	Relation	heapRelation;
-	IndexInfo **indexInfoArray;
-	ExprContext *econtext;
-	Datum		values[INDEX_MAX_KEYS];
-	bool		isnull[INDEX_MAX_KEYS];
+  ItemPointer tupleid = &slot->tts_tid;
+  List     *result = NIL;
+  int     i;
+  int     numIndices;
+  RelationPtr relationDescs;
+  Relation  heapRelation;
+  IndexInfo **indexInfoArray;
+  ExprContext *econtext;
+  Datum   values[INDEX_MAX_KEYS];
+  bool    isnull[INDEX_MAX_KEYS];
 
-	Assert(ItemPointerIsValid(tupleid));
+  Assert(ItemPointerIsValid(tupleid));
 
-	/*
-	 * Get information from the result relation info structure.
-	 */
-	numIndices = resultRelInfo->ri_NumIndices;
-	relationDescs = resultRelInfo->ri_IndexRelationDescs;
-	indexInfoArray = resultRelInfo->ri_IndexRelationInfo;
-	heapRelation = resultRelInfo->ri_RelationDesc;
+  /*
+   * Get information from the result relation info structure.
+   */
+  numIndices = resultRelInfo->ri_NumIndices;
+  relationDescs = resultRelInfo->ri_IndexRelationDescs;
+  indexInfoArray = resultRelInfo->ri_IndexRelationInfo;
+  heapRelation = resultRelInfo->ri_RelationDesc;
 
-	/* Sanity check: slot must belong to the same rel as the resultRelInfo. */
-	Assert(slot->tts_tableOid == RelationGetRelid(heapRelation));
+  /* Sanity check: slot must belong to the same rel as the resultRelInfo. */
+  Assert(slot->tts_tableOid == RelationGetRelid(heapRelation));
 
-	/*
-	 * We will use the EState's per-tuple context for evaluating predicates
-	 * and index expressions (creating it if it's not already there).
-	 */
-	econtext = GetPerTupleExprContext(estate);
+  /*
+   * We will use the EState's per-tuple context for evaluating predicates
+   * and index expressions (creating it if it's not already there).
+   */
+  econtext = GetPerTupleExprContext(estate);
 
-	/* Arrange for econtext's scan tuple to be the tuple under test */
-	econtext->ecxt_scantuple = slot;
+  /* Arrange for econtext's scan tuple to be the tuple under test */
+  econtext->ecxt_scantuple = slot;
 
-	/*
-	 * for each index, form and insert the index tuple
-	 */
-	for (i = 0; i < numIndices; i++)
-	{
-		Relation	indexRelation = relationDescs[i];
-		IndexInfo  *indexInfo;
-		bool		applyNoDupErr;
-		IndexUniqueCheck checkUnique;
-		bool		indexUnchanged;
-		bool		satisfiesConstraint;
+  /*
+   * for each index, form and insert the index tuple
+   */
+  for (i = 0; i < numIndices; i++) {
+    Relation  indexRelation = relationDescs[i];
+    IndexInfo  *indexInfo;
+    bool    applyNoDupErr;
+    IndexUniqueCheck checkUnique;
+    bool    indexUnchanged;
+    bool    satisfiesConstraint;
 
-		if (indexRelation == NULL)
-			continue;
+    if (indexRelation == NULL)
+      continue;
 
-		indexInfo = indexInfoArray[i];
+    indexInfo = indexInfoArray[i];
 
-		/* If the index is marked as read-only, ignore it */
-		if (!indexInfo->ii_ReadyForInserts)
-			continue;
+    /* If the index is marked as read-only, ignore it */
+    if (!indexInfo->ii_ReadyForInserts)
+      continue;
 
-		/*
-		 * Skip processing of non-summarizing indexes if we only update
-		 * summarizing indexes
-		 */
-		if (onlySummarizing && !indexInfo->ii_Summarizing)
-			continue;
+    /*
+     * Skip processing of non-summarizing indexes if we only update
+     * summarizing indexes
+     */
+    if (onlySummarizing && !indexInfo->ii_Summarizing)
+      continue;
 
-		/* Check for partial index */
-		if (indexInfo->ii_Predicate != NIL)
-		{
-			ExprState  *predicate;
+    /* Check for partial index */
+    if (indexInfo->ii_Predicate != NIL) {
+      ExprState  *predicate;
 
-			/*
-			 * If predicate state not set up yet, create it (in the estate's
-			 * per-query context)
-			 */
-			predicate = indexInfo->ii_PredicateState;
-			if (predicate == NULL)
-			{
-				predicate = ExecPrepareQual(indexInfo->ii_Predicate, estate);
-				indexInfo->ii_PredicateState = predicate;
-			}
+      /*
+       * If predicate state not set up yet, create it (in the estate's
+       * per-query context)
+       */
+      predicate = indexInfo->ii_PredicateState;
 
-			/* Skip this index-update if the predicate isn't satisfied */
-			if (!ExecQual(predicate, econtext))
-				continue;
-		}
+      if (predicate == NULL) {
+        predicate = ExecPrepareQual(indexInfo->ii_Predicate, estate);
+        indexInfo->ii_PredicateState = predicate;
+      }
 
-		/*
-		 * FormIndexDatum fills in its values and isnull parameters with the
-		 * appropriate values for the column(s) of the index.
-		 */
-		FormIndexDatum(indexInfo,
-					   slot,
-					   estate,
-					   values,
-					   isnull);
+      /* Skip this index-update if the predicate isn't satisfied */
+      if (!ExecQual(predicate, econtext))
+        continue;
+    }
 
-		/* Check whether to apply noDupErr to this index */
-		applyNoDupErr = noDupErr &&
-			(arbiterIndexes == NIL ||
-			 list_member_oid(arbiterIndexes,
-							 indexRelation->rd_index->indexrelid));
+    /*
+     * FormIndexDatum fills in its values and isnull parameters with the
+     * appropriate values for the column(s) of the index.
+     */
+    FormIndexDatum(indexInfo,
+                   slot,
+                   estate,
+                   values,
+                   isnull);
 
-		/*
-		 * The index AM does the actual insertion, plus uniqueness checking.
-		 *
-		 * For an immediate-mode unique index, we just tell the index AM to
-		 * throw error if not unique.
-		 *
-		 * For a deferrable unique index, we tell the index AM to just detect
-		 * possible non-uniqueness, and we add the index OID to the result
-		 * list if further checking is needed.
-		 *
-		 * For a speculative insertion (used by INSERT ... ON CONFLICT), do
-		 * the same as for a deferrable unique index.
-		 */
-		if (!indexRelation->rd_index->indisunique)
-			checkUnique = UNIQUE_CHECK_NO;
-		else if (applyNoDupErr)
-			checkUnique = UNIQUE_CHECK_PARTIAL;
-		else if (indexRelation->rd_index->indimmediate)
-			checkUnique = UNIQUE_CHECK_YES;
-		else
-			checkUnique = UNIQUE_CHECK_PARTIAL;
+    /* Check whether to apply noDupErr to this index */
+    applyNoDupErr = noDupErr &&
+                    (arbiterIndexes == NIL ||
+                     list_member_oid(arbiterIndexes,
+                                     indexRelation->rd_index->indexrelid));
 
-		/*
-		 * There's definitely going to be an index_insert() call for this
-		 * index.  If we're being called as part of an UPDATE statement,
-		 * consider if the 'indexUnchanged' = true hint should be passed.
-		 */
-		indexUnchanged = update && index_unchanged_by_update(resultRelInfo,
-															 estate,
-															 indexInfo,
-															 indexRelation);
+    /*
+     * The index AM does the actual insertion, plus uniqueness checking.
+     *
+     * For an immediate-mode unique index, we just tell the index AM to
+     * throw error if not unique.
+     *
+     * For a deferrable unique index, we tell the index AM to just detect
+     * possible non-uniqueness, and we add the index OID to the result
+     * list if further checking is needed.
+     *
+     * For a speculative insertion (used by INSERT ... ON CONFLICT), do
+     * the same as for a deferrable unique index.
+     */
+    if (!indexRelation->rd_index->indisunique)
+      checkUnique = UNIQUE_CHECK_NO;
+    else if (applyNoDupErr)
+      checkUnique = UNIQUE_CHECK_PARTIAL;
+    else if (indexRelation->rd_index->indimmediate)
+      checkUnique = UNIQUE_CHECK_YES;
+    else
+      checkUnique = UNIQUE_CHECK_PARTIAL;
 
-		satisfiesConstraint =
-			index_insert(indexRelation, /* index relation */
-						 values,	/* array of index Datums */
-						 isnull,	/* null flags */
-						 tupleid,	/* tid of heap tuple */
-						 heapRelation,	/* heap relation */
-						 checkUnique,	/* type of uniqueness check to do */
-						 indexUnchanged,	/* UPDATE without logical change? */
-						 indexInfo);	/* index AM may need this */
+    /*
+     * There's definitely going to be an index_insert() call for this
+     * index.  If we're being called as part of an UPDATE statement,
+     * consider if the 'indexUnchanged' = true hint should be passed.
+     */
+    indexUnchanged = update && index_unchanged_by_update(resultRelInfo,
+                     estate,
+                     indexInfo,
+                     indexRelation);
 
-		/*
-		 * If the index has an associated exclusion constraint, check that.
-		 * This is simpler than the process for uniqueness checks since we
-		 * always insert first and then check.  If the constraint is deferred,
-		 * we check now anyway, but don't throw error on violation or wait for
-		 * a conclusive outcome from a concurrent insertion; instead we'll
-		 * queue a recheck event.  Similarly, noDupErr callers (speculative
-		 * inserters) will recheck later, and wait for a conclusive outcome
-		 * then.
-		 *
-		 * An index for an exclusion constraint can't also be UNIQUE (not an
-		 * essential property, we just don't allow it in the grammar), so no
-		 * need to preserve the prior state of satisfiesConstraint.
-		 */
-		if (indexInfo->ii_ExclusionOps != NULL)
-		{
-			bool		violationOK;
-			CEOUC_WAIT_MODE waitMode;
+    satisfiesConstraint =
+      index_insert(indexRelation, /* index relation */
+                   values,  /* array of index Datums */
+                   isnull,  /* null flags */
+                   tupleid, /* tid of heap tuple */
+                   heapRelation,  /* heap relation */
+                   checkUnique, /* type of uniqueness check to do */
+                   indexUnchanged,  /* UPDATE without logical change? */
+                   indexInfo);  /* index AM may need this */
 
-			if (applyNoDupErr)
-			{
-				violationOK = true;
-				waitMode = CEOUC_LIVELOCK_PREVENTING_WAIT;
-			}
-			else if (!indexRelation->rd_index->indimmediate)
-			{
-				violationOK = true;
-				waitMode = CEOUC_NOWAIT;
-			}
-			else
-			{
-				violationOK = false;
-				waitMode = CEOUC_WAIT;
-			}
+    /*
+     * If the index has an associated exclusion constraint, check that.
+     * This is simpler than the process for uniqueness checks since we
+     * always insert first and then check.  If the constraint is deferred,
+     * we check now anyway, but don't throw error on violation or wait for
+     * a conclusive outcome from a concurrent insertion; instead we'll
+     * queue a recheck event.  Similarly, noDupErr callers (speculative
+     * inserters) will recheck later, and wait for a conclusive outcome
+     * then.
+     *
+     * An index for an exclusion constraint can't also be UNIQUE (not an
+     * essential property, we just don't allow it in the grammar), so no
+     * need to preserve the prior state of satisfiesConstraint.
+     */
+    if (indexInfo->ii_ExclusionOps != NULL) {
+      bool    violationOK;
+      CEOUC_WAIT_MODE waitMode;
 
-			satisfiesConstraint =
-				check_exclusion_or_unique_constraint(heapRelation,
-													 indexRelation, indexInfo,
-													 tupleid, values, isnull,
-													 estate, false,
-													 waitMode, violationOK, NULL);
-		}
+      if (applyNoDupErr) {
+        violationOK = true;
+        waitMode = CEOUC_LIVELOCK_PREVENTING_WAIT;
+      } else if (!indexRelation->rd_index->indimmediate) {
+        violationOK = true;
+        waitMode = CEOUC_NOWAIT;
+      } else {
+        violationOK = false;
+        waitMode = CEOUC_WAIT;
+      }
 
-		if ((checkUnique == UNIQUE_CHECK_PARTIAL ||
-			 indexInfo->ii_ExclusionOps != NULL) &&
-			!satisfiesConstraint)
-		{
-			/*
-			 * The tuple potentially violates the uniqueness or exclusion
-			 * constraint, so make a note of the index so that we can re-check
-			 * it later.  Speculative inserters are told if there was a
-			 * speculative conflict, since that always requires a restart.
-			 */
-			result = lappend_oid(result, RelationGetRelid(indexRelation));
-			if (indexRelation->rd_index->indimmediate && specConflict)
-				*specConflict = true;
-		}
-	}
+      satisfiesConstraint =
+        check_exclusion_or_unique_constraint(heapRelation,
+                                             indexRelation, indexInfo,
+                                             tupleid, values, isnull,
+                                             estate, false,
+                                             waitMode, violationOK, NULL);
+    }
 
-	return result;
+    if ((checkUnique == UNIQUE_CHECK_PARTIAL ||
+         indexInfo->ii_ExclusionOps != NULL) &&
+        !satisfiesConstraint) {
+      /*
+       * The tuple potentially violates the uniqueness or exclusion
+       * constraint, so make a note of the index so that we can re-check
+       * it later.  Speculative inserters are told if there was a
+       * speculative conflict, since that always requires a restart.
+       */
+      result = lappend_oid(result, RelationGetRelid(indexRelation));
+
+      if (indexRelation->rd_index->indimmediate && specConflict)
+        *specConflict = true;
+    }
+  }
+
+  return result;
 }
 
 /* ----------------------------------------------------------------
- *		ExecCheckIndexConstraints
+ *    ExecCheckIndexConstraints
  *
- *		This routine checks if a tuple violates any unique or
- *		exclusion constraints.  Returns true if there is no conflict.
- *		Otherwise returns false, and the TID of the conflicting
- *		tuple is returned in *conflictTid.
+ *    This routine checks if a tuple violates any unique or
+ *    exclusion constraints.  Returns true if there is no conflict.
+ *    Otherwise returns false, and the TID of the conflicting
+ *    tuple is returned in *conflictTid.
  *
- *		If 'arbiterIndexes' is given, only those indexes are checked.
- *		NIL means all indexes.
+ *    If 'arbiterIndexes' is given, only those indexes are checked.
+ *    NIL means all indexes.
  *
- *		Note that this doesn't lock the values in any way, so it's
- *		possible that a conflicting tuple is inserted immediately
- *		after this returns.  This can be used for either a pre-check
- *		before insertion or a re-check after finding a conflict.
+ *    Note that this doesn't lock the values in any way, so it's
+ *    possible that a conflicting tuple is inserted immediately
+ *    after this returns.  This can be used for either a pre-check
+ *    before insertion or a re-check after finding a conflict.
  *
- *		'tupleid' should be the TID of the tuple that has been recently
- *		inserted (or can be invalid if we haven't inserted a new tuple yet).
- *		This tuple will be excluded from conflict checking.
+ *    'tupleid' should be the TID of the tuple that has been recently
+ *    inserted (or can be invalid if we haven't inserted a new tuple yet).
+ *    This tuple will be excluded from conflict checking.
  * ----------------------------------------------------------------
  */
 bool
 ExecCheckIndexConstraints(ResultRelInfo *resultRelInfo, TupleTableSlot *slot,
-						  EState *estate, ItemPointer conflictTid,
-						  ItemPointer tupleid, List *arbiterIndexes)
+                          EState *estate, ItemPointer conflictTid,
+                          ItemPointer tupleid, List *arbiterIndexes)
 {
-	int			i;
-	int			numIndices;
-	RelationPtr relationDescs;
-	Relation	heapRelation;
-	IndexInfo **indexInfoArray;
-	ExprContext *econtext;
-	Datum		values[INDEX_MAX_KEYS];
-	bool		isnull[INDEX_MAX_KEYS];
-	ItemPointerData invalidItemPtr;
-	bool		checkedIndex = false;
+  int     i;
+  int     numIndices;
+  RelationPtr relationDescs;
+  Relation  heapRelation;
+  IndexInfo **indexInfoArray;
+  ExprContext *econtext;
+  Datum   values[INDEX_MAX_KEYS];
+  bool    isnull[INDEX_MAX_KEYS];
+  ItemPointerData invalidItemPtr;
+  bool    checkedIndex = false;
 
-	ItemPointerSetInvalid(conflictTid);
-	ItemPointerSetInvalid(&invalidItemPtr);
+  ItemPointerSetInvalid(conflictTid);
+  ItemPointerSetInvalid(&invalidItemPtr);
 
-	/*
-	 * Get information from the result relation info structure.
-	 */
-	numIndices = resultRelInfo->ri_NumIndices;
-	relationDescs = resultRelInfo->ri_IndexRelationDescs;
-	indexInfoArray = resultRelInfo->ri_IndexRelationInfo;
-	heapRelation = resultRelInfo->ri_RelationDesc;
+  /*
+   * Get information from the result relation info structure.
+   */
+  numIndices = resultRelInfo->ri_NumIndices;
+  relationDescs = resultRelInfo->ri_IndexRelationDescs;
+  indexInfoArray = resultRelInfo->ri_IndexRelationInfo;
+  heapRelation = resultRelInfo->ri_RelationDesc;
 
-	/*
-	 * We will use the EState's per-tuple context for evaluating predicates
-	 * and index expressions (creating it if it's not already there).
-	 */
-	econtext = GetPerTupleExprContext(estate);
+  /*
+   * We will use the EState's per-tuple context for evaluating predicates
+   * and index expressions (creating it if it's not already there).
+   */
+  econtext = GetPerTupleExprContext(estate);
 
-	/* Arrange for econtext's scan tuple to be the tuple under test */
-	econtext->ecxt_scantuple = slot;
+  /* Arrange for econtext's scan tuple to be the tuple under test */
+  econtext->ecxt_scantuple = slot;
 
-	/*
-	 * For each index, form index tuple and check if it satisfies the
-	 * constraint.
-	 */
-	for (i = 0; i < numIndices; i++)
-	{
-		Relation	indexRelation = relationDescs[i];
-		IndexInfo  *indexInfo;
-		bool		satisfiesConstraint;
+  /*
+   * For each index, form index tuple and check if it satisfies the
+   * constraint.
+   */
+  for (i = 0; i < numIndices; i++) {
+    Relation  indexRelation = relationDescs[i];
+    IndexInfo  *indexInfo;
+    bool    satisfiesConstraint;
 
-		if (indexRelation == NULL)
-			continue;
+    if (indexRelation == NULL)
+      continue;
 
-		indexInfo = indexInfoArray[i];
+    indexInfo = indexInfoArray[i];
 
-		if (!indexInfo->ii_Unique && !indexInfo->ii_ExclusionOps)
-			continue;
+    if (!indexInfo->ii_Unique && !indexInfo->ii_ExclusionOps)
+      continue;
 
-		/* If the index is marked as read-only, ignore it */
-		if (!indexInfo->ii_ReadyForInserts)
-			continue;
+    /* If the index is marked as read-only, ignore it */
+    if (!indexInfo->ii_ReadyForInserts)
+      continue;
 
-		/* When specific arbiter indexes requested, only examine them */
-		if (arbiterIndexes != NIL &&
-			!list_member_oid(arbiterIndexes,
-							 indexRelation->rd_index->indexrelid))
-			continue;
+    /* When specific arbiter indexes requested, only examine them */
+    if (arbiterIndexes != NIL &&
+        !list_member_oid(arbiterIndexes,
+                         indexRelation->rd_index->indexrelid))
+      continue;
 
-		if (!indexRelation->rd_index->indimmediate)
-			ereport(ERROR,
-					(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-					 errmsg("ON CONFLICT does not support deferrable unique constraints/exclusion constraints as arbiters"),
-					 errtableconstraint(heapRelation,
-										RelationGetRelationName(indexRelation))));
+    if (!indexRelation->rd_index->indimmediate)
+      ereport(ERROR,
+              (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+               errmsg("ON CONFLICT does not support deferrable unique constraints/exclusion constraints as arbiters"),
+               errtableconstraint(heapRelation,
+                                  RelationGetRelationName(indexRelation))));
 
-		checkedIndex = true;
+    checkedIndex = true;
 
-		/* Check for partial index */
-		if (indexInfo->ii_Predicate != NIL)
-		{
-			ExprState  *predicate;
+    /* Check for partial index */
+    if (indexInfo->ii_Predicate != NIL) {
+      ExprState  *predicate;
 
-			/*
-			 * If predicate state not set up yet, create it (in the estate's
-			 * per-query context)
-			 */
-			predicate = indexInfo->ii_PredicateState;
-			if (predicate == NULL)
-			{
-				predicate = ExecPrepareQual(indexInfo->ii_Predicate, estate);
-				indexInfo->ii_PredicateState = predicate;
-			}
+      /*
+       * If predicate state not set up yet, create it (in the estate's
+       * per-query context)
+       */
+      predicate = indexInfo->ii_PredicateState;
 
-			/* Skip this index-update if the predicate isn't satisfied */
-			if (!ExecQual(predicate, econtext))
-				continue;
-		}
+      if (predicate == NULL) {
+        predicate = ExecPrepareQual(indexInfo->ii_Predicate, estate);
+        indexInfo->ii_PredicateState = predicate;
+      }
 
-		/*
-		 * FormIndexDatum fills in its values and isnull parameters with the
-		 * appropriate values for the column(s) of the index.
-		 */
-		FormIndexDatum(indexInfo,
-					   slot,
-					   estate,
-					   values,
-					   isnull);
+      /* Skip this index-update if the predicate isn't satisfied */
+      if (!ExecQual(predicate, econtext))
+        continue;
+    }
 
-		satisfiesConstraint =
-			check_exclusion_or_unique_constraint(heapRelation, indexRelation,
-												 indexInfo, tupleid,
-												 values, isnull, estate, false,
-												 CEOUC_WAIT, true,
-												 conflictTid);
-		if (!satisfiesConstraint)
-			return false;
-	}
+    /*
+     * FormIndexDatum fills in its values and isnull parameters with the
+     * appropriate values for the column(s) of the index.
+     */
+    FormIndexDatum(indexInfo,
+                   slot,
+                   estate,
+                   values,
+                   isnull);
 
-	if (arbiterIndexes != NIL && !checkedIndex)
-		elog(ERROR, "unexpected failure to find arbiter index");
+    satisfiesConstraint =
+      check_exclusion_or_unique_constraint(heapRelation, indexRelation,
+                                           indexInfo, tupleid,
+                                           values, isnull, estate, false,
+                                           CEOUC_WAIT, true,
+                                           conflictTid);
 
-	return true;
+    if (!satisfiesConstraint)
+      return false;
+  }
+
+  if (arbiterIndexes != NIL && !checkedIndex)
+    elog(ERROR, "unexpected failure to find arbiter index");
+
+  return true;
 }
 
 /*
@@ -666,11 +656,11 @@ ExecCheckIndexConstraints(ResultRelInfo *resultRelInfo, TupleTableSlot *slot,
  * index: the index supporting the constraint
  * indexInfo: info about the index, including the exclusion properties
  * tupleid: heap TID of the new tuple we have just inserted (invalid if we
- *		haven't inserted a new tuple yet)
+ *    haven't inserted a new tuple yet)
  * values, isnull: the *index* column values computed for the new tuple
  * estate: an EState we can do evaluation in
  * newIndex: if true, we are trying to build a new index (this affects
- *		only the wording of error messages)
+ *    only the wording of error messages)
  * waitMode: whether to wait for concurrent inserters/deleters
  * violationOK: if true, don't throw error for violation
  * conflictTid: if not-NULL, the TID of the conflicting tuple is returned here
@@ -703,255 +693,249 @@ ExecCheckIndexConstraints(ResultRelInfo *resultRelInfo, TupleTableSlot *slot,
  */
 static bool
 check_exclusion_or_unique_constraint(Relation heap, Relation index,
-									 IndexInfo *indexInfo,
-									 ItemPointer tupleid,
-									 const Datum *values, const bool *isnull,
-									 EState *estate, bool newIndex,
-									 CEOUC_WAIT_MODE waitMode,
-									 bool violationOK,
-									 ItemPointer conflictTid)
+                                     IndexInfo *indexInfo,
+                                     ItemPointer tupleid,
+                                     const Datum *values, const bool *isnull,
+                                     EState *estate, bool newIndex,
+                                     CEOUC_WAIT_MODE waitMode,
+                                     bool violationOK,
+                                     ItemPointer conflictTid)
 {
-	Oid		   *constr_procs;
-	uint16	   *constr_strats;
-	Oid		   *index_collations = index->rd_indcollation;
-	int			indnkeyatts = IndexRelationGetNumberOfKeyAttributes(index);
-	IndexScanDesc index_scan;
-	ScanKeyData scankeys[INDEX_MAX_KEYS];
-	SnapshotData DirtySnapshot;
-	int			i;
-	bool		conflict;
-	bool		found_self;
-	ExprContext *econtext;
-	TupleTableSlot *existing_slot;
-	TupleTableSlot *save_scantuple;
+  Oid      *constr_procs;
+  uint16     *constr_strats;
+  Oid      *index_collations = index->rd_indcollation;
+  int     indnkeyatts = IndexRelationGetNumberOfKeyAttributes(index);
+  IndexScanDesc index_scan;
+  ScanKeyData scankeys[INDEX_MAX_KEYS];
+  SnapshotData DirtySnapshot;
+  int     i;
+  bool    conflict;
+  bool    found_self;
+  ExprContext *econtext;
+  TupleTableSlot *existing_slot;
+  TupleTableSlot *save_scantuple;
 
-	if (indexInfo->ii_ExclusionOps)
-	{
-		constr_procs = indexInfo->ii_ExclusionProcs;
-		constr_strats = indexInfo->ii_ExclusionStrats;
-	}
-	else
-	{
-		constr_procs = indexInfo->ii_UniqueProcs;
-		constr_strats = indexInfo->ii_UniqueStrats;
-	}
+  if (indexInfo->ii_ExclusionOps) {
+    constr_procs = indexInfo->ii_ExclusionProcs;
+    constr_strats = indexInfo->ii_ExclusionStrats;
+  } else {
+    constr_procs = indexInfo->ii_UniqueProcs;
+    constr_strats = indexInfo->ii_UniqueStrats;
+  }
 
-	/*
-	 * If this is a WITHOUT OVERLAPS constraint, we must also forbid empty
-	 * ranges/multiranges. This must happen before we look for NULLs below, or
-	 * a UNIQUE constraint could insert an empty range along with a NULL
-	 * scalar part.
-	 */
-	if (indexInfo->ii_WithoutOverlaps)
-	{
-		/*
-		 * Look up the type from the heap tuple, but check the Datum from the
-		 * index tuple.
-		 */
-		AttrNumber	attno = indexInfo->ii_IndexAttrNumbers[indnkeyatts - 1];
+  /*
+   * If this is a WITHOUT OVERLAPS constraint, we must also forbid empty
+   * ranges/multiranges. This must happen before we look for NULLs below, or
+   * a UNIQUE constraint could insert an empty range along with a NULL
+   * scalar part.
+   */
+  if (indexInfo->ii_WithoutOverlaps) {
+    /*
+     * Look up the type from the heap tuple, but check the Datum from the
+     * index tuple.
+     */
+    AttrNumber  attno = indexInfo->ii_IndexAttrNumbers[indnkeyatts - 1];
 
-		if (!isnull[indnkeyatts - 1])
-		{
-			TupleDesc	tupdesc = RelationGetDescr(heap);
-			Form_pg_attribute att = TupleDescAttr(tupdesc, attno - 1);
-			TypeCacheEntry *typcache = lookup_type_cache(att->atttypid,
-														 TYPECACHE_DOMAIN_BASE_INFO);
-			char		typtype;
+    if (!isnull[indnkeyatts - 1]) {
+      TupleDesc tupdesc = RelationGetDescr(heap);
+      Form_pg_attribute att = TupleDescAttr(tupdesc, attno - 1);
+      TypeCacheEntry *typcache = lookup_type_cache(att->atttypid,
+                                 TYPECACHE_DOMAIN_BASE_INFO);
+      char    typtype;
 
-			if (OidIsValid(typcache->domainBaseType))
-				typtype = get_typtype(typcache->domainBaseType);
-			else
-				typtype = typcache->typtype;
+      if (OidIsValid(typcache->domainBaseType))
+        typtype = get_typtype(typcache->domainBaseType);
+      else
+        typtype = typcache->typtype;
 
-			ExecWithoutOverlapsNotEmpty(heap, att->attname,
-										values[indnkeyatts - 1],
-										typtype, att->atttypid);
-		}
-	}
+      ExecWithoutOverlapsNotEmpty(heap, att->attname,
+                                  values[indnkeyatts - 1],
+                                  typtype, att->atttypid);
+    }
+  }
 
-	/*
-	 * If any of the input values are NULL, and the index uses the default
-	 * nulls-are-distinct mode, the constraint check is assumed to pass (i.e.,
-	 * we assume the operators are strict).  Otherwise, we interpret the
-	 * constraint as specifying IS NULL for each column whose input value is
-	 * NULL.
-	 */
-	if (!indexInfo->ii_NullsNotDistinct)
-	{
-		for (i = 0; i < indnkeyatts; i++)
-		{
-			if (isnull[i])
-				return true;
-		}
-	}
+  /*
+   * If any of the input values are NULL, and the index uses the default
+   * nulls-are-distinct mode, the constraint check is assumed to pass (i.e.,
+   * we assume the operators are strict).  Otherwise, we interpret the
+   * constraint as specifying IS NULL for each column whose input value is
+   * NULL.
+   */
+  if (!indexInfo->ii_NullsNotDistinct) {
+    for (i = 0; i < indnkeyatts; i++) {
+      if (isnull[i])
+        return true;
+    }
+  }
 
-	/*
-	 * Search the tuples that are in the index for any violations, including
-	 * tuples that aren't visible yet.
-	 */
-	InitDirtySnapshot(DirtySnapshot);
+  /*
+   * Search the tuples that are in the index for any violations, including
+   * tuples that aren't visible yet.
+   */
+  InitDirtySnapshot(DirtySnapshot);
 
-	for (i = 0; i < indnkeyatts; i++)
-	{
-		ScanKeyEntryInitialize(&scankeys[i],
-							   isnull[i] ? SK_ISNULL | SK_SEARCHNULL : 0,
-							   i + 1,
-							   constr_strats[i],
-							   InvalidOid,
-							   index_collations[i],
-							   constr_procs[i],
-							   values[i]);
-	}
+  for (i = 0; i < indnkeyatts; i++) {
+    ScanKeyEntryInitialize(&scankeys[i],
+                           isnull[i] ? SK_ISNULL | SK_SEARCHNULL : 0,
+                           i + 1,
+                           constr_strats[i],
+                           InvalidOid,
+                           index_collations[i],
+                           constr_procs[i],
+                           values[i]);
+  }
 
-	/*
-	 * Need a TupleTableSlot to put existing tuples in.
-	 *
-	 * To use FormIndexDatum, we have to make the econtext's scantuple point
-	 * to this slot.  Be sure to save and restore caller's value for
-	 * scantuple.
-	 */
-	existing_slot = table_slot_create(heap, NULL);
+  /*
+   * Need a TupleTableSlot to put existing tuples in.
+   *
+   * To use FormIndexDatum, we have to make the econtext's scantuple point
+   * to this slot.  Be sure to save and restore caller's value for
+   * scantuple.
+   */
+  existing_slot = table_slot_create(heap, NULL);
 
-	econtext = GetPerTupleExprContext(estate);
-	save_scantuple = econtext->ecxt_scantuple;
-	econtext->ecxt_scantuple = existing_slot;
+  econtext = GetPerTupleExprContext(estate);
+  save_scantuple = econtext->ecxt_scantuple;
+  econtext->ecxt_scantuple = existing_slot;
 
-	/*
-	 * May have to restart scan from this point if a potential conflict is
-	 * found.
-	 */
+  /*
+   * May have to restart scan from this point if a potential conflict is
+   * found.
+   */
 retry:
-	conflict = false;
-	found_self = false;
-	index_scan = index_beginscan(heap, index, &DirtySnapshot, NULL, indnkeyatts, 0);
-	index_rescan(index_scan, scankeys, indnkeyatts, NULL, 0);
+  conflict = false;
+  found_self = false;
+  index_scan = index_beginscan(heap, index, &DirtySnapshot, NULL, indnkeyatts, 0);
+  index_rescan(index_scan, scankeys, indnkeyatts, NULL, 0);
 
-	while (index_getnext_slot(index_scan, ForwardScanDirection, existing_slot))
-	{
-		TransactionId xwait;
-		XLTW_Oper	reason_wait;
-		Datum		existing_values[INDEX_MAX_KEYS];
-		bool		existing_isnull[INDEX_MAX_KEYS];
-		char	   *error_new;
-		char	   *error_existing;
+  while (index_getnext_slot(index_scan, ForwardScanDirection, existing_slot)) {
+    TransactionId xwait;
+    XLTW_Oper reason_wait;
+    Datum   existing_values[INDEX_MAX_KEYS];
+    bool    existing_isnull[INDEX_MAX_KEYS];
+    char     *error_new;
+    char     *error_existing;
 
-		/*
-		 * Ignore the entry for the tuple we're trying to check.
-		 */
-		if (ItemPointerIsValid(tupleid) &&
-			ItemPointerEquals(tupleid, &existing_slot->tts_tid))
-		{
-			if (found_self)		/* should not happen */
-				elog(ERROR, "found self tuple multiple times in index \"%s\"",
-					 RelationGetRelationName(index));
-			found_self = true;
-			continue;
-		}
+    /*
+     * Ignore the entry for the tuple we're trying to check.
+     */
+    if (ItemPointerIsValid(tupleid) &&
+        ItemPointerEquals(tupleid, &existing_slot->tts_tid)) {
+      if (found_self)   /* should not happen */
+        elog(ERROR, "found self tuple multiple times in index \"%s\"",
+             RelationGetRelationName(index));
 
-		/*
-		 * Extract the index column values and isnull flags from the existing
-		 * tuple.
-		 */
-		FormIndexDatum(indexInfo, existing_slot, estate,
-					   existing_values, existing_isnull);
+      found_self = true;
+      continue;
+    }
 
-		/* If lossy indexscan, must recheck the condition */
-		if (index_scan->xs_recheck)
-		{
-			if (!index_recheck_constraint(index,
-										  constr_procs,
-										  existing_values,
-										  existing_isnull,
-										  values))
-				continue;		/* tuple doesn't actually match, so no
-								 * conflict */
-		}
+    /*
+     * Extract the index column values and isnull flags from the existing
+     * tuple.
+     */
+    FormIndexDatum(indexInfo, existing_slot, estate,
+                   existing_values, existing_isnull);
 
-		/*
-		 * At this point we have either a conflict or a potential conflict.
-		 *
-		 * If an in-progress transaction is affecting the visibility of this
-		 * tuple, we need to wait for it to complete and then recheck (unless
-		 * the caller requested not to).  For simplicity we do rechecking by
-		 * just restarting the whole scan --- this case probably doesn't
-		 * happen often enough to be worth trying harder, and anyway we don't
-		 * want to hold any index internal locks while waiting.
-		 */
-		xwait = TransactionIdIsValid(DirtySnapshot.xmin) ?
-			DirtySnapshot.xmin : DirtySnapshot.xmax;
+    /* If lossy indexscan, must recheck the condition */
+    if (index_scan->xs_recheck) {
+      if (!index_recheck_constraint(index,
+                                    constr_procs,
+                                    existing_values,
+                                    existing_isnull,
+                                    values))
+        continue;   /* tuple doesn't actually match, so no
 
-		if (TransactionIdIsValid(xwait) &&
-			(waitMode == CEOUC_WAIT ||
-			 (waitMode == CEOUC_LIVELOCK_PREVENTING_WAIT &&
-			  DirtySnapshot.speculativeToken &&
-			  TransactionIdPrecedes(GetCurrentTransactionId(), xwait))))
-		{
-			reason_wait = indexInfo->ii_ExclusionOps ?
-				XLTW_RecheckExclusionConstr : XLTW_InsertIndex;
-			index_endscan(index_scan);
-			if (DirtySnapshot.speculativeToken)
-				SpeculativeInsertionWait(DirtySnapshot.xmin,
-										 DirtySnapshot.speculativeToken);
-			else
-				XactLockTableWait(xwait, heap,
-								  &existing_slot->tts_tid, reason_wait);
-			goto retry;
-		}
+                 * conflict */
+    }
 
-		/*
-		 * We have a definite conflict (or a potential one, but the caller
-		 * didn't want to wait).  Return it to caller, or report it.
-		 */
-		if (violationOK)
-		{
-			conflict = true;
-			if (conflictTid)
-				*conflictTid = existing_slot->tts_tid;
-			break;
-		}
+    /*
+     * At this point we have either a conflict or a potential conflict.
+     *
+     * If an in-progress transaction is affecting the visibility of this
+     * tuple, we need to wait for it to complete and then recheck (unless
+     * the caller requested not to).  For simplicity we do rechecking by
+     * just restarting the whole scan --- this case probably doesn't
+     * happen often enough to be worth trying harder, and anyway we don't
+     * want to hold any index internal locks while waiting.
+     */
+    xwait = TransactionIdIsValid(DirtySnapshot.xmin) ?
+            DirtySnapshot.xmin : DirtySnapshot.xmax;
 
-		error_new = BuildIndexValueDescription(index, values, isnull);
-		error_existing = BuildIndexValueDescription(index, existing_values,
-													existing_isnull);
-		if (newIndex)
-			ereport(ERROR,
-					(errcode(ERRCODE_EXCLUSION_VIOLATION),
-					 errmsg("could not create exclusion constraint \"%s\"",
-							RelationGetRelationName(index)),
-					 error_new && error_existing ?
-					 errdetail("Key %s conflicts with key %s.",
-							   error_new, error_existing) :
-					 errdetail("Key conflicts exist."),
-					 errtableconstraint(heap,
-										RelationGetRelationName(index))));
-		else
-			ereport(ERROR,
-					(errcode(ERRCODE_EXCLUSION_VIOLATION),
-					 errmsg("conflicting key value violates exclusion constraint \"%s\"",
-							RelationGetRelationName(index)),
-					 error_new && error_existing ?
-					 errdetail("Key %s conflicts with existing key %s.",
-							   error_new, error_existing) :
-					 errdetail("Key conflicts with existing key."),
-					 errtableconstraint(heap,
-										RelationGetRelationName(index))));
-	}
+    if (TransactionIdIsValid(xwait) &&
+        (waitMode == CEOUC_WAIT ||
+         (waitMode == CEOUC_LIVELOCK_PREVENTING_WAIT &&
+          DirtySnapshot.speculativeToken &&
+          TransactionIdPrecedes(GetCurrentTransactionId(), xwait)))) {
+      reason_wait = indexInfo->ii_ExclusionOps ?
+                    XLTW_RecheckExclusionConstr : XLTW_InsertIndex;
+      index_endscan(index_scan);
 
-	index_endscan(index_scan);
+      if (DirtySnapshot.speculativeToken)
+        SpeculativeInsertionWait(DirtySnapshot.xmin,
+                                 DirtySnapshot.speculativeToken);
+      else
+        XactLockTableWait(xwait, heap,
+                          &existing_slot->tts_tid, reason_wait);
 
-	/*
-	 * Ordinarily, at this point the search should have found the originally
-	 * inserted tuple (if any), unless we exited the loop early because of
-	 * conflict.  However, it is possible to define exclusion constraints for
-	 * which that wouldn't be true --- for instance, if the operator is <>. So
-	 * we no longer complain if found_self is still false.
-	 */
+      goto retry;
+    }
 
-	econtext->ecxt_scantuple = save_scantuple;
+    /*
+     * We have a definite conflict (or a potential one, but the caller
+     * didn't want to wait).  Return it to caller, or report it.
+     */
+    if (violationOK) {
+      conflict = true;
 
-	ExecDropSingleTupleTableSlot(existing_slot);
+      if (conflictTid)
+        *conflictTid = existing_slot->tts_tid;
 
-	return !conflict;
+      break;
+    }
+
+    error_new = BuildIndexValueDescription(index, values, isnull);
+    error_existing = BuildIndexValueDescription(index, existing_values,
+                     existing_isnull);
+
+    if (newIndex)
+      ereport(ERROR,
+              (errcode(ERRCODE_EXCLUSION_VIOLATION),
+               errmsg("could not create exclusion constraint \"%s\"",
+                      RelationGetRelationName(index)),
+               error_new && error_existing ?
+               errdetail("Key %s conflicts with key %s.",
+                         error_new, error_existing) :
+               errdetail("Key conflicts exist."),
+               errtableconstraint(heap,
+                                  RelationGetRelationName(index))));
+    else
+      ereport(ERROR,
+              (errcode(ERRCODE_EXCLUSION_VIOLATION),
+               errmsg("conflicting key value violates exclusion constraint \"%s\"",
+                      RelationGetRelationName(index)),
+               error_new && error_existing ?
+               errdetail("Key %s conflicts with existing key %s.",
+                         error_new, error_existing) :
+               errdetail("Key conflicts with existing key."),
+               errtableconstraint(heap,
+                                  RelationGetRelationName(index))));
+  }
+
+  index_endscan(index_scan);
+
+  /*
+   * Ordinarily, at this point the search should have found the originally
+   * inserted tuple (if any), unless we exited the loop early because of
+   * conflict.  However, it is possible to define exclusion constraints for
+   * which that wouldn't be true --- for instance, if the operator is <>. So
+   * we no longer complain if found_self is still false.
+   */
+
+  econtext->ecxt_scantuple = save_scantuple;
+
+  ExecDropSingleTupleTableSlot(existing_slot);
+
+  return !conflict;
 }
 
 /*
@@ -962,15 +946,15 @@ retry:
  */
 void
 check_exclusion_constraint(Relation heap, Relation index,
-						   IndexInfo *indexInfo,
-						   ItemPointer tupleid,
-						   const Datum *values, const bool *isnull,
-						   EState *estate, bool newIndex)
+                           IndexInfo *indexInfo,
+                           ItemPointer tupleid,
+                           const Datum *values, const bool *isnull,
+                           EState *estate, bool newIndex)
 {
-	(void) check_exclusion_or_unique_constraint(heap, index, indexInfo, tupleid,
-												values, isnull,
-												estate, newIndex,
-												CEOUC_WAIT, false, NULL);
+  (void) check_exclusion_or_unique_constraint(heap, index, indexInfo, tupleid,
+      values, isnull,
+      estate, newIndex,
+      CEOUC_WAIT, false, NULL);
 }
 
 /*
@@ -979,26 +963,25 @@ check_exclusion_constraint(Relation heap, Relation index,
  */
 static bool
 index_recheck_constraint(Relation index, const Oid *constr_procs,
-						 const Datum *existing_values, const bool *existing_isnull,
-						 const Datum *new_values)
+                         const Datum *existing_values, const bool *existing_isnull,
+                         const Datum *new_values)
 {
-	int			indnkeyatts = IndexRelationGetNumberOfKeyAttributes(index);
-	int			i;
+  int     indnkeyatts = IndexRelationGetNumberOfKeyAttributes(index);
+  int     i;
 
-	for (i = 0; i < indnkeyatts; i++)
-	{
-		/* Assume the exclusion operators are strict */
-		if (existing_isnull[i])
-			return false;
+  for (i = 0; i < indnkeyatts; i++) {
+    /* Assume the exclusion operators are strict */
+    if (existing_isnull[i])
+      return false;
 
-		if (!DatumGetBool(OidFunctionCall2Coll(constr_procs[i],
-											   index->rd_indcollation[i],
-											   existing_values[i],
-											   new_values[i])))
-			return false;
-	}
+    if (!DatumGetBool(OidFunctionCall2Coll(constr_procs[i],
+                                           index->rd_indcollation[i],
+                                           existing_values[i],
+                                           new_values[i])))
+      return false;
+  }
 
-	return true;
+  return true;
 }
 
 /*
@@ -1010,111 +993,109 @@ index_recheck_constraint(Relation index, const Oid *constr_procs,
  */
 static bool
 index_unchanged_by_update(ResultRelInfo *resultRelInfo, EState *estate,
-						  IndexInfo *indexInfo, Relation indexRelation)
+                          IndexInfo *indexInfo, Relation indexRelation)
 {
-	Bitmapset  *updatedCols;
-	Bitmapset  *extraUpdatedCols;
-	Bitmapset  *allUpdatedCols;
-	bool		hasexpression = false;
-	List	   *idxExprs;
+  Bitmapset  *updatedCols;
+  Bitmapset  *extraUpdatedCols;
+  Bitmapset  *allUpdatedCols;
+  bool    hasexpression = false;
+  List     *idxExprs;
 
-	/*
-	 * Check cache first
-	 */
-	if (indexInfo->ii_CheckedUnchanged)
-		return indexInfo->ii_IndexUnchanged;
-	indexInfo->ii_CheckedUnchanged = true;
+  /*
+   * Check cache first
+   */
+  if (indexInfo->ii_CheckedUnchanged)
+    return indexInfo->ii_IndexUnchanged;
 
-	/*
-	 * Check for indexed attribute overlap with updated columns.
-	 *
-	 * Only do this for key columns.  A change to a non-key column within an
-	 * INCLUDE index should not be counted here.  Non-key column values are
-	 * opaque payload state to the index AM, a little like an extra table TID.
-	 *
-	 * Note that row-level BEFORE triggers won't affect our behavior, since
-	 * they don't affect the updatedCols bitmaps generally.  It doesn't seem
-	 * worth the trouble of checking which attributes were changed directly.
-	 */
-	updatedCols = ExecGetUpdatedCols(resultRelInfo, estate);
-	extraUpdatedCols = ExecGetExtraUpdatedCols(resultRelInfo, estate);
-	for (int attr = 0; attr < indexInfo->ii_NumIndexKeyAttrs; attr++)
-	{
-		int			keycol = indexInfo->ii_IndexAttrNumbers[attr];
+  indexInfo->ii_CheckedUnchanged = true;
 
-		if (keycol <= 0)
-		{
-			/*
-			 * Skip expressions for now, but remember to deal with them later
-			 * on
-			 */
-			hasexpression = true;
-			continue;
-		}
+  /*
+   * Check for indexed attribute overlap with updated columns.
+   *
+   * Only do this for key columns.  A change to a non-key column within an
+   * INCLUDE index should not be counted here.  Non-key column values are
+   * opaque payload state to the index AM, a little like an extra table TID.
+   *
+   * Note that row-level BEFORE triggers won't affect our behavior, since
+   * they don't affect the updatedCols bitmaps generally.  It doesn't seem
+   * worth the trouble of checking which attributes were changed directly.
+   */
+  updatedCols = ExecGetUpdatedCols(resultRelInfo, estate);
+  extraUpdatedCols = ExecGetExtraUpdatedCols(resultRelInfo, estate);
 
-		if (bms_is_member(keycol - FirstLowInvalidHeapAttributeNumber,
-						  updatedCols) ||
-			bms_is_member(keycol - FirstLowInvalidHeapAttributeNumber,
-						  extraUpdatedCols))
-		{
-			/* Changed key column -- don't hint for this index */
-			indexInfo->ii_IndexUnchanged = false;
-			return false;
-		}
-	}
+  for (int attr = 0; attr < indexInfo->ii_NumIndexKeyAttrs; attr++) {
+    int     keycol = indexInfo->ii_IndexAttrNumbers[attr];
 
-	/*
-	 * When we get this far and index has no expressions, return true so that
-	 * index_insert() call will go on to pass 'indexUnchanged' = true hint.
-	 *
-	 * The _absence_ of an indexed key attribute that overlaps with updated
-	 * attributes (in addition to the total absence of indexed expressions)
-	 * shows that the index as a whole is logically unchanged by UPDATE.
-	 */
-	if (!hasexpression)
-	{
-		indexInfo->ii_IndexUnchanged = true;
-		return true;
-	}
+    if (keycol <= 0) {
+      /*
+       * Skip expressions for now, but remember to deal with them later
+       * on
+       */
+      hasexpression = true;
+      continue;
+    }
 
-	/*
-	 * Need to pass only one bms to expression_tree_walker helper function.
-	 * Avoid allocating memory in common case where there are no extra cols.
-	 */
-	if (!extraUpdatedCols)
-		allUpdatedCols = updatedCols;
-	else
-		allUpdatedCols = bms_union(updatedCols, extraUpdatedCols);
+    if (bms_is_member(keycol - FirstLowInvalidHeapAttributeNumber,
+                      updatedCols) ||
+        bms_is_member(keycol - FirstLowInvalidHeapAttributeNumber,
+                      extraUpdatedCols)) {
+      /* Changed key column -- don't hint for this index */
+      indexInfo->ii_IndexUnchanged = false;
+      return false;
+    }
+  }
 
-	/*
-	 * We have to work slightly harder in the event of indexed expressions,
-	 * but the principle is the same as before: try to find columns (Vars,
-	 * actually) that overlap with known-updated columns.
-	 *
-	 * If we find any matching Vars, don't pass hint for index.  Otherwise
-	 * pass hint.
-	 */
-	idxExprs = RelationGetIndexExpressions(indexRelation);
-	hasexpression = index_expression_changed_walker((Node *) idxExprs,
-													allUpdatedCols);
-	list_free(idxExprs);
-	if (extraUpdatedCols)
-		bms_free(allUpdatedCols);
+  /*
+   * When we get this far and index has no expressions, return true so that
+   * index_insert() call will go on to pass 'indexUnchanged' = true hint.
+   *
+   * The _absence_ of an indexed key attribute that overlaps with updated
+   * attributes (in addition to the total absence of indexed expressions)
+   * shows that the index as a whole is logically unchanged by UPDATE.
+   */
+  if (!hasexpression) {
+    indexInfo->ii_IndexUnchanged = true;
+    return true;
+  }
 
-	if (hasexpression)
-	{
-		indexInfo->ii_IndexUnchanged = false;
-		return false;
-	}
+  /*
+   * Need to pass only one bms to expression_tree_walker helper function.
+   * Avoid allocating memory in common case where there are no extra cols.
+   */
+  if (!extraUpdatedCols)
+    allUpdatedCols = updatedCols;
+  else
+    allUpdatedCols = bms_union(updatedCols, extraUpdatedCols);
 
-	/*
-	 * Deliberately don't consider index predicates.  We should even give the
-	 * hint when result rel's "updated tuple" has no corresponding index
-	 * tuple, which is possible with a partial index (provided the usual
-	 * conditions are met).
-	 */
-	indexInfo->ii_IndexUnchanged = true;
-	return true;
+  /*
+   * We have to work slightly harder in the event of indexed expressions,
+   * but the principle is the same as before: try to find columns (Vars,
+   * actually) that overlap with known-updated columns.
+   *
+   * If we find any matching Vars, don't pass hint for index.  Otherwise
+   * pass hint.
+   */
+  idxExprs = RelationGetIndexExpressions(indexRelation);
+  hasexpression = index_expression_changed_walker((Node *) idxExprs,
+                  allUpdatedCols);
+  list_free(idxExprs);
+
+  if (extraUpdatedCols)
+    bms_free(allUpdatedCols);
+
+  if (hasexpression) {
+    indexInfo->ii_IndexUnchanged = false;
+    return false;
+  }
+
+  /*
+   * Deliberately don't consider index predicates.  We should even give the
+   * hint when result rel's "updated tuple" has no corresponding index
+   * tuple, which is possible with a partial index (provided the usual
+   * conditions are met).
+   */
+  indexInfo->ii_IndexUnchanged = true;
+  return true;
 }
 
 /*
@@ -1125,26 +1106,24 @@ index_unchanged_by_update(ResultRelInfo *resultRelInfo, EState *estate,
 static bool
 index_expression_changed_walker(Node *node, Bitmapset *allUpdatedCols)
 {
-	if (node == NULL)
-		return false;
+  if (node == NULL)
+    return false;
 
-	if (IsA(node, Var))
-	{
-		Var		   *var = (Var *) node;
+  if (IsA(node, Var)) {
+    Var      *var = (Var *) node;
 
-		if (bms_is_member(var->varattno - FirstLowInvalidHeapAttributeNumber,
-						  allUpdatedCols))
-		{
-			/* Var was updated -- indicates that we should not hint */
-			return true;
-		}
+    if (bms_is_member(var->varattno - FirstLowInvalidHeapAttributeNumber,
+                      allUpdatedCols)) {
+      /* Var was updated -- indicates that we should not hint */
+      return true;
+    }
 
-		/* Still haven't found a reason to not pass the hint */
-		return false;
-	}
+    /* Still haven't found a reason to not pass the hint */
+    return false;
+  }
 
-	return expression_tree_walker(node, index_expression_changed_walker,
-								  allUpdatedCols);
+  return expression_tree_walker(node, index_expression_changed_walker,
+                                allUpdatedCols);
 }
 
 /*
@@ -1154,29 +1133,30 @@ index_expression_changed_walker(Node *node, Bitmapset *allUpdatedCols)
 static void
 ExecWithoutOverlapsNotEmpty(Relation rel, NameData attname, Datum attval, char typtype, Oid atttypid)
 {
-	bool		isempty;
-	RangeType  *r;
-	MultirangeType *mr;
+  bool    isempty;
+  RangeType  *r;
+  MultirangeType *mr;
 
-	switch (typtype)
-	{
-		case TYPTYPE_RANGE:
-			r = DatumGetRangeTypeP(attval);
-			isempty = RangeIsEmpty(r);
-			break;
-		case TYPTYPE_MULTIRANGE:
-			mr = DatumGetMultirangeTypeP(attval);
-			isempty = MultirangeIsEmpty(mr);
-			break;
-		default:
-			elog(ERROR, "WITHOUT OVERLAPS column \"%s\" is not a range or multirange",
-				 NameStr(attname));
-	}
+  switch (typtype) {
+    case TYPTYPE_RANGE:
+      r = DatumGetRangeTypeP(attval);
+      isempty = RangeIsEmpty(r);
+      break;
 
-	/* Report a CHECK_VIOLATION */
-	if (isempty)
-		ereport(ERROR,
-				(errcode(ERRCODE_CHECK_VIOLATION),
-				 errmsg("empty WITHOUT OVERLAPS value found in column \"%s\" in relation \"%s\"",
-						NameStr(attname), RelationGetRelationName(rel))));
+    case TYPTYPE_MULTIRANGE:
+      mr = DatumGetMultirangeTypeP(attval);
+      isempty = MultirangeIsEmpty(mr);
+      break;
+
+    default:
+      elog(ERROR, "WITHOUT OVERLAPS column \"%s\" is not a range or multirange",
+           NameStr(attname));
+  }
+
+  /* Report a CHECK_VIOLATION */
+  if (isempty)
+    ereport(ERROR,
+            (errcode(ERRCODE_CHECK_VIOLATION),
+             errmsg("empty WITHOUT OVERLAPS value found in column \"%s\" in relation \"%s\"",
+                    NameStr(attname), RelationGetRelationName(rel))));
 }

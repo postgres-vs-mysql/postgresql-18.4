@@ -12,7 +12,7 @@
 #ifndef XLOG_DEFS_H
 #define XLOG_DEFS_H
 
-#include <fcntl.h>				/* need open() flags */
+#include <fcntl.h>        /* need open() flags */
 
 /*
  * Pointer to a location in the XLOG.  These pointers are 64 bits wide,
@@ -25,16 +25,16 @@ typedef uint64 XLogRecPtr;
  * WAL segment, initializing the first WAL page at WAL segment size, so no XLOG
  * record can begin at zero.
  */
-#define InvalidXLogRecPtr		0
-#define XLogRecPtrIsValid(r)	((r) != InvalidXLogRecPtr)
-#define XLogRecPtrIsInvalid(r)	((r) == InvalidXLogRecPtr)
+#define InvalidXLogRecPtr   0
+#define XLogRecPtrIsValid(r)  ((r) != InvalidXLogRecPtr)
+#define XLogRecPtrIsInvalid(r)  ((r) == InvalidXLogRecPtr)
 
 /*
  * First LSN to use for "fake" LSNs.
  *
  * Values smaller than this can be used for special per-AM purposes.
  */
-#define FirstNormalUnloggedLSN	((XLogRecPtr) 1000)
+#define FirstNormalUnloggedLSN  ((XLogRecPtr) 1000)
 
 /*
  * Handy macro for printing XLogRecPtr in conventional format, e.g.,
@@ -73,11 +73,11 @@ typedef uint16 RepOriginId;
  * Note that we define our own O_DSYNC on Windows, but not O_SYNC.
  */
 #if defined(PLATFORM_DEFAULT_WAL_SYNC_METHOD)
-#define DEFAULT_WAL_SYNC_METHOD		PLATFORM_DEFAULT_WAL_SYNC_METHOD
+#define DEFAULT_WAL_SYNC_METHOD   PLATFORM_DEFAULT_WAL_SYNC_METHOD
 #elif defined(O_DSYNC) && (!defined(O_SYNC) || O_DSYNC != O_SYNC)
-#define DEFAULT_WAL_SYNC_METHOD		WAL_SYNC_METHOD_OPEN_DSYNC
+#define DEFAULT_WAL_SYNC_METHOD   WAL_SYNC_METHOD_OPEN_DSYNC
 #else
-#define DEFAULT_WAL_SYNC_METHOD		WAL_SYNC_METHOD_FDATASYNC
+#define DEFAULT_WAL_SYNC_METHOD   WAL_SYNC_METHOD_FDATASYNC
 #endif
 
-#endif							/* XLOG_DEFS_H */
+#endif              /* XLOG_DEFS_H */

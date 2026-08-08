@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * session.h
- *	  Encapsulation of user session.
+ *    Encapsulation of user session.
  *
  * Copyright (c) 2017-2025, PostgreSQL Global Development Group
  *
@@ -24,13 +24,13 @@ struct SharedRecordTypmodRegistry;
  */
 typedef struct Session
 {
-	dsm_segment *segment;		/* The session-scoped DSM segment. */
-	dsa_area   *area;			/* The session-scoped DSA area. */
+  dsm_segment *segment;   /* The session-scoped DSM segment. */
+  dsa_area   *area;     /* The session-scoped DSA area. */
 
-	/* State managed by typcache.c. */
-	struct SharedRecordTypmodRegistry *shared_typmod_registry;
-	dshash_table *shared_record_table;
-	dshash_table *shared_typmod_table;
+  /* State managed by typcache.c. */
+  struct SharedRecordTypmodRegistry *shared_typmod_registry;
+  dshash_table *shared_record_table;
+  dshash_table *shared_typmod_table;
 } Session;
 
 extern void InitializeSession(void);
@@ -41,4 +41,4 @@ extern void DetachSession(void);
 /* The current session, or NULL for none. */
 extern PGDLLIMPORT Session *CurrentSession;
 
-#endif							/* SESSION_H */
+#endif              /* SESSION_H */

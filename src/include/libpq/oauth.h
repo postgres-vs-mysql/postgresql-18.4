@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * oauth.h
- *	  Interface to libpq/auth-oauth.c
+ *    Interface to libpq/auth-oauth.c
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -20,35 +20,35 @@ extern PGDLLIMPORT char *oauth_validator_libraries_string;
 
 typedef struct ValidatorModuleState
 {
-	/* Holds the server's PG_VERSION_NUM. Reserved for future extensibility. */
-	int			sversion;
+  /* Holds the server's PG_VERSION_NUM. Reserved for future extensibility. */
+  int     sversion;
 
-	/*
-	 * Private data pointer for use by a validator module. This can be used to
-	 * store state for the module that will be passed to each of its
-	 * callbacks.
-	 */
-	void	   *private_data;
+  /*
+   * Private data pointer for use by a validator module. This can be used to
+   * store state for the module that will be passed to each of its
+   * callbacks.
+   */
+  void     *private_data;
 } ValidatorModuleState;
 
 typedef struct ValidatorModuleResult
 {
-	/*
-	 * Should be set to true if the token carries sufficient permissions for
-	 * the bearer to connect.
-	 */
-	bool		authorized;
+  /*
+   * Should be set to true if the token carries sufficient permissions for
+   * the bearer to connect.
+   */
+  bool    authorized;
 
-	/*
-	 * If the token authenticates the user, this should be set to a palloc'd
-	 * string containing the SYSTEM_USER to use for HBA mapping. Consider
-	 * setting this even if result->authorized is false so that DBAs may use
-	 * the logs to match end users to token failures.
-	 *
-	 * This is required if the module is not configured for ident mapping
-	 * delegation. See the validator module documentation for details.
-	 */
-	char	   *authn_id;
+  /*
+   * If the token authenticates the user, this should be set to a palloc'd
+   * string containing the SYSTEM_USER to use for HBA mapping. Consider
+   * setting this even if result->authorized is false so that DBAs may use
+   * the logs to match end users to token failures.
+   *
+   * This is required if the module is not configured for ident mapping
+   * delegation. See the validator module documentation for details.
+   */
+  char     *authn_id;
 } ValidatorModuleResult;
 
 /*
@@ -62,8 +62,8 @@ typedef struct ValidatorModuleResult
 typedef void (*ValidatorStartupCB) (ValidatorModuleState *state);
 typedef void (*ValidatorShutdownCB) (ValidatorModuleState *state);
 typedef bool (*ValidatorValidateCB) (const ValidatorModuleState *state,
-									 const char *token, const char *role,
-									 ValidatorModuleResult *result);
+                                     const char *token, const char *role,
+                                     ValidatorModuleResult *result);
 
 /*
  * Identifies the compiled ABI version of the validator module. Since the server
@@ -75,11 +75,11 @@ typedef bool (*ValidatorValidateCB) (const ValidatorModuleState *state,
 
 typedef struct OAuthValidatorCallbacks
 {
-	uint32		magic;			/* must be set to PG_OAUTH_VALIDATOR_MAGIC */
+  uint32    magic;      /* must be set to PG_OAUTH_VALIDATOR_MAGIC */
 
-	ValidatorStartupCB startup_cb;
-	ValidatorShutdownCB shutdown_cb;
-	ValidatorValidateCB validate_cb;
+  ValidatorStartupCB startup_cb;
+  ValidatorShutdownCB shutdown_cb;
+  ValidatorValidateCB validate_cb;
 } OAuthValidatorCallbacks;
 
 /*
@@ -98,4 +98,4 @@ extern PGDLLIMPORT const pg_be_sasl_mech pg_be_oauth_mech;
  */
 extern bool check_oauth_validator(HbaLine *hbaline, int elevel, char **err_msg);
 
-#endif							/* PG_OAUTH_H */
+#endif              /* PG_OAUTH_H */

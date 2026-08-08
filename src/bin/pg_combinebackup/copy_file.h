@@ -18,17 +18,17 @@
  */
 typedef enum CopyMethod
 {
-	COPY_METHOD_CLONE,
-	COPY_METHOD_COPY,
-	COPY_METHOD_COPY_FILE_RANGE,
+  COPY_METHOD_CLONE,
+  COPY_METHOD_COPY,
+  COPY_METHOD_COPY_FILE_RANGE,
 #ifdef WIN32
-	COPY_METHOD_COPYFILE,
+  COPY_METHOD_COPYFILE,
 #endif
-	COPY_METHOD_LINK,
+  COPY_METHOD_LINK,
 } CopyMethod;
 
 extern void copy_file(const char *src, const char *dst,
-					  pg_checksum_context *checksum_ctx,
-					  CopyMethod copy_method, bool dry_run);
+                      pg_checksum_context *checksum_ctx,
+                      CopyMethod copy_method, bool dry_run);
 
-#endif							/* COPY_FILE_H */
+#endif              /* COPY_FILE_H */

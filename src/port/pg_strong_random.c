@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_strong_random.c
- *	  generate a cryptographically secure random number
+ *    generate a cryptographically secure random number
  *
  * Our definition of "strong" is that it's suitable for generating random
  * salts and query cancellation keys, during authentication.
@@ -13,7 +13,7 @@
  * Copyright (c) 1996-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/port/pg_strong_random.c
+ *    src/port/pg_strong_random.c
  *
  *-------------------------------------------------------------------------
  */
@@ -57,39 +57,38 @@
 void
 pg_strong_random_init(void)
 {
-	/* No initialization needed */
+  /* No initialization needed */
 }
 
 bool
 pg_strong_random(void *buf, size_t len)
 {
-	int			i;
+  int     i;
 
-	/*
-	 * Check that OpenSSL's CSPRNG has been sufficiently seeded, and if not
-	 * add more seed data using RAND_poll().  With some older versions of
-	 * OpenSSL, it may be necessary to call RAND_poll() a number of times.  If
-	 * RAND_poll() fails to generate seed data within the given amount of
-	 * retries, subsequent RAND_bytes() calls will fail, but we allow that to
-	 * happen to let pg_strong_random() callers handle that with appropriate
-	 * error handling.
-	 */
+  /*
+   * Check that OpenSSL's CSPRNG has been sufficiently seeded, and if not
+   * add more seed data using RAND_poll().  With some older versions of
+   * OpenSSL, it may be necessary to call RAND_poll() a number of times.  If
+   * RAND_poll() fails to generate seed data within the given amount of
+   * retries, subsequent RAND_bytes() calls will fail, but we allow that to
+   * happen to let pg_strong_random() callers handle that with appropriate
+   * error handling.
+   */
 #define NUM_RAND_POLL_RETRIES 8
 
-	for (i = 0; i < NUM_RAND_POLL_RETRIES; i++)
-	{
-		if (RAND_status() == 1)
-		{
-			/* The CSPRNG is sufficiently seeded */
-			break;
-		}
+  for (i = 0; i < NUM_RAND_POLL_RETRIES; i++) {
+    if (RAND_status() == 1) {
+      /* The CSPRNG is sufficiently seeded */
+      break;
+    }
 
-		RAND_poll();
-	}
+    RAND_poll();
+  }
 
-	if (RAND_bytes(buf, len) == 1)
-		return true;
-	return false;
+  if (RAND_bytes(buf, len) == 1)
+    return true;
+
+  return false;
 }
 
 #elif WIN32
@@ -104,37 +103,36 @@ static HCRYPTPROV hProvider = 0;
 void
 pg_strong_random_init(void)
 {
-	/* No initialization needed on WIN32 */
+  /* No initialization needed on WIN32 */
 }
 
 bool
 pg_strong_random(void *buf, size_t len)
 {
-	if (hProvider == 0)
-	{
-		if (!CryptAcquireContext(&hProvider,
-								 NULL,
-								 MS_DEF_PROV,
-								 PROV_RSA_FULL,
-								 CRYPT_VERIFYCONTEXT | CRYPT_SILENT))
-		{
-			/*
-			 * On failure, set back to 0 in case the value was for some reason
-			 * modified.
-			 */
-			hProvider = 0;
-		}
-	}
-	/* Re-check in case we just retrieved the provider */
-	if (hProvider != 0)
-	{
-		if (CryptGenRandom(hProvider, len, buf))
-			return true;
-	}
-	return false;
+  if (hProvider == 0) {
+    if (!CryptAcquireContext(&hProvider,
+                             NULL,
+                             MS_DEF_PROV,
+                             PROV_RSA_FULL,
+                             CRYPT_VERIFYCONTEXT | CRYPT_SILENT)) {
+      /*
+       * On failure, set back to 0 in case the value was for some reason
+       * modified.
+       */
+      hProvider = 0;
+    }
+  }
+
+  /* Re-check in case we just retrieved the provider */
+  if (hProvider != 0) {
+    if (CryptGenRandom(hProvider, len, buf))
+      return true;
+  }
+
+  return false;
 }
 
-#else							/* not USE_OPENSSL or WIN32 */
+#else             /* not USE_OPENSSL or WIN32 */
 
 /*
  * Without OpenSSL or Win32 support, just read /dev/urandom ourselves.
@@ -143,37 +141,37 @@ pg_strong_random(void *buf, size_t len)
 void
 pg_strong_random_init(void)
 {
-	/* No initialization needed */
+  /* No initialization needed */
 }
 
 bool
 pg_strong_random(void *buf, size_t len)
 {
-	int			f;
-	char	   *p = buf;
-	ssize_t		res;
+  int     f;
+  char     *p = buf;
+  ssize_t   res;
 
-	f = open("/dev/urandom", O_RDONLY, 0);
-	if (f == -1)
-		return false;
+  f = open("/dev/urandom", O_RDONLY, 0);
 
-	while (len)
-	{
-		res = read(f, p, len);
-		if (res <= 0)
-		{
-			if (errno == EINTR)
-				continue;		/* interrupted by signal, just retry */
+  if (f == -1)
+    return false;
 
-			close(f);
-			return false;
-		}
+  while (len) {
+    res = read(f, p, len);
 
-		p += res;
-		len -= res;
-	}
+    if (res <= 0) {
+      if (errno == EINTR)
+        continue;   /* interrupted by signal, just retry */
 
-	close(f);
-	return true;
+      close(f);
+      return false;
+    }
+
+    p += res;
+    len -= res;
+  }
+
+  close(f);
+  return true;
 }
 #endif

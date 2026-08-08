@@ -27,4 +27,4 @@ extern void ExecAppendInitializeWorker(AppendState *node, ParallelWorkerContext 
 
 extern void ExecAsyncAppendResponse(AsyncRequest *areq);
 
-#endif							/* NODEAPPEND_H */
+#endif              /* NODEAPPEND_H */

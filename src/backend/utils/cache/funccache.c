@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * funccache.c
- *	  Function cache management.
+ *    Function cache management.
  *
  * funccache.c manages a cache of function execution data.  The cache
  * is used by SQL-language and PL/pgSQL functions, and could be used by
@@ -17,7 +17,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/utils/cache/funccache.c
+ *    src/backend/utils/cache/funccache.c
  *
  *-------------------------------------------------------------------------
  */
@@ -38,16 +38,15 @@
  */
 static HTAB *cfunc_hashtable = NULL;
 
-typedef struct CachedFunctionHashEntry
-{
-	CachedFunctionHashKey key;	/* hash key, must be first */
-	CachedFunction *function;	/* points to data of language-specific size */
+typedef struct CachedFunctionHashEntry {
+  CachedFunctionHashKey key;  /* hash key, must be first */
+  CachedFunction *function; /* points to data of language-specific size */
 } CachedFunctionHashEntry;
 
-#define FUNCS_PER_USER		128 /* initial table size */
+#define FUNCS_PER_USER    128 /* initial table size */
 
 static uint32 cfunc_hash(const void *key, Size keysize);
-static int	cfunc_match(const void *key1, const void *key2, Size keysize);
+static int  cfunc_match(const void *key1, const void *key2, Size keysize);
 
 
 /*
@@ -58,19 +57,19 @@ static int	cfunc_match(const void *key1, const void *key2, Size keysize);
 static void
 cfunc_hashtable_init(void)
 {
-	HASHCTL		ctl;
+  HASHCTL   ctl;
 
-	/* don't allow double-initialization */
-	Assert(cfunc_hashtable == NULL);
+  /* don't allow double-initialization */
+  Assert(cfunc_hashtable == NULL);
 
-	ctl.keysize = sizeof(CachedFunctionHashKey);
-	ctl.entrysize = sizeof(CachedFunctionHashEntry);
-	ctl.hash = cfunc_hash;
-	ctl.match = cfunc_match;
-	cfunc_hashtable = hash_create("Cached function hash",
-								  FUNCS_PER_USER,
-								  &ctl,
-								  HASH_ELEM | HASH_FUNCTION | HASH_COMPARE);
+  ctl.keysize = sizeof(CachedFunctionHashKey);
+  ctl.entrysize = sizeof(CachedFunctionHashEntry);
+  ctl.hash = cfunc_hash;
+  ctl.match = cfunc_match;
+  cfunc_hashtable = hash_create("Cached function hash",
+                                FUNCS_PER_USER,
+                                &ctl,
+                                HASH_ELEM | HASH_FUNCTION | HASH_COMPARE);
 }
 
 /*
@@ -84,22 +83,25 @@ cfunc_hashtable_init(void)
 static uint32
 cfunc_hash(const void *key, Size keysize)
 {
-	const CachedFunctionHashKey *k = (const CachedFunctionHashKey *) key;
-	uint32		h;
+  const CachedFunctionHashKey *k = (const CachedFunctionHashKey *) key;
+  uint32    h;
 
-	Assert(keysize == sizeof(CachedFunctionHashKey));
-	/* Hash all the fixed fields except callResultType */
-	h = DatumGetUInt32(hash_any((const unsigned char *) k,
-								offsetof(CachedFunctionHashKey, callResultType)));
-	/* Incorporate input argument types */
-	if (k->nargs > 0)
-		h = hash_combine(h,
-						 DatumGetUInt32(hash_any((const unsigned char *) k->argtypes,
-												 k->nargs * sizeof(Oid))));
-	/* Incorporate callResultType if present */
-	if (k->callResultType)
-		h = hash_combine(h, hashRowType(k->callResultType));
-	return h;
+  Assert(keysize == sizeof(CachedFunctionHashKey));
+  /* Hash all the fixed fields except callResultType */
+  h = DatumGetUInt32(hash_any((const unsigned char *) k,
+                              offsetof(CachedFunctionHashKey, callResultType)));
+
+  /* Incorporate input argument types */
+  if (k->nargs > 0)
+    h = hash_combine(h,
+                     DatumGetUInt32(hash_any((const unsigned char *) k->argtypes,
+                                    k->nargs * sizeof(Oid))));
+
+  /* Incorporate callResultType if present */
+  if (k->callResultType)
+    h = hash_combine(h, hashRowType(k->callResultType));
+
+  return h;
 }
 
 /*
@@ -108,34 +110,33 @@ cfunc_hash(const void *key, Size keysize)
 static int
 cfunc_match(const void *key1, const void *key2, Size keysize)
 {
-	const CachedFunctionHashKey *k1 = (const CachedFunctionHashKey *) key1;
-	const CachedFunctionHashKey *k2 = (const CachedFunctionHashKey *) key2;
+  const CachedFunctionHashKey *k1 = (const CachedFunctionHashKey *) key1;
+  const CachedFunctionHashKey *k2 = (const CachedFunctionHashKey *) key2;
 
-	Assert(keysize == sizeof(CachedFunctionHashKey));
-	/* Compare all the fixed fields except callResultType */
-	if (memcmp(k1, k2, offsetof(CachedFunctionHashKey, callResultType)) != 0)
-		return 1;				/* not equal */
-	/* Compare input argument types (we just verified that nargs matches) */
-	if (k1->nargs > 0 &&
-		memcmp(k1->argtypes, k2->argtypes, k1->nargs * sizeof(Oid)) != 0)
-		return 1;				/* not equal */
-	/* Compare callResultType */
-	if (k1->callResultType)
-	{
-		if (k2->callResultType)
-		{
-			if (!equalRowTypes(k1->callResultType, k2->callResultType))
-				return 1;		/* not equal */
-		}
-		else
-			return 1;			/* not equal */
-	}
-	else
-	{
-		if (k2->callResultType)
-			return 1;			/* not equal */
-	}
-	return 0;					/* equal */
+  Assert(keysize == sizeof(CachedFunctionHashKey));
+
+  /* Compare all the fixed fields except callResultType */
+  if (memcmp(k1, k2, offsetof(CachedFunctionHashKey, callResultType)) != 0)
+    return 1;       /* not equal */
+
+  /* Compare input argument types (we just verified that nargs matches) */
+  if (k1->nargs > 0 &&
+      memcmp(k1->argtypes, k2->argtypes, k1->nargs * sizeof(Oid)) != 0)
+    return 1;       /* not equal */
+
+  /* Compare callResultType */
+  if (k1->callResultType) {
+    if (k2->callResultType) {
+      if (!equalRowTypes(k1->callResultType, k2->callResultType))
+        return 1;   /* not equal */
+    } else
+      return 1;     /* not equal */
+  } else {
+    if (k2->callResultType)
+      return 1;     /* not equal */
+  }
+
+  return 0;         /* equal */
 }
 
 /*
@@ -145,19 +146,20 @@ cfunc_match(const void *key1, const void *key2, Size keysize)
 static CachedFunction *
 cfunc_hashtable_lookup(CachedFunctionHashKey *func_key)
 {
-	CachedFunctionHashEntry *hentry;
+  CachedFunctionHashEntry *hentry;
 
-	if (cfunc_hashtable == NULL)
-		return NULL;
+  if (cfunc_hashtable == NULL)
+    return NULL;
 
-	hentry = (CachedFunctionHashEntry *) hash_search(cfunc_hashtable,
-													 func_key,
-													 HASH_FIND,
-													 NULL);
-	if (hentry)
-		return hentry->function;
-	else
-		return NULL;
+  hentry = (CachedFunctionHashEntry *) hash_search(cfunc_hashtable,
+           func_key,
+           HASH_FIND,
+           NULL);
+
+  if (hentry)
+    return hentry->function;
+  else
+    return NULL;
 }
 
 /*
@@ -165,39 +167,39 @@ cfunc_hashtable_lookup(CachedFunctionHashKey *func_key)
  */
 static void
 cfunc_hashtable_insert(CachedFunction *function,
-					   CachedFunctionHashKey *func_key)
+                       CachedFunctionHashKey *func_key)
 {
-	CachedFunctionHashEntry *hentry;
-	bool		found;
+  CachedFunctionHashEntry *hentry;
+  bool    found;
 
-	if (cfunc_hashtable == NULL)
-		cfunc_hashtable_init();
+  if (cfunc_hashtable == NULL)
+    cfunc_hashtable_init();
 
-	hentry = (CachedFunctionHashEntry *) hash_search(cfunc_hashtable,
-													 func_key,
-													 HASH_ENTER,
-													 &found);
-	if (found)
-		elog(WARNING, "trying to insert a function that already exists");
+  hentry = (CachedFunctionHashEntry *) hash_search(cfunc_hashtable,
+           func_key,
+           HASH_ENTER,
+           &found);
 
-	/*
-	 * If there's a callResultType, copy it into TopMemoryContext.  If we're
-	 * unlucky enough for that to fail, leave the entry with null
-	 * callResultType, which will probably never match anything.
-	 */
-	if (func_key->callResultType)
-	{
-		MemoryContext oldcontext = MemoryContextSwitchTo(TopMemoryContext);
+  if (found)
+    elog(WARNING, "trying to insert a function that already exists");
 
-		hentry->key.callResultType = NULL;
-		hentry->key.callResultType = CreateTupleDescCopy(func_key->callResultType);
-		MemoryContextSwitchTo(oldcontext);
-	}
+  /*
+   * If there's a callResultType, copy it into TopMemoryContext.  If we're
+   * unlucky enough for that to fail, leave the entry with null
+   * callResultType, which will probably never match anything.
+   */
+  if (func_key->callResultType) {
+    MemoryContext oldcontext = MemoryContextSwitchTo(TopMemoryContext);
 
-	hentry->function = function;
+    hentry->key.callResultType = NULL;
+    hentry->key.callResultType = CreateTupleDescCopy(func_key->callResultType);
+    MemoryContextSwitchTo(oldcontext);
+  }
 
-	/* Set back-link from function to hashtable key */
-	function->fn_hashkey = &hentry->key;
+  hentry->function = function;
+
+  /* Set back-link from function to hashtable key */
+  function->fn_hashkey = &hentry->key;
 }
 
 /*
@@ -206,34 +208,35 @@ cfunc_hashtable_insert(CachedFunction *function,
 static void
 cfunc_hashtable_delete(CachedFunction *function)
 {
-	CachedFunctionHashEntry *hentry;
-	TupleDesc	tupdesc;
+  CachedFunctionHashEntry *hentry;
+  TupleDesc tupdesc;
 
-	/* do nothing if not in table */
-	if (function->fn_hashkey == NULL)
-		return;
+  /* do nothing if not in table */
+  if (function->fn_hashkey == NULL)
+    return;
 
-	/*
-	 * We need to free the callResultType if present, which is slightly tricky
-	 * because it has to be valid during the hashtable search.  Fortunately,
-	 * because we have the hashkey back-link, we can grab that pointer before
-	 * deleting the hashtable entry.
-	 */
-	tupdesc = function->fn_hashkey->callResultType;
+  /*
+   * We need to free the callResultType if present, which is slightly tricky
+   * because it has to be valid during the hashtable search.  Fortunately,
+   * because we have the hashkey back-link, we can grab that pointer before
+   * deleting the hashtable entry.
+   */
+  tupdesc = function->fn_hashkey->callResultType;
 
-	hentry = (CachedFunctionHashEntry *) hash_search(cfunc_hashtable,
-													 function->fn_hashkey,
-													 HASH_REMOVE,
-													 NULL);
-	if (hentry == NULL)
-		elog(WARNING, "trying to delete function that does not exist");
+  hentry = (CachedFunctionHashEntry *) hash_search(cfunc_hashtable,
+           function->fn_hashkey,
+           HASH_REMOVE,
+           NULL);
 
-	/* Remove back link, which no longer points to allocated storage */
-	function->fn_hashkey = NULL;
+  if (hentry == NULL)
+    elog(WARNING, "trying to delete function that does not exist");
 
-	/* Release the callResultType if present */
-	if (tupdesc)
-		FreeTupleDesc(tupdesc);
+  /* Remove back link, which no longer points to allocated storage */
+  function->fn_hashkey = NULL;
+
+  /* Release the callResultType if present */
+  if (tupdesc)
+    FreeTupleDesc(tupdesc);
 }
 
 /*
@@ -245,91 +248,88 @@ cfunc_hashtable_delete(CachedFunction *function)
  */
 static void
 compute_function_hashkey(FunctionCallInfo fcinfo,
-						 Form_pg_proc procStruct,
-						 CachedFunctionHashKey *hashkey,
-						 Size cacheEntrySize,
-						 bool includeResultType,
-						 bool forValidator)
+                         Form_pg_proc procStruct,
+                         CachedFunctionHashKey *hashkey,
+                         Size cacheEntrySize,
+                         bool includeResultType,
+                         bool forValidator)
 {
-	/* Make sure pad bytes within fixed part of the struct are zero */
-	memset(hashkey, 0, offsetof(CachedFunctionHashKey, argtypes));
+  /* Make sure pad bytes within fixed part of the struct are zero */
+  memset(hashkey, 0, offsetof(CachedFunctionHashKey, argtypes));
 
-	/* get function OID */
-	hashkey->funcOid = fcinfo->flinfo->fn_oid;
+  /* get function OID */
+  hashkey->funcOid = fcinfo->flinfo->fn_oid;
 
-	/* get call context */
-	hashkey->isTrigger = CALLED_AS_TRIGGER(fcinfo);
-	hashkey->isEventTrigger = CALLED_AS_EVENT_TRIGGER(fcinfo);
+  /* get call context */
+  hashkey->isTrigger = CALLED_AS_TRIGGER(fcinfo);
+  hashkey->isEventTrigger = CALLED_AS_EVENT_TRIGGER(fcinfo);
 
-	/* record cacheEntrySize so multiple languages can share hash table */
-	hashkey->cacheEntrySize = cacheEntrySize;
+  /* record cacheEntrySize so multiple languages can share hash table */
+  hashkey->cacheEntrySize = cacheEntrySize;
 
-	/*
-	 * If DML trigger, include trigger's OID in the hash, so that each trigger
-	 * usage gets a different hash entry, allowing for e.g. different relation
-	 * rowtypes or transition table names.  In validation mode we do not know
-	 * what relation or transition table names are intended to be used, so we
-	 * leave trigOid zero; the hash entry built in this case will never be
-	 * used for any actual calls.
-	 *
-	 * We don't currently need to distinguish different event trigger usages
-	 * in the same way, since the special parameter variables don't vary in
-	 * type in that case.
-	 */
-	if (hashkey->isTrigger && !forValidator)
-	{
-		TriggerData *trigdata = (TriggerData *) fcinfo->context;
+  /*
+   * If DML trigger, include trigger's OID in the hash, so that each trigger
+   * usage gets a different hash entry, allowing for e.g. different relation
+   * rowtypes or transition table names.  In validation mode we do not know
+   * what relation or transition table names are intended to be used, so we
+   * leave trigOid zero; the hash entry built in this case will never be
+   * used for any actual calls.
+   *
+   * We don't currently need to distinguish different event trigger usages
+   * in the same way, since the special parameter variables don't vary in
+   * type in that case.
+   */
+  if (hashkey->isTrigger && !forValidator) {
+    TriggerData *trigdata = (TriggerData *) fcinfo->context;
 
-		hashkey->trigOid = trigdata->tg_trigger->tgoid;
-	}
+    hashkey->trigOid = trigdata->tg_trigger->tgoid;
+  }
 
-	/* get input collation, if known */
-	hashkey->inputCollation = fcinfo->fncollation;
+  /* get input collation, if known */
+  hashkey->inputCollation = fcinfo->fncollation;
 
-	/*
-	 * We include only input arguments in the hash key, since output argument
-	 * types can be deduced from those, and it would require extra cycles to
-	 * include the output arguments.  But we have to resolve any polymorphic
-	 * argument types to the real types for the call.
-	 */
-	if (procStruct->pronargs > 0)
-	{
-		hashkey->nargs = procStruct->pronargs;
-		memcpy(hashkey->argtypes, procStruct->proargtypes.values,
-			   procStruct->pronargs * sizeof(Oid));
-		cfunc_resolve_polymorphic_argtypes(procStruct->pronargs,
-										   hashkey->argtypes,
-										   NULL,	/* all args are inputs */
-										   fcinfo->flinfo->fn_expr,
-										   forValidator,
-										   NameStr(procStruct->proname));
-	}
+  /*
+   * We include only input arguments in the hash key, since output argument
+   * types can be deduced from those, and it would require extra cycles to
+   * include the output arguments.  But we have to resolve any polymorphic
+   * argument types to the real types for the call.
+   */
+  if (procStruct->pronargs > 0) {
+    hashkey->nargs = procStruct->pronargs;
+    memcpy(hashkey->argtypes, procStruct->proargtypes.values,
+           procStruct->pronargs * sizeof(Oid));
+    cfunc_resolve_polymorphic_argtypes(procStruct->pronargs,
+                                       hashkey->argtypes,
+                                       NULL,  /* all args are inputs */
+                                       fcinfo->flinfo->fn_expr,
+                                       forValidator,
+                                       NameStr(procStruct->proname));
+  }
 
-	/*
-	 * While regular OUT arguments are sufficiently represented by the
-	 * resolved input arguments, a function returning composite has additional
-	 * variability: ALTER TABLE/ALTER TYPE could affect what it returns. Also,
-	 * a function returning RECORD may depend on a column definition list to
-	 * determine its output rowtype.  If the caller needs the exact result
-	 * type to be part of the hash lookup key, we must run
-	 * get_call_result_type() to find that out.
-	 */
-	if (includeResultType)
-	{
-		Oid			resultTypeId;
-		TupleDesc	tupdesc;
+  /*
+   * While regular OUT arguments are sufficiently represented by the
+   * resolved input arguments, a function returning composite has additional
+   * variability: ALTER TABLE/ALTER TYPE could affect what it returns. Also,
+   * a function returning RECORD may depend on a column definition list to
+   * determine its output rowtype.  If the caller needs the exact result
+   * type to be part of the hash lookup key, we must run
+   * get_call_result_type() to find that out.
+   */
+  if (includeResultType) {
+    Oid     resultTypeId;
+    TupleDesc tupdesc;
 
-		switch (get_call_result_type(fcinfo, &resultTypeId, &tupdesc))
-		{
-			case TYPEFUNC_COMPOSITE:
-			case TYPEFUNC_COMPOSITE_DOMAIN:
-				hashkey->callResultType = tupdesc;
-				break;
-			default:
-				/* scalar result, or indeterminate rowtype */
-				break;
-		}
-	}
+    switch (get_call_result_type(fcinfo, &resultTypeId, &tupdesc)) {
+      case TYPEFUNC_COMPOSITE:
+      case TYPEFUNC_COMPOSITE_DOMAIN:
+        hashkey->callResultType = tupdesc;
+        break;
+
+      default:
+        /* scalar result, or indeterminate rowtype */
+        break;
+    }
+  }
 }
 
 /*
@@ -346,73 +346,74 @@ compute_function_hashkey(FunctionCallInfo fcinfo,
  */
 void
 cfunc_resolve_polymorphic_argtypes(int numargs,
-								   Oid *argtypes, char *argmodes,
-								   Node *call_expr, bool forValidator,
-								   const char *proname)
+                                   Oid *argtypes, char *argmodes,
+                                   Node *call_expr, bool forValidator,
+                                   const char *proname)
 {
-	int			i;
+  int     i;
 
-	if (!forValidator)
-	{
-		int			inargno;
+  if (!forValidator) {
+    int     inargno;
 
-		/* normal case, pass to standard routine */
-		if (!resolve_polymorphic_argtypes(numargs, argtypes, argmodes,
-										  call_expr))
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("could not determine actual argument "
-							"type for polymorphic function \"%s\"",
-							proname)));
-		/* also, treat RECORD inputs (but not outputs) as polymorphic */
-		inargno = 0;
-		for (i = 0; i < numargs; i++)
-		{
-			char		argmode = argmodes ? argmodes[i] : PROARGMODE_IN;
+    /* normal case, pass to standard routine */
+    if (!resolve_polymorphic_argtypes(numargs, argtypes, argmodes,
+                                      call_expr))
+      ereport(ERROR,
+              (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+               errmsg("could not determine actual argument "
+                      "type for polymorphic function \"%s\"",
+                      proname)));
 
-			if (argmode == PROARGMODE_OUT || argmode == PROARGMODE_TABLE)
-				continue;
-			if (argtypes[i] == RECORDOID || argtypes[i] == RECORDARRAYOID)
-			{
-				Oid			resolvedtype = get_call_expr_argtype(call_expr,
-																 inargno);
+    /* also, treat RECORD inputs (but not outputs) as polymorphic */
+    inargno = 0;
 
-				if (OidIsValid(resolvedtype))
-					argtypes[i] = resolvedtype;
-			}
-			inargno++;
-		}
-	}
-	else
-	{
-		/* special validation case (no need to do anything for RECORD) */
-		for (i = 0; i < numargs; i++)
-		{
-			switch (argtypes[i])
-			{
-				case ANYELEMENTOID:
-				case ANYNONARRAYOID:
-				case ANYENUMOID:	/* XXX dubious */
-				case ANYCOMPATIBLEOID:
-				case ANYCOMPATIBLENONARRAYOID:
-					argtypes[i] = INT4OID;
-					break;
-				case ANYARRAYOID:
-				case ANYCOMPATIBLEARRAYOID:
-					argtypes[i] = INT4ARRAYOID;
-					break;
-				case ANYRANGEOID:
-				case ANYCOMPATIBLERANGEOID:
-					argtypes[i] = INT4RANGEOID;
-					break;
-				case ANYMULTIRANGEOID:
-					argtypes[i] = INT4MULTIRANGEOID;
-					break;
-				default:
-					break;
-			}
-		}
-	}
+    for (i = 0; i < numargs; i++) {
+      char    argmode = argmodes ? argmodes[i] : PROARGMODE_IN;
+
+      if (argmode == PROARGMODE_OUT || argmode == PROARGMODE_TABLE)
+        continue;
+
+      if (argtypes[i] == RECORDOID || argtypes[i] == RECORDARRAYOID) {
+        Oid     resolvedtype = get_call_expr_argtype(call_expr,
+                               inargno);
+
+        if (OidIsValid(resolvedtype))
+          argtypes[i] = resolvedtype;
+      }
+
+      inargno++;
+    }
+  } else {
+    /* special validation case (no need to do anything for RECORD) */
+    for (i = 0; i < numargs; i++) {
+      switch (argtypes[i]) {
+        case ANYELEMENTOID:
+        case ANYNONARRAYOID:
+        case ANYENUMOID:  /* XXX dubious */
+        case ANYCOMPATIBLEOID:
+        case ANYCOMPATIBLENONARRAYOID:
+          argtypes[i] = INT4OID;
+          break;
+
+        case ANYARRAYOID:
+        case ANYCOMPATIBLEARRAYOID:
+          argtypes[i] = INT4ARRAYOID;
+          break;
+
+        case ANYRANGEOID:
+        case ANYCOMPATIBLERANGEOID:
+          argtypes[i] = INT4RANGEOID;
+          break;
+
+        case ANYMULTIRANGEOID:
+          argtypes[i] = INT4MULTIRANGEOID;
+          break;
+
+        default:
+          break;
+      }
+    }
+  }
 }
 
 /*
@@ -432,16 +433,15 @@ cfunc_resolve_polymorphic_argtypes(int numargs,
 static void
 delete_function(CachedFunction *func)
 {
-	/* remove function from hash table (might be done already) */
-	cfunc_hashtable_delete(func);
+  /* remove function from hash table (might be done already) */
+  cfunc_hashtable_delete(func);
 
-	/* release the function's storage if safe and not done already */
-	if (func->use_count == 0 &&
-		func->dcallback != NULL)
-	{
-		func->dcallback(func);
-		func->dcallback = NULL;
-	}
+  /* release the function's storage if safe and not done already */
+  if (func->use_count == 0 &&
+      func->dcallback != NULL) {
+    func->dcallback(func);
+    func->dcallback = NULL;
+  }
 }
 
 /*
@@ -478,157 +478,155 @@ delete_function(CachedFunction *func)
  */
 CachedFunction *
 cached_function_compile(FunctionCallInfo fcinfo,
-						CachedFunction *function,
-						CachedFunctionCompileCallback ccallback,
-						CachedFunctionDeleteCallback dcallback,
-						Size cacheEntrySize,
-						bool includeResultType,
-						bool forValidator)
+                        CachedFunction *function,
+                        CachedFunctionCompileCallback ccallback,
+                        CachedFunctionDeleteCallback dcallback,
+                        Size cacheEntrySize,
+                        bool includeResultType,
+                        bool forValidator)
 {
-	Oid			funcOid = fcinfo->flinfo->fn_oid;
-	HeapTuple	procTup;
-	Form_pg_proc procStruct;
-	CachedFunctionHashKey hashkey;
-	bool		function_valid = false;
-	bool		hashkey_valid = false;
-	bool		new_function = false;
+  Oid     funcOid = fcinfo->flinfo->fn_oid;
+  HeapTuple procTup;
+  Form_pg_proc procStruct;
+  CachedFunctionHashKey hashkey;
+  bool    function_valid = false;
+  bool    hashkey_valid = false;
+  bool    new_function = false;
 
-	/*
-	 * Lookup the pg_proc tuple by Oid; we'll need it in any case
-	 */
-	procTup = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcOid));
-	if (!HeapTupleIsValid(procTup))
-		elog(ERROR, "cache lookup failed for function %u", funcOid);
-	procStruct = (Form_pg_proc) GETSTRUCT(procTup);
+  /*
+   * Lookup the pg_proc tuple by Oid; we'll need it in any case
+   */
+  procTup = SearchSysCache1(PROCOID, ObjectIdGetDatum(funcOid));
 
-	/*
-	 * Do we already have a cache entry for the current FmgrInfo?  If not, try
-	 * to find one in the hash table.
-	 */
+  if (!HeapTupleIsValid(procTup))
+    elog(ERROR, "cache lookup failed for function %u", funcOid);
+
+  procStruct = (Form_pg_proc) GETSTRUCT(procTup);
+
+  /*
+   * Do we already have a cache entry for the current FmgrInfo?  If not, try
+   * to find one in the hash table.
+   */
 recheck:
-	if (!function)
-	{
-		/* Compute hashkey using function signature and actual arg types */
-		compute_function_hashkey(fcinfo, procStruct, &hashkey,
-								 cacheEntrySize, includeResultType,
-								 forValidator);
-		hashkey_valid = true;
 
-		/* And do the lookup */
-		function = cfunc_hashtable_lookup(&hashkey);
-	}
+  if (!function) {
+    /* Compute hashkey using function signature and actual arg types */
+    compute_function_hashkey(fcinfo, procStruct, &hashkey,
+                             cacheEntrySize, includeResultType,
+                             forValidator);
+    hashkey_valid = true;
 
-	if (function)
-	{
-		/* We have a compiled function, but is it still valid? */
-		if (function->fn_xmin == HeapTupleHeaderGetRawXmin(procTup->t_data) &&
-			ItemPointerEquals(&function->fn_tid, &procTup->t_self))
-			function_valid = true;
-		else
-		{
-			/*
-			 * Nope, so remove it from hashtable and try to drop associated
-			 * storage (if not done already).
-			 */
-			delete_function(function);
+    /* And do the lookup */
+    function = cfunc_hashtable_lookup(&hashkey);
+  }
 
-			/*
-			 * If the function isn't in active use then we can overwrite the
-			 * func struct with new data, allowing any other existing fn_extra
-			 * pointers to make use of the new definition on their next use.
-			 * If it is in use then just leave it alone and make a new one.
-			 * (The active invocations will run to completion using the
-			 * previous definition, and then the cache entry will just be
-			 * leaked; doesn't seem worth adding code to clean it up, given
-			 * what a corner case this is.)
-			 *
-			 * If we found the function struct via fn_extra then it's possible
-			 * a replacement has already been made, so go back and recheck the
-			 * hashtable.
-			 */
-			if (function->use_count != 0)
-			{
-				function = NULL;
-				if (!hashkey_valid)
-					goto recheck;
-			}
-		}
-	}
+  if (function) {
+    /* We have a compiled function, but is it still valid? */
+    if (function->fn_xmin == HeapTupleHeaderGetRawXmin(procTup->t_data) &&
+        ItemPointerEquals(&function->fn_tid, &procTup->t_self))
+      function_valid = true;
+    else {
+      /*
+       * Nope, so remove it from hashtable and try to drop associated
+       * storage (if not done already).
+       */
+      delete_function(function);
 
-	/*
-	 * If the function wasn't found or was out-of-date, we have to compile it.
-	 */
-	if (!function_valid)
-	{
-		/*
-		 * Calculate hashkey if we didn't already; we'll need it to store the
-		 * completed function.
-		 */
-		if (!hashkey_valid)
-			compute_function_hashkey(fcinfo, procStruct, &hashkey,
-									 cacheEntrySize, includeResultType,
-									 forValidator);
+      /*
+       * If the function isn't in active use then we can overwrite the
+       * func struct with new data, allowing any other existing fn_extra
+       * pointers to make use of the new definition on their next use.
+       * If it is in use then just leave it alone and make a new one.
+       * (The active invocations will run to completion using the
+       * previous definition, and then the cache entry will just be
+       * leaked; doesn't seem worth adding code to clean it up, given
+       * what a corner case this is.)
+       *
+       * If we found the function struct via fn_extra then it's possible
+       * a replacement has already been made, so go back and recheck the
+       * hashtable.
+       */
+      if (function->use_count != 0) {
+        function = NULL;
 
-		/*
-		 * Create the new function struct, if not done already.  The function
-		 * cache entry will be kept for the life of the backend, so put it in
-		 * TopMemoryContext.
-		 */
-		Assert(cacheEntrySize >= sizeof(CachedFunction));
-		if (function == NULL)
-		{
-			function = (CachedFunction *)
-				MemoryContextAllocZero(TopMemoryContext, cacheEntrySize);
-			new_function = true;
-		}
-		else
-		{
-			/* re-using a previously existing struct, so clear it out */
-			memset(function, 0, cacheEntrySize);
-		}
+        if (!hashkey_valid)
+          goto recheck;
+      }
+    }
+  }
 
-		/*
-		 * However, if function compilation fails, we'd like not to leak the
-		 * function struct, so use a PG_TRY block to prevent that.  (It's up
-		 * to the compile callback function to avoid its own internal leakage
-		 * in such cases.)  Unfortunately, freeing the struct is only safe if
-		 * we just allocated it: otherwise there are probably fn_extra
-		 * pointers to it.
-		 */
-		PG_TRY();
-		{
-			/*
-			 * Do the hard, language-specific part.
-			 */
-			ccallback(fcinfo, procTup, &hashkey, function, forValidator);
-		}
-		PG_CATCH();
-		{
-			if (new_function)
-				pfree(function);
-			PG_RE_THROW();
-		}
-		PG_END_TRY();
+  /*
+   * If the function wasn't found or was out-of-date, we have to compile it.
+   */
+  if (!function_valid) {
+    /*
+     * Calculate hashkey if we didn't already; we'll need it to store the
+     * completed function.
+     */
+    if (!hashkey_valid)
+      compute_function_hashkey(fcinfo, procStruct, &hashkey,
+                               cacheEntrySize, includeResultType,
+                               forValidator);
 
-		/*
-		 * Fill in the CachedFunction part.  (We do this last to prevent the
-		 * function from looking valid before it's fully built.)  fn_hashkey
-		 * will be set by cfunc_hashtable_insert; use_count remains zero.
-		 */
-		function->fn_xmin = HeapTupleHeaderGetRawXmin(procTup->t_data);
-		function->fn_tid = procTup->t_self;
-		function->dcallback = dcallback;
+    /*
+     * Create the new function struct, if not done already.  The function
+     * cache entry will be kept for the life of the backend, so put it in
+     * TopMemoryContext.
+     */
+    Assert(cacheEntrySize >= sizeof(CachedFunction));
 
-		/*
-		 * Add the completed struct to the hash table.
-		 */
-		cfunc_hashtable_insert(function, &hashkey);
-	}
+    if (function == NULL) {
+      function = (CachedFunction *)
+                 MemoryContextAllocZero(TopMemoryContext, cacheEntrySize);
+      new_function = true;
+    } else {
+      /* re-using a previously existing struct, so clear it out */
+      memset(function, 0, cacheEntrySize);
+    }
 
-	ReleaseSysCache(procTup);
+    /*
+     * However, if function compilation fails, we'd like not to leak the
+     * function struct, so use a PG_TRY block to prevent that.  (It's up
+     * to the compile callback function to avoid its own internal leakage
+     * in such cases.)  Unfortunately, freeing the struct is only safe if
+     * we just allocated it: otherwise there are probably fn_extra
+     * pointers to it.
+     */
+    PG_TRY();
+    {
+      /*
+       * Do the hard, language-specific part.
+       */
+      ccallback(fcinfo, procTup, &hashkey, function, forValidator);
+    }
+    PG_CATCH();
+    {
+      if (new_function)
+        pfree(function);
 
-	/*
-	 * Finally return the compiled function
-	 */
-	return function;
+      PG_RE_THROW();
+    }
+    PG_END_TRY();
+
+    /*
+     * Fill in the CachedFunction part.  (We do this last to prevent the
+     * function from looking valid before it's fully built.)  fn_hashkey
+     * will be set by cfunc_hashtable_insert; use_count remains zero.
+     */
+    function->fn_xmin = HeapTupleHeaderGetRawXmin(procTup->t_data);
+    function->fn_tid = procTup->t_self;
+    function->dcallback = dcallback;
+
+    /*
+     * Add the completed struct to the hash table.
+     */
+    cfunc_hashtable_insert(function, &hashkey);
+  }
+
+  ReleaseSysCache(procTup);
+
+  /*
+   * Finally return the compiled function
+   */
+  return function;
 }

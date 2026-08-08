@@ -29,4 +29,4 @@ extern void ExecSortInitializeDSM(SortState *node, ParallelContext *pcxt);
 extern void ExecSortInitializeWorker(SortState *node, ParallelWorkerContext *pwcxt);
 extern void ExecSortRetrieveInstrumentation(SortState *node);
 
-#endif							/* NODESORT_H */
+#endif              /* NODESORT_H */

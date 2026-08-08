@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * rmgrdesc_utils.c
- *	  Support functions for rmgrdesc routines
+ *    Support functions for rmgrdesc routines
  *
  * Copyright (c) 2023-2025, PostgreSQL Global Development Group
  *
  *
  * IDENTIFICATION
- *	  src/backend/access/rmgrdesc/rmgrdesc_utils.c
+ *    src/backend/access/rmgrdesc/rmgrdesc_utils.c
  *
  *-------------------------------------------------------------------------
  */
@@ -22,40 +22,42 @@
  */
 void
 array_desc(StringInfo buf, void *array, size_t elem_size, int count,
-		   void (*elem_desc) (StringInfo buf, void *elem, void *data),
-		   void *data)
+           void (*elem_desc) (StringInfo buf, void *elem, void *data),
+           void *data)
 {
-	if (count == 0)
-	{
-		appendStringInfoString(buf, " []");
-		return;
-	}
-	appendStringInfoString(buf, " [");
-	for (int i = 0; i < count; i++)
-	{
-		elem_desc(buf, (char *) array + elem_size * i, data);
-		if (i < count - 1)
-			appendStringInfoString(buf, ", ");
-	}
-	appendStringInfoChar(buf, ']');
+  if (count == 0) {
+    appendStringInfoString(buf, " []");
+    return;
+  }
+
+  appendStringInfoString(buf, " [");
+
+  for (int i = 0; i < count; i++) {
+    elem_desc(buf, (char *) array + elem_size * i, data);
+
+    if (i < count - 1)
+      appendStringInfoString(buf, ", ");
+  }
+
+  appendStringInfoChar(buf, ']');
 }
 
 void
 offset_elem_desc(StringInfo buf, void *offset, void *data)
 {
-	appendStringInfo(buf, "%u", *(OffsetNumber *) offset);
+  appendStringInfo(buf, "%u", *(OffsetNumber *) offset);
 }
 
 void
 redirect_elem_desc(StringInfo buf, void *offset, void *data)
 {
-	OffsetNumber *new_offset = (OffsetNumber *) offset;
+  OffsetNumber *new_offset = (OffsetNumber *) offset;
 
-	appendStringInfo(buf, "%u->%u", new_offset[0], new_offset[1]);
+  appendStringInfo(buf, "%u->%u", new_offset[0], new_offset[1]);
 }
 
 void
 oid_elem_desc(StringInfo buf, void *relid, void *data)
 {
-	appendStringInfo(buf, "%u", *(Oid *) relid);
+  appendStringInfo(buf, "%u", *(Oid *) relid);
 }

@@ -29,4 +29,4 @@ extern void ResetCancelConn(void);
  */
 extern void setup_cancel_handler(void (*query_cancel_callback) (void));
 
-#endif							/* CANCEL_H */
+#endif              /* CANCEL_H */

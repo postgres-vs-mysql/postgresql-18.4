@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * clauses.h
- *	  prototypes for clauses.c.
+ *    prototypes for clauses.c.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -18,9 +18,9 @@
 
 typedef struct
 {
-	int			numWindowFuncs; /* total number of WindowFuncs found */
-	Index		maxWinRef;		/* windowFuncs[] is indexed 0 .. maxWinRef */
-	List	  **windowFuncs;	/* lists of WindowFuncs for each winref */
+  int     numWindowFuncs; /* total number of WindowFuncs found */
+  Index   maxWinRef;    /* windowFuncs[] is indexed 0 .. maxWinRef */
+  List    **windowFuncs;  /* lists of WindowFuncs for each winref */
 } WindowFuncLists;
 
 extern bool contain_agg_clause(Node *clause);
@@ -46,13 +46,13 @@ extern Var *find_forced_null_var(Node *node);
 extern bool is_pseudo_constant_clause(Node *clause);
 extern bool is_pseudo_constant_clause_relids(Node *clause, Relids relids);
 
-extern int	NumRelids(PlannerInfo *root, Node *clause);
+extern int  NumRelids(PlannerInfo *root, Node *clause);
 
 extern void CommuteOpExpr(OpExpr *clause);
 
 extern Query *inline_set_returning_function(PlannerInfo *root,
-											RangeTblEntry *rte);
+    RangeTblEntry *rte);
 
 extern Bitmapset *pull_paramids(Expr *expr);
 
-#endif							/* CLAUSES_H */
+#endif              /* CLAUSES_H */

@@ -28,26 +28,26 @@
 __FBSDID("$FreeBSD: head/usr.bin/indent/indent.h 303746 2016-08-04 15:27:09Z pfg $");
 #endif
 
-#define	nitems(x)	(sizeof((x)) / sizeof((x)[0]))
+#define nitems(x) (sizeof((x)) / sizeof((x)[0]))
 
-struct parser_state;			/* allow forward reference */
+struct parser_state;      /* allow forward reference */
 
-void	add_typename(const char *);
-void	alloc_typenames(void);
-int	compute_code_target(void);
-int	compute_label_target(void);
-int	count_spaces(int, char *);
-int	count_spaces_until(int, char *, char *);
-int	lexi(struct parser_state *);
-void	diag2(int, const char *);
-void	diag3(int, const char *, int);
-void	diag4(int, const char *, int, int);
-void	dump_line(void);
-int	lookahead(void);
-void	lookahead_reset(void);
-void	fill_buffer(void);
-void	parse(int);
-void	pr_comment(void);
-void	set_defaults(void);
-void	set_option(char *);
-void	set_profile(const char *);
+void  add_typename(const char *);
+void  alloc_typenames(void);
+int compute_code_target(void);
+int compute_label_target(void);
+int count_spaces(int, char *);
+int count_spaces_until(int, char *, char *);
+int lexi(struct parser_state *);
+void  diag2(int, const char *);
+void  diag3(int, const char *, int);
+void  diag4(int, const char *, int, int);
+void  dump_line(void);
+int lookahead(void);
+void  lookahead_reset(void);
+void  fill_buffer(void);
+void  parse(int);
+void  pr_comment(void);
+void  set_defaults(void);
+void  set_option(char *);
+void  set_profile(const char *);

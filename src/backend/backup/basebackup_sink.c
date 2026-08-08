@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * basebackup_sink.c
- *	  Default implementations for bbsink (basebackup sink) callbacks.
+ *    Default implementations for bbsink (basebackup sink) callbacks.
  *
  * Portions Copyright (c) 2010-2025, PostgreSQL Global Development Group
  *
@@ -23,11 +23,11 @@
 void
 bbsink_forward_begin_backup(bbsink *sink)
 {
-	Assert(sink->bbs_next != NULL);
-	Assert(sink->bbs_state != NULL);
-	bbsink_begin_backup(sink->bbs_next, sink->bbs_state,
-						sink->bbs_buffer_length);
-	sink->bbs_buffer = sink->bbs_next->bbs_buffer;
+  Assert(sink->bbs_next != NULL);
+  Assert(sink->bbs_state != NULL);
+  bbsink_begin_backup(sink->bbs_next, sink->bbs_state,
+                      sink->bbs_buffer_length);
+  sink->bbs_buffer = sink->bbs_next->bbs_buffer;
 }
 
 /*
@@ -36,8 +36,8 @@ bbsink_forward_begin_backup(bbsink *sink)
 void
 bbsink_forward_begin_archive(bbsink *sink, const char *archive_name)
 {
-	Assert(sink->bbs_next != NULL);
-	bbsink_begin_archive(sink->bbs_next, archive_name);
+  Assert(sink->bbs_next != NULL);
+  bbsink_begin_archive(sink->bbs_next, archive_name);
 }
 
 /*
@@ -53,10 +53,10 @@ bbsink_forward_begin_archive(bbsink *sink, const char *archive_name)
 void
 bbsink_forward_archive_contents(bbsink *sink, size_t len)
 {
-	Assert(sink->bbs_next != NULL);
-	Assert(sink->bbs_buffer == sink->bbs_next->bbs_buffer);
-	Assert(sink->bbs_buffer_length == sink->bbs_next->bbs_buffer_length);
-	bbsink_archive_contents(sink->bbs_next, len);
+  Assert(sink->bbs_next != NULL);
+  Assert(sink->bbs_buffer == sink->bbs_next->bbs_buffer);
+  Assert(sink->bbs_buffer_length == sink->bbs_next->bbs_buffer_length);
+  bbsink_archive_contents(sink->bbs_next, len);
 }
 
 /*
@@ -65,8 +65,8 @@ bbsink_forward_archive_contents(bbsink *sink, size_t len)
 void
 bbsink_forward_end_archive(bbsink *sink)
 {
-	Assert(sink->bbs_next != NULL);
-	bbsink_end_archive(sink->bbs_next);
+  Assert(sink->bbs_next != NULL);
+  bbsink_end_archive(sink->bbs_next);
 }
 
 /*
@@ -75,8 +75,8 @@ bbsink_forward_end_archive(bbsink *sink)
 void
 bbsink_forward_begin_manifest(bbsink *sink)
 {
-	Assert(sink->bbs_next != NULL);
-	bbsink_begin_manifest(sink->bbs_next);
+  Assert(sink->bbs_next != NULL);
+  bbsink_begin_manifest(sink->bbs_next);
 }
 
 /*
@@ -88,10 +88,10 @@ bbsink_forward_begin_manifest(bbsink *sink)
 void
 bbsink_forward_manifest_contents(bbsink *sink, size_t len)
 {
-	Assert(sink->bbs_next != NULL);
-	Assert(sink->bbs_buffer == sink->bbs_next->bbs_buffer);
-	Assert(sink->bbs_buffer_length == sink->bbs_next->bbs_buffer_length);
-	bbsink_manifest_contents(sink->bbs_next, len);
+  Assert(sink->bbs_next != NULL);
+  Assert(sink->bbs_buffer == sink->bbs_next->bbs_buffer);
+  Assert(sink->bbs_buffer_length == sink->bbs_next->bbs_buffer_length);
+  bbsink_manifest_contents(sink->bbs_next, len);
 }
 
 /*
@@ -100,8 +100,8 @@ bbsink_forward_manifest_contents(bbsink *sink, size_t len)
 void
 bbsink_forward_end_manifest(bbsink *sink)
 {
-	Assert(sink->bbs_next != NULL);
-	bbsink_end_manifest(sink->bbs_next);
+  Assert(sink->bbs_next != NULL);
+  bbsink_end_manifest(sink->bbs_next);
 }
 
 /*
@@ -110,8 +110,8 @@ bbsink_forward_end_manifest(bbsink *sink)
 void
 bbsink_forward_end_backup(bbsink *sink, XLogRecPtr endptr, TimeLineID endtli)
 {
-	Assert(sink->bbs_next != NULL);
-	bbsink_end_backup(sink->bbs_next, endptr, endtli);
+  Assert(sink->bbs_next != NULL);
+  bbsink_end_backup(sink->bbs_next, endptr, endtli);
 }
 
 /*
@@ -120,6 +120,6 @@ bbsink_forward_end_backup(bbsink *sink, XLogRecPtr endptr, TimeLineID endtli)
 void
 bbsink_forward_cleanup(bbsink *sink)
 {
-	Assert(sink->bbs_next != NULL);
-	bbsink_cleanup(sink->bbs_next);
+  Assert(sink->bbs_next != NULL);
+  bbsink_cleanup(sink->bbs_next);
 }

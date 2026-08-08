@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * ifaddr.h
- *	  IP netmask calculations, and enumerating network interfaces.
+ *    IP netmask calculations, and enumerating network interfaces.
  *
  * Copyright (c) 2003-2025, PostgreSQL Global Development Group
  *
@@ -15,16 +15,16 @@
 #include "libpq/pqcomm.h"
 
 typedef void (*PgIfAddrCallback) (struct sockaddr *addr,
-								  struct sockaddr *netmask,
-								  void *cb_data);
+                                  struct sockaddr *netmask,
+                                  void *cb_data);
 
-extern int	pg_range_sockaddr(const struct sockaddr_storage *addr,
-							  const struct sockaddr_storage *netaddr,
-							  const struct sockaddr_storage *netmask);
+extern int  pg_range_sockaddr(const struct sockaddr_storage *addr,
+                              const struct sockaddr_storage *netaddr,
+                              const struct sockaddr_storage *netmask);
 
-extern int	pg_sockaddr_cidr_mask(struct sockaddr_storage *mask,
-								  char *numbits, int family);
+extern int  pg_sockaddr_cidr_mask(struct sockaddr_storage *mask,
+                                  char *numbits, int family);
 
-extern int	pg_foreach_ifaddr(PgIfAddrCallback callback, void *cb_data);
+extern int  pg_foreach_ifaddr(PgIfAddrCallback callback, void *cb_data);
 
-#endif							/* IFADDR_H */
+#endif              /* IFADDR_H */

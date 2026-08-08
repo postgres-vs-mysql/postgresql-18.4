@@ -26,4 +26,4 @@
 /* prototypes */
 extern bool PrintResultInCrosstab(const PGresult *res);
 
-#endif							/* CROSSTABVIEW_H */
+#endif              /* CROSSTABVIEW_H */

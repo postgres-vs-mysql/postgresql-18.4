@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_operator.h
- *	  definition of the "operator" system catalog (pg_operator)
+ *    definition of the "operator" system catalog (pg_operator)
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -10,8 +10,8 @@
  * src/include/catalog/pg_operator.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -20,64 +20,65 @@
 
 #include "catalog/genbki.h"
 #include "catalog/objectaddress.h"
-#include "catalog/pg_operator_d.h"	/* IWYU pragma: export */
+#include "catalog/pg_operator_d.h"  /* IWYU pragma: export */
 #include "nodes/pg_list.h"
 
 /* ----------------
- *		pg_operator definition.  cpp turns this into
- *		typedef struct FormData_pg_operator
+ *    pg_operator definition.  cpp turns this into
+ *    typedef struct FormData_pg_operator
  * ----------------
  */
-CATALOG(pg_operator,2617,OperatorRelationId)
+CATALOG(pg_operator, 2617, OperatorRelationId)
 {
-	Oid			oid;			/* oid */
+  Oid     oid;      /* oid */
 
-	/* name of operator */
-	NameData	oprname;
+  /* name of operator */
+  NameData  oprname;
 
-	/* OID of namespace containing this oper */
-	Oid			oprnamespace BKI_DEFAULT(pg_catalog) BKI_LOOKUP(pg_namespace);
+  /* OID of namespace containing this oper */
+  Oid     oprnamespace BKI_DEFAULT(pg_catalog) BKI_LOOKUP(pg_namespace);
 
-	/* operator owner */
-	Oid			oprowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
+  /* operator owner */
+  Oid     oprowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
 
-	/* 'l' for prefix or 'b' for infix */
-	char		oprkind BKI_DEFAULT(b);
+  /* 'l' for prefix or 'b' for infix */
+  char    oprkind BKI_DEFAULT(b);
 
-	/* can be used in merge join? */
-	bool		oprcanmerge BKI_DEFAULT(f);
+  /* can be used in merge join? */
+  bool    oprcanmerge BKI_DEFAULT(f);
 
-	/* can be used in hash join? */
-	bool		oprcanhash BKI_DEFAULT(f);
+  /* can be used in hash join? */
+  bool    oprcanhash BKI_DEFAULT(f);
 
-	/* left arg type, or 0 if prefix operator */
-	Oid			oprleft BKI_LOOKUP_OPT(pg_type);
+  /* left arg type, or 0 if prefix operator */
+  Oid     oprleft BKI_LOOKUP_OPT(pg_type);
 
-	/* right arg type */
-	Oid			oprright BKI_LOOKUP(pg_type);
+  /* right arg type */
+  Oid     oprright BKI_LOOKUP(pg_type);
 
-	/* result datatype; can be 0 in a "shell" operator */
-	Oid			oprresult BKI_LOOKUP_OPT(pg_type);
+  /* result datatype; can be 0 in a "shell" operator */
+  Oid     oprresult BKI_LOOKUP_OPT(pg_type);
 
-	/* OID of commutator oper, or 0 if none */
-	Oid			oprcom BKI_DEFAULT(0) BKI_LOOKUP_OPT(pg_operator);
+  /* OID of commutator oper, or 0 if none */
+  Oid     oprcom BKI_DEFAULT(0) BKI_LOOKUP_OPT(pg_operator);
 
-	/* OID of negator oper, or 0 if none */
-	Oid			oprnegate BKI_DEFAULT(0) BKI_LOOKUP_OPT(pg_operator);
+  /* OID of negator oper, or 0 if none */
+  Oid     oprnegate BKI_DEFAULT(0) BKI_LOOKUP_OPT(pg_operator);
 
-	/* OID of underlying function; can be 0 in a "shell" operator */
-	regproc		oprcode BKI_LOOKUP_OPT(pg_proc);
+  /* OID of underlying function; can be 0 in a "shell" operator */
+  regproc   oprcode BKI_LOOKUP_OPT(pg_proc);
 
-	/* OID of restriction estimator, or 0 */
-	regproc		oprrest BKI_DEFAULT(-) BKI_LOOKUP_OPT(pg_proc);
+  /* OID of restriction estimator, or 0 */
+  regproc   oprrest BKI_DEFAULT(-) BKI_LOOKUP_OPT(pg_proc);
 
-	/* OID of join estimator, or 0 */
-	regproc		oprjoin BKI_DEFAULT(-) BKI_LOOKUP_OPT(pg_proc);
-} FormData_pg_operator;
+  /* OID of join estimator, or 0 */
+  regproc   oprjoin BKI_DEFAULT(-) BKI_LOOKUP_OPT(pg_proc);
+}
+FormData_pg_operator;
 
 /* ----------------
- *		Form_pg_operator corresponds to a pointer to a tuple with
- *		the format of pg_operator relation.
+ *    Form_pg_operator corresponds to a pointer to a tuple with
+ *    the format of pg_operator relation.
  * ----------------
  */
 typedef FormData_pg_operator *Form_pg_operator;
@@ -88,37 +89,37 @@ DECLARE_UNIQUE_INDEX(pg_operator_oprname_l_r_n_index, 2689, OperatorNameNspIndex
 MAKE_SYSCACHE(OPEROID, pg_operator_oid_index, 32);
 MAKE_SYSCACHE(OPERNAMENSP, pg_operator_oprname_l_r_n_index, 256);
 
-extern Oid	OperatorLookup(List *operatorName,
-						   Oid leftObjectId,
-						   Oid rightObjectId,
-						   bool *defined);
+extern Oid  OperatorLookup(List *operatorName,
+                           Oid leftObjectId,
+                           Oid rightObjectId,
+                           bool *defined);
 
 extern ObjectAddress OperatorCreate(const char *operatorName,
-									Oid operatorNamespace,
-									Oid leftTypeId,
-									Oid rightTypeId,
-									Oid procedureId,
-									List *commutatorName,
-									List *negatorName,
-									Oid restrictionId,
-									Oid joinId,
-									bool canMerge,
-									bool canHash);
+                                    Oid operatorNamespace,
+                                    Oid leftTypeId,
+                                    Oid rightTypeId,
+                                    Oid procedureId,
+                                    List *commutatorName,
+                                    List *negatorName,
+                                    Oid restrictionId,
+                                    Oid joinId,
+                                    bool canMerge,
+                                    bool canHash);
 
 extern ObjectAddress makeOperatorDependencies(HeapTuple tuple,
-											  bool makeExtensionDep,
-											  bool isUpdate);
+    bool makeExtensionDep,
+    bool isUpdate);
 
 extern void OperatorValidateParams(Oid leftTypeId,
-								   Oid rightTypeId,
-								   Oid operResultType,
-								   bool hasCommutator,
-								   bool hasNegator,
-								   bool hasRestrictionSelectivity,
-								   bool hasJoinSelectivity,
-								   bool canMerge,
-								   bool canHash);
+                                   Oid rightTypeId,
+                                   Oid operResultType,
+                                   bool hasCommutator,
+                                   bool hasNegator,
+                                   bool hasRestrictionSelectivity,
+                                   bool hasJoinSelectivity,
+                                   bool canMerge,
+                                   bool canHash);
 
 extern void OperatorUpd(Oid baseId, Oid commId, Oid negId, bool isDelete);
 
-#endif							/* PG_OPERATOR_H */
+#endif              /* PG_OPERATOR_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * sampling.h
- *	  definitions for sampling functions
+ *    definitions for sampling functions
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -14,12 +14,12 @@
 #define SAMPLING_H
 
 #include "common/pg_prng.h"
-#include "storage/block.h"		/* for typedef BlockNumber */
+#include "storage/block.h"    /* for typedef BlockNumber */
 
 
 /* Random generator for sampling code */
 extern void sampler_random_init_state(uint32 seed,
-									  pg_prng_state *randstate);
+                                      pg_prng_state *randstate);
 extern double sampler_random_fract(pg_prng_state *randstate);
 
 /* Block sampling methods */
@@ -27,17 +27,17 @@ extern double sampler_random_fract(pg_prng_state *randstate);
 /* Data structure for Algorithm S from Knuth 3.4.2 */
 typedef struct
 {
-	BlockNumber N;				/* number of blocks, known in advance */
-	int			n;				/* desired sample size */
-	BlockNumber t;				/* current block number */
-	int			m;				/* blocks selected so far */
-	pg_prng_state randstate;	/* random generator state */
+  BlockNumber N;        /* number of blocks, known in advance */
+  int     n;        /* desired sample size */
+  BlockNumber t;        /* current block number */
+  int     m;        /* blocks selected so far */
+  pg_prng_state randstate;  /* random generator state */
 } BlockSamplerData;
 
 typedef BlockSamplerData *BlockSampler;
 
 extern BlockNumber BlockSampler_Init(BlockSampler bs, BlockNumber nblocks,
-									 int samplesize, uint32 randseed);
+                                     int samplesize, uint32 randseed);
 extern bool BlockSampler_HasMore(BlockSampler bs);
 extern BlockNumber BlockSampler_Next(BlockSampler bs);
 
@@ -45,8 +45,8 @@ extern BlockNumber BlockSampler_Next(BlockSampler bs);
 
 typedef struct
 {
-	double		W;
-	pg_prng_state randstate;	/* random generator state */
+  double    W;
+  pg_prng_state randstate;  /* random generator state */
 } ReservoirStateData;
 
 typedef ReservoirStateData *ReservoirState;
@@ -61,4 +61,4 @@ extern double anl_random_fract(void);
 extern double anl_init_selection_state(int n);
 extern double anl_get_next_S(double t, int n, double *stateptr);
 
-#endif							/* SAMPLING_H */
+#endif              /* SAMPLING_H */

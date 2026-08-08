@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_extension.h
- *	  definition of the "extension" system catalog (pg_extension)
+ *    definition of the "extension" system catalog (pg_extension)
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -10,8 +10,8 @@
  * src/include/catalog/pg_extension.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -22,31 +22,32 @@
 #include "catalog/pg_extension_d.h" /* IWYU pragma: export */
 
 /* ----------------
- *		pg_extension definition.  cpp turns this into
- *		typedef struct FormData_pg_extension
+ *    pg_extension definition.  cpp turns this into
+ *    typedef struct FormData_pg_extension
  * ----------------
  */
-CATALOG(pg_extension,3079,ExtensionRelationId)
+CATALOG(pg_extension, 3079, ExtensionRelationId)
 {
-	Oid			oid;			/* oid */
-	NameData	extname;		/* extension name */
-	Oid			extowner BKI_LOOKUP(pg_authid); /* extension owner */
-	Oid			extnamespace BKI_LOOKUP(pg_namespace);	/* namespace of
-														 * contained objects */
-	bool		extrelocatable; /* if true, allow ALTER EXTENSION SET SCHEMA */
+  Oid     oid;      /* oid */
+  NameData  extname;    /* extension name */
+  Oid     extowner BKI_LOOKUP(pg_authid); /* extension owner */
+  Oid     extnamespace BKI_LOOKUP(pg_namespace);  /* namespace of
+                             * contained objects */
+  bool    extrelocatable; /* if true, allow ALTER EXTENSION SET SCHEMA */
 
-#ifdef CATALOG_VARLEN			/* variable-length fields start here */
-	/* extversion may never be null, but the others can be. */
-	text		extversion BKI_FORCE_NOT_NULL;	/* extension version name */
-	Oid			extconfig[1] BKI_LOOKUP(pg_class);	/* dumpable configuration
-													 * tables */
-	text		extcondition[1];	/* WHERE clauses for config tables */
+#ifdef CATALOG_VARLEN     /* variable-length fields start here */
+  /* extversion may never be null, but the others can be. */
+  text    extversion BKI_FORCE_NOT_NULL;  /* extension version name */
+  Oid     extconfig[1] BKI_LOOKUP(pg_class);  /* dumpable configuration
+                           * tables */
+  text    extcondition[1];  /* WHERE clauses for config tables */
 #endif
-} FormData_pg_extension;
+}
+FormData_pg_extension;
 
 /* ----------------
- *		Form_pg_extension corresponds to a pointer to a tuple with
- *		the format of pg_extension relation.
+ *    Form_pg_extension corresponds to a pointer to a tuple with
+ *    the format of pg_extension relation.
  * ----------------
  */
 typedef FormData_pg_extension *Form_pg_extension;
@@ -59,4 +60,4 @@ DECLARE_UNIQUE_INDEX(pg_extension_name_index, 3081, ExtensionNameIndexId, pg_ext
 MAKE_SYSCACHE(EXTENSIONOID, pg_extension_oid_index, 2);
 MAKE_SYSCACHE(EXTENSIONNAME, pg_extension_name_index, 2);
 
-#endif							/* PG_EXTENSION_H */
+#endif              /* PG_EXTENSION_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * multibitmapset.h
- *	  Lists of Bitmapsets
+ *    Lists of Bitmapsets
  *
  * A multibitmapset is useful in situations where members of a set can
  * be identified by two small integers; for example, varno and varattno
@@ -36,4 +36,4 @@ extern List *mbms_int_members(List *a, const List *b);
 extern bool mbms_is_member(int listidx, int bitidx, const List *a);
 extern Bitmapset *mbms_overlap_sets(const List *a, const List *b);
 
-#endif							/* MULTIBITMAPSET_H */
+#endif              /* MULTIBITMAPSET_H */

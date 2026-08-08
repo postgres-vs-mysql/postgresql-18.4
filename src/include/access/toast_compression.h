@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * toast_compression.h
- *	  Functions for toast compression.
+ *    Functions for toast compression.
  *
  * Copyright (c) 2021-2025, PostgreSQL Global Development Group
  *
@@ -36,9 +36,9 @@ extern PGDLLIMPORT int default_toast_compression;
  */
 typedef enum ToastCompressionId
 {
-	TOAST_PGLZ_COMPRESSION_ID = 0,
-	TOAST_LZ4_COMPRESSION_ID = 1,
-	TOAST_INVALID_COMPRESSION_ID = 2,
+  TOAST_PGLZ_COMPRESSION_ID = 0,
+  TOAST_LZ4_COMPRESSION_ID = 1,
+  TOAST_INVALID_COMPRESSION_ID = 2,
 } ToastCompressionId;
 
 /*
@@ -46,9 +46,9 @@ typedef enum ToastCompressionId
  * attcompression column.  In attcompression, InvalidCompressionMethod
  * denotes the default behavior.
  */
-#define TOAST_PGLZ_COMPRESSION			'p'
-#define TOAST_LZ4_COMPRESSION			'l'
-#define InvalidCompressionMethod		'\0'
+#define TOAST_PGLZ_COMPRESSION      'p'
+#define TOAST_LZ4_COMPRESSION     'l'
+#define InvalidCompressionMethod    '\0'
 
 #define CompressionMethodIsValid(cm)  ((cm) != InvalidCompressionMethod)
 
@@ -57,17 +57,17 @@ typedef enum ToastCompressionId
 extern struct varlena *pglz_compress_datum(const struct varlena *value);
 extern struct varlena *pglz_decompress_datum(const struct varlena *value);
 extern struct varlena *pglz_decompress_datum_slice(const struct varlena *value,
-												   int32 slicelength);
+    int32 slicelength);
 
 /* lz4 compression/decompression routines */
 extern struct varlena *lz4_compress_datum(const struct varlena *value);
 extern struct varlena *lz4_decompress_datum(const struct varlena *value);
 extern struct varlena *lz4_decompress_datum_slice(const struct varlena *value,
-												  int32 slicelength);
+    int32 slicelength);
 
 /* other stuff */
 extern ToastCompressionId toast_get_compression_id(struct varlena *attr);
 extern char CompressionNameToMethod(const char *compression);
 extern const char *GetCompressionMethodName(char method);
 
-#endif							/* TOAST_COMPRESSION_H */
+#endif              /* TOAST_COMPRESSION_H */

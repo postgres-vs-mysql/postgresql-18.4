@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * posix_sema.c
- *	  Implement PGSemaphores using POSIX semaphore facilities
+ *    Implement PGSemaphores using POSIX semaphore facilities
  *
  * We prefer the unnamed style of POSIX semaphore (the kind made with
  * sem_init).  We can cope with the kind made with sem_open, however.
@@ -19,7 +19,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/port/posix_sema.c
+ *    src/backend/port/posix_sema.c
  *
  *-------------------------------------------------------------------------
  */
@@ -42,30 +42,28 @@
 #error cannot use named POSIX semaphores with EXEC_BACKEND
 #endif
 
-typedef union SemTPadded
-{
-	sem_t		pgsem;
-	char		pad[PG_CACHE_LINE_SIZE];
+typedef union SemTPadded {
+  sem_t   pgsem;
+  char    pad[PG_CACHE_LINE_SIZE];
 } SemTPadded;
 
 /* typedef PGSemaphore is equivalent to pointer to sem_t */
-typedef struct PGSemaphoreData
-{
-	SemTPadded	sem_padded;
+typedef struct PGSemaphoreData {
+  SemTPadded  sem_padded;
 } PGSemaphoreData;
 
-#define PG_SEM_REF(x)	(&(x)->sem_padded.pgsem)
+#define PG_SEM_REF(x) (&(x)->sem_padded.pgsem)
 
-#define IPCProtection	(0600)	/* access/modify by user only */
+#define IPCProtection (0600)  /* access/modify by user only */
 
 #ifdef USE_NAMED_POSIX_SEMAPHORES
-static sem_t **mySemPointers;	/* keep track of created semaphores */
+static sem_t **mySemPointers; /* keep track of created semaphores */
 #else
 static PGSemaphore sharedSemas; /* array of PGSemaphoreData in shared memory */
 #endif
-static int	numSems;			/* number of semas acquired so far */
-static int	maxSems;			/* allocated size of above arrays */
-static int	nextSemKey;			/* next name to try */
+static int  numSems;      /* number of semas acquired so far */
+static int  maxSems;      /* allocated size of above arrays */
+static int  nextSemKey;     /* next name to try */
 
 
 static void ReleaseSemaphores(int status, Datum arg);
@@ -85,46 +83,49 @@ static void ReleaseSemaphores(int status, Datum arg);
 static sem_t *
 PosixSemaphoreCreate(void)
 {
-	int			semKey;
-	char		semname[64];
-	sem_t	   *mySem;
+  int     semKey;
+  char    semname[64];
+  sem_t    *mySem;
 
-	for (;;)
-	{
-		semKey = nextSemKey++;
+  for (;;) {
+    semKey = nextSemKey++;
 
-		snprintf(semname, sizeof(semname), "/pgsql-%d", semKey);
+    snprintf(semname, sizeof(semname), "/pgsql-%d", semKey);
 
-		mySem = sem_open(semname, O_CREAT | O_EXCL,
-						 (mode_t) IPCProtection, (unsigned) 1);
+    mySem = sem_open(semname, O_CREAT | O_EXCL,
+                     (mode_t) IPCProtection, (unsigned) 1);
 
 #ifdef SEM_FAILED
-		if (mySem != (sem_t *) SEM_FAILED)
-			break;
+
+    if (mySem != (sem_t *) SEM_FAILED)
+      break;
+
 #else
-		if (mySem != (sem_t *) (-1))
-			break;
+
+    if (mySem != (sem_t *) (-1))
+      break;
+
 #endif
 
-		/* Loop if error indicates a collision */
-		if (errno == EEXIST || errno == EACCES || errno == EINTR)
-			continue;
+    /* Loop if error indicates a collision */
+    if (errno == EEXIST || errno == EACCES || errno == EINTR)
+      continue;
 
-		/*
-		 * Else complain and abort
-		 */
-		elog(FATAL, "sem_open(\"%s\") failed: %m", semname);
-	}
+    /*
+     * Else complain and abort
+     */
+    elog(FATAL, "sem_open(\"%s\") failed: %m", semname);
+  }
 
-	/*
-	 * Unlink the semaphore immediately, so it can't be accessed externally.
-	 * This also ensures that it will go away if we crash.
-	 */
-	sem_unlink(semname);
+  /*
+   * Unlink the semaphore immediately, so it can't be accessed externally.
+   * This also ensures that it will go away if we crash.
+   */
+  sem_unlink(semname);
 
-	return mySem;
+  return mySem;
 }
-#else							/* !USE_NAMED_POSIX_SEMAPHORES */
+#else             /* !USE_NAMED_POSIX_SEMAPHORES */
 
 /*
  * PosixSemaphoreCreate
@@ -134,26 +135,30 @@ PosixSemaphoreCreate(void)
 static void
 PosixSemaphoreCreate(sem_t *sem)
 {
-	if (sem_init(sem, 1, 1) < 0)
-		elog(FATAL, "sem_init failed: %m");
+  if (sem_init(sem, 1, 1) < 0)
+    elog(FATAL, "sem_init failed: %m");
 }
-#endif							/* USE_NAMED_POSIX_SEMAPHORES */
+#endif              /* USE_NAMED_POSIX_SEMAPHORES */
 
 
 /*
- * PosixSemaphoreKill	- removes a semaphore
+ * PosixSemaphoreKill - removes a semaphore
  */
 static void
 PosixSemaphoreKill(sem_t *sem)
 {
 #ifdef USE_NAMED_POSIX_SEMAPHORES
-	/* Got to use sem_close for named semaphores */
-	if (sem_close(sem) < 0)
-		elog(LOG, "sem_close failed: %m");
+
+  /* Got to use sem_close for named semaphores */
+  if (sem_close(sem) < 0)
+    elog(LOG, "sem_close failed: %m");
+
 #else
-	/* Got to use sem_destroy for unnamed semaphores */
-	if (sem_destroy(sem) < 0)
-		elog(LOG, "sem_destroy failed: %m");
+
+  /* Got to use sem_destroy for unnamed semaphores */
+  if (sem_destroy(sem) < 0)
+    elog(LOG, "sem_destroy failed: %m");
+
 #endif
 }
 
@@ -165,11 +170,11 @@ Size
 PGSemaphoreShmemSize(int maxSemas)
 {
 #ifdef USE_NAMED_POSIX_SEMAPHORES
-	/* No shared memory needed in this case */
-	return 0;
+  /* No shared memory needed in this case */
+  return 0;
 #else
-	/* Need a PGSemaphoreData per semaphore */
-	return mul_size(maxSemas, sizeof(PGSemaphoreData));
+  /* Need a PGSemaphoreData per semaphore */
+  return mul_size(maxSemas, sizeof(PGSemaphoreData));
 #endif
 }
 
@@ -195,39 +200,41 @@ PGSemaphoreShmemSize(int maxSemas)
 void
 PGReserveSemaphores(int maxSemas)
 {
-	struct stat statbuf;
+  struct stat statbuf;
 
-	/*
-	 * We use the data directory's inode number to seed the search for free
-	 * semaphore keys.  This minimizes the odds of collision with other
-	 * postmasters, while maximizing the odds that we will detect and clean up
-	 * semaphores left over from a crashed postmaster in our own directory.
-	 */
-	if (stat(DataDir, &statbuf) < 0)
-		ereport(FATAL,
-				(errcode_for_file_access(),
-				 errmsg("could not stat data directory \"%s\": %m",
-						DataDir)));
+  /*
+   * We use the data directory's inode number to seed the search for free
+   * semaphore keys.  This minimizes the odds of collision with other
+   * postmasters, while maximizing the odds that we will detect and clean up
+   * semaphores left over from a crashed postmaster in our own directory.
+   */
+  if (stat(DataDir, &statbuf) < 0)
+    ereport(FATAL,
+            (errcode_for_file_access(),
+             errmsg("could not stat data directory \"%s\": %m",
+                    DataDir)));
 
 #ifdef USE_NAMED_POSIX_SEMAPHORES
-	mySemPointers = (sem_t **) malloc(maxSemas * sizeof(sem_t *));
-	if (mySemPointers == NULL)
-		elog(PANIC, "out of memory");
+  mySemPointers = (sem_t **) malloc(maxSemas * sizeof(sem_t *));
+
+  if (mySemPointers == NULL)
+    elog(PANIC, "out of memory");
+
 #else
 
-	/*
-	 * We must use ShmemAllocUnlocked(), since the spinlock protecting
-	 * ShmemAlloc() won't be ready yet.
-	 */
-	sharedSemas = (PGSemaphore)
-		ShmemAllocUnlocked(PGSemaphoreShmemSize(maxSemas));
+  /*
+   * We must use ShmemAllocUnlocked(), since the spinlock protecting
+   * ShmemAlloc() won't be ready yet.
+   */
+  sharedSemas = (PGSemaphore)
+                ShmemAllocUnlocked(PGSemaphoreShmemSize(maxSemas));
 #endif
 
-	numSems = 0;
-	maxSems = maxSemas;
-	nextSemKey = statbuf.st_ino;
+  numSems = 0;
+  maxSems = maxSemas;
+  nextSemKey = statbuf.st_ino;
 
-	on_shmem_exit(ReleaseSemaphores, 0);
+  on_shmem_exit(ReleaseSemaphores, 0);
 }
 
 /*
@@ -238,17 +245,21 @@ PGReserveSemaphores(int maxSemas)
 static void
 ReleaseSemaphores(int status, Datum arg)
 {
-	int			i;
+  int     i;
 
 #ifdef USE_NAMED_POSIX_SEMAPHORES
-	for (i = 0; i < numSems; i++)
-		PosixSemaphoreKill(mySemPointers[i]);
-	free(mySemPointers);
+
+  for (i = 0; i < numSems; i++)
+    PosixSemaphoreKill(mySemPointers[i]);
+
+  free(mySemPointers);
 #endif
 
 #ifdef USE_UNNAMED_POSIX_SEMAPHORES
-	for (i = 0; i < numSems; i++)
-		PosixSemaphoreKill(PG_SEM_REF(sharedSemas + i));
+
+  for (i = 0; i < numSems; i++)
+    PosixSemaphoreKill(PG_SEM_REF(sharedSemas + i));
+
 #endif
 }
 
@@ -260,29 +271,29 @@ ReleaseSemaphores(int status, Datum arg)
 PGSemaphore
 PGSemaphoreCreate(void)
 {
-	PGSemaphore sema;
-	sem_t	   *newsem;
+  PGSemaphore sema;
+  sem_t    *newsem;
 
-	/* Can't do this in a backend, because static state is postmaster's */
-	Assert(!IsUnderPostmaster);
+  /* Can't do this in a backend, because static state is postmaster's */
+  Assert(!IsUnderPostmaster);
 
-	if (numSems >= maxSems)
-		elog(PANIC, "too many semaphores created");
+  if (numSems >= maxSems)
+    elog(PANIC, "too many semaphores created");
 
 #ifdef USE_NAMED_POSIX_SEMAPHORES
-	newsem = PosixSemaphoreCreate();
-	/* Remember new sema for ReleaseSemaphores */
-	mySemPointers[numSems] = newsem;
-	sema = (PGSemaphore) newsem;
+  newsem = PosixSemaphoreCreate();
+  /* Remember new sema for ReleaseSemaphores */
+  mySemPointers[numSems] = newsem;
+  sema = (PGSemaphore) newsem;
 #else
-	sema = &sharedSemas[numSems];
-	newsem = PG_SEM_REF(sema);
-	PosixSemaphoreCreate(newsem);
+  sema = &sharedSemas[numSems];
+  newsem = PG_SEM_REF(sema);
+  PosixSemaphoreCreate(newsem);
 #endif
 
-	numSems++;
+  numSems++;
 
-	return sema;
+  return sema;
 }
 
 /*
@@ -293,21 +304,21 @@ PGSemaphoreCreate(void)
 void
 PGSemaphoreReset(PGSemaphore sema)
 {
-	/*
-	 * There's no direct API for this in POSIX, so we have to ratchet the
-	 * semaphore down to 0 with repeated trywait's.
-	 */
-	for (;;)
-	{
-		if (sem_trywait(PG_SEM_REF(sema)) < 0)
-		{
-			if (errno == EAGAIN || errno == EDEADLK)
-				break;			/* got it down to 0 */
-			if (errno == EINTR)
-				continue;		/* can this happen? */
-			elog(FATAL, "sem_trywait failed: %m");
-		}
-	}
+  /*
+   * There's no direct API for this in POSIX, so we have to ratchet the
+   * semaphore down to 0 with repeated trywait's.
+   */
+  for (;;) {
+    if (sem_trywait(PG_SEM_REF(sema)) < 0) {
+      if (errno == EAGAIN || errno == EDEADLK)
+        break;      /* got it down to 0 */
+
+      if (errno == EINTR)
+        continue;   /* can this happen? */
+
+      elog(FATAL, "sem_trywait failed: %m");
+    }
+  }
 }
 
 /*
@@ -318,16 +329,15 @@ PGSemaphoreReset(PGSemaphore sema)
 void
 PGSemaphoreLock(PGSemaphore sema)
 {
-	int			errStatus;
+  int     errStatus;
 
-	/* See notes in sysv_sema.c's implementation of PGSemaphoreLock. */
-	do
-	{
-		errStatus = sem_wait(PG_SEM_REF(sema));
-	} while (errStatus < 0 && errno == EINTR);
+  /* See notes in sysv_sema.c's implementation of PGSemaphoreLock. */
+  do {
+    errStatus = sem_wait(PG_SEM_REF(sema));
+  } while (errStatus < 0 && errno == EINTR);
 
-	if (errStatus < 0)
-		elog(FATAL, "sem_wait failed: %m");
+  if (errStatus < 0)
+    elog(FATAL, "sem_wait failed: %m");
 }
 
 /*
@@ -338,21 +348,20 @@ PGSemaphoreLock(PGSemaphore sema)
 void
 PGSemaphoreUnlock(PGSemaphore sema)
 {
-	int			errStatus;
+  int     errStatus;
 
-	/*
-	 * Note: if errStatus is -1 and errno == EINTR then it means we returned
-	 * from the operation prematurely because we were sent a signal.  So we
-	 * try and unlock the semaphore again. Not clear this can really happen,
-	 * but might as well cope.
-	 */
-	do
-	{
-		errStatus = sem_post(PG_SEM_REF(sema));
-	} while (errStatus < 0 && errno == EINTR);
+  /*
+   * Note: if errStatus is -1 and errno == EINTR then it means we returned
+   * from the operation prematurely because we were sent a signal.  So we
+   * try and unlock the semaphore again. Not clear this can really happen,
+   * but might as well cope.
+   */
+  do {
+    errStatus = sem_post(PG_SEM_REF(sema));
+  } while (errStatus < 0 && errno == EINTR);
 
-	if (errStatus < 0)
-		elog(FATAL, "sem_post failed: %m");
+  if (errStatus < 0)
+    elog(FATAL, "sem_post failed: %m");
 }
 
 /*
@@ -363,25 +372,24 @@ PGSemaphoreUnlock(PGSemaphore sema)
 bool
 PGSemaphoreTryLock(PGSemaphore sema)
 {
-	int			errStatus;
+  int     errStatus;
 
-	/*
-	 * Note: if errStatus is -1 and errno == EINTR then it means we returned
-	 * from the operation prematurely because we were sent a signal.  So we
-	 * try and lock the semaphore again.
-	 */
-	do
-	{
-		errStatus = sem_trywait(PG_SEM_REF(sema));
-	} while (errStatus < 0 && errno == EINTR);
+  /*
+   * Note: if errStatus is -1 and errno == EINTR then it means we returned
+   * from the operation prematurely because we were sent a signal.  So we
+   * try and lock the semaphore again.
+   */
+  do {
+    errStatus = sem_trywait(PG_SEM_REF(sema));
+  } while (errStatus < 0 && errno == EINTR);
 
-	if (errStatus < 0)
-	{
-		if (errno == EAGAIN || errno == EDEADLK)
-			return false;		/* failed to lock it */
-		/* Otherwise we got trouble */
-		elog(FATAL, "sem_trywait failed: %m");
-	}
+  if (errStatus < 0) {
+    if (errno == EAGAIN || errno == EDEADLK)
+      return false;   /* failed to lock it */
 
-	return true;
+    /* Otherwise we got trouble */
+    elog(FATAL, "sem_trywait failed: %m");
+  }
+
+  return true;
 }

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * sharedfileset.h
- *	  Shared temporary file management.
+ *    Shared temporary file management.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -25,9 +25,9 @@
  */
 typedef struct SharedFileSet
 {
-	FileSet		fs;
-	slock_t		mutex;			/* mutex protecting the reference count */
-	int			refcnt;			/* number of attached backends */
+  FileSet   fs;
+  slock_t   mutex;      /* mutex protecting the reference count */
+  int     refcnt;     /* number of attached backends */
 } SharedFileSet;
 
 extern void SharedFileSetInit(SharedFileSet *fileset, dsm_segment *seg);

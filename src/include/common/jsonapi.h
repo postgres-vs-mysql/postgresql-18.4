@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * jsonapi.h
- *	  Declarations for JSON API support.
+ *    Declarations for JSON API support.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -16,47 +16,47 @@
 
 typedef enum JsonTokenType
 {
-	JSON_TOKEN_INVALID,
-	JSON_TOKEN_STRING,
-	JSON_TOKEN_NUMBER,
-	JSON_TOKEN_OBJECT_START,
-	JSON_TOKEN_OBJECT_END,
-	JSON_TOKEN_ARRAY_START,
-	JSON_TOKEN_ARRAY_END,
-	JSON_TOKEN_COMMA,
-	JSON_TOKEN_COLON,
-	JSON_TOKEN_TRUE,
-	JSON_TOKEN_FALSE,
-	JSON_TOKEN_NULL,
-	JSON_TOKEN_END,
+  JSON_TOKEN_INVALID,
+  JSON_TOKEN_STRING,
+  JSON_TOKEN_NUMBER,
+  JSON_TOKEN_OBJECT_START,
+  JSON_TOKEN_OBJECT_END,
+  JSON_TOKEN_ARRAY_START,
+  JSON_TOKEN_ARRAY_END,
+  JSON_TOKEN_COMMA,
+  JSON_TOKEN_COLON,
+  JSON_TOKEN_TRUE,
+  JSON_TOKEN_FALSE,
+  JSON_TOKEN_NULL,
+  JSON_TOKEN_END,
 } JsonTokenType;
 
 typedef enum JsonParseErrorType
 {
-	JSON_SUCCESS,
-	JSON_INCOMPLETE,
-	JSON_INVALID_LEXER_TYPE,
-	JSON_NESTING_TOO_DEEP,
-	JSON_ESCAPING_INVALID,
-	JSON_ESCAPING_REQUIRED,
-	JSON_EXPECTED_ARRAY_FIRST,
-	JSON_EXPECTED_ARRAY_NEXT,
-	JSON_EXPECTED_COLON,
-	JSON_EXPECTED_END,
-	JSON_EXPECTED_JSON,
-	JSON_EXPECTED_MORE,
-	JSON_EXPECTED_OBJECT_FIRST,
-	JSON_EXPECTED_OBJECT_NEXT,
-	JSON_EXPECTED_STRING,
-	JSON_INVALID_TOKEN,
-	JSON_OUT_OF_MEMORY,
-	JSON_UNICODE_CODE_POINT_ZERO,
-	JSON_UNICODE_ESCAPE_FORMAT,
-	JSON_UNICODE_HIGH_ESCAPE,
-	JSON_UNICODE_UNTRANSLATABLE,
-	JSON_UNICODE_HIGH_SURROGATE,
-	JSON_UNICODE_LOW_SURROGATE,
-	JSON_SEM_ACTION_FAILED,		/* error should already be reported */
+  JSON_SUCCESS,
+  JSON_INCOMPLETE,
+  JSON_INVALID_LEXER_TYPE,
+  JSON_NESTING_TOO_DEEP,
+  JSON_ESCAPING_INVALID,
+  JSON_ESCAPING_REQUIRED,
+  JSON_EXPECTED_ARRAY_FIRST,
+  JSON_EXPECTED_ARRAY_NEXT,
+  JSON_EXPECTED_COLON,
+  JSON_EXPECTED_END,
+  JSON_EXPECTED_JSON,
+  JSON_EXPECTED_MORE,
+  JSON_EXPECTED_OBJECT_FIRST,
+  JSON_EXPECTED_OBJECT_NEXT,
+  JSON_EXPECTED_STRING,
+  JSON_INVALID_TOKEN,
+  JSON_OUT_OF_MEMORY,
+  JSON_UNICODE_CODE_POINT_ZERO,
+  JSON_UNICODE_ESCAPE_FORMAT,
+  JSON_UNICODE_HIGH_ESCAPE,
+  JSON_UNICODE_UNTRANSLATABLE,
+  JSON_UNICODE_HIGH_SURROGATE,
+  JSON_UNICODE_LOW_SURROGATE,
+  JSON_SEM_ACTION_FAILED,   /* error should already be reported */
 } JsonParseErrorType;
 
 /* Parser state private to jsonapi.c */
@@ -94,28 +94,28 @@ typedef struct JsonIncrementalState JsonIncrementalState;
  * JSONLEX_FREE_STRUCT/STRVAL are used to drive freeJsonLexContext.
  * JSONLEX_CTX_OWNS_TOKENS is used by setJsonLexContextOwnsTokens.
  */
-#define JSONLEX_FREE_STRUCT			(1 << 0)
-#define JSONLEX_FREE_STRVAL			(1 << 1)
-#define JSONLEX_CTX_OWNS_TOKENS		(1 << 2)
+#define JSONLEX_FREE_STRUCT     (1 << 0)
+#define JSONLEX_FREE_STRVAL     (1 << 1)
+#define JSONLEX_CTX_OWNS_TOKENS   (1 << 2)
 typedef struct JsonLexContext
 {
-	const char *input;
-	size_t		input_length;
-	int			input_encoding;
-	const char *token_start;
-	const char *token_terminator;
-	const char *prev_token_terminator;
-	bool		incremental;
-	JsonTokenType token_type;
-	int			lex_level;
-	bits32		flags;
-	int			line_number;	/* line number, starting from 1 */
-	const char *line_start;		/* where that line starts within input */
-	JsonParserStack *pstack;
-	JsonIncrementalState *inc_state;
-	bool		need_escapes;
-	struct jsonapi_StrValType *strval;	/* only used if need_escapes == true */
-	struct jsonapi_StrValType *errormsg;
+  const char *input;
+  size_t    input_length;
+  int     input_encoding;
+  const char *token_start;
+  const char *token_terminator;
+  const char *prev_token_terminator;
+  bool    incremental;
+  JsonTokenType token_type;
+  int     lex_level;
+  bits32    flags;
+  int     line_number;  /* line number, starting from 1 */
+  const char *line_start;   /* where that line starts within input */
+  JsonParserStack *pstack;
+  JsonIncrementalState *inc_state;
+  bool    need_escapes;
+  struct jsonapi_StrValType *strval;  /* only used if need_escapes == true */
+  struct jsonapi_StrValType *errormsg;
 } JsonLexContext;
 
 /*
@@ -150,16 +150,16 @@ typedef JsonParseErrorType (*json_scalar_action) (void *state, char *token, Json
  */
 typedef struct JsonSemAction
 {
-	void	   *semstate;
-	json_struct_action object_start;
-	json_struct_action object_end;
-	json_struct_action array_start;
-	json_struct_action array_end;
-	json_ofield_action object_field_start;
-	json_ofield_action object_field_end;
-	json_aelem_action array_element_start;
-	json_aelem_action array_element_end;
-	json_scalar_action scalar;
+  void     *semstate;
+  json_struct_action object_start;
+  json_struct_action object_end;
+  json_struct_action array_start;
+  json_struct_action array_end;
+  json_ofield_action object_field_start;
+  json_ofield_action object_field_end;
+  json_aelem_action array_element_start;
+  json_aelem_action array_element_end;
+  json_scalar_action scalar;
 } JsonSemAction;
 
 /*
@@ -172,13 +172,13 @@ typedef struct JsonSemAction
  * does nothing and just continues.
  */
 extern JsonParseErrorType pg_parse_json(JsonLexContext *lex,
-										const JsonSemAction *sem);
+                                        const JsonSemAction *sem);
 
 extern JsonParseErrorType pg_parse_json_incremental(JsonLexContext *lex,
-													const JsonSemAction *sem,
-													const char *json,
-													size_t len,
-													bool is_last);
+    const JsonSemAction *sem,
+    const char *json,
+    size_t len,
+    bool is_last);
 
 /* the null action object used for pure validation */
 extern PGDLLIMPORT const JsonSemAction nullSemAction;
@@ -193,7 +193,7 @@ extern PGDLLIMPORT const JsonSemAction nullSemAction;
  * JSON_SUCCESS).
  */
 extern JsonParseErrorType json_count_array_elements(JsonLexContext *lex,
-													int *elements);
+    int *elements);
 
 /*
  * initializer for JsonLexContext.
@@ -216,10 +216,10 @@ extern JsonParseErrorType json_count_array_elements(JsonLexContext *lex,
  * freeJsonLexContext() or (in backends) via memory context cleanup.
  */
 extern JsonLexContext *makeJsonLexContextCstringLen(JsonLexContext *lex,
-													const char *json,
-													size_t len,
-													int encoding,
-													bool need_escapes);
+    const char *json,
+    size_t len,
+    int encoding,
+    bool need_escapes);
 
 /*
  * make a JsonLexContext suitable for incremental parsing.
@@ -227,8 +227,8 @@ extern JsonLexContext *makeJsonLexContextCstringLen(JsonLexContext *lex,
  * so there's no need for them here.
  */
 extern JsonLexContext *makeJsonLexContextIncremental(JsonLexContext *lex,
-													 int encoding,
-													 bool need_escapes);
+    int encoding,
+    bool need_escapes);
 
 /*
  * Sets whether tokens passed to semantic action callbacks are owned by the
@@ -247,7 +247,7 @@ extern JsonLexContext *makeJsonLexContextIncremental(JsonLexContext *lex,
  * this setting is less critical.
  */
 extern void setJsonLexContextOwnsTokens(JsonLexContext *lex,
-										bool owned_by_context);
+                                        bool owned_by_context);
 
 extern void freeJsonLexContext(JsonLexContext *lex);
 
@@ -264,4 +264,4 @@ extern char *json_errdetail(JsonParseErrorType error, JsonLexContext *lex);
  */
 extern bool IsValidJsonNumber(const char *str, size_t len);
 
-#endif							/* JSONAPI_H */
+#endif              /* JSONAPI_H */

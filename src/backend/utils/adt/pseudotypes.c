@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pseudotypes.c
- *	  Functions for the system pseudo-types.
+ *    Functions for the system pseudo-types.
  *
  * A pseudo-type isn't really a type and never has any operations, but
  * we do need to supply input and output functions to satisfy the links
@@ -16,7 +16,7 @@
  *
  *
  * IDENTIFICATION
- *	  src/backend/utils/adt/pseudotypes.c
+ *    src/backend/utils/adt/pseudotypes.c
  *
  *-------------------------------------------------------------------------
  */
@@ -35,11 +35,11 @@
 Datum \
 typname##_in(PG_FUNCTION_ARGS) \
 { \
-	ereport(ERROR, \
-			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED), \
-			 errmsg("cannot accept a value of type %s", #typname))); \
+  ereport(ERROR, \
+      (errcode(ERRCODE_FEATURE_NOT_SUPPORTED), \
+       errmsg("cannot accept a value of type %s", #typname))); \
 \
-	PG_RETURN_VOID();			/* keep compiler quiet */ \
+  PG_RETURN_VOID();     /* keep compiler quiet */ \
 } \
 \
 extern int no_such_variable
@@ -50,11 +50,11 @@ PSEUDOTYPE_DUMMY_INPUT_FUNC(typname); \
 Datum \
 typname##_out(PG_FUNCTION_ARGS) \
 { \
-	ereport(ERROR, \
-			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED), \
-			 errmsg("cannot display a value of type %s", #typname))); \
+  ereport(ERROR, \
+      (errcode(ERRCODE_FEATURE_NOT_SUPPORTED), \
+       errmsg("cannot display a value of type %s", #typname))); \
 \
-	PG_RETURN_VOID();			/* keep compiler quiet */ \
+  PG_RETURN_VOID();     /* keep compiler quiet */ \
 } \
 \
 extern int no_such_variable
@@ -69,11 +69,11 @@ extern int no_such_variable
 Datum \
 typname##_recv(PG_FUNCTION_ARGS) \
 { \
-	ereport(ERROR, \
-			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED), \
-			 errmsg("cannot accept a value of type %s", #typname))); \
+  ereport(ERROR, \
+      (errcode(ERRCODE_FEATURE_NOT_SUPPORTED), \
+       errmsg("cannot accept a value of type %s", #typname))); \
 \
-	PG_RETURN_VOID();			/* keep compiler quiet */ \
+  PG_RETURN_VOID();     /* keep compiler quiet */ \
 } \
 \
 extern int no_such_variable
@@ -84,11 +84,11 @@ PSEUDOTYPE_DUMMY_RECEIVE_FUNC(typname); \
 Datum \
 typname##_send(PG_FUNCTION_ARGS) \
 { \
-	ereport(ERROR, \
-			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED), \
-			 errmsg("cannot display a value of type %s", #typname))); \
+  ereport(ERROR, \
+      (errcode(ERRCODE_FEATURE_NOT_SUPPORTED), \
+       errmsg("cannot display a value of type %s", #typname))); \
 \
-	PG_RETURN_VOID();			/* keep compiler quiet */ \
+  PG_RETURN_VOID();     /* keep compiler quiet */ \
 } \
 \
 extern int no_such_variable
@@ -106,39 +106,39 @@ extern int no_such_variable
 Datum
 cstring_in(PG_FUNCTION_ARGS)
 {
-	char	   *str = PG_GETARG_CSTRING(0);
+  char     *str = PG_GETARG_CSTRING(0);
 
-	PG_RETURN_CSTRING(pstrdup(str));
+  PG_RETURN_CSTRING(pstrdup(str));
 }
 
 Datum
 cstring_out(PG_FUNCTION_ARGS)
 {
-	char	   *str = PG_GETARG_CSTRING(0);
+  char     *str = PG_GETARG_CSTRING(0);
 
-	PG_RETURN_CSTRING(pstrdup(str));
+  PG_RETURN_CSTRING(pstrdup(str));
 }
 
 Datum
 cstring_recv(PG_FUNCTION_ARGS)
 {
-	StringInfo	buf = (StringInfo) PG_GETARG_POINTER(0);
-	char	   *str;
-	int			nbytes;
+  StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
+  char     *str;
+  int     nbytes;
 
-	str = pq_getmsgtext(buf, buf->len - buf->cursor, &nbytes);
-	PG_RETURN_CSTRING(str);
+  str = pq_getmsgtext(buf, buf->len - buf->cursor, &nbytes);
+  PG_RETURN_CSTRING(str);
 }
 
 Datum
 cstring_send(PG_FUNCTION_ARGS)
 {
-	char	   *str = PG_GETARG_CSTRING(0);
-	StringInfoData buf;
+  char     *str = PG_GETARG_CSTRING(0);
+  StringInfoData buf;
 
-	pq_begintypsend(&buf);
-	pq_sendtext(&buf, str, strlen(str));
-	PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
+  pq_begintypsend(&buf);
+  pq_sendtext(&buf, str, strlen(str));
+  PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
 /*
@@ -157,13 +157,13 @@ PSEUDOTYPE_DUMMY_RECEIVE_FUNC(anyarray);
 Datum
 anyarray_out(PG_FUNCTION_ARGS)
 {
-	return array_out(fcinfo);
+  return array_out(fcinfo);
 }
 
 Datum
 anyarray_send(PG_FUNCTION_ARGS)
 {
-	return array_send(fcinfo);
+  return array_send(fcinfo);
 }
 
 /*
@@ -177,13 +177,13 @@ PSEUDOTYPE_DUMMY_RECEIVE_FUNC(anycompatiblearray);
 Datum
 anycompatiblearray_out(PG_FUNCTION_ARGS)
 {
-	return array_out(fcinfo);
+  return array_out(fcinfo);
 }
 
 Datum
 anycompatiblearray_send(PG_FUNCTION_ARGS)
 {
-	return array_send(fcinfo);
+  return array_send(fcinfo);
 }
 
 /*
@@ -196,7 +196,7 @@ PSEUDOTYPE_DUMMY_INPUT_FUNC(anyenum);
 Datum
 anyenum_out(PG_FUNCTION_ARGS)
 {
-	return enum_out(fcinfo);
+  return enum_out(fcinfo);
 }
 
 /*
@@ -209,7 +209,7 @@ PSEUDOTYPE_DUMMY_INPUT_FUNC(anyrange);
 Datum
 anyrange_out(PG_FUNCTION_ARGS)
 {
-	return range_out(fcinfo);
+  return range_out(fcinfo);
 }
 
 /*
@@ -222,7 +222,7 @@ PSEUDOTYPE_DUMMY_INPUT_FUNC(anycompatiblerange);
 Datum
 anycompatiblerange_out(PG_FUNCTION_ARGS)
 {
-	return range_out(fcinfo);
+  return range_out(fcinfo);
 }
 
 /*
@@ -235,7 +235,7 @@ PSEUDOTYPE_DUMMY_INPUT_FUNC(anymultirange);
 Datum
 anymultirange_out(PG_FUNCTION_ARGS)
 {
-	return multirange_out(fcinfo);
+  return multirange_out(fcinfo);
 }
 
 /*
@@ -248,7 +248,7 @@ PSEUDOTYPE_DUMMY_INPUT_FUNC(anycompatiblemultirange);
 Datum
 anycompatiblemultirange_out(PG_FUNCTION_ARGS)
 {
-	return multirange_out(fcinfo);
+  return multirange_out(fcinfo);
 }
 
 /*
@@ -262,33 +262,33 @@ anycompatiblemultirange_out(PG_FUNCTION_ARGS)
 Datum
 void_in(PG_FUNCTION_ARGS)
 {
-	PG_RETURN_VOID();			/* you were expecting something different? */
+  PG_RETURN_VOID();     /* you were expecting something different? */
 }
 
 Datum
 void_out(PG_FUNCTION_ARGS)
 {
-	PG_RETURN_CSTRING(pstrdup(""));
+  PG_RETURN_CSTRING(pstrdup(""));
 }
 
 Datum
 void_recv(PG_FUNCTION_ARGS)
 {
-	/*
-	 * Note that since we consume no bytes, an attempt to send anything but an
-	 * empty string will result in an "invalid message format" error.
-	 */
-	PG_RETURN_VOID();
+  /*
+   * Note that since we consume no bytes, an attempt to send anything but an
+   * empty string will result in an "invalid message format" error.
+   */
+  PG_RETURN_VOID();
 }
 
 Datum
 void_send(PG_FUNCTION_ARGS)
 {
-	StringInfoData buf;
+  StringInfoData buf;
 
-	/* send an empty string */
-	pq_begintypsend(&buf);
-	PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
+  /* send an empty string */
+  pq_begintypsend(&buf);
+  PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
 /*
@@ -302,21 +302,21 @@ void_send(PG_FUNCTION_ARGS)
 Datum
 shell_in(PG_FUNCTION_ARGS)
 {
-	ereport(ERROR,
-			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-			 errmsg("cannot accept a value of a shell type")));
+  ereport(ERROR,
+          (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+           errmsg("cannot accept a value of a shell type")));
 
-	PG_RETURN_VOID();			/* keep compiler quiet */
+  PG_RETURN_VOID();     /* keep compiler quiet */
 }
 
 Datum
 shell_out(PG_FUNCTION_ARGS)
 {
-	ereport(ERROR,
-			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-			 errmsg("cannot display a value of a shell type")));
+  ereport(ERROR,
+          (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+           errmsg("cannot display a value of a shell type")));
 
-	PG_RETURN_VOID();			/* keep compiler quiet */
+  PG_RETURN_VOID();     /* keep compiler quiet */
 }
 
 
@@ -337,13 +337,13 @@ PSEUDOTYPE_DUMMY_RECEIVE_FUNC(pg_node_tree);
 Datum
 pg_node_tree_out(PG_FUNCTION_ARGS)
 {
-	return textout(fcinfo);
+  return textout(fcinfo);
 }
 
 Datum
 pg_node_tree_send(PG_FUNCTION_ARGS)
 {
-	return textsend(fcinfo);
+  return textsend(fcinfo);
 }
 
 /*

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * barrier.c
- *	  Barriers for synchronizing cooperating processes.
+ *    Barriers for synchronizing cooperating processes.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -78,7 +78,7 @@
  * [1] https://en.wikipedia.org/wiki/Barrier_(computer_science)
  *
  * IDENTIFICATION
- *	  src/backend/storage/ipc/barrier.c
+ *    src/backend/storage/ipc/barrier.c
  *
  *-------------------------------------------------------------------------
  */
@@ -99,13 +99,13 @@ static inline bool BarrierDetachImpl(Barrier *barrier, bool arrive);
 void
 BarrierInit(Barrier *barrier, int participants)
 {
-	SpinLockInit(&barrier->mutex);
-	barrier->participants = participants;
-	barrier->arrived = 0;
-	barrier->phase = 0;
-	barrier->elected = 0;
-	barrier->static_party = participants > 0;
-	ConditionVariableInit(&barrier->condition_variable);
+  SpinLockInit(&barrier->mutex);
+  barrier->participants = participants;
+  barrier->arrived = 0;
+  barrier->phase = 0;
+  barrier->elected = 0;
+  barrier->static_party = participants > 0;
+  ConditionVariableInit(&barrier->condition_variable);
 }
 
 /*
@@ -124,75 +124,79 @@ BarrierInit(Barrier *barrier, int participants)
 bool
 BarrierArriveAndWait(Barrier *barrier, uint32 wait_event_info)
 {
-	bool		release = false;
-	bool		elected;
-	int			start_phase;
-	int			next_phase;
+  bool    release = false;
+  bool    elected;
+  int     start_phase;
+  int     next_phase;
 
-	SpinLockAcquire(&barrier->mutex);
-	start_phase = barrier->phase;
-	next_phase = start_phase + 1;
-	++barrier->arrived;
-	if (barrier->arrived == barrier->participants)
-	{
-		release = true;
-		barrier->arrived = 0;
-		barrier->phase = next_phase;
-		barrier->elected = next_phase;
-	}
-	SpinLockRelease(&barrier->mutex);
+  SpinLockAcquire(&barrier->mutex);
+  start_phase = barrier->phase;
+  next_phase = start_phase + 1;
+  ++barrier->arrived;
 
-	/*
-	 * If we were the last expected participant to arrive, we can release our
-	 * peers and return true to indicate that this backend has been elected to
-	 * perform any serial work.
-	 */
-	if (release)
-	{
-		ConditionVariableBroadcast(&barrier->condition_variable);
+  if (barrier->arrived == barrier->participants) {
+    release = true;
+    barrier->arrived = 0;
+    barrier->phase = next_phase;
+    barrier->elected = next_phase;
+  }
 
-		return true;
-	}
+  SpinLockRelease(&barrier->mutex);
 
-	/*
-	 * Otherwise we have to wait for the last participant to arrive and
-	 * advance the phase.
-	 */
-	elected = false;
-	ConditionVariablePrepareToSleep(&barrier->condition_variable);
-	for (;;)
-	{
-		/*
-		 * We know that phase must either be start_phase, indicating that we
-		 * need to keep waiting, or next_phase, indicating that the last
-		 * participant that we were waiting for has either arrived or detached
-		 * so that the next phase has begun.  The phase cannot advance any
-		 * further than that without this backend's participation, because
-		 * this backend is attached.
-		 */
-		SpinLockAcquire(&barrier->mutex);
-		Assert(barrier->phase == start_phase || barrier->phase == next_phase);
-		release = barrier->phase == next_phase;
-		if (release && barrier->elected != next_phase)
-		{
-			/*
-			 * Usually the backend that arrives last and releases the other
-			 * backends is elected to return true (see above), so that it can
-			 * begin processing serial work while it has a CPU timeslice.
-			 * However, if the barrier advanced because someone detached, then
-			 * one of the backends that is awoken will need to be elected.
-			 */
-			barrier->elected = barrier->phase;
-			elected = true;
-		}
-		SpinLockRelease(&barrier->mutex);
-		if (release)
-			break;
-		ConditionVariableSleep(&barrier->condition_variable, wait_event_info);
-	}
-	ConditionVariableCancelSleep();
+  /*
+   * If we were the last expected participant to arrive, we can release our
+   * peers and return true to indicate that this backend has been elected to
+   * perform any serial work.
+   */
+  if (release) {
+    ConditionVariableBroadcast(&barrier->condition_variable);
 
-	return elected;
+    return true;
+  }
+
+  /*
+   * Otherwise we have to wait for the last participant to arrive and
+   * advance the phase.
+   */
+  elected = false;
+  ConditionVariablePrepareToSleep(&barrier->condition_variable);
+
+  for (;;) {
+    /*
+     * We know that phase must either be start_phase, indicating that we
+     * need to keep waiting, or next_phase, indicating that the last
+     * participant that we were waiting for has either arrived or detached
+     * so that the next phase has begun.  The phase cannot advance any
+     * further than that without this backend's participation, because
+     * this backend is attached.
+     */
+    SpinLockAcquire(&barrier->mutex);
+    Assert(barrier->phase == start_phase || barrier->phase == next_phase);
+    release = barrier->phase == next_phase;
+
+    if (release && barrier->elected != next_phase) {
+      /*
+       * Usually the backend that arrives last and releases the other
+       * backends is elected to return true (see above), so that it can
+       * begin processing serial work while it has a CPU timeslice.
+       * However, if the barrier advanced because someone detached, then
+       * one of the backends that is awoken will need to be elected.
+       */
+      barrier->elected = barrier->phase;
+      elected = true;
+    }
+
+    SpinLockRelease(&barrier->mutex);
+
+    if (release)
+      break;
+
+    ConditionVariableSleep(&barrier->condition_variable, wait_event_info);
+  }
+
+  ConditionVariableCancelSleep();
+
+  return elected;
 }
 
 /*
@@ -202,7 +206,7 @@ BarrierArriveAndWait(Barrier *barrier, uint32 wait_event_info)
 bool
 BarrierArriveAndDetach(Barrier *barrier)
 {
-	return BarrierDetachImpl(barrier, true);
+  return BarrierDetachImpl(barrier, true);
 }
 
 /*
@@ -212,19 +216,20 @@ BarrierArriveAndDetach(Barrier *barrier)
 bool
 BarrierArriveAndDetachExceptLast(Barrier *barrier)
 {
-	SpinLockAcquire(&barrier->mutex);
-	if (barrier->participants > 1)
-	{
-		--barrier->participants;
-		SpinLockRelease(&barrier->mutex);
+  SpinLockAcquire(&barrier->mutex);
 
-		return false;
-	}
-	Assert(barrier->participants == 1);
-	++barrier->phase;
-	SpinLockRelease(&barrier->mutex);
+  if (barrier->participants > 1) {
+    --barrier->participants;
+    SpinLockRelease(&barrier->mutex);
 
-	return true;
+    return false;
+  }
+
+  Assert(barrier->participants == 1);
+  ++barrier->phase;
+  SpinLockRelease(&barrier->mutex);
+
+  return true;
 }
 
 /*
@@ -235,16 +240,16 @@ BarrierArriveAndDetachExceptLast(Barrier *barrier)
 int
 BarrierAttach(Barrier *barrier)
 {
-	int			phase;
+  int     phase;
 
-	Assert(!barrier->static_party);
+  Assert(!barrier->static_party);
 
-	SpinLockAcquire(&barrier->mutex);
-	++barrier->participants;
-	phase = barrier->phase;
-	SpinLockRelease(&barrier->mutex);
+  SpinLockAcquire(&barrier->mutex);
+  ++barrier->participants;
+  phase = barrier->phase;
+  SpinLockRelease(&barrier->mutex);
 
-	return phase;
+  return phase;
 }
 
 /*
@@ -255,7 +260,7 @@ BarrierAttach(Barrier *barrier)
 bool
 BarrierDetach(Barrier *barrier)
 {
-	return BarrierDetachImpl(barrier, false);
+  return BarrierDetachImpl(barrier, false);
 }
 
 /*
@@ -264,13 +269,13 @@ BarrierDetach(Barrier *barrier)
 int
 BarrierPhase(Barrier *barrier)
 {
-	/*
-	 * It is OK to read barrier->phase without locking, because it can't
-	 * change without us (we are attached to it), and we executed a memory
-	 * barrier when we either attached or participated in changing it last
-	 * time.
-	 */
-	return barrier->phase;
+  /*
+   * It is OK to read barrier->phase without locking, because it can't
+   * change without us (we are attached to it), and we executed a memory
+   * barrier when we either attached or participated in changing it last
+   * time.
+   */
+  return barrier->phase;
 }
 
 /*
@@ -280,13 +285,13 @@ BarrierPhase(Barrier *barrier)
 int
 BarrierParticipants(Barrier *barrier)
 {
-	int			participants;
+  int     participants;
 
-	SpinLockAcquire(&barrier->mutex);
-	participants = barrier->participants;
-	SpinLockRelease(&barrier->mutex);
+  SpinLockAcquire(&barrier->mutex);
+  participants = barrier->participants;
+  SpinLockRelease(&barrier->mutex);
 
-	return participants;
+  return participants;
 }
 
 /*
@@ -299,35 +304,33 @@ BarrierParticipants(Barrier *barrier)
 static inline bool
 BarrierDetachImpl(Barrier *barrier, bool arrive)
 {
-	bool		release;
-	bool		last;
+  bool    release;
+  bool    last;
 
-	Assert(!barrier->static_party);
+  Assert(!barrier->static_party);
 
-	SpinLockAcquire(&barrier->mutex);
-	Assert(barrier->participants > 0);
-	--barrier->participants;
+  SpinLockAcquire(&barrier->mutex);
+  Assert(barrier->participants > 0);
+  --barrier->participants;
 
-	/*
-	 * If any other participants are waiting and we were the last participant
-	 * waited for, release them.  If no other participants are waiting, but
-	 * this is a BarrierArriveAndDetach() call, then advance the phase too.
-	 */
-	if ((arrive || barrier->participants > 0) &&
-		barrier->arrived == barrier->participants)
-	{
-		release = true;
-		barrier->arrived = 0;
-		++barrier->phase;
-	}
-	else
-		release = false;
+  /*
+   * If any other participants are waiting and we were the last participant
+   * waited for, release them.  If no other participants are waiting, but
+   * this is a BarrierArriveAndDetach() call, then advance the phase too.
+   */
+  if ((arrive || barrier->participants > 0) &&
+      barrier->arrived == barrier->participants) {
+    release = true;
+    barrier->arrived = 0;
+    ++barrier->phase;
+  } else
+    release = false;
 
-	last = barrier->participants == 0;
-	SpinLockRelease(&barrier->mutex);
+  last = barrier->participants == 0;
+  SpinLockRelease(&barrier->mutex);
 
-	if (release)
-		ConditionVariableBroadcast(&barrier->condition_variable);
+  if (release)
+    ConditionVariableBroadcast(&barrier->condition_variable);
 
-	return last;
+  return last;
 }

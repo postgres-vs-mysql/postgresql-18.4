@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * isn.h
- *	  PostgreSQL type definitions for ISNs (ISBN, ISMN, ISSN, EAN13, UPC)
+ *    PostgreSQL type definitions for ISNs (ISBN, ISMN, ISSN, EAN13, UPC)
  *
- * Author:	German Mendez Bravo (Kronuz)
+ * Author:  German Mendez Bravo (Kronuz)
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  contrib/isn/isn.h
+ *    contrib/isn/isn.h
  *
  *-------------------------------------------------------------------------
  */
@@ -20,7 +20,7 @@
 #undef ISN_DEBUG
 
 /*
- *	uint64 is the internal storage format for ISNs.
+ *  uint64 is the internal storage format for ISNs.
  */
 typedef uint64 ean13;
 
@@ -31,4 +31,4 @@ typedef uint64 ean13;
 
 extern void initialize(void);
 
-#endif							/* ISN_H */
+#endif              /* ISN_H */

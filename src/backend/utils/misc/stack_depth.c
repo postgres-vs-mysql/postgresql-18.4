@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * stack_depth.c
- *	  Functions for monitoring and limiting process stack depth
+ *    Functions for monitoring and limiting process stack depth
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/backend/utils/misc/stack_depth.c
+ *    src/backend/utils/misc/stack_depth.c
  *
  *-------------------------------------------------------------------------
  */
@@ -23,7 +23,7 @@
 
 
 /* GUC variable for maximum stack depth (measured in kilobytes) */
-int			max_stack_depth = 100;
+int     max_stack_depth = 100;
 
 /* max_stack_depth converted to bytes for speed of checking */
 static ssize_t max_stack_depth_bytes = 100 * (ssize_t) 1024;
@@ -44,24 +44,24 @@ pg_stack_base_t
 set_stack_base(void)
 {
 #ifndef HAVE__BUILTIN_FRAME_ADDRESS
-	char		stack_base;
+  char    stack_base;
 #endif
-	pg_stack_base_t old;
+  pg_stack_base_t old;
 
-	old = stack_base_ptr;
+  old = stack_base_ptr;
 
-	/*
-	 * Set up reference point for stack depth checking.  On recent gcc we use
-	 * __builtin_frame_address() to avoid a warning about storing a local
-	 * variable's address in a long-lived variable.
-	 */
+  /*
+   * Set up reference point for stack depth checking.  On recent gcc we use
+   * __builtin_frame_address() to avoid a warning about storing a local
+   * variable's address in a long-lived variable.
+   */
 #ifdef HAVE__BUILTIN_FRAME_ADDRESS
-	stack_base_ptr = __builtin_frame_address(0);
+  stack_base_ptr = __builtin_frame_address(0);
 #else
-	stack_base_ptr = &stack_base;
+  stack_base_ptr = &stack_base;
 #endif
 
-	return old;
+  return old;
 }
 
 /*
@@ -76,7 +76,7 @@ set_stack_base(void)
 void
 restore_stack_base(pg_stack_base_t base)
 {
-	stack_base_ptr = base;
+  stack_base_ptr = base;
 }
 
 
@@ -94,46 +94,45 @@ restore_stack_base(pg_stack_base_t base)
 void
 check_stack_depth(void)
 {
-	if (stack_is_too_deep())
-	{
-		ereport(ERROR,
-				(errcode(ERRCODE_STATEMENT_TOO_COMPLEX),
-				 errmsg("stack depth limit exceeded"),
-				 errhint("Increase the configuration parameter \"max_stack_depth\" (currently %dkB), "
-						 "after ensuring the platform's stack depth limit is adequate.",
-						 max_stack_depth)));
-	}
+  if (stack_is_too_deep()) {
+    ereport(ERROR,
+            (errcode(ERRCODE_STATEMENT_TOO_COMPLEX),
+             errmsg("stack depth limit exceeded"),
+             errhint("Increase the configuration parameter \"max_stack_depth\" (currently %dkB), "
+                     "after ensuring the platform's stack depth limit is adequate.",
+                     max_stack_depth)));
+  }
 }
 
 bool
 stack_is_too_deep(void)
 {
-	char		stack_top_loc;
-	ssize_t		stack_depth;
+  char    stack_top_loc;
+  ssize_t   stack_depth;
 
-	/*
-	 * Compute distance from reference point to my local variables
-	 */
-	stack_depth = (ssize_t) (stack_base_ptr - &stack_top_loc);
+  /*
+   * Compute distance from reference point to my local variables
+   */
+  stack_depth = (ssize_t) (stack_base_ptr - &stack_top_loc);
 
-	/*
-	 * Take abs value, since stacks grow up on some machines, down on others
-	 */
-	if (stack_depth < 0)
-		stack_depth = -stack_depth;
+  /*
+   * Take abs value, since stacks grow up on some machines, down on others
+   */
+  if (stack_depth < 0)
+    stack_depth = -stack_depth;
 
-	/*
-	 * Trouble?
-	 *
-	 * The test on stack_base_ptr prevents us from erroring out if called
-	 * before that's been set.  Logically it should be done first, but putting
-	 * it last avoids wasting cycles during normal cases.
-	 */
-	if (stack_depth > max_stack_depth_bytes &&
-		stack_base_ptr != NULL)
-		return true;
+  /*
+   * Trouble?
+   *
+   * The test on stack_base_ptr prevents us from erroring out if called
+   * before that's been set.  Logically it should be done first, but putting
+   * it last avoids wasting cycles during normal cases.
+   */
+  if (stack_depth > max_stack_depth_bytes &&
+      stack_base_ptr != NULL)
+    return true;
 
-	return false;
+  return false;
 }
 
 
@@ -141,26 +140,26 @@ stack_is_too_deep(void)
 bool
 check_max_stack_depth(int *newval, void **extra, GucSource source)
 {
-	ssize_t		newval_bytes = *newval * (ssize_t) 1024;
-	ssize_t		stack_rlimit = get_stack_depth_rlimit();
+  ssize_t   newval_bytes = *newval * (ssize_t) 1024;
+  ssize_t   stack_rlimit = get_stack_depth_rlimit();
 
-	if (stack_rlimit > 0 && newval_bytes > stack_rlimit - STACK_DEPTH_SLOP)
-	{
-		GUC_check_errdetail("\"max_stack_depth\" must not exceed %zdkB.",
-							(stack_rlimit - STACK_DEPTH_SLOP) / 1024);
-		GUC_check_errhint("Increase the platform's stack depth limit via \"ulimit -s\" or local equivalent.");
-		return false;
-	}
-	return true;
+  if (stack_rlimit > 0 && newval_bytes > stack_rlimit - STACK_DEPTH_SLOP) {
+    GUC_check_errdetail("\"max_stack_depth\" must not exceed %zdkB.",
+                        (stack_rlimit - STACK_DEPTH_SLOP) / 1024);
+    GUC_check_errhint("Increase the platform's stack depth limit via \"ulimit -s\" or local equivalent.");
+    return false;
+  }
+
+  return true;
 }
 
 /* GUC assign hook for max_stack_depth */
 void
 assign_max_stack_depth(int newval, void *extra)
 {
-	ssize_t		newval_bytes = newval * (ssize_t) 1024;
+  ssize_t   newval_bytes = newval * (ssize_t) 1024;
 
-	max_stack_depth_bytes = newval_bytes;
+  max_stack_depth_bytes = newval_bytes;
 }
 
 /*
@@ -176,26 +175,26 @@ ssize_t
 get_stack_depth_rlimit(void)
 {
 #if defined(HAVE_GETRLIMIT)
-	static ssize_t val = 0;
+  static ssize_t val = 0;
 
-	/* This won't change after process launch, so check just once */
-	if (val == 0)
-	{
-		struct rlimit rlim;
+  /* This won't change after process launch, so check just once */
+  if (val == 0) {
+    struct rlimit rlim;
 
-		if (getrlimit(RLIMIT_STACK, &rlim) < 0)
-			val = -1;
-		else if (rlim.rlim_cur == RLIM_INFINITY)
-			val = SSIZE_MAX;
-		/* rlim_cur is probably of an unsigned type, so check for overflow */
-		else if (rlim.rlim_cur >= SSIZE_MAX)
-			val = SSIZE_MAX;
-		else
-			val = rlim.rlim_cur;
-	}
-	return val;
+    if (getrlimit(RLIMIT_STACK, &rlim) < 0)
+      val = -1;
+    else if (rlim.rlim_cur == RLIM_INFINITY)
+      val = SSIZE_MAX;
+    /* rlim_cur is probably of an unsigned type, so check for overflow */
+    else if (rlim.rlim_cur >= SSIZE_MAX)
+      val = SSIZE_MAX;
+    else
+      val = rlim.rlim_cur;
+  }
+
+  return val;
 #else
-	/* On Windows we set the backend stack size in src/backend/Makefile */
-	return WIN32_STACK_RLIMIT;
+  /* On Windows we set the backend stack size in src/backend/Makefile */
+  return WIN32_STACK_RLIMIT;
 #endif
 }

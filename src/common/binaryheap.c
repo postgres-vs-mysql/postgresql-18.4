@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * binaryheap.c
- *	  A simple binary heap implementation
+ *    A simple binary heap implementation
  *
  * Portions Copyright (c) 2012-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/common/binaryheap.c
+ *    src/common/binaryheap.c
  *
  *-------------------------------------------------------------------------
  */
@@ -38,19 +38,19 @@ static void sift_up(binaryheap *heap, int node_off);
 binaryheap *
 binaryheap_allocate(int capacity, binaryheap_comparator compare, void *arg)
 {
-	int			sz;
-	binaryheap *heap;
+  int     sz;
+  binaryheap *heap;
 
-	sz = offsetof(binaryheap, bh_nodes) + sizeof(bh_node_type) * capacity;
-	heap = (binaryheap *) palloc(sz);
-	heap->bh_space = capacity;
-	heap->bh_compare = compare;
-	heap->bh_arg = arg;
+  sz = offsetof(binaryheap, bh_nodes) + sizeof(bh_node_type) * capacity;
+  heap = (binaryheap *) palloc(sz);
+  heap->bh_space = capacity;
+  heap->bh_compare = compare;
+  heap->bh_arg = arg;
 
-	heap->bh_size = 0;
-	heap->bh_has_heap_property = true;
+  heap->bh_size = 0;
+  heap->bh_has_heap_property = true;
 
-	return heap;
+  return heap;
 }
 
 /*
@@ -62,8 +62,8 @@ binaryheap_allocate(int capacity, binaryheap_comparator compare, void *arg)
 void
 binaryheap_reset(binaryheap *heap)
 {
-	heap->bh_size = 0;
-	heap->bh_has_heap_property = true;
+  heap->bh_size = 0;
+  heap->bh_has_heap_property = true;
 }
 
 /*
@@ -74,7 +74,7 @@ binaryheap_reset(binaryheap *heap)
 void
 binaryheap_free(binaryheap *heap)
 {
-	pfree(heap);
+  pfree(heap);
 }
 
 /*
@@ -89,19 +89,19 @@ binaryheap_free(binaryheap *heap)
 static inline int
 left_offset(int i)
 {
-	return 2 * i + 1;
+  return 2 * i + 1;
 }
 
 static inline int
 right_offset(int i)
 {
-	return 2 * i + 2;
+  return 2 * i + 2;
 }
 
 static inline int
 parent_offset(int i)
 {
-	return (i - 1) / 2;
+  return (i - 1) / 2;
 }
 
 /*
@@ -115,17 +115,17 @@ parent_offset(int i)
 void
 binaryheap_add_unordered(binaryheap *heap, bh_node_type d)
 {
-	if (heap->bh_size >= heap->bh_space)
-	{
+  if (heap->bh_size >= heap->bh_space) {
 #ifdef FRONTEND
-		pg_fatal("out of binary heap slots");
+    pg_fatal("out of binary heap slots");
 #else
-		elog(ERROR, "out of binary heap slots");
+    elog(ERROR, "out of binary heap slots");
 #endif
-	}
-	heap->bh_has_heap_property = false;
-	heap->bh_nodes[heap->bh_size] = d;
-	heap->bh_size++;
+  }
+
+  heap->bh_has_heap_property = false;
+  heap->bh_nodes[heap->bh_size] = d;
+  heap->bh_size++;
 }
 
 /*
@@ -137,11 +137,12 @@ binaryheap_add_unordered(binaryheap *heap, bh_node_type d)
 void
 binaryheap_build(binaryheap *heap)
 {
-	int			i;
+  int     i;
 
-	for (i = parent_offset(heap->bh_size - 1); i >= 0; i--)
-		sift_down(heap, i);
-	heap->bh_has_heap_property = true;
+  for (i = parent_offset(heap->bh_size - 1); i >= 0; i--)
+    sift_down(heap, i);
+
+  heap->bh_has_heap_property = true;
 }
 
 /*
@@ -153,17 +154,17 @@ binaryheap_build(binaryheap *heap)
 void
 binaryheap_add(binaryheap *heap, bh_node_type d)
 {
-	if (heap->bh_size >= heap->bh_space)
-	{
+  if (heap->bh_size >= heap->bh_space) {
 #ifdef FRONTEND
-		pg_fatal("out of binary heap slots");
+    pg_fatal("out of binary heap slots");
 #else
-		elog(ERROR, "out of binary heap slots");
+    elog(ERROR, "out of binary heap slots");
 #endif
-	}
-	heap->bh_nodes[heap->bh_size] = d;
-	heap->bh_size++;
-	sift_up(heap, heap->bh_size - 1);
+  }
+
+  heap->bh_nodes[heap->bh_size] = d;
+  heap->bh_size++;
+  sift_up(heap, heap->bh_size - 1);
 }
 
 /*
@@ -176,8 +177,8 @@ binaryheap_add(binaryheap *heap, bh_node_type d)
 bh_node_type
 binaryheap_first(binaryheap *heap)
 {
-	Assert(!binaryheap_empty(heap) && heap->bh_has_heap_property);
-	return heap->bh_nodes[0];
+  Assert(!binaryheap_empty(heap) && heap->bh_has_heap_property);
+  return heap->bh_nodes[0];
 }
 
 /*
@@ -191,28 +192,27 @@ binaryheap_first(binaryheap *heap)
 bh_node_type
 binaryheap_remove_first(binaryheap *heap)
 {
-	bh_node_type result;
+  bh_node_type result;
 
-	Assert(!binaryheap_empty(heap) && heap->bh_has_heap_property);
+  Assert(!binaryheap_empty(heap) && heap->bh_has_heap_property);
 
-	/* extract the root node, which will be the result */
-	result = heap->bh_nodes[0];
+  /* extract the root node, which will be the result */
+  result = heap->bh_nodes[0];
 
-	/* easy if heap contains one element */
-	if (heap->bh_size == 1)
-	{
-		heap->bh_size--;
-		return result;
-	}
+  /* easy if heap contains one element */
+  if (heap->bh_size == 1) {
+    heap->bh_size--;
+    return result;
+  }
 
-	/*
-	 * Remove the last node, placing it in the vacated root entry, and sift
-	 * the new root node down to its correct position.
-	 */
-	heap->bh_nodes[0] = heap->bh_nodes[--heap->bh_size];
-	sift_down(heap, 0);
+  /*
+   * Remove the last node, placing it in the vacated root entry, and sift
+   * the new root node down to its correct position.
+   */
+  heap->bh_nodes[0] = heap->bh_nodes[--heap->bh_size];
+  sift_down(heap, 0);
 
-	return result;
+  return result;
 }
 
 /*
@@ -224,24 +224,24 @@ binaryheap_remove_first(binaryheap *heap)
 void
 binaryheap_remove_node(binaryheap *heap, int n)
 {
-	int			cmp;
+  int     cmp;
 
-	Assert(!binaryheap_empty(heap) && heap->bh_has_heap_property);
-	Assert(n >= 0 && n < heap->bh_size);
+  Assert(!binaryheap_empty(heap) && heap->bh_has_heap_property);
+  Assert(n >= 0 && n < heap->bh_size);
 
-	/* compare last node to the one that is being removed */
-	cmp = heap->bh_compare(heap->bh_nodes[--heap->bh_size],
-						   heap->bh_nodes[n],
-						   heap->bh_arg);
+  /* compare last node to the one that is being removed */
+  cmp = heap->bh_compare(heap->bh_nodes[--heap->bh_size],
+                         heap->bh_nodes[n],
+                         heap->bh_arg);
 
-	/* remove the last node, placing it in the vacated entry */
-	heap->bh_nodes[n] = heap->bh_nodes[heap->bh_size];
+  /* remove the last node, placing it in the vacated entry */
+  heap->bh_nodes[n] = heap->bh_nodes[heap->bh_size];
 
-	/* sift as needed to preserve the heap property */
-	if (cmp > 0)
-		sift_up(heap, n);
-	else if (cmp < 0)
-		sift_down(heap, n);
+  /* sift as needed to preserve the heap property */
+  if (cmp > 0)
+    sift_up(heap, n);
+  else if (cmp < 0)
+    sift_down(heap, n);
 }
 
 /*
@@ -254,12 +254,12 @@ binaryheap_remove_node(binaryheap *heap, int n)
 void
 binaryheap_replace_first(binaryheap *heap, bh_node_type d)
 {
-	Assert(!binaryheap_empty(heap) && heap->bh_has_heap_property);
+  Assert(!binaryheap_empty(heap) && heap->bh_has_heap_property);
 
-	heap->bh_nodes[0] = d;
+  heap->bh_nodes[0] = d;
 
-	if (heap->bh_size > 1)
-		sift_down(heap, 0);
+  if (heap->bh_size > 1)
+    sift_down(heap, 0);
 }
 
 /*
@@ -269,40 +269,41 @@ binaryheap_replace_first(binaryheap *heap, bh_node_type d)
 static void
 sift_up(binaryheap *heap, int node_off)
 {
-	bh_node_type node_val = heap->bh_nodes[node_off];
+  bh_node_type node_val = heap->bh_nodes[node_off];
 
-	/*
-	 * Within the loop, the node_off'th array entry is a "hole" that
-	 * notionally holds node_val, but we don't actually store node_val there
-	 * till the end, saving some unnecessary data copying steps.
-	 */
-	while (node_off != 0)
-	{
-		int			cmp;
-		int			parent_off;
-		bh_node_type parent_val;
+  /*
+   * Within the loop, the node_off'th array entry is a "hole" that
+   * notionally holds node_val, but we don't actually store node_val there
+   * till the end, saving some unnecessary data copying steps.
+   */
+  while (node_off != 0) {
+    int     cmp;
+    int     parent_off;
+    bh_node_type parent_val;
 
-		/*
-		 * If this node is smaller than its parent, the heap condition is
-		 * satisfied, and we're done.
-		 */
-		parent_off = parent_offset(node_off);
-		parent_val = heap->bh_nodes[parent_off];
-		cmp = heap->bh_compare(node_val,
-							   parent_val,
-							   heap->bh_arg);
-		if (cmp <= 0)
-			break;
+    /*
+     * If this node is smaller than its parent, the heap condition is
+     * satisfied, and we're done.
+     */
+    parent_off = parent_offset(node_off);
+    parent_val = heap->bh_nodes[parent_off];
+    cmp = heap->bh_compare(node_val,
+                           parent_val,
+                           heap->bh_arg);
 
-		/*
-		 * Otherwise, swap the parent value with the hole, and go on to check
-		 * the node's new parent.
-		 */
-		heap->bh_nodes[node_off] = parent_val;
-		node_off = parent_off;
-	}
-	/* Re-fill the hole */
-	heap->bh_nodes[node_off] = node_val;
+    if (cmp <= 0)
+      break;
+
+    /*
+     * Otherwise, swap the parent value with the hole, and go on to check
+     * the node's new parent.
+     */
+    heap->bh_nodes[node_off] = parent_val;
+    node_off = parent_off;
+  }
+
+  /* Re-fill the hole */
+  heap->bh_nodes[node_off] = node_val;
 }
 
 /*
@@ -312,43 +313,43 @@ sift_up(binaryheap *heap, int node_off)
 static void
 sift_down(binaryheap *heap, int node_off)
 {
-	bh_node_type node_val = heap->bh_nodes[node_off];
+  bh_node_type node_val = heap->bh_nodes[node_off];
 
-	/*
-	 * Within the loop, the node_off'th array entry is a "hole" that
-	 * notionally holds node_val, but we don't actually store node_val there
-	 * till the end, saving some unnecessary data copying steps.
-	 */
-	while (true)
-	{
-		int			left_off = left_offset(node_off);
-		int			right_off = right_offset(node_off);
-		int			swap_off = left_off;
+  /*
+   * Within the loop, the node_off'th array entry is a "hole" that
+   * notionally holds node_val, but we don't actually store node_val there
+   * till the end, saving some unnecessary data copying steps.
+   */
+  while (true) {
+    int     left_off = left_offset(node_off);
+    int     right_off = right_offset(node_off);
+    int     swap_off = left_off;
 
-		/* Is the right child larger than the left child? */
-		if (right_off < heap->bh_size &&
-			heap->bh_compare(heap->bh_nodes[left_off],
-							 heap->bh_nodes[right_off],
-							 heap->bh_arg) < 0)
-			swap_off = right_off;
+    /* Is the right child larger than the left child? */
+    if (right_off < heap->bh_size &&
+        heap->bh_compare(heap->bh_nodes[left_off],
+                         heap->bh_nodes[right_off],
+                         heap->bh_arg) < 0)
+      swap_off = right_off;
 
-		/*
-		 * If no children or parent is >= the larger child, heap condition is
-		 * satisfied, and we're done.
-		 */
-		if (left_off >= heap->bh_size ||
-			heap->bh_compare(node_val,
-							 heap->bh_nodes[swap_off],
-							 heap->bh_arg) >= 0)
-			break;
+    /*
+     * If no children or parent is >= the larger child, heap condition is
+     * satisfied, and we're done.
+     */
+    if (left_off >= heap->bh_size ||
+        heap->bh_compare(node_val,
+                         heap->bh_nodes[swap_off],
+                         heap->bh_arg) >= 0)
+      break;
 
-		/*
-		 * Otherwise, swap the hole with the child that violates the heap
-		 * property; then go on to check its children.
-		 */
-		heap->bh_nodes[node_off] = heap->bh_nodes[swap_off];
-		node_off = swap_off;
-	}
-	/* Re-fill the hole */
-	heap->bh_nodes[node_off] = node_val;
+    /*
+     * Otherwise, swap the hole with the child that violates the heap
+     * property; then go on to check its children.
+     */
+    heap->bh_nodes[node_off] = heap->bh_nodes[swap_off];
+    node_off = swap_off;
+  }
+
+  /* Re-fill the hole */
+  heap->bh_nodes[node_off] = node_val;
 }

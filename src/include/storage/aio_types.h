@@ -31,19 +31,19 @@ typedef struct PgAioTargetInfo PgAioTargetInfo;
  */
 typedef struct PgAioWaitRef
 {
-	/* internal ID identifying the specific PgAioHandle */
-	uint32		aio_index;
+  /* internal ID identifying the specific PgAioHandle */
+  uint32    aio_index;
 
-	/*
-	 * IO handles are reused. To detect if a handle was reused, and thereby
-	 * avoid unnecessarily waiting for a newer IO, each time the handle is
-	 * reused a generation number is increased.
-	 *
-	 * To avoid requiring alignment sufficient for an int64, split the
-	 * generation into two.
-	 */
-	uint32		generation_upper;
-	uint32		generation_lower;
+  /*
+   * IO handles are reused. To detect if a handle was reused, and thereby
+   * avoid unnecessarily waiting for a newer IO, each time the handle is
+   * reused a generation number is increased.
+   *
+   * To avoid requiring alignment sufficient for an int64, split the
+   * generation into two.
+   */
+  uint32    generation_upper;
+  uint32    generation_lower;
 } PgAioWaitRef;
 
 
@@ -60,15 +60,15 @@ typedef struct PgAioWaitRef
  */
 typedef union PgAioTargetData
 {
-	struct
-	{
-		RelFileLocator rlocator;	/* physical relation identifier */
-		BlockNumber blockNum;	/* blknum relative to begin of reln */
-		BlockNumber nblocks;
-		ForkNumber	forkNum:8;	/* don't waste 4 byte for four values */
-		bool		is_temp:1;	/* proc can be inferred by owning AIO */
-		bool		skip_fsync:1;
-	}			smgr;
+  struct
+  {
+    RelFileLocator rlocator;  /* physical relation identifier */
+    BlockNumber blockNum; /* blknum relative to begin of reln */
+    BlockNumber nblocks;
+    ForkNumber  forkNum: 8; /* don't waste 4 byte for four values */
+    bool    is_temp: 1; /* proc can be inferred by owning AIO */
+    bool    skip_fsync: 1;
+  }     smgr;
 } PgAioTargetData;
 
 
@@ -77,11 +77,11 @@ typedef union PgAioTargetData
  */
 typedef enum PgAioResultStatus
 {
-	PGAIO_RS_UNKNOWN,			/* not yet completed / uninitialized */
-	PGAIO_RS_OK,
-	PGAIO_RS_PARTIAL,			/* did not fully succeed, no warning/error */
-	PGAIO_RS_WARNING,			/* [partially] succeeded, with a warning */
-	PGAIO_RS_ERROR,				/* failed entirely */
+  PGAIO_RS_UNKNOWN,     /* not yet completed / uninitialized */
+  PGAIO_RS_OK,
+  PGAIO_RS_PARTIAL,     /* did not fully succeed, no warning/error */
+  PGAIO_RS_WARNING,     /* [partially] succeeded, with a warning */
+  PGAIO_RS_ERROR,       /* failed entirely */
 } PgAioResultStatus;
 
 
@@ -98,28 +98,31 @@ typedef enum PgAioResultStatus
 #define PGAIO_RESULT_ERROR_BITS 23
 typedef struct PgAioResult
 {
-	/*
-	 * This is of type PgAioHandleCallbackID, but can't use a bitfield of an
-	 * enum, because some compilers treat enums as signed.
-	 */
-	uint32		id:PGAIO_RESULT_ID_BITS;
+  /*
+   * This is of type PgAioHandleCallbackID, but can't use a bitfield of an
+   * enum, because some compilers treat enums as signed.
+   */
+uint32    id:
+  PGAIO_RESULT_ID_BITS;
 
-	/* of type PgAioResultStatus, see above */
-	uint32		status:PGAIO_RESULT_STATUS_BITS;
+  /* of type PgAioResultStatus, see above */
+uint32    status:
+  PGAIO_RESULT_STATUS_BITS;
 
-	/* meaning defined by callback->report */
-	uint32		error_data:PGAIO_RESULT_ERROR_BITS;
+  /* meaning defined by callback->report */
+uint32    error_data:
+  PGAIO_RESULT_ERROR_BITS;
 
-	int32		result;
+  int32   result;
 } PgAioResult;
 
 
 StaticAssertDecl(PGAIO_RESULT_ID_BITS +
-				 PGAIO_RESULT_STATUS_BITS +
-				 PGAIO_RESULT_ERROR_BITS == 32,
-				 "PgAioResult bits divided up incorrectly");
+                 PGAIO_RESULT_STATUS_BITS +
+                 PGAIO_RESULT_ERROR_BITS == 32,
+                 "PgAioResult bits divided up incorrectly");
 StaticAssertDecl(sizeof(PgAioResult) == 8,
-				 "PgAioResult has unexpected size");
+                 "PgAioResult has unexpected size");
 
 /*
  * Combination of PgAioResult with minimal metadata about the IO.
@@ -129,9 +132,9 @@ StaticAssertDecl(sizeof(PgAioResult) == 8,
  */
 typedef struct PgAioReturn
 {
-	PgAioResult result;
-	PgAioTargetData target_data;
+  PgAioResult result;
+  PgAioTargetData target_data;
 } PgAioReturn;
 
 
-#endif							/* AIO_TYPES_H */
+#endif              /* AIO_TYPES_H */

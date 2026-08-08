@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_range.h
- *	  definition of the "range type" system catalog (pg_range)
+ *    definition of the "range type" system catalog (pg_range)
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -10,8 +10,8 @@
  * src/include/catalog/pg_range.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -22,37 +22,38 @@
 #include "catalog/pg_range_d.h" /* IWYU pragma: export */
 
 /* ----------------
- *		pg_range definition.  cpp turns this into
- *		typedef struct FormData_pg_range
+ *    pg_range definition.  cpp turns this into
+ *    typedef struct FormData_pg_range
  * ----------------
  */
-CATALOG(pg_range,3541,RangeRelationId)
+CATALOG(pg_range, 3541, RangeRelationId)
 {
-	/* OID of owning range type */
-	Oid			rngtypid BKI_LOOKUP(pg_type);
+  /* OID of owning range type */
+  Oid     rngtypid BKI_LOOKUP(pg_type);
 
-	/* OID of range's element type (subtype) */
-	Oid			rngsubtype BKI_LOOKUP(pg_type);
+  /* OID of range's element type (subtype) */
+  Oid     rngsubtype BKI_LOOKUP(pg_type);
 
-	/* OID of the range's multirange type */
-	Oid			rngmultitypid BKI_LOOKUP(pg_type);
+  /* OID of the range's multirange type */
+  Oid     rngmultitypid BKI_LOOKUP(pg_type);
 
-	/* collation for this range type, or 0 */
-	Oid			rngcollation BKI_DEFAULT(0) BKI_LOOKUP_OPT(pg_collation);
+  /* collation for this range type, or 0 */
+  Oid     rngcollation BKI_DEFAULT(0) BKI_LOOKUP_OPT(pg_collation);
 
-	/* subtype's btree opclass */
-	Oid			rngsubopc BKI_LOOKUP(pg_opclass);
+  /* subtype's btree opclass */
+  Oid     rngsubopc BKI_LOOKUP(pg_opclass);
 
-	/* canonicalize range, or 0 */
-	regproc		rngcanonical BKI_LOOKUP_OPT(pg_proc);
+  /* canonicalize range, or 0 */
+  regproc   rngcanonical BKI_LOOKUP_OPT(pg_proc);
 
-	/* subtype difference as a float8, or 0 */
-	regproc		rngsubdiff BKI_LOOKUP_OPT(pg_proc);
-} FormData_pg_range;
+  /* subtype difference as a float8, or 0 */
+  regproc   rngsubdiff BKI_LOOKUP_OPT(pg_proc);
+}
+FormData_pg_range;
 
 /* ----------------
- *		Form_pg_range corresponds to a pointer to a tuple with
- *		the format of pg_range relation.
+ *    Form_pg_range corresponds to a pointer to a tuple with
+ *    the format of pg_range relation.
  * ----------------
  */
 typedef FormData_pg_range *Form_pg_range;
@@ -68,8 +69,8 @@ MAKE_SYSCACHE(RANGEMULTIRANGE, pg_range_rngmultitypid_index, 4);
  */
 
 extern void RangeCreate(Oid rangeTypeOid, Oid rangeSubType, Oid rangeCollation,
-						Oid rangeSubOpclass, RegProcedure rangeCanonical,
-						RegProcedure rangeSubDiff, Oid multirangeTypeOid);
+                        Oid rangeSubOpclass, RegProcedure rangeCanonical,
+                        RegProcedure rangeSubDiff, Oid multirangeTypeOid);
 extern void RangeDelete(Oid rangeTypeOid);
 
-#endif							/* PG_RANGE_H */
+#endif              /* PG_RANGE_H */

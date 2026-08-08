@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_opclass.h
- *	  definition of the "operator class" system catalog (pg_opclass)
+ *    definition of the "operator class" system catalog (pg_opclass)
  *
  * The primary key for this table is <opcmethod, opcname, opcnamespace> ---
  * that is, there is a row for each valid combination of opclass name and
@@ -30,8 +30,8 @@
  * src/include/catalog/pg_opclass.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -39,45 +39,46 @@
 #define PG_OPCLASS_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_opclass_d.h"	/* IWYU pragma: export */
+#include "catalog/pg_opclass_d.h" /* IWYU pragma: export */
 
 /* ----------------
- *		pg_opclass definition.  cpp turns this into
- *		typedef struct FormData_pg_opclass
+ *    pg_opclass definition.  cpp turns this into
+ *    typedef struct FormData_pg_opclass
  * ----------------
  */
-CATALOG(pg_opclass,2616,OperatorClassRelationId)
+CATALOG(pg_opclass, 2616, OperatorClassRelationId)
 {
-	Oid			oid;			/* oid */
+  Oid     oid;      /* oid */
 
-	/* index access method opclass is for */
-	Oid			opcmethod BKI_LOOKUP(pg_am);
+  /* index access method opclass is for */
+  Oid     opcmethod BKI_LOOKUP(pg_am);
 
-	/* name of this opclass */
-	NameData	opcname;
+  /* name of this opclass */
+  NameData  opcname;
 
-	/* namespace of this opclass */
-	Oid			opcnamespace BKI_DEFAULT(pg_catalog) BKI_LOOKUP(pg_namespace);
+  /* namespace of this opclass */
+  Oid     opcnamespace BKI_DEFAULT(pg_catalog) BKI_LOOKUP(pg_namespace);
 
-	/* opclass owner */
-	Oid			opcowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
+  /* opclass owner */
+  Oid     opcowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
 
-	/* containing operator family */
-	Oid			opcfamily BKI_LOOKUP(pg_opfamily);
+  /* containing operator family */
+  Oid     opcfamily BKI_LOOKUP(pg_opfamily);
 
-	/* type of data indexed by opclass */
-	Oid			opcintype BKI_LOOKUP(pg_type);
+  /* type of data indexed by opclass */
+  Oid     opcintype BKI_LOOKUP(pg_type);
 
-	/* T if opclass is default for opcintype */
-	bool		opcdefault BKI_DEFAULT(t);
+  /* T if opclass is default for opcintype */
+  bool    opcdefault BKI_DEFAULT(t);
 
-	/* type of data in index, or InvalidOid if same as input column type */
-	Oid			opckeytype BKI_DEFAULT(0) BKI_LOOKUP_OPT(pg_type);
-} FormData_pg_opclass;
+  /* type of data in index, or InvalidOid if same as input column type */
+  Oid     opckeytype BKI_DEFAULT(0) BKI_LOOKUP_OPT(pg_type);
+}
+FormData_pg_opclass;
 
 /* ----------------
- *		Form_pg_opclass corresponds to a pointer to a tuple with
- *		the format of pg_opclass relation.
+ *    Form_pg_opclass corresponds to a pointer to a tuple with
+ *    the format of pg_opclass relation.
  * ----------------
  */
 typedef FormData_pg_opclass *Form_pg_opclass;
@@ -88,4 +89,4 @@ DECLARE_UNIQUE_INDEX_PKEY(pg_opclass_oid_index, 2687, OpclassOidIndexId, pg_opcl
 MAKE_SYSCACHE(CLAAMNAMENSP, pg_opclass_am_name_nsp_index, 8);
 MAKE_SYSCACHE(CLAOID, pg_opclass_oid_index, 8);
 
-#endif							/* PG_OPCLASS_H */
+#endif              /* PG_OPCLASS_H */

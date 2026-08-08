@@ -25,4 +25,4 @@ extern void ExecIncrementalSortInitializeDSM(IncrementalSortState *node, Paralle
 extern void ExecIncrementalSortInitializeWorker(IncrementalSortState *node, ParallelWorkerContext *pwcxt);
 extern void ExecIncrementalSortRetrieveInstrumentation(IncrementalSortState *node);
 
-#endif							/* NODEINCREMENTALSORT_H */
+#endif              /* NODEINCREMENTALSORT_H */

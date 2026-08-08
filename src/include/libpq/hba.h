@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * hba.h
- *	  Interface to hba.c
+ *    Interface to hba.c
  *
  *
  * src/include/libpq/hba.h
@@ -11,7 +11,7 @@
 #ifndef HBA_H
 #define HBA_H
 
-#include "libpq/pqcomm.h"		/* needed for NetBSD */
+#include "libpq/pqcomm.h"   /* needed for NetBSD */
 #include "nodes/pg_list.h"
 #include "regex/regex.h"
 
@@ -24,23 +24,23 @@
  */
 typedef enum UserAuth
 {
-	uaReject,
-	uaImplicitReject,			/* Not a user-visible option */
-	uaTrust,
-	uaIdent,
-	uaPassword,
-	uaMD5,
-	uaSCRAM,
-	uaGSS,
-	uaSSPI,
-	uaPAM,
-	uaBSD,
-	uaLDAP,
-	uaCert,
-	uaRADIUS,
-	uaPeer,
-	uaOAuth,
-#define USER_AUTH_LAST uaOAuth	/* Must be last value of this enum */
+  uaReject,
+  uaImplicitReject,     /* Not a user-visible option */
+  uaTrust,
+  uaIdent,
+  uaPassword,
+  uaMD5,
+  uaSCRAM,
+  uaGSS,
+  uaSSPI,
+  uaPAM,
+  uaBSD,
+  uaLDAP,
+  uaCert,
+  uaRADIUS,
+  uaPeer,
+  uaOAuth,
+#define USER_AUTH_LAST uaOAuth  /* Must be last value of this enum */
 } UserAuth;
 
 /*
@@ -49,33 +49,33 @@ typedef enum UserAuth
 
 typedef enum IPCompareMethod
 {
-	ipCmpMask,
-	ipCmpSameHost,
-	ipCmpSameNet,
-	ipCmpAll,
+  ipCmpMask,
+  ipCmpSameHost,
+  ipCmpSameNet,
+  ipCmpAll,
 } IPCompareMethod;
 
 typedef enum ConnType
 {
-	ctLocal,
-	ctHost,
-	ctHostSSL,
-	ctHostNoSSL,
-	ctHostGSS,
-	ctHostNoGSS,
+  ctLocal,
+  ctHost,
+  ctHostSSL,
+  ctHostNoSSL,
+  ctHostGSS,
+  ctHostNoGSS,
 } ConnType;
 
 typedef enum ClientCertMode
 {
-	clientCertOff,
-	clientCertCA,
-	clientCertFull,
+  clientCertOff,
+  clientCertCA,
+  clientCertFull,
 } ClientCertMode;
 
 typedef enum ClientCertName
 {
-	clientCertCN,
-	clientCertDN,
+  clientCertCN,
+  clientCertDN,
 } ClientCertName;
 
 /*
@@ -87,68 +87,68 @@ typedef enum ClientCertName
  */
 typedef struct AuthToken
 {
-	char	   *string;
-	bool		quoted;
-	regex_t    *regex;
+  char     *string;
+  bool    quoted;
+  regex_t    *regex;
 } AuthToken;
 
 typedef struct HbaLine
 {
-	char	   *sourcefile;
-	int			linenumber;
-	char	   *rawline;
-	ConnType	conntype;
-	List	   *databases;
-	List	   *roles;
-	struct sockaddr_storage addr;
-	int			addrlen;		/* zero if we don't have a valid addr */
-	struct sockaddr_storage mask;
-	int			masklen;		/* zero if we don't have a valid mask */
-	IPCompareMethod ip_cmp_method;
-	char	   *hostname;
-	UserAuth	auth_method;
-	char	   *usermap;
-	char	   *pamservice;
-	bool		pam_use_hostname;
-	bool		ldaptls;
-	char	   *ldapscheme;
-	char	   *ldapserver;
-	int			ldapport;
-	char	   *ldapbinddn;
-	char	   *ldapbindpasswd;
-	char	   *ldapsearchattribute;
-	char	   *ldapsearchfilter;
-	char	   *ldapbasedn;
-	int			ldapscope;
-	char	   *ldapprefix;
-	char	   *ldapsuffix;
-	ClientCertMode clientcert;
-	ClientCertName clientcertname;
-	char	   *krb_realm;
-	bool		include_realm;
-	bool		compat_realm;
-	bool		upn_username;
-	List	   *radiusservers;
-	char	   *radiusservers_s;
-	List	   *radiussecrets;
-	char	   *radiussecrets_s;
-	List	   *radiusidentifiers;
-	char	   *radiusidentifiers_s;
-	List	   *radiusports;
-	char	   *radiusports_s;
-	char	   *oauth_issuer;
-	char	   *oauth_scope;
-	char	   *oauth_validator;
-	bool		oauth_skip_usermap;
+  char     *sourcefile;
+  int     linenumber;
+  char     *rawline;
+  ConnType  conntype;
+  List     *databases;
+  List     *roles;
+  struct sockaddr_storage addr;
+  int     addrlen;    /* zero if we don't have a valid addr */
+  struct sockaddr_storage mask;
+  int     masklen;    /* zero if we don't have a valid mask */
+  IPCompareMethod ip_cmp_method;
+  char     *hostname;
+  UserAuth  auth_method;
+  char     *usermap;
+  char     *pamservice;
+  bool    pam_use_hostname;
+  bool    ldaptls;
+  char     *ldapscheme;
+  char     *ldapserver;
+  int     ldapport;
+  char     *ldapbinddn;
+  char     *ldapbindpasswd;
+  char     *ldapsearchattribute;
+  char     *ldapsearchfilter;
+  char     *ldapbasedn;
+  int     ldapscope;
+  char     *ldapprefix;
+  char     *ldapsuffix;
+  ClientCertMode clientcert;
+  ClientCertName clientcertname;
+  char     *krb_realm;
+  bool    include_realm;
+  bool    compat_realm;
+  bool    upn_username;
+  List     *radiusservers;
+  char     *radiusservers_s;
+  List     *radiussecrets;
+  char     *radiussecrets_s;
+  List     *radiusidentifiers;
+  char     *radiusidentifiers_s;
+  List     *radiusports;
+  char     *radiusports_s;
+  char     *oauth_issuer;
+  char     *oauth_scope;
+  char     *oauth_validator;
+  bool    oauth_skip_usermap;
 } HbaLine;
 
 typedef struct IdentLine
 {
-	int			linenumber;
+  int     linenumber;
 
-	char	   *usermap;
-	AuthToken  *system_user;
-	AuthToken  *pg_user;
+  char     *usermap;
+  AuthToken  *system_user;
+  AuthToken  *pg_user;
 } IdentLine;
 
 /*
@@ -162,11 +162,11 @@ typedef struct IdentLine
  */
 typedef struct TokenizedAuthLine
 {
-	List	   *fields;			/* List of lists of AuthTokens */
-	char	   *file_name;		/* File name of origin */
-	int			line_num;		/* Line number */
-	char	   *raw_line;		/* Raw line text */
-	char	   *err_msg;		/* Error message if any */
+  List     *fields;     /* List of lists of AuthTokens */
+  char     *file_name;    /* File name of origin */
+  int     line_num;   /* Line number */
+  char     *raw_line;   /* Raw line text */
+  char     *err_msg;    /* Error message if any */
 } TokenizedAuthLine;
 
 /* kluge to avoid including libpq/libpq-be.h here */
@@ -176,16 +176,16 @@ extern bool load_hba(void);
 extern bool load_ident(void);
 extern const char *hba_authname(UserAuth auth_method);
 extern void hba_getauthmethod(hbaPort *port);
-extern int	check_usermap(const char *usermap_name,
-						  const char *pg_user, const char *system_user,
-						  bool case_insensitive);
+extern int  check_usermap(const char *usermap_name,
+                          const char *pg_user, const char *system_user,
+                          bool case_insensitive);
 extern HbaLine *parse_hba_line(TokenizedAuthLine *tok_line, int elevel);
 extern IdentLine *parse_ident_line(TokenizedAuthLine *tok_line, int elevel);
 extern bool pg_isblank(const char c);
 extern FILE *open_auth_file(const char *filename, int elevel, int depth,
-							char **err_msg);
+                            char **err_msg);
 extern void free_auth_file(FILE *file, int depth);
 extern void tokenize_auth_file(const char *filename, FILE *file,
-							   List **tok_lines, int elevel, int depth);
+                               List **tok_lines, int elevel, int depth);
 
-#endif							/* HBA_H */
+#endif              /* HBA_H */

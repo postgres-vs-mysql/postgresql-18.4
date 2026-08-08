@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * attmap.h
- *	  Definitions for PostgreSQL attribute mappings
+ *    Definitions for PostgreSQL attribute mappings
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -33,8 +33,8 @@
  */
 typedef struct AttrMap
 {
-	AttrNumber *attnums;
-	int			maplen;
+  AttrNumber *attnums;
+  int     maplen;
 } AttrMap;
 
 extern AttrMap *make_attrmap(int maplen);
@@ -42,13 +42,13 @@ extern void free_attrmap(AttrMap *map);
 
 /* Conversion routines to build mappings */
 extern AttrMap *build_attrmap_by_name(TupleDesc indesc,
-									  TupleDesc outdesc,
-									  bool missing_ok);
+                                      TupleDesc outdesc,
+                                      bool missing_ok);
 extern AttrMap *build_attrmap_by_name_if_req(TupleDesc indesc,
-											 TupleDesc outdesc,
-											 bool missing_ok);
+    TupleDesc outdesc,
+    bool missing_ok);
 extern AttrMap *build_attrmap_by_position(TupleDesc indesc,
-										  TupleDesc outdesc,
-										  const char *msg);
+    TupleDesc outdesc,
+    const char *msg);
 
-#endif							/* ATTMAP_H */
+#endif              /* ATTMAP_H */

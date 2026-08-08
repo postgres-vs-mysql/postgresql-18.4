@@ -18,9 +18,9 @@
 #include "pg_backup_utils.h"
 
 extern PGconn *ConnectDatabase(const char *dbname, const char *connection_string, const char *pghost,
-							   const char *pgport, const char *pguser,
-							   trivalue prompt_password, bool fail_on_error,
-							   const char *progname, const char **connstr, int *server_version,
-							   char *password, char *override_dbname);
+                               const char *pgport, const char *pguser,
+                               trivalue prompt_password, bool fail_on_error,
+                               const char *progname, const char **connstr, int *server_version,
+                               char *password, char *override_dbname);
 extern PGresult *executeQuery(PGconn *conn, const char *query);
-#endif							/* CONNECTDB_H */
+#endif              /* CONNECTDB_H */

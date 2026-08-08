@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * wait_error.c
- *		Convert a wait/waitpid(2) result code to a human-readable string
+ *    Convert a wait/waitpid(2) result code to a human-readable string
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -9,7 +9,7 @@
  *
  *
  * IDENTIFICATION
- *	  src/common/wait_error.c
+ *    src/common/wait_error.c
  *
  *-------------------------------------------------------------------------
  */
@@ -32,57 +32,50 @@
 char *
 wait_result_to_str(int exitstatus)
 {
-	char		str[512];
+  char    str[512];
 
-	/*
-	 * To simplify using this after pclose() and system(), handle status -1
-	 * first.  In that case, there is no wait result but some error indicated
-	 * by errno.
-	 */
-	if (exitstatus == -1)
-	{
-		snprintf(str, sizeof(str), "%m");
-	}
-	else if (WIFEXITED(exitstatus))
-	{
-		/*
-		 * Give more specific error message for some common exit codes that
-		 * have a special meaning in shells.
-		 */
-		switch (WEXITSTATUS(exitstatus))
-		{
-			case 126:
-				snprintf(str, sizeof(str), _("command not executable"));
-				break;
+  /*
+   * To simplify using this after pclose() and system(), handle status -1
+   * first.  In that case, there is no wait result but some error indicated
+   * by errno.
+   */
+  if (exitstatus == -1) {
+    snprintf(str, sizeof(str), "%m");
+  } else if (WIFEXITED(exitstatus)) {
+    /*
+     * Give more specific error message for some common exit codes that
+     * have a special meaning in shells.
+     */
+    switch (WEXITSTATUS(exitstatus)) {
+      case 126:
+        snprintf(str, sizeof(str), _("command not executable"));
+        break;
 
-			case 127:
-				snprintf(str, sizeof(str), _("command not found"));
-				break;
+      case 127:
+        snprintf(str, sizeof(str), _("command not found"));
+        break;
 
-			default:
-				snprintf(str, sizeof(str),
-						 _("child process exited with exit code %d"),
-						 WEXITSTATUS(exitstatus));
-		}
-	}
-	else if (WIFSIGNALED(exitstatus))
-	{
+      default:
+        snprintf(str, sizeof(str),
+                 _("child process exited with exit code %d"),
+                 WEXITSTATUS(exitstatus));
+    }
+  } else if (WIFSIGNALED(exitstatus)) {
 #if defined(WIN32)
-		snprintf(str, sizeof(str),
-				 _("child process was terminated by exception 0x%X"),
-				 WTERMSIG(exitstatus));
+    snprintf(str, sizeof(str),
+             _("child process was terminated by exception 0x%X"),
+             WTERMSIG(exitstatus));
 #else
-		snprintf(str, sizeof(str),
-				 _("child process was terminated by signal %d: %s"),
-				 WTERMSIG(exitstatus), pg_strsignal(WTERMSIG(exitstatus)));
+    snprintf(str, sizeof(str),
+             _("child process was terminated by signal %d: %s"),
+             WTERMSIG(exitstatus), pg_strsignal(WTERMSIG(exitstatus)));
 #endif
-	}
-	else
-		snprintf(str, sizeof(str),
-				 _("child process exited with unrecognized status %d"),
-				 exitstatus);
+  } else
+    snprintf(str, sizeof(str),
+             _("child process exited with unrecognized status %d"),
+             exitstatus);
 
-	return pstrdup(str);
+  return pstrdup(str);
 }
 
 /*
@@ -101,11 +94,13 @@ wait_result_to_str(int exitstatus)
 bool
 wait_result_is_signal(int exit_status, int signum)
 {
-	if (WIFSIGNALED(exit_status) && WTERMSIG(exit_status) == signum)
-		return true;
-	if (WIFEXITED(exit_status) && WEXITSTATUS(exit_status) == 128 + signum)
-		return true;
-	return false;
+  if (WIFSIGNALED(exit_status) && WTERMSIG(exit_status) == signum)
+    return true;
+
+  if (WIFEXITED(exit_status) && WEXITSTATUS(exit_status) == 128 + signum)
+    return true;
+
+  return false;
 }
 
 /*
@@ -120,12 +115,14 @@ wait_result_is_signal(int exit_status, int signum)
 bool
 wait_result_is_any_signal(int exit_status, bool include_command_not_found)
 {
-	if (WIFSIGNALED(exit_status))
-		return true;
-	if (WIFEXITED(exit_status) &&
-		WEXITSTATUS(exit_status) > (include_command_not_found ? 125 : 128))
-		return true;
-	return false;
+  if (WIFSIGNALED(exit_status))
+    return true;
+
+  if (WIFEXITED(exit_status) &&
+      WEXITSTATUS(exit_status) > (include_command_not_found ? 125 : 128))
+    return true;
+
+  return false;
 }
 
 /*
@@ -137,12 +134,15 @@ wait_result_is_any_signal(int exit_status, bool include_command_not_found)
 int
 wait_result_to_exit_code(int exit_status)
 {
-	if (exit_status == -1)
-		return -1;				/* failure of pclose() or system() */
-	if (WIFEXITED(exit_status))
-		return WEXITSTATUS(exit_status);
-	if (WIFSIGNALED(exit_status))
-		return 128 + WTERMSIG(exit_status);
-	/* On many systems, this is unreachable */
-	return -1;
+  if (exit_status == -1)
+    return -1;        /* failure of pclose() or system() */
+
+  if (WIFEXITED(exit_status))
+    return WEXITSTATUS(exit_status);
+
+  if (WIFSIGNALED(exit_status))
+    return 128 + WTERMSIG(exit_status);
+
+  /* On many systems, this is unreachable */
+  return -1;
 }

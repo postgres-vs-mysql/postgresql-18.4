@@ -1,12 +1,12 @@
 /*--------------------------------------------------------------------------
  *
  * test_bloomfilter.c
- *		Test false positive rate of Bloom filter.
+ *    Test false positive rate of Bloom filter.
  *
  * Copyright (c) 2018-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *		src/test/modules/test_bloomfilter/test_bloomfilter.c
+ *    src/test/modules/test_bloomfilter/test_bloomfilter.c
  *
  * -------------------------------------------------------------------------
  */
@@ -20,9 +20,9 @@
 PG_MODULE_MAGIC;
 
 /* Fits decimal representation of PG_INT64_MIN + 2 bytes: */
-#define MAX_ELEMENT_BYTES		21
+#define MAX_ELEMENT_BYTES   21
 /* False positive rate WARNING threshold (1%): */
-#define FPOSITIVE_THRESHOLD		0.01
+#define FPOSITIVE_THRESHOLD   0.01
 
 
 /*
@@ -31,16 +31,15 @@ PG_MODULE_MAGIC;
 static void
 populate_with_dummy_strings(bloom_filter *filter, int64 nelements)
 {
-	char		element[MAX_ELEMENT_BYTES];
-	int64		i;
+  char    element[MAX_ELEMENT_BYTES];
+  int64   i;
 
-	for (i = 0; i < nelements; i++)
-	{
-		CHECK_FOR_INTERRUPTS();
+  for (i = 0; i < nelements; i++) {
+    CHECK_FOR_INTERRUPTS();
 
-		snprintf(element, sizeof(element), "i" INT64_FORMAT, i);
-		bloom_add_element(filter, (unsigned char *) element, strlen(element));
-	}
+    snprintf(element, sizeof(element), "i" INT64_FORMAT, i);
+    bloom_add_element(filter, (unsigned char *) element, strlen(element));
+  }
 }
 
 /*
@@ -51,53 +50,53 @@ populate_with_dummy_strings(bloom_filter *filter, int64 nelements)
 static int64
 nfalsepos_for_missing_strings(bloom_filter *filter, int64 nelements)
 {
-	char		element[MAX_ELEMENT_BYTES];
-	int64		nfalsepos = 0;
-	int64		i;
+  char    element[MAX_ELEMENT_BYTES];
+  int64   nfalsepos = 0;
+  int64   i;
 
-	for (i = 0; i < nelements; i++)
-	{
-		CHECK_FOR_INTERRUPTS();
+  for (i = 0; i < nelements; i++) {
+    CHECK_FOR_INTERRUPTS();
 
-		snprintf(element, sizeof(element), "M" INT64_FORMAT, i);
-		if (!bloom_lacks_element(filter, (unsigned char *) element,
-								 strlen(element)))
-			nfalsepos++;
-	}
+    snprintf(element, sizeof(element), "M" INT64_FORMAT, i);
 
-	return nfalsepos;
+    if (!bloom_lacks_element(filter, (unsigned char *) element,
+                             strlen(element)))
+      nfalsepos++;
+  }
+
+  return nfalsepos;
 }
 
 static void
 create_and_test_bloom(int power, int64 nelements, int callerseed)
 {
-	int			bloom_work_mem;
-	uint64		seed;
-	int64		nfalsepos;
-	bloom_filter *filter;
+  int     bloom_work_mem;
+  uint64    seed;
+  int64   nfalsepos;
+  bloom_filter *filter;
 
-	bloom_work_mem = ((int64) 1 << power) / (8 * 1024);
+  bloom_work_mem = ((int64) 1 << power) / (8 * 1024);
 
-	elog(DEBUG1, "bloom_work_mem (KB): %d", bloom_work_mem);
+  elog(DEBUG1, "bloom_work_mem (KB): %d", bloom_work_mem);
 
-	/*
-	 * Generate random seed, or use caller's.  Seed should always be a
-	 * positive value less than or equal to PG_INT32_MAX, to ensure that any
-	 * random seed can be recreated through callerseed if the need arises.
-	 */
-	seed = callerseed < 0 ? pg_prng_int32p(&pg_global_prng_state) : callerseed;
+  /*
+   * Generate random seed, or use caller's.  Seed should always be a
+   * positive value less than or equal to PG_INT32_MAX, to ensure that any
+   * random seed can be recreated through callerseed if the need arises.
+   */
+  seed = callerseed < 0 ? pg_prng_int32p(&pg_global_prng_state) : callerseed;
 
-	/* Create Bloom filter, populate it, and report on false positive rate */
-	filter = bloom_create(nelements, bloom_work_mem, seed);
-	populate_with_dummy_strings(filter, nelements);
-	nfalsepos = nfalsepos_for_missing_strings(filter, nelements);
+  /* Create Bloom filter, populate it, and report on false positive rate */
+  filter = bloom_create(nelements, bloom_work_mem, seed);
+  populate_with_dummy_strings(filter, nelements);
+  nfalsepos = nfalsepos_for_missing_strings(filter, nelements);
 
-	ereport((nfalsepos > nelements * FPOSITIVE_THRESHOLD) ? WARNING : DEBUG1,
-			(errmsg_internal("seed: " UINT64_FORMAT " false positives: " INT64_FORMAT " (%.6f%%) bitset %.2f%% set",
-							 seed, nfalsepos, (double) nfalsepos / nelements,
-							 100.0 * bloom_prop_bits_set(filter))));
+  ereport((nfalsepos > nelements * FPOSITIVE_THRESHOLD) ? WARNING : DEBUG1,
+          (errmsg_internal("seed: " UINT64_FORMAT " false positives: " INT64_FORMAT " (%.6f%%) bitset %.2f%% set",
+                           seed, nfalsepos, (double) nfalsepos / nelements,
+                           100.0 * bloom_prop_bits_set(filter))));
 
-	bloom_free(filter);
+  bloom_free(filter);
 }
 
 PG_FUNCTION_INFO_V1(test_bloomfilter);
@@ -112,27 +111,26 @@ PG_FUNCTION_INFO_V1(test_bloomfilter);
 Datum
 test_bloomfilter(PG_FUNCTION_ARGS)
 {
-	int			power = PG_GETARG_INT32(0);
-	int64		nelements = PG_GETARG_INT64(1);
-	int			seed = PG_GETARG_INT32(2);
-	int			tests = PG_GETARG_INT32(3);
-	int			i;
+  int     power = PG_GETARG_INT32(0);
+  int64   nelements = PG_GETARG_INT64(1);
+  int     seed = PG_GETARG_INT32(2);
+  int     tests = PG_GETARG_INT32(3);
+  int     i;
 
-	if (power < 23 || power > 32)
-		elog(ERROR, "power argument must be between 23 and 32 inclusive");
+  if (power < 23 || power > 32)
+    elog(ERROR, "power argument must be between 23 and 32 inclusive");
 
-	if (tests <= 0)
-		elog(ERROR, "invalid number of tests: %d", tests);
+  if (tests <= 0)
+    elog(ERROR, "invalid number of tests: %d", tests);
 
-	if (nelements < 0)
-		elog(ERROR, "invalid number of elements: %d", tests);
+  if (nelements < 0)
+    elog(ERROR, "invalid number of elements: %d", tests);
 
-	for (i = 0; i < tests; i++)
-	{
-		elog(DEBUG1, "beginning test #%d...", i + 1);
+  for (i = 0; i < tests; i++) {
+    elog(DEBUG1, "beginning test #%d...", i + 1);
 
-		create_and_test_bloom(power, nelements, seed);
-	}
+    create_and_test_bloom(power, nelements, seed);
+  }
 
-	PG_RETURN_VOID();
+  PG_RETURN_VOID();
 }

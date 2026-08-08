@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * file_ops.c
- *	  Helper functions for operating on files.
+ *    Helper functions for operating on files.
  *
  * Most of the functions in this file are helper functions for writing to
  * the target data directory. The functions check the --dry-run flag, and
@@ -28,7 +28,7 @@
 /*
  * Currently open target file.
  */
-static int	dstfd = -1;
+static int  dstfd = -1;
 static char dstpath[MAXPGPATH] = "";
 
 static void create_target_dir(const char *path);
@@ -37,7 +37,7 @@ static void create_target_symlink(const char *path, const char *link);
 static void remove_target_symlink(const char *path);
 
 static void recurse_dir(const char *datadir, const char *parentpath,
-						process_file_callback_t callback);
+                        process_file_callback_t callback);
 
 /*
  * Open a target file for writing. If 'trunc' is true and the file already
@@ -46,29 +46,32 @@ static void recurse_dir(const char *datadir, const char *parentpath,
 void
 open_target_file(const char *path, bool trunc)
 {
-	int			mode;
+  int     mode;
 
-	if (!path_is_safe_for_extraction(path))
-		pg_fatal("target file path is unsafe for open: \"%s\"", path);
+  if (!path_is_safe_for_extraction(path))
+    pg_fatal("target file path is unsafe for open: \"%s\"", path);
 
-	if (dry_run)
-		return;
+  if (dry_run)
+    return;
 
-	if (dstfd != -1 && !trunc &&
-		strcmp(path, &dstpath[strlen(datadir_target) + 1]) == 0)
-		return;					/* already open */
+  if (dstfd != -1 && !trunc &&
+      strcmp(path, &dstpath[strlen(datadir_target) + 1]) == 0)
+    return;         /* already open */
 
-	close_target_file();
+  close_target_file();
 
-	snprintf(dstpath, sizeof(dstpath), "%s/%s", datadir_target, path);
+  snprintf(dstpath, sizeof(dstpath), "%s/%s", datadir_target, path);
 
-	mode = O_WRONLY | O_CREAT | PG_BINARY;
-	if (trunc)
-		mode |= O_TRUNC;
-	dstfd = open(dstpath, mode, pg_file_create_mode);
-	if (dstfd < 0)
-		pg_fatal("could not open target file \"%s\": %m",
-				 dstpath);
+  mode = O_WRONLY | O_CREAT | PG_BINARY;
+
+  if (trunc)
+    mode |= O_TRUNC;
+
+  dstfd = open(dstpath, mode, pg_file_create_mode);
+
+  if (dstfd < 0)
+    pg_fatal("could not open target file \"%s\": %m",
+             dstpath);
 }
 
 /*
@@ -77,109 +80,108 @@ open_target_file(const char *path, bool trunc)
 void
 close_target_file(void)
 {
-	if (dstfd == -1)
-		return;
+  if (dstfd == -1)
+    return;
 
-	if (close(dstfd) != 0)
-		pg_fatal("could not close target file \"%s\": %m",
-				 dstpath);
+  if (close(dstfd) != 0)
+    pg_fatal("could not close target file \"%s\": %m",
+             dstpath);
 
-	dstfd = -1;
+  dstfd = -1;
 }
 
 void
 write_target_range(char *buf, off_t begin, size_t size)
 {
-	size_t		writeleft;
-	char	   *p;
+  size_t    writeleft;
+  char     *p;
 
-	/* update progress report */
-	fetch_done += size;
-	progress_report(false);
+  /* update progress report */
+  fetch_done += size;
+  progress_report(false);
 
-	if (dry_run)
-		return;
+  if (dry_run)
+    return;
 
-	if (lseek(dstfd, begin, SEEK_SET) == -1)
-		pg_fatal("could not seek in target file \"%s\": %m",
-				 dstpath);
+  if (lseek(dstfd, begin, SEEK_SET) == -1)
+    pg_fatal("could not seek in target file \"%s\": %m",
+             dstpath);
 
-	writeleft = size;
-	p = buf;
-	while (writeleft > 0)
-	{
-		ssize_t		writelen;
+  writeleft = size;
+  p = buf;
 
-		errno = 0;
-		writelen = write(dstfd, p, writeleft);
-		if (writelen < 0)
-		{
-			/* if write didn't set errno, assume problem is no disk space */
-			if (errno == 0)
-				errno = ENOSPC;
-			pg_fatal("could not write file \"%s\": %m",
-					 dstpath);
-		}
+  while (writeleft > 0) {
+    ssize_t   writelen;
 
-		p += writelen;
-		writeleft -= writelen;
-	}
+    errno = 0;
+    writelen = write(dstfd, p, writeleft);
 
-	/* keep the file open, in case we need to copy more blocks in it */
+    if (writelen < 0) {
+      /* if write didn't set errno, assume problem is no disk space */
+      if (errno == 0)
+        errno = ENOSPC;
+
+      pg_fatal("could not write file \"%s\": %m",
+               dstpath);
+    }
+
+    p += writelen;
+    writeleft -= writelen;
+  }
+
+  /* keep the file open, in case we need to copy more blocks in it */
 }
 
 
 void
 remove_target(file_entry_t *entry)
 {
-	Assert(entry->action == FILE_ACTION_REMOVE);
-	Assert(entry->target_exists);
+  Assert(entry->action == FILE_ACTION_REMOVE);
+  Assert(entry->target_exists);
 
-	switch (entry->target_type)
-	{
-		case FILE_TYPE_DIRECTORY:
-			remove_target_dir(entry->path);
-			break;
+  switch (entry->target_type) {
+    case FILE_TYPE_DIRECTORY:
+      remove_target_dir(entry->path);
+      break;
 
-		case FILE_TYPE_REGULAR:
-			remove_target_file(entry->path, false);
-			break;
+    case FILE_TYPE_REGULAR:
+      remove_target_file(entry->path, false);
+      break;
 
-		case FILE_TYPE_SYMLINK:
-			remove_target_symlink(entry->path);
-			break;
+    case FILE_TYPE_SYMLINK:
+      remove_target_symlink(entry->path);
+      break;
 
-		case FILE_TYPE_UNDEFINED:
-			pg_fatal("undefined file type for \"%s\"", entry->path);
-			break;
-	}
+    case FILE_TYPE_UNDEFINED:
+      pg_fatal("undefined file type for \"%s\"", entry->path);
+      break;
+  }
 }
 
 void
 create_target(file_entry_t *entry)
 {
-	Assert(entry->action == FILE_ACTION_CREATE);
-	Assert(!entry->target_exists);
+  Assert(entry->action == FILE_ACTION_CREATE);
+  Assert(!entry->target_exists);
 
-	switch (entry->source_type)
-	{
-		case FILE_TYPE_DIRECTORY:
-			create_target_dir(entry->path);
-			break;
+  switch (entry->source_type) {
+    case FILE_TYPE_DIRECTORY:
+      create_target_dir(entry->path);
+      break;
 
-		case FILE_TYPE_SYMLINK:
-			create_target_symlink(entry->path, entry->source_link_target);
-			break;
+    case FILE_TYPE_SYMLINK:
+      create_target_symlink(entry->path, entry->source_link_target);
+      break;
 
-		case FILE_TYPE_REGULAR:
-			/* can't happen. Regular files are created with open_target_file. */
-			pg_fatal("invalid action (CREATE) for regular file");
-			break;
+    case FILE_TYPE_REGULAR:
+      /* can't happen. Regular files are created with open_target_file. */
+      pg_fatal("invalid action (CREATE) for regular file");
+      break;
 
-		case FILE_TYPE_UNDEFINED:
-			pg_fatal("undefined file type for \"%s\"", entry->path);
-			break;
-	}
+    case FILE_TYPE_UNDEFINED:
+      pg_fatal("undefined file type for \"%s\"", entry->path);
+      break;
+  }
 }
 
 /*
@@ -189,119 +191,124 @@ create_target(file_entry_t *entry)
 void
 remove_target_file(const char *path, bool missing_ok)
 {
-	char		dstpath[MAXPGPATH];
+  char    dstpath[MAXPGPATH];
 
-	if (!path_is_safe_for_extraction(path))
-		pg_fatal("target file path is unsafe for removal: \"%s\"", path);
+  if (!path_is_safe_for_extraction(path))
+    pg_fatal("target file path is unsafe for removal: \"%s\"", path);
 
-	if (dry_run)
-		return;
+  if (dry_run)
+    return;
 
-	snprintf(dstpath, sizeof(dstpath), "%s/%s", datadir_target, path);
-	if (unlink(dstpath) != 0)
-	{
-		if (errno == ENOENT && missing_ok)
-			return;
+  snprintf(dstpath, sizeof(dstpath), "%s/%s", datadir_target, path);
 
-		pg_fatal("could not remove file \"%s\": %m",
-				 dstpath);
-	}
+  if (unlink(dstpath) != 0) {
+    if (errno == ENOENT && missing_ok)
+      return;
+
+    pg_fatal("could not remove file \"%s\": %m",
+             dstpath);
+  }
 }
 
 void
 truncate_target_file(const char *path, off_t newsize)
 {
-	char		dstpath[MAXPGPATH];
-	int			fd;
+  char    dstpath[MAXPGPATH];
+  int     fd;
 
-	if (!path_is_safe_for_extraction(path))
-		pg_fatal("target file path is unsafe for truncation: \"%s\"", path);
+  if (!path_is_safe_for_extraction(path))
+    pg_fatal("target file path is unsafe for truncation: \"%s\"", path);
 
-	if (dry_run)
-		return;
+  if (dry_run)
+    return;
 
-	snprintf(dstpath, sizeof(dstpath), "%s/%s", datadir_target, path);
+  snprintf(dstpath, sizeof(dstpath), "%s/%s", datadir_target, path);
 
-	fd = open(dstpath, O_WRONLY, pg_file_create_mode);
-	if (fd < 0)
-		pg_fatal("could not open file \"%s\" for truncation: %m",
-				 dstpath);
+  fd = open(dstpath, O_WRONLY, pg_file_create_mode);
 
-	if (ftruncate(fd, newsize) != 0)
-		pg_fatal("could not truncate file \"%s\" to %u: %m",
-				 dstpath, (unsigned int) newsize);
+  if (fd < 0)
+    pg_fatal("could not open file \"%s\" for truncation: %m",
+             dstpath);
 
-	close(fd);
+  if (ftruncate(fd, newsize) != 0)
+    pg_fatal("could not truncate file \"%s\" to %u: %m",
+             dstpath, (unsigned int) newsize);
+
+  close(fd);
 }
 
 static void
 create_target_dir(const char *path)
 {
-	char		dstpath[MAXPGPATH];
+  char    dstpath[MAXPGPATH];
 
-	if (!path_is_safe_for_extraction(path))
-		pg_fatal("target directory path is unsafe for directory creation: \"%s\"",
-				 path);
+  if (!path_is_safe_for_extraction(path))
+    pg_fatal("target directory path is unsafe for directory creation: \"%s\"",
+             path);
 
-	if (dry_run)
-		return;
+  if (dry_run)
+    return;
 
-	snprintf(dstpath, sizeof(dstpath), "%s/%s", datadir_target, path);
-	if (mkdir(dstpath, pg_dir_create_mode) != 0)
-		pg_fatal("could not create directory \"%s\": %m",
-				 dstpath);
+  snprintf(dstpath, sizeof(dstpath), "%s/%s", datadir_target, path);
+
+  if (mkdir(dstpath, pg_dir_create_mode) != 0)
+    pg_fatal("could not create directory \"%s\": %m",
+             dstpath);
 }
 
 static void
 remove_target_dir(const char *path)
 {
-	char		dstpath[MAXPGPATH];
+  char    dstpath[MAXPGPATH];
 
-	if (!path_is_safe_for_extraction(path))
-		pg_fatal("target directory path is unsafe for directory removal: \"%s\"",
-				 path);
+  if (!path_is_safe_for_extraction(path))
+    pg_fatal("target directory path is unsafe for directory removal: \"%s\"",
+             path);
 
-	if (dry_run)
-		return;
+  if (dry_run)
+    return;
 
-	snprintf(dstpath, sizeof(dstpath), "%s/%s", datadir_target, path);
-	if (rmdir(dstpath) != 0)
-		pg_fatal("could not remove directory \"%s\": %m",
-				 dstpath);
+  snprintf(dstpath, sizeof(dstpath), "%s/%s", datadir_target, path);
+
+  if (rmdir(dstpath) != 0)
+    pg_fatal("could not remove directory \"%s\": %m",
+             dstpath);
 }
 
 static void
 create_target_symlink(const char *path, const char *link)
 {
-	char		dstpath[MAXPGPATH];
+  char    dstpath[MAXPGPATH];
 
-	if (!path_is_safe_for_extraction(path))
-		pg_fatal("target symlink path is unsafe for creation: \"%s\"", path);
+  if (!path_is_safe_for_extraction(path))
+    pg_fatal("target symlink path is unsafe for creation: \"%s\"", path);
 
-	if (dry_run)
-		return;
+  if (dry_run)
+    return;
 
-	snprintf(dstpath, sizeof(dstpath), "%s/%s", datadir_target, path);
-	if (symlink(link, dstpath) != 0)
-		pg_fatal("could not create symbolic link at \"%s\": %m",
-				 dstpath);
+  snprintf(dstpath, sizeof(dstpath), "%s/%s", datadir_target, path);
+
+  if (symlink(link, dstpath) != 0)
+    pg_fatal("could not create symbolic link at \"%s\": %m",
+             dstpath);
 }
 
 static void
 remove_target_symlink(const char *path)
 {
-	char		dstpath[MAXPGPATH];
+  char    dstpath[MAXPGPATH];
 
-	if (!path_is_safe_for_extraction(path))
-		pg_fatal("target symlink path is unsafe for removal: \"%s\"", path);
+  if (!path_is_safe_for_extraction(path))
+    pg_fatal("target symlink path is unsafe for removal: \"%s\"", path);
 
-	if (dry_run)
-		return;
+  if (dry_run)
+    return;
 
-	snprintf(dstpath, sizeof(dstpath), "%s/%s", datadir_target, path);
-	if (unlink(dstpath) != 0)
-		pg_fatal("could not remove symbolic link \"%s\": %m",
-				 dstpath);
+  snprintf(dstpath, sizeof(dstpath), "%s/%s", datadir_target, path);
+
+  if (unlink(dstpath) != 0)
+    pg_fatal("could not remove symbolic link \"%s\": %m",
+             dstpath);
 }
 
 /*
@@ -316,10 +323,10 @@ remove_target_symlink(const char *path)
 void
 sync_target_dir(void)
 {
-	if (!do_sync || dry_run)
-		return;
+  if (!do_sync || dry_run)
+    return;
 
-	sync_pgdata(datadir_target, PG_VERSION_NUM, sync_method, true);
+  sync_pgdata(datadir_target, PG_VERSION_NUM, sync_method, true);
 }
 
 
@@ -336,45 +343,47 @@ sync_target_dir(void)
 char *
 slurpFile(const char *datadir, const char *path, size_t *filesize)
 {
-	int			fd;
-	char	   *buffer;
-	struct stat statbuf;
-	char		fullpath[MAXPGPATH];
-	int			len;
-	int			r;
+  int     fd;
+  char     *buffer;
+  struct stat statbuf;
+  char    fullpath[MAXPGPATH];
+  int     len;
+  int     r;
 
-	snprintf(fullpath, sizeof(fullpath), "%s/%s", datadir, path);
+  snprintf(fullpath, sizeof(fullpath), "%s/%s", datadir, path);
 
-	if ((fd = open(fullpath, O_RDONLY | PG_BINARY, 0)) == -1)
-		pg_fatal("could not open file \"%s\" for reading: %m",
-				 fullpath);
+  if ((fd = open(fullpath, O_RDONLY | PG_BINARY, 0)) == -1)
+    pg_fatal("could not open file \"%s\" for reading: %m",
+             fullpath);
 
-	if (fstat(fd, &statbuf) < 0)
-		pg_fatal("could not stat file \"%s\": %m",
-				 fullpath);
+  if (fstat(fd, &statbuf) < 0)
+    pg_fatal("could not stat file \"%s\": %m",
+             fullpath);
 
-	len = statbuf.st_size;
+  len = statbuf.st_size;
 
-	buffer = pg_malloc(len + 1);
+  buffer = pg_malloc(len + 1);
 
-	r = read(fd, buffer, len);
-	if (r != len)
-	{
-		if (r < 0)
-			pg_fatal("could not read file \"%s\": %m",
-					 fullpath);
-		else
-			pg_fatal("could not read file \"%s\": read %d of %zu",
-					 fullpath, r, (Size) len);
-	}
-	close(fd);
+  r = read(fd, buffer, len);
 
-	/* Zero-terminate the buffer. */
-	buffer[len] = '\0';
+  if (r != len) {
+    if (r < 0)
+      pg_fatal("could not read file \"%s\": %m",
+               fullpath);
+    else
+      pg_fatal("could not read file \"%s\": read %d of %zu",
+               fullpath, r, (Size) len);
+  }
 
-	if (filesize)
-		*filesize = len;
-	return buffer;
+  close(fd);
+
+  /* Zero-terminate the buffer. */
+  buffer[len] = '\0';
+
+  if (filesize)
+    *filesize = len;
+
+  return buffer;
 }
 
 /*
@@ -384,7 +393,7 @@ slurpFile(const char *datadir, const char *path, size_t *filesize)
 void
 traverse_datadir(const char *datadir, process_file_callback_t callback)
 {
-	recurse_dir(datadir, NULL, callback);
+  recurse_dir(datadir, NULL, callback);
 }
 
 /*
@@ -395,97 +404,94 @@ traverse_datadir(const char *datadir, process_file_callback_t callback)
  */
 static void
 recurse_dir(const char *datadir, const char *parentpath,
-			process_file_callback_t callback)
+            process_file_callback_t callback)
 {
-	DIR		   *xldir;
-	struct dirent *xlde;
-	char		fullparentpath[MAXPGPATH];
+  DIR      *xldir;
+  struct dirent *xlde;
+  char    fullparentpath[MAXPGPATH];
 
-	if (parentpath)
-		snprintf(fullparentpath, MAXPGPATH, "%s/%s", datadir, parentpath);
-	else
-		snprintf(fullparentpath, MAXPGPATH, "%s", datadir);
+  if (parentpath)
+    snprintf(fullparentpath, MAXPGPATH, "%s/%s", datadir, parentpath);
+  else
+    snprintf(fullparentpath, MAXPGPATH, "%s", datadir);
 
-	xldir = opendir(fullparentpath);
-	if (xldir == NULL)
-		pg_fatal("could not open directory \"%s\": %m",
-				 fullparentpath);
+  xldir = opendir(fullparentpath);
 
-	while (errno = 0, (xlde = readdir(xldir)) != NULL)
-	{
-		struct stat fst;
-		char		fullpath[MAXPGPATH * 2];
-		char		path[MAXPGPATH * 2];
+  if (xldir == NULL)
+    pg_fatal("could not open directory \"%s\": %m",
+             fullparentpath);
 
-		if (strcmp(xlde->d_name, ".") == 0 ||
-			strcmp(xlde->d_name, "..") == 0)
-			continue;
+  while (errno = 0, (xlde = readdir(xldir)) != NULL) {
+    struct stat fst;
+    char    fullpath[MAXPGPATH * 2];
+    char    path[MAXPGPATH * 2];
 
-		snprintf(fullpath, sizeof(fullpath), "%s/%s", fullparentpath, xlde->d_name);
+    if (strcmp(xlde->d_name, ".") == 0 ||
+        strcmp(xlde->d_name, "..") == 0)
+      continue;
 
-		if (lstat(fullpath, &fst) < 0)
-		{
-			if (errno == ENOENT)
-			{
-				/*
-				 * File doesn't exist anymore. This is ok, if the new primary
-				 * is running and the file was just removed. If it was a data
-				 * file, there should be a WAL record of the removal. If it
-				 * was something else, it couldn't have been anyway.
-				 *
-				 * TODO: But complain if we're processing the target dir!
-				 */
-			}
-			else
-				pg_fatal("could not stat file \"%s\": %m",
-						 fullpath);
-		}
+    snprintf(fullpath, sizeof(fullpath), "%s/%s", fullparentpath, xlde->d_name);
 
-		if (parentpath)
-			snprintf(path, sizeof(path), "%s/%s", parentpath, xlde->d_name);
-		else
-			snprintf(path, sizeof(path), "%s", xlde->d_name);
+    if (lstat(fullpath, &fst) < 0) {
+      if (errno == ENOENT) {
+        /*
+         * File doesn't exist anymore. This is ok, if the new primary
+         * is running and the file was just removed. If it was a data
+         * file, there should be a WAL record of the removal. If it
+         * was something else, it couldn't have been anyway.
+         *
+         * TODO: But complain if we're processing the target dir!
+         */
+      } else
+        pg_fatal("could not stat file \"%s\": %m",
+                 fullpath);
+    }
 
-		if (S_ISREG(fst.st_mode))
-			callback(path, FILE_TYPE_REGULAR, fst.st_size, NULL);
-		else if (S_ISDIR(fst.st_mode))
-		{
-			callback(path, FILE_TYPE_DIRECTORY, 0, NULL);
-			/* recurse to handle subdirectories */
-			recurse_dir(datadir, path, callback);
-		}
-		else if (S_ISLNK(fst.st_mode))
-		{
-			char		link_target[MAXPGPATH];
-			int			len;
+    if (parentpath)
+      snprintf(path, sizeof(path), "%s/%s", parentpath, xlde->d_name);
+    else
+      snprintf(path, sizeof(path), "%s", xlde->d_name);
 
-			len = readlink(fullpath, link_target, sizeof(link_target));
-			if (len < 0)
-				pg_fatal("could not read symbolic link \"%s\": %m",
-						 fullpath);
-			if (len >= sizeof(link_target))
-				pg_fatal("symbolic link \"%s\" target is too long",
-						 fullpath);
-			link_target[len] = '\0';
+    if (S_ISREG(fst.st_mode))
+      callback(path, FILE_TYPE_REGULAR, fst.st_size, NULL);
+    else if (S_ISDIR(fst.st_mode)) {
+      callback(path, FILE_TYPE_DIRECTORY, 0, NULL);
+      /* recurse to handle subdirectories */
+      recurse_dir(datadir, path, callback);
+    } else if (S_ISLNK(fst.st_mode)) {
+      char    link_target[MAXPGPATH];
+      int     len;
 
-			callback(path, FILE_TYPE_SYMLINK, 0, link_target);
+      len = readlink(fullpath, link_target, sizeof(link_target));
 
-			/*
-			 * If it's a symlink within pg_tblspc, we need to recurse into it,
-			 * to process all the tablespaces.  We also follow a symlink if
-			 * it's for pg_wal.  Symlinks elsewhere are ignored.
-			 */
-			if ((parentpath && strcmp(parentpath, PG_TBLSPC_DIR) == 0) ||
-				strcmp(path, "pg_wal") == 0)
-				recurse_dir(datadir, path, callback);
-		}
-	}
+      if (len < 0)
+        pg_fatal("could not read symbolic link \"%s\": %m",
+                 fullpath);
 
-	if (errno)
-		pg_fatal("could not read directory \"%s\": %m",
-				 fullparentpath);
+      if (len >= sizeof(link_target))
+        pg_fatal("symbolic link \"%s\" target is too long",
+                 fullpath);
 
-	if (closedir(xldir))
-		pg_fatal("could not close directory \"%s\": %m",
-				 fullparentpath);
+      link_target[len] = '\0';
+
+      callback(path, FILE_TYPE_SYMLINK, 0, link_target);
+
+      /*
+       * If it's a symlink within pg_tblspc, we need to recurse into it,
+       * to process all the tablespaces.  We also follow a symlink if
+       * it's for pg_wal.  Symlinks elsewhere are ignored.
+       */
+      if ((parentpath && strcmp(parentpath, PG_TBLSPC_DIR) == 0) ||
+          strcmp(path, "pg_wal") == 0)
+        recurse_dir(datadir, path, callback);
+    }
+  }
+
+  if (errno)
+    pg_fatal("could not read directory \"%s\": %m",
+             fullparentpath);
+
+  if (closedir(xldir))
+    pg_fatal("could not close directory \"%s\": %m",
+             fullparentpath);
 }

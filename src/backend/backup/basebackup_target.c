@@ -1,15 +1,15 @@
 /*-------------------------------------------------------------------------
  *
  * basebackup_target.c
- *	  Base backups can be "targeted", which means that they can be sent
- *	  somewhere other than to the client which requested the backup.
- *	  Furthermore, new targets can be defined by extensions. This file
- *	  contains code to support that functionality.
+ *    Base backups can be "targeted", which means that they can be sent
+ *    somewhere other than to the client which requested the backup.
+ *    Furthermore, new targets can be defined by extensions. This file
+ *    contains code to support that functionality.
  *
  * Portions Copyright (c) 2010-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/backend/backup/basebackup_target.c
+ *    src/backend/backup/basebackup_target.c
  *
  *-------------------------------------------------------------------------
  */
@@ -18,17 +18,15 @@
 #include "backup/basebackup_target.h"
 #include "utils/memutils.h"
 
-typedef struct BaseBackupTargetType
-{
-	char	   *name;
-	void	   *(*check_detail) (char *, char *);
-	bbsink	   *(*get_sink) (bbsink *, void *);
+typedef struct BaseBackupTargetType {
+  char     *name;
+  void     *(*check_detail) (char *, char *);
+  bbsink     *(*get_sink) (bbsink *, void *);
 } BaseBackupTargetType;
 
-struct BaseBackupTargetHandle
-{
-	BaseBackupTargetType *type;
-	void	   *detail_arg;
+struct BaseBackupTargetHandle {
+  BaseBackupTargetType *type;
+  void     *detail_arg;
 };
 
 static void initialize_target_list(void);
@@ -37,17 +35,16 @@ static bbsink *server_get_sink(bbsink *next_sink, void *detail_arg);
 static void *reject_target_detail(char *target, char *target_detail);
 static void *server_check_detail(char *target, char *target_detail);
 
-static BaseBackupTargetType builtin_backup_targets[] =
-{
-	{
-		"blackhole", reject_target_detail, blackhole_get_sink
-	},
-	{
-		"server", server_check_detail, server_get_sink
-	},
-	{
-		NULL
-	}
+static BaseBackupTargetType builtin_backup_targets[] = {
+  {
+    "blackhole", reject_target_detail, blackhole_get_sink
+  },
+  {
+    "server", server_check_detail, server_get_sink
+  },
+  {
+    NULL
+  }
 };
 
 static List *BaseBackupTargetTypeList = NIL;
@@ -59,49 +56,47 @@ static List *BaseBackupTargetTypeList = NIL;
  */
 void
 BaseBackupAddTarget(char *name,
-					void *(*check_detail) (char *, char *),
-					bbsink *(*get_sink) (bbsink *, void *))
+                    void *(*check_detail) (char *, char *),
+                    bbsink * (*get_sink) (bbsink *, void *))
 {
-	BaseBackupTargetType *newtype;
-	MemoryContext oldcontext;
-	ListCell   *lc;
+  BaseBackupTargetType *newtype;
+  MemoryContext oldcontext;
+  ListCell   *lc;
 
-	/* If the target list is not yet initialized, do that first. */
-	if (BaseBackupTargetTypeList == NIL)
-		initialize_target_list();
+  /* If the target list is not yet initialized, do that first. */
+  if (BaseBackupTargetTypeList == NIL)
+    initialize_target_list();
 
-	/* Search the target type list for an existing entry with this name. */
-	foreach(lc, BaseBackupTargetTypeList)
-	{
-		BaseBackupTargetType *ttype = lfirst(lc);
+  /* Search the target type list for an existing entry with this name. */
+  foreach(lc, BaseBackupTargetTypeList) {
+    BaseBackupTargetType *ttype = lfirst(lc);
 
-		if (strcmp(ttype->name, name) == 0)
-		{
-			/*
-			 * We found one, so update it.
-			 *
-			 * It is probably not a great idea to call BaseBackupAddTarget for
-			 * the same name multiple times, but if it happens, this seems
-			 * like the sanest behavior.
-			 */
-			ttype->check_detail = check_detail;
-			ttype->get_sink = get_sink;
-			return;
-		}
-	}
+    if (strcmp(ttype->name, name) == 0) {
+      /*
+       * We found one, so update it.
+       *
+       * It is probably not a great idea to call BaseBackupAddTarget for
+       * the same name multiple times, but if it happens, this seems
+       * like the sanest behavior.
+       */
+      ttype->check_detail = check_detail;
+      ttype->get_sink = get_sink;
+      return;
+    }
+  }
 
-	/*
-	 * We use TopMemoryContext for allocations here to make sure that the data
-	 * we need doesn't vanish under us; that's also why we copy the target
-	 * name into a newly-allocated chunk of memory.
-	 */
-	oldcontext = MemoryContextSwitchTo(TopMemoryContext);
-	newtype = palloc(sizeof(BaseBackupTargetType));
-	newtype->name = pstrdup(name);
-	newtype->check_detail = check_detail;
-	newtype->get_sink = get_sink;
-	BaseBackupTargetTypeList = lappend(BaseBackupTargetTypeList, newtype);
-	MemoryContextSwitchTo(oldcontext);
+  /*
+   * We use TopMemoryContext for allocations here to make sure that the data
+   * we need doesn't vanish under us; that's also why we copy the target
+   * name into a newly-allocated chunk of memory.
+   */
+  oldcontext = MemoryContextSwitchTo(TopMemoryContext);
+  newtype = palloc(sizeof(BaseBackupTargetType));
+  newtype->name = pstrdup(name);
+  newtype->check_detail = check_detail;
+  newtype->get_sink = get_sink;
+  BaseBackupTargetTypeList = lappend(BaseBackupTargetTypeList, newtype);
+  MemoryContextSwitchTo(oldcontext);
 }
 
 /*
@@ -116,37 +111,35 @@ BaseBackupAddTarget(char *name,
 BaseBackupTargetHandle *
 BaseBackupGetTargetHandle(char *target, char *target_detail)
 {
-	ListCell   *lc;
+  ListCell   *lc;
 
-	/* If the target list is not yet initialized, do that first. */
-	if (BaseBackupTargetTypeList == NIL)
-		initialize_target_list();
+  /* If the target list is not yet initialized, do that first. */
+  if (BaseBackupTargetTypeList == NIL)
+    initialize_target_list();
 
-	/* Search the target type list for a match. */
-	foreach(lc, BaseBackupTargetTypeList)
-	{
-		BaseBackupTargetType *ttype = lfirst(lc);
+  /* Search the target type list for a match. */
+  foreach(lc, BaseBackupTargetTypeList) {
+    BaseBackupTargetType *ttype = lfirst(lc);
 
-		if (strcmp(ttype->name, target) == 0)
-		{
-			BaseBackupTargetHandle *handle;
+    if (strcmp(ttype->name, target) == 0) {
+      BaseBackupTargetHandle *handle;
 
-			/* Found the target. */
-			handle = palloc(sizeof(BaseBackupTargetHandle));
-			handle->type = ttype;
-			handle->detail_arg = ttype->check_detail(target, target_detail);
+      /* Found the target. */
+      handle = palloc(sizeof(BaseBackupTargetHandle));
+      handle->type = ttype;
+      handle->detail_arg = ttype->check_detail(target, target_detail);
 
-			return handle;
-		}
-	}
+      return handle;
+    }
+  }
 
-	/* Did not find the target. */
-	ereport(ERROR,
-			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-			 errmsg("unrecognized target: \"%s\"", target)));
+  /* Did not find the target. */
+  ereport(ERROR,
+          (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+           errmsg("unrecognized target: \"%s\"", target)));
 
-	/* keep compiler quiet */
-	return NULL;
+  /* keep compiler quiet */
+  return NULL;
 }
 
 /*
@@ -162,7 +155,7 @@ BaseBackupGetTargetHandle(char *target, char *target_detail)
 bbsink *
 BaseBackupGetSink(BaseBackupTargetHandle *handle, bbsink *next_sink)
 {
-	return handle->type->get_sink(next_sink, handle->detail_arg);
+  return handle->type->get_sink(next_sink, handle->detail_arg);
 }
 
 /*
@@ -171,16 +164,17 @@ BaseBackupGetSink(BaseBackupTargetHandle *handle, bbsink *next_sink)
 static void
 initialize_target_list(void)
 {
-	BaseBackupTargetType *ttype = builtin_backup_targets;
-	MemoryContext oldcontext;
+  BaseBackupTargetType *ttype = builtin_backup_targets;
+  MemoryContext oldcontext;
 
-	oldcontext = MemoryContextSwitchTo(TopMemoryContext);
-	while (ttype->name != NULL)
-	{
-		BaseBackupTargetTypeList = lappend(BaseBackupTargetTypeList, ttype);
-		++ttype;
-	}
-	MemoryContextSwitchTo(oldcontext);
+  oldcontext = MemoryContextSwitchTo(TopMemoryContext);
+
+  while (ttype->name != NULL) {
+    BaseBackupTargetTypeList = lappend(BaseBackupTargetTypeList, ttype);
+    ++ttype;
+  }
+
+  MemoryContextSwitchTo(oldcontext);
 }
 
 /*
@@ -193,7 +187,7 @@ initialize_target_list(void)
 static bbsink *
 blackhole_get_sink(bbsink *next_sink, void *detail_arg)
 {
-	return next_sink;
+  return next_sink;
 }
 
 /*
@@ -202,7 +196,7 @@ blackhole_get_sink(bbsink *next_sink, void *detail_arg)
 static bbsink *
 server_get_sink(bbsink *next_sink, void *detail_arg)
 {
-	return bbsink_server_new(next_sink, detail_arg);
+  return bbsink_server_new(next_sink, detail_arg);
 }
 
 /*
@@ -212,13 +206,13 @@ server_get_sink(bbsink *next_sink, void *detail_arg)
 static void *
 reject_target_detail(char *target, char *target_detail)
 {
-	if (target_detail != NULL)
-		ereport(ERROR,
-				(errcode(ERRCODE_SYNTAX_ERROR),
-				 errmsg("target \"%s\" does not accept a target detail",
-						target)));
+  if (target_detail != NULL)
+    ereport(ERROR,
+            (errcode(ERRCODE_SYNTAX_ERROR),
+             errmsg("target \"%s\" does not accept a target detail",
+                    target)));
 
-	return NULL;
+  return NULL;
 }
 
 /*
@@ -231,11 +225,11 @@ reject_target_detail(char *target, char *target_detail)
 static void *
 server_check_detail(char *target, char *target_detail)
 {
-	if (target_detail == NULL)
-		ereport(ERROR,
-				(errcode(ERRCODE_SYNTAX_ERROR),
-				 errmsg("target \"%s\" requires a target detail",
-						target)));
+  if (target_detail == NULL)
+    ereport(ERROR,
+            (errcode(ERRCODE_SYNTAX_ERROR),
+             errmsg("target \"%s\" requires a target detail",
+                    target)));
 
-	return target_detail;
+  return target_detail;
 }

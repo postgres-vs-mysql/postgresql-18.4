@@ -1,7 +1,7 @@
 /* -------------------------------------------------------------------------
  *
  * pgstat_wal.c
- *	  Implementation of WAL statistics.
+ *    Implementation of WAL statistics.
  *
  * This file contains the implementation of WAL statistics. It is kept
  * separate from pgstat.c to enforce the line between the statistics access /
@@ -11,7 +11,7 @@
  * Copyright (c) 2001-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/backend/utils/activity/pgstat_wal.c
+ *    src/backend/utils/activity/pgstat_wal.c
  * -------------------------------------------------------------------------
  */
 
@@ -45,18 +45,18 @@ static WalUsage prevWalUsage;
 void
 pgstat_report_wal(bool force)
 {
-	bool		nowait;
+  bool    nowait;
 
-	/* like in pgstat.c, don't wait for lock acquisition when !force */
-	nowait = !force;
+  /* like in pgstat.c, don't wait for lock acquisition when !force */
+  nowait = !force;
 
-	/* flush wal stats */
-	(void) pgstat_wal_flush_cb(nowait);
-	pgstat_flush_backend(nowait, PGSTAT_BACKEND_FLUSH_WAL);
+  /* flush wal stats */
+  (void) pgstat_wal_flush_cb(nowait);
+  pgstat_flush_backend(nowait, PGSTAT_BACKEND_FLUSH_WAL);
 
-	/* flush IO stats */
-	pgstat_flush_io(nowait);
-	(void) pgstat_flush_backend(nowait, PGSTAT_BACKEND_FLUSH_IO);
+  /* flush IO stats */
+  pgstat_flush_io(nowait);
+  (void) pgstat_flush_backend(nowait, PGSTAT_BACKEND_FLUSH_IO);
 }
 
 /*
@@ -66,9 +66,9 @@ pgstat_report_wal(bool force)
 PgStat_WalStats *
 pgstat_fetch_stat_wal(void)
 {
-	pgstat_snapshot_fixed(PGSTAT_KIND_WAL);
+  pgstat_snapshot_fixed(PGSTAT_KIND_WAL);
 
-	return &pgStatLocal.snapshot.wal;
+  return &pgStatLocal.snapshot.wal;
 }
 
 /*
@@ -77,7 +77,7 @@ pgstat_fetch_stat_wal(void)
 static inline bool
 pgstat_wal_have_pending(void)
 {
-	return pgWalUsage.wal_records != prevWalUsage.wal_records;
+  return pgWalUsage.wal_records != prevWalUsage.wal_records;
 }
 
 /*
@@ -90,87 +90,87 @@ pgstat_wal_have_pending(void)
 bool
 pgstat_wal_flush_cb(bool nowait)
 {
-	PgStatShared_Wal *stats_shmem = &pgStatLocal.shmem->wal;
-	WalUsage	wal_usage_diff = {0};
+  PgStatShared_Wal *stats_shmem = &pgStatLocal.shmem->wal;
+  WalUsage  wal_usage_diff = {0};
 
-	Assert(IsUnderPostmaster || !IsPostmasterEnvironment);
-	Assert(pgStatLocal.shmem != NULL &&
-		   !pgStatLocal.shmem->is_shutdown);
+  Assert(IsUnderPostmaster || !IsPostmasterEnvironment);
+  Assert(pgStatLocal.shmem != NULL &&
+         !pgStatLocal.shmem->is_shutdown);
 
-	/*
-	 * This function can be called even if nothing at all has happened. Avoid
-	 * taking lock for nothing in that case.
-	 */
-	if (!pgstat_wal_have_pending())
-		return false;
+  /*
+   * This function can be called even if nothing at all has happened. Avoid
+   * taking lock for nothing in that case.
+   */
+  if (!pgstat_wal_have_pending())
+    return false;
 
-	/*
-	 * We don't update the WAL usage portion of the local WalStats elsewhere.
-	 * Calculate how much WAL usage counters were increased by subtracting the
-	 * previous counters from the current ones.
-	 */
-	WalUsageAccumDiff(&wal_usage_diff, &pgWalUsage, &prevWalUsage);
+  /*
+   * We don't update the WAL usage portion of the local WalStats elsewhere.
+   * Calculate how much WAL usage counters were increased by subtracting the
+   * previous counters from the current ones.
+   */
+  WalUsageAccumDiff(&wal_usage_diff, &pgWalUsage, &prevWalUsage);
 
-	if (!nowait)
-		LWLockAcquire(&stats_shmem->lock, LW_EXCLUSIVE);
-	else if (!LWLockConditionalAcquire(&stats_shmem->lock, LW_EXCLUSIVE))
-		return true;
+  if (!nowait)
+    LWLockAcquire(&stats_shmem->lock, LW_EXCLUSIVE);
+  else if (!LWLockConditionalAcquire(&stats_shmem->lock, LW_EXCLUSIVE))
+    return true;
 
 #define WALSTAT_ACC(fld, var_to_add) \
-	(stats_shmem->stats.wal_counters.fld += var_to_add.fld)
-	WALSTAT_ACC(wal_records, wal_usage_diff);
-	WALSTAT_ACC(wal_fpi, wal_usage_diff);
-	WALSTAT_ACC(wal_bytes, wal_usage_diff);
-	WALSTAT_ACC(wal_buffers_full, wal_usage_diff);
+  (stats_shmem->stats.wal_counters.fld += var_to_add.fld)
+  WALSTAT_ACC(wal_records, wal_usage_diff);
+  WALSTAT_ACC(wal_fpi, wal_usage_diff);
+  WALSTAT_ACC(wal_bytes, wal_usage_diff);
+  WALSTAT_ACC(wal_buffers_full, wal_usage_diff);
 #undef WALSTAT_ACC
 
-	LWLockRelease(&stats_shmem->lock);
+  LWLockRelease(&stats_shmem->lock);
 
-	/*
-	 * Save the current counters for the subsequent calculation of WAL usage.
-	 */
-	prevWalUsage = pgWalUsage;
+  /*
+   * Save the current counters for the subsequent calculation of WAL usage.
+   */
+  prevWalUsage = pgWalUsage;
 
-	return false;
+  return false;
 }
 
 void
 pgstat_wal_init_backend_cb(void)
 {
-	/*
-	 * Initialize prevWalUsage with pgWalUsage so that pgstat_wal_flush_cb()
-	 * can calculate how much pgWalUsage counters are increased by subtracting
-	 * prevWalUsage from pgWalUsage.
-	 */
-	prevWalUsage = pgWalUsage;
+  /*
+   * Initialize prevWalUsage with pgWalUsage so that pgstat_wal_flush_cb()
+   * can calculate how much pgWalUsage counters are increased by subtracting
+   * prevWalUsage from pgWalUsage.
+   */
+  prevWalUsage = pgWalUsage;
 }
 
 void
 pgstat_wal_init_shmem_cb(void *stats)
 {
-	PgStatShared_Wal *stats_shmem = (PgStatShared_Wal *) stats;
+  PgStatShared_Wal *stats_shmem = (PgStatShared_Wal *) stats;
 
-	LWLockInitialize(&stats_shmem->lock, LWTRANCHE_PGSTATS_DATA);
+  LWLockInitialize(&stats_shmem->lock, LWTRANCHE_PGSTATS_DATA);
 }
 
 void
 pgstat_wal_reset_all_cb(TimestampTz ts)
 {
-	PgStatShared_Wal *stats_shmem = &pgStatLocal.shmem->wal;
+  PgStatShared_Wal *stats_shmem = &pgStatLocal.shmem->wal;
 
-	LWLockAcquire(&stats_shmem->lock, LW_EXCLUSIVE);
-	memset(&stats_shmem->stats, 0, sizeof(stats_shmem->stats));
-	stats_shmem->stats.stat_reset_timestamp = ts;
-	LWLockRelease(&stats_shmem->lock);
+  LWLockAcquire(&stats_shmem->lock, LW_EXCLUSIVE);
+  memset(&stats_shmem->stats, 0, sizeof(stats_shmem->stats));
+  stats_shmem->stats.stat_reset_timestamp = ts;
+  LWLockRelease(&stats_shmem->lock);
 }
 
 void
 pgstat_wal_snapshot_cb(void)
 {
-	PgStatShared_Wal *stats_shmem = &pgStatLocal.shmem->wal;
+  PgStatShared_Wal *stats_shmem = &pgStatLocal.shmem->wal;
 
-	LWLockAcquire(&stats_shmem->lock, LW_SHARED);
-	memcpy(&pgStatLocal.snapshot.wal, &stats_shmem->stats,
-		   sizeof(pgStatLocal.snapshot.wal));
-	LWLockRelease(&stats_shmem->lock);
+  LWLockAcquire(&stats_shmem->lock, LW_SHARED);
+  memcpy(&pgStatLocal.snapshot.wal, &stats_shmem->stats,
+         sizeof(pgStatLocal.snapshot.wal));
+  LWLockRelease(&stats_shmem->lock);
 }

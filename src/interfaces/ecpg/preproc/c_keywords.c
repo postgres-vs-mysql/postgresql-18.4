@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * c_keywords.c
- *	  lexical token lookup for reserved words in postgres embedded SQL
+ *    lexical token lookup for reserved words in postgres embedded SQL
  *
  * src/interfaces/ecpg/preproc/c_keywords.c
  *
@@ -35,32 +35,33 @@ static const uint16 ScanCKeywordTokens[] = {
 int
 ScanCKeywordLookup(const char *text)
 {
-	size_t		len;
-	int			h;
-	const char *kw;
+  size_t    len;
+  int     h;
+  const char *kw;
 
-	/*
-	 * Reject immediately if too long to be any keyword.  This saves useless
-	 * hashing work on long strings.
-	 */
-	len = strlen(text);
-	if (len > ScanCKeywords.max_kw_len)
-		return -1;
+  /*
+   * Reject immediately if too long to be any keyword.  This saves useless
+   * hashing work on long strings.
+   */
+  len = strlen(text);
 
-	/*
-	 * Compute the hash function.  Since it's a perfect hash, we need only
-	 * match to the specific keyword it identifies.
-	 */
-	h = ScanCKeywords_hash_func(text, len);
+  if (len > ScanCKeywords.max_kw_len)
+    return -1;
 
-	/* An out-of-range result implies no match */
-	if (h < 0 || h >= ScanCKeywords.num_keywords)
-		return -1;
+  /*
+   * Compute the hash function.  Since it's a perfect hash, we need only
+   * match to the specific keyword it identifies.
+   */
+  h = ScanCKeywords_hash_func(text, len);
 
-	kw = GetScanKeyword(h, &ScanCKeywords);
+  /* An out-of-range result implies no match */
+  if (h < 0 || h >= ScanCKeywords.num_keywords)
+    return -1;
 
-	if (strcmp(kw, text) == 0)
-		return ScanCKeywordTokens[h];
+  kw = GetScanKeyword(h, &ScanCKeywords);
 
-	return -1;
+  if (strcmp(kw, text) == 0)
+    return ScanCKeywordTokens[h];
+
+  return -1;
 }

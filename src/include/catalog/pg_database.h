@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_database.h
- *	  definition of the "database" system catalog (pg_database)
+ *    definition of the "database" system catalog (pg_database)
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -10,8 +10,8 @@
  * src/include/catalog/pg_database.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -19,78 +19,78 @@
 #define PG_DATABASE_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_database_d.h"	/* IWYU pragma: export */
+#include "catalog/pg_database_d.h"  /* IWYU pragma: export */
 
 /* ----------------
- *		pg_database definition.  cpp turns this into
- *		typedef struct FormData_pg_database
+ *    pg_database definition.  cpp turns this into
+ *    typedef struct FormData_pg_database
  * ----------------
  */
-CATALOG(pg_database,1262,DatabaseRelationId) BKI_SHARED_RELATION BKI_ROWTYPE_OID(1248,DatabaseRelation_Rowtype_Id) BKI_SCHEMA_MACRO
+CATALOG(pg_database, 1262, DatabaseRelationId) BKI_SHARED_RELATION BKI_ROWTYPE_OID(1248, DatabaseRelation_Rowtype_Id) BKI_SCHEMA_MACRO
 {
-	/* oid */
-	Oid			oid;
+  /* oid */
+  Oid     oid;
 
-	/* database name */
-	NameData	datname;
+  /* database name */
+  NameData  datname;
 
-	/* owner of database */
-	Oid			datdba BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
+  /* owner of database */
+  Oid     datdba BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
 
-	/* character encoding */
-	int32		encoding;
+  /* character encoding */
+  int32   encoding;
 
-	/* locale provider, see pg_collation.collprovider */
-	char		datlocprovider;
+  /* locale provider, see pg_collation.collprovider */
+  char    datlocprovider;
 
-	/* allowed as CREATE DATABASE template? */
-	bool		datistemplate;
+  /* allowed as CREATE DATABASE template? */
+  bool    datistemplate;
 
-	/* new connections allowed? */
-	bool		datallowconn;
+  /* new connections allowed? */
+  bool    datallowconn;
 
-	/* database has login event triggers? */
-	bool		dathasloginevt;
+  /* database has login event triggers? */
+  bool    dathasloginevt;
 
-	/*
-	 * Max connections allowed. Negative values have special meaning, see
-	 * DATCONNLIMIT_* defines below.
-	 */
-	int32		datconnlimit;
+  /*
+   * Max connections allowed. Negative values have special meaning, see
+   * DATCONNLIMIT_* defines below.
+   */
+  int32   datconnlimit;
 
-	/* all Xids < this are frozen in this DB */
-	TransactionId datfrozenxid;
+  /* all Xids < this are frozen in this DB */
+  TransactionId datfrozenxid;
 
-	/* all multixacts in the DB are >= this */
-	TransactionId datminmxid;
+  /* all multixacts in the DB are >= this */
+  TransactionId datminmxid;
 
-	/* default table space for this DB */
-	Oid			dattablespace BKI_LOOKUP(pg_tablespace);
+  /* default table space for this DB */
+  Oid     dattablespace BKI_LOOKUP(pg_tablespace);
 
-#ifdef CATALOG_VARLEN			/* variable-length fields start here */
-	/* LC_COLLATE setting */
-	text		datcollate BKI_FORCE_NOT_NULL;
+#ifdef CATALOG_VARLEN     /* variable-length fields start here */
+  /* LC_COLLATE setting */
+  text    datcollate BKI_FORCE_NOT_NULL;
 
-	/* LC_CTYPE setting */
-	text		datctype BKI_FORCE_NOT_NULL;
+  /* LC_CTYPE setting */
+  text    datctype BKI_FORCE_NOT_NULL;
 
-	/* ICU locale ID */
-	text		datlocale;
+  /* ICU locale ID */
+  text    datlocale;
 
-	/* ICU collation rules */
-	text		daticurules;
+  /* ICU collation rules */
+  text    daticurules;
 
-	/* provider-dependent version of collation data */
-	text		datcollversion BKI_DEFAULT(_null_);
+  /* provider-dependent version of collation data */
+  text    datcollversion BKI_DEFAULT(_null_);
 
-	/* access permissions */
-	aclitem		datacl[1];
+  /* access permissions */
+  aclitem   datacl[1];
 #endif
 } FormData_pg_database;
 
 /* ----------------
- *		Form_pg_database corresponds to a pointer to a tuple with
- *		the format of pg_database relation.
+ *    Form_pg_database corresponds to a pointer to a tuple with
+ *    the format of pg_database relation.
  * ----------------
  */
 typedef FormData_pg_database *Form_pg_database;
@@ -114,16 +114,16 @@ DECLARE_OID_DEFINING_MACRO(PostgresDbOid, 5);
 /*
  * Special values for pg_database.datconnlimit. Normal values are >= 0.
  */
-#define		  DATCONNLIMIT_UNLIMITED	-1	/* no limit */
+#define     DATCONNLIMIT_UNLIMITED  -1  /* no limit */
 
 /*
  * A database is set to invalid partway through being dropped.  Using
  * datconnlimit=-2 for this purpose isn't particularly clean, but is
  * backpatchable.
  */
-#define		  DATCONNLIMIT_INVALID_DB	-2
+#define     DATCONNLIMIT_INVALID_DB -2
 
 extern bool database_is_invalid_form(Form_pg_database datform);
 extern bool database_is_invalid_oid(Oid dboid);
 
-#endif							/* PG_DATABASE_H */
+#endif              /* PG_DATABASE_H */

@@ -17,7 +17,7 @@
  * This is the default value for wal_segment_size to be used when initdb is run
  * without the --wal-segsize option.  It must be a valid segment size.
  */
-#define DEFAULT_XLOG_SEG_SIZE	(16*1024*1024)
+#define DEFAULT_XLOG_SEG_SIZE (16*1024*1024)
 
 /*
  * Maximum length for identifiers (e.g. table names, column names,
@@ -40,7 +40,7 @@
  * Changing this does not require an initdb, but it does require a full
  * backend recompile (including any user-defined C functions).
  */
-#define FUNC_MAX_ARGS		100
+#define FUNC_MAX_ARGS   100
 
 /*
  * When creating a product derived from PostgreSQL with changes that cause
@@ -57,7 +57,7 @@
  * version.  Example: "ACME Postgres/1.2".  Note that the string will appear
  * in a user-facing error message if an ABI mismatch is detected.
  */
-#define FMGR_ABI_EXTRA		"PostgreSQL"
+#define FMGR_ABI_EXTRA    "PostgreSQL"
 
 /*
  * Maximum number of columns in an index.  There is little point in making
@@ -66,12 +66,12 @@
  *
  * Changing this requires an initdb.
  */
-#define INDEX_MAX_KEYS		32
+#define INDEX_MAX_KEYS    32
 
 /*
  * Maximum number of columns in a partition key
  */
-#define PARTITION_MAX_KEYS	32
+#define PARTITION_MAX_KEYS  32
 
 /*
  * Decide whether built-in 8-byte types, including float8, int8, and
@@ -97,13 +97,13 @@
  * on the same platform!  So we just punt and use a reasonably
  * generous setting here.
  */
-#define MAXPGPATH		1024
+#define MAXPGPATH   1024
 
 /*
  * You can try changing this if you have a machine with bytes of
  * another size, but no guarantee...
  */
-#define BITS_PER_BYTE		8
+#define BITS_PER_BYTE   8
 
 /*
  * Preferred alignment for disk I/O buffers.  On some CPUs, copies between
@@ -111,7 +111,7 @@
  * is aligned on a larger-than-MAXALIGN boundary.  Ideally this should be
  * a platform-dependent value, but for now we just hard-wire it.
  */
-#define ALIGNOF_BUFFER	32
+#define ALIGNOF_BUFFER  32
 
 /*
  * If EXEC_BACKEND is defined, the postmaster uses an alternative method for
@@ -153,7 +153,7 @@
  * we could also enable by default if we have mmap and msync(MS_ASYNC)?
  */
 #ifdef HAVE_SYNC_FILE_RANGE
-#define DEFAULT_BACKEND_FLUSH_AFTER 0	/* never enabled by default */
+#define DEFAULT_BACKEND_FLUSH_AFTER 0 /* never enabled by default */
 #define DEFAULT_BGWRITER_FLUSH_AFTER 64
 #define DEFAULT_CHECKPOINT_FLUSH_AFTER 32
 #else
@@ -209,13 +209,13 @@
  * The default is 128, which should be large enough for all supported
  * platforms.
  */
-#define PG_CACHE_LINE_SIZE		128
+#define PG_CACHE_LINE_SIZE    128
 
 /*
  * Assumed alignment requirement for direct I/O.  4K corresponds to common
  * sector and memory page size.
  */
-#define PG_IO_ALIGN_SIZE		4096
+#define PG_IO_ALIGN_SIZE    4096
 
 /*
  *------------------------------------------------------------------------
@@ -316,8 +316,8 @@
  * memory even when clobber is off, or to 0 to never free relation cache
  * memory even when clobbering is on.
  */
- /* #define RECOVER_RELATION_BUILD_MEMORY 0 */	/* Force disable */
- /* #define RECOVER_RELATION_BUILD_MEMORY 1 */	/* Force enable */
+/* #define RECOVER_RELATION_BUILD_MEMORY 0 */  /* Force disable */
+/* #define RECOVER_RELATION_BUILD_MEMORY 1 */  /* Force enable */
 
 /*
  * Define DEBUG_NODE_TESTS_ENABLED to enable use of the GUCs

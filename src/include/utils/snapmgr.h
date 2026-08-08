@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * snapmgr.h
- *	  POSTGRES snapshot manager
+ *    POSTGRES snapshot manager
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -29,8 +29,8 @@ extern PGDLLIMPORT SnapshotData SnapshotSelfData;
 extern PGDLLIMPORT SnapshotData SnapshotAnyData;
 extern PGDLLIMPORT SnapshotData SnapshotToastData;
 
-#define SnapshotSelf		(&SnapshotSelfData)
-#define SnapshotAny			(&SnapshotAnyData)
+#define SnapshotSelf    (&SnapshotSelfData)
+#define SnapshotAny     (&SnapshotAnyData)
 
 /* Use get_toast_snapshot() for the TOAST snapshot */
 
@@ -40,7 +40,7 @@ extern PGDLLIMPORT SnapshotData SnapshotToastData;
  * local variable of type SnapshotData, and initialize it with this macro.
  */
 #define InitDirtySnapshot(snapshotdata)  \
-	((snapshotdata).snapshot_type = SNAPSHOT_DIRTY)
+  ((snapshotdata).snapshot_type = SNAPSHOT_DIRTY)
 
 /*
  * Similarly, some initialization is required for a NonVacuumable snapshot.
@@ -48,13 +48,13 @@ extern PGDLLIMPORT SnapshotData SnapshotToastData;
  * GlobalVisTestFor()).
  */
 #define InitNonVacuumableSnapshot(snapshotdata, vistestp)  \
-	((snapshotdata).snapshot_type = SNAPSHOT_NON_VACUUMABLE, \
-	 (snapshotdata).vistest = (vistestp))
+  ((snapshotdata).snapshot_type = SNAPSHOT_NON_VACUUMABLE, \
+   (snapshotdata).vistest = (vistestp))
 
 /* This macro encodes the knowledge of which snapshots are MVCC-safe */
 #define IsMVCCSnapshot(snapshot)  \
-	((snapshot)->snapshot_type == SNAPSHOT_MVCC || \
-	 (snapshot)->snapshot_type == SNAPSHOT_HISTORIC_MVCC)
+  ((snapshot)->snapshot_type == SNAPSHOT_MVCC || \
+   (snapshot)->snapshot_type == SNAPSHOT_HISTORIC_MVCC)
 
 extern Snapshot GetTransactionSnapshot(void);
 extern Snapshot GetLatestSnapshot(void);
@@ -119,4 +119,4 @@ extern void SerializeSnapshot(Snapshot snapshot, char *start_address);
 extern Snapshot RestoreSnapshot(char *start_address);
 extern void RestoreTransactionSnapshot(Snapshot snapshot, void *source_pgproc);
 
-#endif							/* SNAPMGR_H */
+#endif              /* SNAPMGR_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * win32_port.h
- *	  Windows-specific compatibility stuff.
+ *    Windows-specific compatibility stuff.
  *
  * Note this is read in MinGW as well as native Windows builds,
  * but not in Cygwin builds.
@@ -77,7 +77,7 @@
 #undef stat
 
 /* Must be here to avoid conflicting with prototype in windows.h */
-#define mkdir(a,b)	mkdir(a)
+#define mkdir(a,b)  mkdir(a)
 
 /* Windows doesn't have fsync() as such, use _commit() */
 #define fsync(fd) _commit(fd)
@@ -85,7 +85,7 @@
 #define USES_WINSOCK
 
 /*
- *	IPC defines
+ *  IPC defines
  */
 #undef HAVE_UNION_SEMUN
 #define HAVE_UNION_SEMUN 1
@@ -94,7 +94,7 @@
 #define IPC_CREAT 512
 #define IPC_EXCL 1024
 #define IPC_PRIVATE 234564
-#define IPC_NOWAIT	2048
+#define IPC_NOWAIT  2048
 #define IPC_STAT 4096
 
 #define EACCESS 2048
@@ -110,81 +110,81 @@
 
 
 /*
- *	Signal stuff
+ *  Signal stuff
  *
- *	For WIN32, there is no wait() call so there are no wait() macros
- *	to interpret the return value of system().  Instead, system()
- *	return values < 0x100 are used for exit() termination, and higher
- *	values are used to indicate non-exit() termination, which is
- *	similar to a unix-style signal exit (think SIGSEGV ==
- *	STATUS_ACCESS_VIOLATION).  Return values are broken up into groups:
+ *  For WIN32, there is no wait() call so there are no wait() macros
+ *  to interpret the return value of system().  Instead, system()
+ *  return values < 0x100 are used for exit() termination, and higher
+ *  values are used to indicate non-exit() termination, which is
+ *  similar to a unix-style signal exit (think SIGSEGV ==
+ *  STATUS_ACCESS_VIOLATION).  Return values are broken up into groups:
  *
- *	https://docs.microsoft.com/en-us/windows-hardware/drivers/kernel/using-ntstatus-values
+ *  https://docs.microsoft.com/en-us/windows-hardware/drivers/kernel/using-ntstatus-values
  *
- *		NT_SUCCESS			0 - 0x3FFFFFFF
- *		NT_INFORMATION		0x40000000 - 0x7FFFFFFF
- *		NT_WARNING			0x80000000 - 0xBFFFFFFF
- *		NT_ERROR			0xC0000000 - 0xFFFFFFFF
+ *    NT_SUCCESS      0 - 0x3FFFFFFF
+ *    NT_INFORMATION    0x40000000 - 0x7FFFFFFF
+ *    NT_WARNING      0x80000000 - 0xBFFFFFFF
+ *    NT_ERROR      0xC0000000 - 0xFFFFFFFF
  *
- *	Effectively, we don't care on the severity of the return value from
- *	system(), we just need to know if it was because of exit() or generated
- *	by the system, and it seems values >= 0x100 are system-generated.
- *	See this URL for a list of WIN32 STATUS_* values:
+ *  Effectively, we don't care on the severity of the return value from
+ *  system(), we just need to know if it was because of exit() or generated
+ *  by the system, and it seems values >= 0x100 are system-generated.
+ *  See this URL for a list of WIN32 STATUS_* values:
  *
- *		Wine (URL used in our error messages) -
- *			http://source.winehq.org/source/include/ntstatus.h
- *		Descriptions -
- *			https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55
+ *    Wine (URL used in our error messages) -
+ *      http://source.winehq.org/source/include/ntstatus.h
+ *    Descriptions -
+ *      https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55
  *
- *	The comprehensive exception list is included in ntstatus.h from the
- *	Windows Driver Kit (WDK).  A subset of the list is also included in
- *	winnt.h from the Windows SDK.  Defining WIN32_NO_STATUS before including
- *	windows.h helps to avoid any conflicts.
+ *  The comprehensive exception list is included in ntstatus.h from the
+ *  Windows Driver Kit (WDK).  A subset of the list is also included in
+ *  winnt.h from the Windows SDK.  Defining WIN32_NO_STATUS before including
+ *  windows.h helps to avoid any conflicts.
  *
- *	Some day we might want to print descriptions for the most common
- *	exceptions, rather than printing an include file name.  We could use
- *	RtlNtStatusToDosError() and pass to FormatMessage(), which can print
- *	the text of error values, but MinGW does not support
- *	RtlNtStatusToDosError().
+ *  Some day we might want to print descriptions for the most common
+ *  exceptions, rather than printing an include file name.  We could use
+ *  RtlNtStatusToDosError() and pass to FormatMessage(), which can print
+ *  the text of error values, but MinGW does not support
+ *  RtlNtStatusToDosError().
  */
-#define WIFEXITED(w)	(((w) & 0XFFFFFF00) == 0)
-#define WIFSIGNALED(w)	(!WIFEXITED(w))
-#define WEXITSTATUS(w)	(w)
-#define WTERMSIG(w)		(w)
+#define WIFEXITED(w)  (((w) & 0XFFFFFF00) == 0)
+#define WIFSIGNALED(w)  (!WIFEXITED(w))
+#define WEXITSTATUS(w)  (w)
+#define WTERMSIG(w)   (w)
 
 #define sigmask(sig) ( 1 << ((sig)-1) )
 
 /* Some extra signals */
-#define SIGHUP				1
-#define SIGQUIT				3
-#define SIGTRAP				5
-#define SIGABRT				22	/* Set to match W32 value -- not UNIX value */
-#define SIGKILL				9
-#define SIGPIPE				13
-#define SIGALRM				14
-#define SIGSTOP				17
-#define SIGTSTP				18
-#define SIGCONT				19
-#define SIGCHLD				20
-#define SIGWINCH			28
-#define SIGUSR1				30
-#define SIGUSR2				31
+#define SIGHUP        1
+#define SIGQUIT       3
+#define SIGTRAP       5
+#define SIGABRT       22  /* Set to match W32 value -- not UNIX value */
+#define SIGKILL       9
+#define SIGPIPE       13
+#define SIGALRM       14
+#define SIGSTOP       17
+#define SIGTSTP       18
+#define SIGCONT       19
+#define SIGCHLD       20
+#define SIGWINCH      28
+#define SIGUSR1       30
+#define SIGUSR2       31
 
 /* MinGW has gettimeofday(), but MSVC doesn't */
 #ifdef _MSC_VER
 /* Last parameter not used */
-extern int	gettimeofday(struct timeval *tp, void *tzp);
+extern int  gettimeofday(struct timeval *tp, void *tzp);
 #endif
 
 /* for setitimer in backend/port/win32/timer.c */
 #define ITIMER_REAL 0
 struct itimerval
 {
-	struct timeval it_interval;
-	struct timeval it_value;
+  struct timeval it_interval;
+  struct timeval it_value;
 };
 
-int			setitimer(int which, const struct itimerval *value, struct itimerval *ovalue);
+int     setitimer(int which, const struct itimerval *value, struct itimerval *ovalue);
 
 /* Convenience wrapper for GetFileType() */
 extern DWORD pgwin32_get_file_type(HANDLE hFile);
@@ -197,7 +197,7 @@ extern DWORD pgwin32_get_file_type(HANDLE hFile);
 #define pgoff_t __int64
 
 #ifdef _MSC_VER
-extern int	_pgfseeko64(FILE *stream, pgoff_t offset, int origin);
+extern int  _pgfseeko64(FILE *stream, pgoff_t offset, int origin);
 extern pgoff_t _pgftello64(FILE *stream);
 #define fseeko(stream, offset, origin) _pgfseeko64(stream, offset, origin)
 #define ftello(stream) _pgftello64(stream)
@@ -211,19 +211,19 @@ extern pgoff_t _pgftello64(FILE *stream);
 #endif
 
 /*
- *	Win32 also doesn't have symlinks, but we can emulate them with
- *	junction points on newer Win32 versions.
+ *  Win32 also doesn't have symlinks, but we can emulate them with
+ *  junction points on newer Win32 versions.
  *
- *	Cygwin has its own symlinks which work on Win95/98/ME where
- *	junction points don't, so use those instead.  We have no way of
- *	knowing what type of system Cygwin binaries will be run on.
- *		Note: Some CYGWIN includes might #define WIN32.
+ *  Cygwin has its own symlinks which work on Win95/98/ME where
+ *  junction points don't, so use those instead.  We have no way of
+ *  knowing what type of system Cygwin binaries will be run on.
+ *    Note: Some CYGWIN includes might #define WIN32.
  */
-extern int	pgsymlink(const char *oldpath, const char *newpath);
-extern int	pgreadlink(const char *path, char *buf, size_t size);
+extern int  pgsymlink(const char *oldpath, const char *newpath);
+extern int  pgreadlink(const char *path, char *buf, size_t size);
 
-#define symlink(oldpath, newpath)	pgsymlink(oldpath, newpath)
-#define readlink(path, buf, size)	pgreadlink(path, buf, size)
+#define symlink(oldpath, newpath) pgsymlink(oldpath, newpath)
+#define readlink(path, buf, size) pgreadlink(path, buf, size)
 
 /*
  * Supplement to <sys/types.h>.
@@ -251,28 +251,28 @@ typedef int pid_t;
  * The struct stat is 32 bit in MSVC, so we redefine it as a copy of
  * struct __stat64.  This also fixes the struct size for MINGW builds.
  */
-struct stat						/* This should match struct __stat64 */
+struct stat           /* This should match struct __stat64 */
 {
-	_dev_t		st_dev;
-	_ino_t		st_ino;
-	unsigned short st_mode;
-	short		st_nlink;
-	short		st_uid;
-	short		st_gid;
-	_dev_t		st_rdev;
-	__int64		st_size;
-	__time64_t	st_atime;
-	__time64_t	st_mtime;
-	__time64_t	st_ctime;
+  _dev_t    st_dev;
+  _ino_t    st_ino;
+  unsigned short st_mode;
+  short   st_nlink;
+  short   st_uid;
+  short   st_gid;
+  _dev_t    st_rdev;
+  __int64   st_size;
+  __time64_t  st_atime;
+  __time64_t  st_mtime;
+  __time64_t  st_ctime;
 };
 
-extern int	_pgfstat64(int fileno, struct stat *buf);
-extern int	_pgstat64(const char *name, struct stat *buf);
-extern int	_pglstat64(const char *name, struct stat *buf);
+extern int  _pgfstat64(int fileno, struct stat *buf);
+extern int  _pgstat64(const char *name, struct stat *buf);
+extern int  _pglstat64(const char *name, struct stat *buf);
 
-#define fstat(fileno, sb)	_pgfstat64(fileno, sb)
-#define stat(path, sb)		_pgstat64(path, sb)
-#define lstat(path, sb)		_pglstat64(path, sb)
+#define fstat(fileno, sb) _pgfstat64(fileno, sb)
+#define stat(path, sb)    _pgstat64(path, sb)
+#define lstat(path, sb)   _pglstat64(path, sb)
 
 /* These macros are not provided by older MinGW, nor by MSVC */
 #ifndef S_IRUSR
@@ -341,9 +341,9 @@ extern int	_pglstat64(const char *name, struct stat *buf);
  * converts these to the equivalent CreateFile() flags, along with the ones
  * from fcntl.h.
  */
-#define	O_CLOEXEC	0x04000000
-#define	O_DIRECT	0x80000000
-#define	O_DSYNC		_O_NOINHERIT
+#define O_CLOEXEC 0x04000000
+#define O_DIRECT  0x80000000
+#define O_DSYNC   _O_NOINHERIT
 
 /*
  * Supplement to <errno.h>.
@@ -478,7 +478,7 @@ extern PGDLLIMPORT int pg_signal_mask;
 extern PGDLLIMPORT HANDLE pgwin32_signal_event;
 extern PGDLLIMPORT HANDLE pgwin32_initial_signal_pipe;
 
-#define UNBLOCKED_SIGNAL_QUEUE()	(pg_signal_queue & ~pg_signal_mask)
+#define UNBLOCKED_SIGNAL_QUEUE()  (pg_signal_queue & ~pg_signal_mask)
 #define PG_SIGNAL_COUNT 32
 
 extern void pgwin32_signal_initialize(void);
@@ -487,8 +487,8 @@ extern void pgwin32_dispatch_queued_signals(void);
 extern void pg_queue_signal(int signum);
 
 /* In src/port/kill.c */
-#define kill(pid,sig)	pgkill(pid,sig)
-extern int	pgkill(int pid, int sig);
+#define kill(pid,sig) pgkill(pid,sig)
+extern int  pgkill(int pid, int sig);
 
 /* In backend/port/win32/socket.c */
 #ifndef FRONTEND
@@ -502,21 +502,21 @@ extern int	pgkill(int pid, int sig);
 #define send(s, buf, len, flags) pgwin32_send(s, buf, len, flags)
 
 extern SOCKET pgwin32_socket(int af, int type, int protocol);
-extern int	pgwin32_bind(SOCKET s, struct sockaddr *addr, int addrlen);
-extern int	pgwin32_listen(SOCKET s, int backlog);
+extern int  pgwin32_bind(SOCKET s, struct sockaddr *addr, int addrlen);
+extern int  pgwin32_listen(SOCKET s, int backlog);
 extern SOCKET pgwin32_accept(SOCKET s, struct sockaddr *addr, int *addrlen);
-extern int	pgwin32_connect(SOCKET s, const struct sockaddr *name, int namelen);
-extern int	pgwin32_select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, const struct timeval *timeout);
-extern int	pgwin32_recv(SOCKET s, char *buf, int len, int flags);
-extern int	pgwin32_send(SOCKET s, const void *buf, int len, int flags);
-extern int	pgwin32_waitforsinglesocket(SOCKET s, int what, int timeout);
+extern int  pgwin32_connect(SOCKET s, const struct sockaddr *name, int namelen);
+extern int  pgwin32_select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, const struct timeval *timeout);
+extern int  pgwin32_recv(SOCKET s, char *buf, int len, int flags);
+extern int  pgwin32_send(SOCKET s, const void *buf, int len, int flags);
+extern int  pgwin32_waitforsinglesocket(SOCKET s, int what, int timeout);
 
 extern PGDLLIMPORT int pgwin32_noblock;
 
-#endif							/* FRONTEND */
+#endif              /* FRONTEND */
 
 /* in backend/port/win32_shmem.c */
-extern int	pgwin32_ReserveSharedMemoryRegion(HANDLE);
+extern int  pgwin32_ReserveSharedMemoryRegion(HANDLE);
 
 /* in backend/port/win32/crashdump.c */
 extern void pgwin32_install_crashdump_handler(void);
@@ -524,7 +524,7 @@ extern void pgwin32_install_crashdump_handler(void);
 /* in port/win32dlopen.c */
 extern void *dlopen(const char *file, int mode);
 extern void *dlsym(void *handle, const char *symbol);
-extern int	dlclose(void *handle);
+extern int  dlclose(void *handle);
 extern char *dlerror(void);
 
 #define RTLD_NOW 1
@@ -534,17 +534,17 @@ extern char *dlerror(void);
 extern void _dosmaperr(unsigned long);
 
 /* in port/win32env.c */
-extern int	pgwin32_putenv(const char *);
-extern int	pgwin32_setenv(const char *name, const char *value, int overwrite);
-extern int	pgwin32_unsetenv(const char *name);
+extern int  pgwin32_putenv(const char *);
+extern int  pgwin32_setenv(const char *name, const char *value, int overwrite);
+extern int  pgwin32_unsetenv(const char *name);
 
 #define putenv(x) pgwin32_putenv(x)
 #define setenv(x,y,z) pgwin32_setenv(x,y,z)
 #define unsetenv(x) pgwin32_unsetenv(x)
 
 /* in port/win32security.c */
-extern int	pgwin32_is_service(void);
-extern int	pgwin32_is_admin(void);
+extern int  pgwin32_is_service(void);
+extern int  pgwin32_is_admin(void);
 
 /* Windows security token manipulation (in src/common/exec.c) */
 extern BOOL AddUserToTokenDacl(HANDLE hToken);
@@ -564,7 +564,7 @@ typedef unsigned short mode_t;
 #define W_OK 2
 #define R_OK 4
 
-#endif							/* _MSC_VER */
+#endif              /* _MSC_VER */
 
 #if defined(__MINGW32__) || defined(__MINGW64__)
 /*
@@ -586,4 +586,4 @@ extern ssize_t pg_pread(int fd, void *buf, size_t nbyte, off_t offset);
 /* in port/win32pwrite.c */
 extern ssize_t pg_pwrite(int fd, const void *buf, size_t nbyte, off_t offset);
 
-#endif							/* PG_WIN32_PORT_H */
+#endif              /* PG_WIN32_PORT_H */

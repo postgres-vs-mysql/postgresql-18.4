@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * psprintf.c
- *		sprintf into an allocated-on-demand buffer
+ *    sprintf into an allocated-on-demand buffer
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -9,7 +9,7 @@
  *
  *
  * IDENTIFICATION
- *	  src/common/psprintf.c
+ *    src/common/psprintf.c
  *
  *-------------------------------------------------------------------------
  */
@@ -40,36 +40,35 @@
  * One should therefore think twice about using this in libpq.
  */
 char *
-psprintf(const char *fmt,...)
+psprintf(const char *fmt, ...)
 {
-	int			save_errno = errno;
-	size_t		len = 128;		/* initial assumption about buffer size */
+  int     save_errno = errno;
+  size_t    len = 128;    /* initial assumption about buffer size */
 
-	for (;;)
-	{
-		char	   *result;
-		va_list		args;
-		size_t		newlen;
+  for (;;) {
+    char     *result;
+    va_list   args;
+    size_t    newlen;
 
-		/*
-		 * Allocate result buffer.  Note that in frontend this maps to malloc
-		 * with exit-on-error.
-		 */
-		result = (char *) palloc(len);
+    /*
+     * Allocate result buffer.  Note that in frontend this maps to malloc
+     * with exit-on-error.
+     */
+    result = (char *) palloc(len);
 
-		/* Try to format the data. */
-		errno = save_errno;
-		va_start(args, fmt);
-		newlen = pvsnprintf(result, len, fmt, args);
-		va_end(args);
+    /* Try to format the data. */
+    errno = save_errno;
+    va_start(args, fmt);
+    newlen = pvsnprintf(result, len, fmt, args);
+    va_end(args);
 
-		if (newlen < len)
-			return result;		/* success */
+    if (newlen < len)
+      return result;    /* success */
 
-		/* Release buffer and loop around to try again with larger len. */
-		pfree(result);
-		len = newlen;
-	}
+    /* Release buffer and loop around to try again with larger len. */
+    pfree(result);
+    len = newlen;
+  }
 }
 
 /*
@@ -102,47 +101,44 @@ psprintf(const char *fmt,...)
 size_t
 pvsnprintf(char *buf, size_t len, const char *fmt, va_list args)
 {
-	int			nprinted;
+  int     nprinted;
 
-	nprinted = vsnprintf(buf, len, fmt, args);
+  nprinted = vsnprintf(buf, len, fmt, args);
 
-	/* We assume failure means the fmt is bogus, hence hard failure is OK */
-	if (unlikely(nprinted < 0))
-	{
+  /* We assume failure means the fmt is bogus, hence hard failure is OK */
+  if (unlikely(nprinted < 0)) {
 #ifndef FRONTEND
-		elog(ERROR, "vsnprintf failed: %m with format string \"%s\"", fmt);
+    elog(ERROR, "vsnprintf failed: %m with format string \"%s\"", fmt);
 #else
-		fprintf(stderr, "vsnprintf failed: %m with format string \"%s\"\n",
-				fmt);
-		exit(EXIT_FAILURE);
+    fprintf(stderr, "vsnprintf failed: %m with format string \"%s\"\n",
+            fmt);
+    exit(EXIT_FAILURE);
 #endif
-	}
+  }
 
-	if ((size_t) nprinted < len)
-	{
-		/* Success.  Note nprinted does not include trailing null. */
-		return (size_t) nprinted;
-	}
+  if ((size_t) nprinted < len) {
+    /* Success.  Note nprinted does not include trailing null. */
+    return (size_t) nprinted;
+  }
 
-	/*
-	 * We assume a C99-compliant vsnprintf, so believe its estimate of the
-	 * required space, and add one for the trailing null.  (If it's wrong, the
-	 * logic will still work, but we may loop multiple times.)
-	 *
-	 * Choke if the required space would exceed MaxAllocSize.  Note we use
-	 * this palloc-oriented overflow limit even when in frontend.
-	 */
-	if (unlikely((size_t) nprinted > MaxAllocSize - 1))
-	{
+  /*
+   * We assume a C99-compliant vsnprintf, so believe its estimate of the
+   * required space, and add one for the trailing null.  (If it's wrong, the
+   * logic will still work, but we may loop multiple times.)
+   *
+   * Choke if the required space would exceed MaxAllocSize.  Note we use
+   * this palloc-oriented overflow limit even when in frontend.
+   */
+  if (unlikely((size_t) nprinted > MaxAllocSize - 1)) {
 #ifndef FRONTEND
-		ereport(ERROR,
-				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-				 errmsg("out of memory")));
+    ereport(ERROR,
+            (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+             errmsg("out of memory")));
 #else
-		fprintf(stderr, _("out of memory\n"));
-		exit(EXIT_FAILURE);
+    fprintf(stderr, _("out of memory\n"));
+    exit(EXIT_FAILURE);
 #endif
-	}
+  }
 
-	return nprinted + 1;
+  return nprinted + 1;
 }

@@ -1,11 +1,11 @@
 /*
  * hashfuncs.c
- *		Functions to investigate the content of HASH indexes
+ *    Functions to investigate the content of HASH indexes
  *
  * Copyright (c) 2017-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *		contrib/pageinspect/hashfuncs.c
+ *    contrib/pageinspect/hashfuncs.c
  */
 
 #include "postgres.h"
@@ -35,19 +35,18 @@ PG_FUNCTION_INFO_V1(hash_metapage_info);
  * structure for single hash page statistics
  * ------------------------------------------------
  */
-typedef struct HashPageStat
-{
-	int			live_items;
-	int			dead_items;
-	int			page_size;
-	int			free_size;
+typedef struct HashPageStat {
+  int     live_items;
+  int     dead_items;
+  int     page_size;
+  int     free_size;
 
-	/* opaque data */
-	BlockNumber hasho_prevblkno;
-	BlockNumber hasho_nextblkno;
-	Bucket		hasho_bucket;
-	uint16		hasho_flag;
-	uint16		hasho_page_id;
+  /* opaque data */
+  BlockNumber hasho_prevblkno;
+  BlockNumber hasho_nextblkno;
+  Bucket    hasho_bucket;
+  uint16    hasho_flag;
+  uint16    hasho_page_id;
 } HashPageStat;
 
 
@@ -58,92 +57,92 @@ typedef struct HashPageStat
 static Page
 verify_hash_page(bytea *raw_page, int flags)
 {
-	Page		page = get_page_from_raw(raw_page);
-	int			pagetype = LH_UNUSED_PAGE;
+  Page    page = get_page_from_raw(raw_page);
+  int     pagetype = LH_UNUSED_PAGE;
 
-	/* Treat new pages as unused. */
-	if (!PageIsNew(page))
-	{
-		HashPageOpaque pageopaque;
+  /* Treat new pages as unused. */
+  if (!PageIsNew(page)) {
+    HashPageOpaque pageopaque;
 
-		if (PageGetSpecialSize(page) != MAXALIGN(sizeof(HashPageOpaqueData)))
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("input page is not a valid %s page", "hash"),
-					 errdetail("Expected special size %d, got %d.",
-							   (int) MAXALIGN(sizeof(HashPageOpaqueData)),
-							   (int) PageGetSpecialSize(page))));
+    if (PageGetSpecialSize(page) != MAXALIGN(sizeof(HashPageOpaqueData)))
+      ereport(ERROR,
+              (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+               errmsg("input page is not a valid %s page", "hash"),
+               errdetail("Expected special size %d, got %d.",
+                         (int) MAXALIGN(sizeof(HashPageOpaqueData)),
+                         (int) PageGetSpecialSize(page))));
 
-		pageopaque = HashPageGetOpaque(page);
-		if (pageopaque->hasho_page_id != HASHO_PAGE_ID)
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("input page is not a valid %s page", "hash"),
-					 errdetail("Expected %08x, got %08x.",
-							   HASHO_PAGE_ID, pageopaque->hasho_page_id)));
+    pageopaque = HashPageGetOpaque(page);
 
-		pagetype = pageopaque->hasho_flag & LH_PAGE_TYPE;
-	}
+    if (pageopaque->hasho_page_id != HASHO_PAGE_ID)
+      ereport(ERROR,
+              (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+               errmsg("input page is not a valid %s page", "hash"),
+               errdetail("Expected %08x, got %08x.",
+                         HASHO_PAGE_ID, pageopaque->hasho_page_id)));
 
-	/* Check that page type is sane. */
-	if (pagetype != LH_OVERFLOW_PAGE && pagetype != LH_BUCKET_PAGE &&
-		pagetype != LH_BITMAP_PAGE && pagetype != LH_META_PAGE &&
-		pagetype != LH_UNUSED_PAGE)
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("invalid hash page type %08x", pagetype)));
+    pagetype = pageopaque->hasho_flag & LH_PAGE_TYPE;
+  }
 
-	/* If requested, verify page type. */
-	if (flags != 0 && (pagetype & flags) == 0)
-	{
-		switch (flags)
-		{
-			case LH_META_PAGE:
-				ereport(ERROR,
-						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-						 errmsg("page is not a hash meta page")));
-				break;
-			case LH_BUCKET_PAGE | LH_OVERFLOW_PAGE:
-				ereport(ERROR,
-						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-						 errmsg("page is not a hash bucket or overflow page")));
-				break;
-			case LH_OVERFLOW_PAGE:
-				ereport(ERROR,
-						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-						 errmsg("page is not a hash overflow page")));
-				break;
-			default:
-				elog(ERROR,
-					 "hash page of type %08x not in mask %08x",
-					 pagetype, flags);
-				break;
-		}
-	}
+  /* Check that page type is sane. */
+  if (pagetype != LH_OVERFLOW_PAGE && pagetype != LH_BUCKET_PAGE &&
+      pagetype != LH_BITMAP_PAGE && pagetype != LH_META_PAGE &&
+      pagetype != LH_UNUSED_PAGE)
+    ereport(ERROR,
+            (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+             errmsg("invalid hash page type %08x", pagetype)));
 
-	/*
-	 * If it is the metapage, also verify magic number and version.
-	 */
-	if (pagetype == LH_META_PAGE)
-	{
-		HashMetaPage metap = HashPageGetMeta(page);
+  /* If requested, verify page type. */
+  if (flags != 0 && (pagetype & flags) == 0) {
+    switch (flags) {
+      case LH_META_PAGE:
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("page is not a hash meta page")));
+        break;
 
-		if (metap->hashm_magic != HASH_MAGIC)
-			ereport(ERROR,
-					(errcode(ERRCODE_INDEX_CORRUPTED),
-					 errmsg("invalid magic number for metadata"),
-					 errdetail("Expected 0x%08x, got 0x%08x.",
-							   HASH_MAGIC, metap->hashm_magic)));
+      case LH_BUCKET_PAGE | LH_OVERFLOW_PAGE:
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("page is not a hash bucket or overflow page")));
+        break;
 
-		if (metap->hashm_version != HASH_VERSION)
-			ereport(ERROR,
-					(errcode(ERRCODE_INDEX_CORRUPTED),
-					 errmsg("invalid version for metadata"),
-					 errdetail("Expected %d, got %d.",
-							   HASH_VERSION, metap->hashm_version)));
-	}
+      case LH_OVERFLOW_PAGE:
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("page is not a hash overflow page")));
+        break;
 
-	return page;
+      default:
+        elog(ERROR,
+             "hash page of type %08x not in mask %08x",
+             pagetype, flags);
+        break;
+    }
+  }
+
+  /*
+   * If it is the metapage, also verify magic number and version.
+   */
+  if (pagetype == LH_META_PAGE) {
+    HashMetaPage metap = HashPageGetMeta(page);
+
+    if (metap->hashm_magic != HASH_MAGIC)
+      ereport(ERROR,
+              (errcode(ERRCODE_INDEX_CORRUPTED),
+               errmsg("invalid magic number for metadata"),
+               errdetail("Expected 0x%08x, got 0x%08x.",
+                         HASH_MAGIC, metap->hashm_magic)));
+
+    if (metap->hashm_version != HASH_VERSION)
+      ereport(ERROR,
+              (errcode(ERRCODE_INDEX_CORRUPTED),
+               errmsg("invalid version for metadata"),
+               errdetail("Expected %d, got %d.",
+                         HASH_VERSION, metap->hashm_version)));
+  }
+
+  return page;
 }
 
 /* -------------------------------------------------
@@ -155,31 +154,31 @@ verify_hash_page(bytea *raw_page, int flags)
 static void
 GetHashPageStatistics(Page page, HashPageStat *stat)
 {
-	OffsetNumber maxoff = PageGetMaxOffsetNumber(page);
-	HashPageOpaque opaque = HashPageGetOpaque(page);
-	int			off;
+  OffsetNumber maxoff = PageGetMaxOffsetNumber(page);
+  HashPageOpaque opaque = HashPageGetOpaque(page);
+  int     off;
 
-	stat->dead_items = stat->live_items = 0;
-	stat->page_size = PageGetPageSize(page);
+  stat->dead_items = stat->live_items = 0;
+  stat->page_size = PageGetPageSize(page);
 
-	/* hash page opaque data */
-	stat->hasho_prevblkno = opaque->hasho_prevblkno;
-	stat->hasho_nextblkno = opaque->hasho_nextblkno;
-	stat->hasho_bucket = opaque->hasho_bucket;
-	stat->hasho_flag = opaque->hasho_flag;
-	stat->hasho_page_id = opaque->hasho_page_id;
+  /* hash page opaque data */
+  stat->hasho_prevblkno = opaque->hasho_prevblkno;
+  stat->hasho_nextblkno = opaque->hasho_nextblkno;
+  stat->hasho_bucket = opaque->hasho_bucket;
+  stat->hasho_flag = opaque->hasho_flag;
+  stat->hasho_page_id = opaque->hasho_page_id;
 
-	/* count live and dead tuples, and free space */
-	for (off = FirstOffsetNumber; off <= maxoff; off++)
-	{
-		ItemId		id = PageGetItemId(page, off);
+  /* count live and dead tuples, and free space */
+  for (off = FirstOffsetNumber; off <= maxoff; off++) {
+    ItemId    id = PageGetItemId(page, off);
 
-		if (!ItemIdIsDead(id))
-			stat->live_items++;
-		else
-			stat->dead_items++;
-	}
-	stat->free_size = PageGetFreeSpace(page);
+    if (!ItemIdIsDead(id))
+      stat->live_items++;
+    else
+      stat->dead_items++;
+  }
+
+  stat->free_size = PageGetFreeSpace(page);
 }
 
 /* ---------------------------------------------------
@@ -191,40 +190,40 @@ GetHashPageStatistics(Page page, HashPageStat *stat)
 Datum
 hash_page_type(PG_FUNCTION_ARGS)
 {
-	bytea	   *raw_page = PG_GETARG_BYTEA_P(0);
-	Page		page;
-	HashPageOpaque opaque;
-	int			pagetype;
-	const char *type;
+  bytea    *raw_page = PG_GETARG_BYTEA_P(0);
+  Page    page;
+  HashPageOpaque opaque;
+  int     pagetype;
+  const char *type;
 
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to use raw page functions")));
+  if (!superuser())
+    ereport(ERROR,
+            (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+             errmsg("must be superuser to use raw page functions")));
 
-	page = verify_hash_page(raw_page, 0);
+  page = verify_hash_page(raw_page, 0);
 
-	if (PageIsNew(page))
-		type = "unused";
-	else
-	{
-		opaque = HashPageGetOpaque(page);
+  if (PageIsNew(page))
+    type = "unused";
+  else {
+    opaque = HashPageGetOpaque(page);
 
-		/* page type (flags) */
-		pagetype = opaque->hasho_flag & LH_PAGE_TYPE;
-		if (pagetype == LH_META_PAGE)
-			type = "metapage";
-		else if (pagetype == LH_OVERFLOW_PAGE)
-			type = "overflow";
-		else if (pagetype == LH_BUCKET_PAGE)
-			type = "bucket";
-		else if (pagetype == LH_BITMAP_PAGE)
-			type = "bitmap";
-		else
-			type = "unused";
-	}
+    /* page type (flags) */
+    pagetype = opaque->hasho_flag & LH_PAGE_TYPE;
 
-	PG_RETURN_TEXT_P(cstring_to_text(type));
+    if (pagetype == LH_META_PAGE)
+      type = "metapage";
+    else if (pagetype == LH_OVERFLOW_PAGE)
+      type = "overflow";
+    else if (pagetype == LH_BUCKET_PAGE)
+      type = "bucket";
+    else if (pagetype == LH_BITMAP_PAGE)
+      type = "bitmap";
+    else
+      type = "unused";
+  }
+
+  PG_RETURN_TEXT_P(cstring_to_text(type));
 }
 
 /* ---------------------------------------------------
@@ -236,56 +235,56 @@ hash_page_type(PG_FUNCTION_ARGS)
 Datum
 hash_page_stats(PG_FUNCTION_ARGS)
 {
-	bytea	   *raw_page = PG_GETARG_BYTEA_P(0);
-	Page		page;
-	int			j;
-	Datum		values[9];
-	bool		nulls[9] = {0};
-	HashPageStat stat;
-	HeapTuple	tuple;
-	TupleDesc	tupleDesc;
+  bytea    *raw_page = PG_GETARG_BYTEA_P(0);
+  Page    page;
+  int     j;
+  Datum   values[9];
+  bool    nulls[9] = {0};
+  HashPageStat stat;
+  HeapTuple tuple;
+  TupleDesc tupleDesc;
 
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to use raw page functions")));
+  if (!superuser())
+    ereport(ERROR,
+            (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+             errmsg("must be superuser to use raw page functions")));
 
-	page = verify_hash_page(raw_page, LH_BUCKET_PAGE | LH_OVERFLOW_PAGE);
+  page = verify_hash_page(raw_page, LH_BUCKET_PAGE | LH_OVERFLOW_PAGE);
 
-	/* keep compiler quiet */
-	stat.hasho_prevblkno = stat.hasho_nextblkno = InvalidBlockNumber;
-	stat.hasho_flag = stat.hasho_page_id = stat.free_size = 0;
+  /* keep compiler quiet */
+  stat.hasho_prevblkno = stat.hasho_nextblkno = InvalidBlockNumber;
+  stat.hasho_flag = stat.hasho_page_id = stat.free_size = 0;
 
-	GetHashPageStatistics(page, &stat);
+  GetHashPageStatistics(page, &stat);
 
-	/* Build a tuple descriptor for our result type */
-	if (get_call_result_type(fcinfo, NULL, &tupleDesc) != TYPEFUNC_COMPOSITE)
-		elog(ERROR, "return type must be a row type");
-	tupleDesc = BlessTupleDesc(tupleDesc);
+  /* Build a tuple descriptor for our result type */
+  if (get_call_result_type(fcinfo, NULL, &tupleDesc) != TYPEFUNC_COMPOSITE)
+    elog(ERROR, "return type must be a row type");
 
-	j = 0;
-	values[j++] = Int32GetDatum(stat.live_items);
-	values[j++] = Int32GetDatum(stat.dead_items);
-	values[j++] = Int32GetDatum(stat.page_size);
-	values[j++] = Int32GetDatum(stat.free_size);
-	values[j++] = Int64GetDatum((int64) stat.hasho_prevblkno);
-	values[j++] = Int64GetDatum((int64) stat.hasho_nextblkno);
-	values[j++] = Int64GetDatum((int64) stat.hasho_bucket);
-	values[j++] = Int32GetDatum((int32) stat.hasho_flag);
-	values[j++] = Int32GetDatum((int32) stat.hasho_page_id);
+  tupleDesc = BlessTupleDesc(tupleDesc);
 
-	tuple = heap_form_tuple(tupleDesc, values, nulls);
+  j = 0;
+  values[j++] = Int32GetDatum(stat.live_items);
+  values[j++] = Int32GetDatum(stat.dead_items);
+  values[j++] = Int32GetDatum(stat.page_size);
+  values[j++] = Int32GetDatum(stat.free_size);
+  values[j++] = Int64GetDatum((int64) stat.hasho_prevblkno);
+  values[j++] = Int64GetDatum((int64) stat.hasho_nextblkno);
+  values[j++] = Int64GetDatum((int64) stat.hasho_bucket);
+  values[j++] = Int32GetDatum((int32) stat.hasho_flag);
+  values[j++] = Int32GetDatum((int32) stat.hasho_page_id);
 
-	PG_RETURN_DATUM(HeapTupleGetDatum(tuple));
+  tuple = heap_form_tuple(tupleDesc, values, nulls);
+
+  PG_RETURN_DATUM(HeapTupleGetDatum(tuple));
 }
 
 /*
  * cross-call data structure for SRF
  */
-struct user_args
-{
-	Page		page;
-	OffsetNumber offset;
+struct user_args {
+  Page    page;
+  OffsetNumber offset;
 };
 
 /*-------------------------------------------------------
@@ -299,84 +298,83 @@ struct user_args
 Datum
 hash_page_items(PG_FUNCTION_ARGS)
 {
-	bytea	   *raw_page = PG_GETARG_BYTEA_P(0);
-	Page		page;
-	Datum		result;
-	Datum		values[3];
-	bool		nulls[3] = {0};
-	uint32		hashkey;
-	HeapTuple	tuple;
-	FuncCallContext *fctx;
-	MemoryContext mctx;
-	struct user_args *uargs;
+  bytea    *raw_page = PG_GETARG_BYTEA_P(0);
+  Page    page;
+  Datum   result;
+  Datum   values[3];
+  bool    nulls[3] = {0};
+  uint32    hashkey;
+  HeapTuple tuple;
+  FuncCallContext *fctx;
+  MemoryContext mctx;
+  struct user_args *uargs;
 
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to use raw page functions")));
+  if (!superuser())
+    ereport(ERROR,
+            (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+             errmsg("must be superuser to use raw page functions")));
 
-	if (SRF_IS_FIRSTCALL())
-	{
-		TupleDesc	tupleDesc;
+  if (SRF_IS_FIRSTCALL()) {
+    TupleDesc tupleDesc;
 
-		fctx = SRF_FIRSTCALL_INIT();
+    fctx = SRF_FIRSTCALL_INIT();
 
-		mctx = MemoryContextSwitchTo(fctx->multi_call_memory_ctx);
+    mctx = MemoryContextSwitchTo(fctx->multi_call_memory_ctx);
 
-		page = verify_hash_page(raw_page, LH_BUCKET_PAGE | LH_OVERFLOW_PAGE);
+    page = verify_hash_page(raw_page, LH_BUCKET_PAGE | LH_OVERFLOW_PAGE);
 
-		uargs = palloc(sizeof(struct user_args));
+    uargs = palloc(sizeof(struct user_args));
 
-		uargs->page = page;
+    uargs->page = page;
 
-		uargs->offset = FirstOffsetNumber;
+    uargs->offset = FirstOffsetNumber;
 
-		fctx->max_calls = PageGetMaxOffsetNumber(uargs->page);
+    fctx->max_calls = PageGetMaxOffsetNumber(uargs->page);
 
-		/* Build a tuple descriptor for our result type */
-		if (get_call_result_type(fcinfo, NULL, &tupleDesc) != TYPEFUNC_COMPOSITE)
-			elog(ERROR, "return type must be a row type");
-		tupleDesc = BlessTupleDesc(tupleDesc);
+    /* Build a tuple descriptor for our result type */
+    if (get_call_result_type(fcinfo, NULL, &tupleDesc) != TYPEFUNC_COMPOSITE)
+      elog(ERROR, "return type must be a row type");
 
-		fctx->attinmeta = TupleDescGetAttInMetadata(tupleDesc);
+    tupleDesc = BlessTupleDesc(tupleDesc);
 
-		fctx->user_fctx = uargs;
+    fctx->attinmeta = TupleDescGetAttInMetadata(tupleDesc);
 
-		MemoryContextSwitchTo(mctx);
-	}
+    fctx->user_fctx = uargs;
 
-	fctx = SRF_PERCALL_SETUP();
-	uargs = fctx->user_fctx;
+    MemoryContextSwitchTo(mctx);
+  }
 
-	if (fctx->call_cntr < fctx->max_calls)
-	{
-		ItemId		id;
-		IndexTuple	itup;
-		int			j;
+  fctx = SRF_PERCALL_SETUP();
+  uargs = fctx->user_fctx;
 
-		id = PageGetItemId(uargs->page, uargs->offset);
+  if (fctx->call_cntr < fctx->max_calls) {
+    ItemId    id;
+    IndexTuple  itup;
+    int     j;
 
-		if (!ItemIdIsValid(id))
-			elog(ERROR, "invalid ItemId");
+    id = PageGetItemId(uargs->page, uargs->offset);
 
-		itup = (IndexTuple) PageGetItem(uargs->page, id);
+    if (!ItemIdIsValid(id))
+      elog(ERROR, "invalid ItemId");
 
-		j = 0;
-		values[j++] = Int32GetDatum((int32) uargs->offset);
-		values[j++] = PointerGetDatum(&itup->t_tid);
+    itup = (IndexTuple) PageGetItem(uargs->page, id);
 
-		hashkey = _hash_get_indextuple_hashkey(itup);
-		values[j] = Int64GetDatum((int64) hashkey);
+    j = 0;
+    values[j++] = Int32GetDatum((int32) uargs->offset);
+    values[j++] = PointerGetDatum(&itup->t_tid);
 
-		tuple = heap_form_tuple(fctx->attinmeta->tupdesc, values, nulls);
-		result = HeapTupleGetDatum(tuple);
+    hashkey = _hash_get_indextuple_hashkey(itup);
+    values[j] = Int64GetDatum((int64) hashkey);
 
-		uargs->offset = uargs->offset + 1;
+    tuple = heap_form_tuple(fctx->attinmeta->tupdesc, values, nulls);
+    result = HeapTupleGetDatum(tuple);
 
-		SRF_RETURN_NEXT(fctx, result);
-	}
+    uargs->offset = uargs->offset + 1;
 
-	SRF_RETURN_DONE(fctx);
+    SRF_RETURN_NEXT(fctx, result);
+  }
+
+  SRF_RETURN_DONE(fctx);
 }
 
 /* ------------------------------------------------
@@ -390,117 +388,119 @@ hash_page_items(PG_FUNCTION_ARGS)
 Datum
 hash_bitmap_info(PG_FUNCTION_ARGS)
 {
-	Oid			indexRelid = PG_GETARG_OID(0);
-	int64		ovflblkno = PG_GETARG_INT64(1);
-	HashMetaPage metap;
-	Buffer		metabuf,
-				mapbuf;
-	BlockNumber bitmapblkno;
-	Page		mappage;
-	bool		bit = false;
-	TupleDesc	tupleDesc;
-	Relation	indexRel;
-	uint32		ovflbitno;
-	int32		bitmappage,
-				bitmapbit;
-	HeapTuple	tuple;
-	int			i,
-				j;
-	Datum		values[3];
-	bool		nulls[3] = {0};
-	uint32	   *freep;
+  Oid     indexRelid = PG_GETARG_OID(0);
+  int64   ovflblkno = PG_GETARG_INT64(1);
+  HashMetaPage metap;
+  Buffer    metabuf,
+            mapbuf;
+  BlockNumber bitmapblkno;
+  Page    mappage;
+  bool    bit = false;
+  TupleDesc tupleDesc;
+  Relation  indexRel;
+  uint32    ovflbitno;
+  int32   bitmappage,
+          bitmapbit;
+  HeapTuple tuple;
+  int     i,
+          j;
+  Datum   values[3];
+  bool    nulls[3] = {0};
+  uint32     *freep;
 
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to use raw page functions")));
+  if (!superuser())
+    ereport(ERROR,
+            (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+             errmsg("must be superuser to use raw page functions")));
 
-	indexRel = relation_open(indexRelid, AccessShareLock);
+  indexRel = relation_open(indexRelid, AccessShareLock);
 
-	if (!IS_INDEX(indexRel) || !IS_HASH(indexRel))
-		ereport(ERROR,
-				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-				 errmsg("\"%s\" is not a %s index",
-						RelationGetRelationName(indexRel), "hash")));
+  if (!IS_INDEX(indexRel) || !IS_HASH(indexRel))
+    ereport(ERROR,
+            (errcode(ERRCODE_WRONG_OBJECT_TYPE),
+             errmsg("\"%s\" is not a %s index",
+                    RelationGetRelationName(indexRel), "hash")));
 
-	if (RELATION_IS_OTHER_TEMP(indexRel))
-		ereport(ERROR,
-				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("cannot access temporary tables of other sessions")));
+  if (RELATION_IS_OTHER_TEMP(indexRel))
+    ereport(ERROR,
+            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+             errmsg("cannot access temporary tables of other sessions")));
 
-	if (ovflblkno < 0 || ovflblkno > MaxBlockNumber)
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("invalid block number")));
+  if (ovflblkno < 0 || ovflblkno > MaxBlockNumber)
+    ereport(ERROR,
+            (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+             errmsg("invalid block number")));
 
-	if (ovflblkno >= RelationGetNumberOfBlocks(indexRel))
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("block number %" PRId64 " is out of range for relation \"%s\"",
-						ovflblkno, RelationGetRelationName(indexRel))));
+  if (ovflblkno >= RelationGetNumberOfBlocks(indexRel))
+    ereport(ERROR,
+            (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+             errmsg("block number %" PRId64 " is out of range for relation \"%s\"",
+                    ovflblkno, RelationGetRelationName(indexRel))));
 
-	/* Read the metapage so we can determine which bitmap page to use */
-	metabuf = _hash_getbuf(indexRel, HASH_METAPAGE, HASH_READ, LH_META_PAGE);
-	metap = HashPageGetMeta(BufferGetPage(metabuf));
+  /* Read the metapage so we can determine which bitmap page to use */
+  metabuf = _hash_getbuf(indexRel, HASH_METAPAGE, HASH_READ, LH_META_PAGE);
+  metap = HashPageGetMeta(BufferGetPage(metabuf));
 
-	/*
-	 * Reject attempt to read the bit for a metapage or bitmap page; this is
-	 * only meaningful for overflow pages.
-	 */
-	if (ovflblkno == 0)
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("invalid overflow block number %u",
-						(BlockNumber) ovflblkno)));
-	for (i = 0; i < metap->hashm_nmaps; i++)
-		if (metap->hashm_mapp[i] == ovflblkno)
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("invalid overflow block number %u",
-							(BlockNumber) ovflblkno)));
+  /*
+   * Reject attempt to read the bit for a metapage or bitmap page; this is
+   * only meaningful for overflow pages.
+   */
+  if (ovflblkno == 0)
+    ereport(ERROR,
+            (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+             errmsg("invalid overflow block number %u",
+                    (BlockNumber) ovflblkno)));
 
-	/*
-	 * Identify overflow bit number.  This will error out for primary bucket
-	 * pages, and we've already rejected the metapage and bitmap pages above.
-	 */
-	ovflbitno = _hash_ovflblkno_to_bitno(metap, (BlockNumber) ovflblkno);
+  for (i = 0; i < metap->hashm_nmaps; i++)
+    if (metap->hashm_mapp[i] == ovflblkno)
+      ereport(ERROR,
+              (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+               errmsg("invalid overflow block number %u",
+                      (BlockNumber) ovflblkno)));
 
-	bitmappage = ovflbitno >> BMPG_SHIFT(metap);
-	bitmapbit = ovflbitno & BMPG_MASK(metap);
+  /*
+   * Identify overflow bit number.  This will error out for primary bucket
+   * pages, and we've already rejected the metapage and bitmap pages above.
+   */
+  ovflbitno = _hash_ovflblkno_to_bitno(metap, (BlockNumber) ovflblkno);
 
-	if (bitmappage >= metap->hashm_nmaps)
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("invalid overflow block number %u",
-						(BlockNumber) ovflblkno)));
+  bitmappage = ovflbitno >> BMPG_SHIFT(metap);
+  bitmapbit = ovflbitno & BMPG_MASK(metap);
 
-	bitmapblkno = metap->hashm_mapp[bitmappage];
+  if (bitmappage >= metap->hashm_nmaps)
+    ereport(ERROR,
+            (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+             errmsg("invalid overflow block number %u",
+                    (BlockNumber) ovflblkno)));
 
-	_hash_relbuf(indexRel, metabuf);
+  bitmapblkno = metap->hashm_mapp[bitmappage];
 
-	/* Check the status of bitmap bit for overflow page */
-	mapbuf = _hash_getbuf(indexRel, bitmapblkno, HASH_READ, LH_BITMAP_PAGE);
-	mappage = BufferGetPage(mapbuf);
-	freep = HashPageGetBitmap(mappage);
+  _hash_relbuf(indexRel, metabuf);
 
-	bit = ISSET(freep, bitmapbit) != 0;
+  /* Check the status of bitmap bit for overflow page */
+  mapbuf = _hash_getbuf(indexRel, bitmapblkno, HASH_READ, LH_BITMAP_PAGE);
+  mappage = BufferGetPage(mapbuf);
+  freep = HashPageGetBitmap(mappage);
 
-	_hash_relbuf(indexRel, mapbuf);
-	index_close(indexRel, AccessShareLock);
+  bit = ISSET(freep, bitmapbit) != 0;
 
-	/* Build a tuple descriptor for our result type */
-	if (get_call_result_type(fcinfo, NULL, &tupleDesc) != TYPEFUNC_COMPOSITE)
-		elog(ERROR, "return type must be a row type");
-	tupleDesc = BlessTupleDesc(tupleDesc);
+  _hash_relbuf(indexRel, mapbuf);
+  index_close(indexRel, AccessShareLock);
 
-	j = 0;
-	values[j++] = Int64GetDatum((int64) bitmapblkno);
-	values[j++] = Int32GetDatum(bitmapbit);
-	values[j++] = BoolGetDatum(bit);
+  /* Build a tuple descriptor for our result type */
+  if (get_call_result_type(fcinfo, NULL, &tupleDesc) != TYPEFUNC_COMPOSITE)
+    elog(ERROR, "return type must be a row type");
 
-	tuple = heap_form_tuple(tupleDesc, values, nulls);
+  tupleDesc = BlessTupleDesc(tupleDesc);
 
-	PG_RETURN_DATUM(HeapTupleGetDatum(tuple));
+  j = 0;
+  values[j++] = Int64GetDatum((int64) bitmapblkno);
+  values[j++] = Int32GetDatum(bitmapbit);
+  values[j++] = BoolGetDatum(bit);
+
+  tuple = heap_form_tuple(tupleDesc, values, nulls);
+
+  PG_RETURN_DATUM(HeapTupleGetDatum(tuple));
 }
 
 /* ------------------------------------------------
@@ -514,57 +514,60 @@ hash_bitmap_info(PG_FUNCTION_ARGS)
 Datum
 hash_metapage_info(PG_FUNCTION_ARGS)
 {
-	bytea	   *raw_page = PG_GETARG_BYTEA_P(0);
-	Page		page;
-	HashMetaPageData *metad;
-	TupleDesc	tupleDesc;
-	HeapTuple	tuple;
-	int			i,
-				j;
-	Datum		values[16];
-	bool		nulls[16] = {0};
-	Datum		spares[HASH_MAX_SPLITPOINTS];
-	Datum		mapp[HASH_MAX_BITMAPS];
+  bytea    *raw_page = PG_GETARG_BYTEA_P(0);
+  Page    page;
+  HashMetaPageData *metad;
+  TupleDesc tupleDesc;
+  HeapTuple tuple;
+  int     i,
+          j;
+  Datum   values[16];
+  bool    nulls[16] = {0};
+  Datum   spares[HASH_MAX_SPLITPOINTS];
+  Datum   mapp[HASH_MAX_BITMAPS];
 
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to use raw page functions")));
+  if (!superuser())
+    ereport(ERROR,
+            (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+             errmsg("must be superuser to use raw page functions")));
 
-	page = verify_hash_page(raw_page, LH_META_PAGE);
+  page = verify_hash_page(raw_page, LH_META_PAGE);
 
-	/* Build a tuple descriptor for our result type */
-	if (get_call_result_type(fcinfo, NULL, &tupleDesc) != TYPEFUNC_COMPOSITE)
-		elog(ERROR, "return type must be a row type");
-	tupleDesc = BlessTupleDesc(tupleDesc);
+  /* Build a tuple descriptor for our result type */
+  if (get_call_result_type(fcinfo, NULL, &tupleDesc) != TYPEFUNC_COMPOSITE)
+    elog(ERROR, "return type must be a row type");
 
-	metad = HashPageGetMeta(page);
+  tupleDesc = BlessTupleDesc(tupleDesc);
 
-	j = 0;
-	values[j++] = Int64GetDatum((int64) metad->hashm_magic);
-	values[j++] = Int64GetDatum((int64) metad->hashm_version);
-	values[j++] = Float8GetDatum(metad->hashm_ntuples);
-	values[j++] = Int32GetDatum((int32) metad->hashm_ffactor);
-	values[j++] = Int32GetDatum((int32) metad->hashm_bsize);
-	values[j++] = Int32GetDatum((int32) metad->hashm_bmsize);
-	values[j++] = Int32GetDatum((int32) metad->hashm_bmshift);
-	values[j++] = Int64GetDatum((int64) metad->hashm_maxbucket);
-	values[j++] = Int64GetDatum((int64) metad->hashm_highmask);
-	values[j++] = Int64GetDatum((int64) metad->hashm_lowmask);
-	values[j++] = Int64GetDatum((int64) metad->hashm_ovflpoint);
-	values[j++] = Int64GetDatum((int64) metad->hashm_firstfree);
-	values[j++] = Int64GetDatum((int64) metad->hashm_nmaps);
-	values[j++] = ObjectIdGetDatum((Oid) metad->hashm_procid);
+  metad = HashPageGetMeta(page);
 
-	for (i = 0; i < HASH_MAX_SPLITPOINTS; i++)
-		spares[i] = Int64GetDatum((int64) metad->hashm_spares[i]);
-	values[j++] = PointerGetDatum(construct_array_builtin(spares, HASH_MAX_SPLITPOINTS, INT8OID));
+  j = 0;
+  values[j++] = Int64GetDatum((int64) metad->hashm_magic);
+  values[j++] = Int64GetDatum((int64) metad->hashm_version);
+  values[j++] = Float8GetDatum(metad->hashm_ntuples);
+  values[j++] = Int32GetDatum((int32) metad->hashm_ffactor);
+  values[j++] = Int32GetDatum((int32) metad->hashm_bsize);
+  values[j++] = Int32GetDatum((int32) metad->hashm_bmsize);
+  values[j++] = Int32GetDatum((int32) metad->hashm_bmshift);
+  values[j++] = Int64GetDatum((int64) metad->hashm_maxbucket);
+  values[j++] = Int64GetDatum((int64) metad->hashm_highmask);
+  values[j++] = Int64GetDatum((int64) metad->hashm_lowmask);
+  values[j++] = Int64GetDatum((int64) metad->hashm_ovflpoint);
+  values[j++] = Int64GetDatum((int64) metad->hashm_firstfree);
+  values[j++] = Int64GetDatum((int64) metad->hashm_nmaps);
+  values[j++] = ObjectIdGetDatum((Oid) metad->hashm_procid);
 
-	for (i = 0; i < HASH_MAX_BITMAPS; i++)
-		mapp[i] = Int64GetDatum((int64) metad->hashm_mapp[i]);
-	values[j++] = PointerGetDatum(construct_array_builtin(mapp, HASH_MAX_BITMAPS, INT8OID));
+  for (i = 0; i < HASH_MAX_SPLITPOINTS; i++)
+    spares[i] = Int64GetDatum((int64) metad->hashm_spares[i]);
 
-	tuple = heap_form_tuple(tupleDesc, values, nulls);
+  values[j++] = PointerGetDatum(construct_array_builtin(spares, HASH_MAX_SPLITPOINTS, INT8OID));
 
-	PG_RETURN_DATUM(HeapTupleGetDatum(tuple));
+  for (i = 0; i < HASH_MAX_BITMAPS; i++)
+    mapp[i] = Int64GetDatum((int64) metad->hashm_mapp[i]);
+
+  values[j++] = PointerGetDatum(construct_array_builtin(mapp, HASH_MAX_BITMAPS, INT8OID));
+
+  tuple = heap_form_tuple(tupleDesc, values, nulls);
+
+  PG_RETURN_DATUM(HeapTupleGetDatum(tuple));
 }

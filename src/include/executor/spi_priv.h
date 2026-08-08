@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * spi_priv.h
- *				Server Programming Interface private declarations
+ *        Server Programming Interface private declarations
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -17,35 +17,35 @@
 #include "utils/queryenvironment.h"
 
 
-#define _SPI_PLAN_MAGIC		569278163
+#define _SPI_PLAN_MAGIC   569278163
 
 typedef struct
 {
-	/* current results */
-	uint64		processed;		/* by Executor */
-	SPITupleTable *tuptable;	/* tuptable currently being built */
+  /* current results */
+  uint64    processed;    /* by Executor */
+  SPITupleTable *tuptable;  /* tuptable currently being built */
 
-	/* subtransaction in which current Executor call was started */
-	SubTransactionId execSubid;
+  /* subtransaction in which current Executor call was started */
+  SubTransactionId execSubid;
 
-	/* resources of this execution context */
-	slist_head	tuptables;		/* list of all live SPITupleTables */
-	MemoryContext procCxt;		/* procedure context */
-	MemoryContext execCxt;		/* executor context */
-	MemoryContext savedcxt;		/* context of SPI_connect's caller */
-	SubTransactionId connectSubid;	/* ID of connecting subtransaction */
-	QueryEnvironment *queryEnv; /* query environment setup for SPI level */
+  /* resources of this execution context */
+  slist_head  tuptables;    /* list of all live SPITupleTables */
+  MemoryContext procCxt;    /* procedure context */
+  MemoryContext execCxt;    /* executor context */
+  MemoryContext savedcxt;   /* context of SPI_connect's caller */
+  SubTransactionId connectSubid;  /* ID of connecting subtransaction */
+  QueryEnvironment *queryEnv; /* query environment setup for SPI level */
 
-	/* transaction management support */
-	bool		atomic;			/* atomic execution context, does not allow
-								 * transactions */
-	bool		internal_xact;	/* SPI-managed transaction boundary, skip
-								 * cleanup */
+  /* transaction management support */
+  bool    atomic;     /* atomic execution context, does not allow
+                 * transactions */
+  bool    internal_xact;  /* SPI-managed transaction boundary, skip
+                 * cleanup */
 
-	/* saved values of API global variables for previous nesting level */
-	uint64		outer_processed;
-	SPITupleTable *outer_tuptable;
-	int			outer_result;
+  /* saved values of API global variables for previous nesting level */
+  uint64    outer_processed;
+  SPITupleTable *outer_tuptable;
+  int     outer_result;
 } _SPI_connection;
 
 /*
@@ -89,17 +89,17 @@ typedef struct
  */
 typedef struct _SPI_plan
 {
-	int			magic;			/* should equal _SPI_PLAN_MAGIC */
-	bool		saved;			/* saved or unsaved plan? */
-	bool		oneshot;		/* one-shot plan? */
-	List	   *plancache_list; /* one CachedPlanSource per parsetree */
-	MemoryContext plancxt;		/* Context containing _SPI_plan and data */
-	RawParseMode parse_mode;	/* raw_parser() mode */
-	int			cursor_options; /* Cursor options used for planning */
-	int			nargs;			/* number of plan arguments */
-	Oid		   *argtypes;		/* Argument types (NULL if nargs is 0) */
-	ParserSetupHook parserSetup;	/* alternative parameter spec method */
-	void	   *parserSetupArg;
+  int     magic;      /* should equal _SPI_PLAN_MAGIC */
+  bool    saved;      /* saved or unsaved plan? */
+  bool    oneshot;    /* one-shot plan? */
+  List     *plancache_list; /* one CachedPlanSource per parsetree */
+  MemoryContext plancxt;    /* Context containing _SPI_plan and data */
+  RawParseMode parse_mode;  /* raw_parser() mode */
+  int     cursor_options; /* Cursor options used for planning */
+  int     nargs;      /* number of plan arguments */
+  Oid      *argtypes;   /* Argument types (NULL if nargs is 0) */
+  ParserSetupHook parserSetup;  /* alternative parameter spec method */
+  void     *parserSetupArg;
 } _SPI_plan;
 
-#endif							/* SPI_PRIV_H */
+#endif              /* SPI_PRIV_H */

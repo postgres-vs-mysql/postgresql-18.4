@@ -14,13 +14,13 @@
 
 #include "utils/guc.h"
 
-extern int	guc_name_compare(const char *namea, const char *nameb);
+extern int  guc_name_compare(const char *namea, const char *nameb);
 extern ConfigVariable *ProcessConfigFileInternal(GucContext context,
-												 bool applySettings, int elevel);
+    bool applySettings, int elevel);
 extern void record_config_file_error(const char *errmsg,
-									 const char *config_file,
-									 int lineno,
-									 ConfigVariable **head_p,
-									 ConfigVariable **tail_p);
+                                     const char *config_file,
+                                     int lineno,
+                                     ConfigVariable **head_p,
+                                     ConfigVariable **tail_p);
 
-#endif							/* GUC_INTERNAL_H */
+#endif              /* GUC_INTERNAL_H */

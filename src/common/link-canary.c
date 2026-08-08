@@ -1,11 +1,11 @@
 /*-------------------------------------------------------------------------
  * link-canary.c
- *	  Detect whether src/common functions came from frontend or backend.
+ *    Detect whether src/common functions came from frontend or backend.
  *
  * Copyright (c) 2018-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/common/link-canary.c
+ *    src/common/link-canary.c
  *
  *-------------------------------------------------------------------------
  */
@@ -29,8 +29,8 @@ bool
 pg_link_canary_is_frontend(void)
 {
 #ifdef FRONTEND
-	return true;
+  return true;
 #else
-	return false;
+  return false;
 #endif
 }

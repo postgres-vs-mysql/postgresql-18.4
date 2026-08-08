@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * atomics.h
- *	  Atomic operations.
+ *    Atomic operations.
  *
  * Hardware and compiler dependent functions for manipulating memory
  * atomically and dealing with cache coherency. Used to implement locking
@@ -128,7 +128,7 @@
  * CPU may still reorder loads or stores at runtime, if the architecture's
  * memory model permits this.
  */
-#define pg_compiler_barrier()	pg_compiler_barrier_impl()
+#define pg_compiler_barrier() pg_compiler_barrier_impl()
 
 /*
  * pg_memory_barrier - prevent the CPU from reordering memory access
@@ -153,8 +153,8 @@
  * barrier.  In practice, on machines with strong memory ordering, read and
  * write barriers may require nothing more than a compiler barrier.
  */
-#define pg_read_barrier()	pg_read_barrier_impl()
-#define pg_write_barrier()	pg_write_barrier_impl()
+#define pg_read_barrier() pg_read_barrier_impl()
+#define pg_write_barrier()  pg_write_barrier_impl()
 
 /*
  * Spinloop delay - Allow CPU to relax in busy loops
@@ -169,7 +169,7 @@
 static inline void
 pg_atomic_init_flag(volatile pg_atomic_flag *ptr)
 {
-	pg_atomic_init_flag_impl(ptr);
+  pg_atomic_init_flag_impl(ptr);
 }
 
 /*
@@ -182,7 +182,7 @@ pg_atomic_init_flag(volatile pg_atomic_flag *ptr)
 static inline bool
 pg_atomic_test_set_flag(volatile pg_atomic_flag *ptr)
 {
-	return pg_atomic_test_set_flag_impl(ptr);
+  return pg_atomic_test_set_flag_impl(ptr);
 }
 
 /*
@@ -195,7 +195,7 @@ pg_atomic_test_set_flag(volatile pg_atomic_flag *ptr)
 static inline bool
 pg_atomic_unlocked_test_flag(volatile pg_atomic_flag *ptr)
 {
-	return pg_atomic_unlocked_test_flag_impl(ptr);
+  return pg_atomic_unlocked_test_flag_impl(ptr);
 }
 
 /*
@@ -206,7 +206,7 @@ pg_atomic_unlocked_test_flag(volatile pg_atomic_flag *ptr)
 static inline void
 pg_atomic_clear_flag(volatile pg_atomic_flag *ptr)
 {
-	pg_atomic_clear_flag_impl(ptr);
+  pg_atomic_clear_flag_impl(ptr);
 }
 
 
@@ -220,9 +220,9 @@ pg_atomic_clear_flag(volatile pg_atomic_flag *ptr)
 static inline void
 pg_atomic_init_u32(volatile pg_atomic_uint32 *ptr, uint32 val)
 {
-	AssertPointerAlignment(ptr, 4);
+  AssertPointerAlignment(ptr, 4);
 
-	pg_atomic_init_u32_impl(ptr, val);
+  pg_atomic_init_u32_impl(ptr, val);
 }
 
 /*
@@ -238,8 +238,8 @@ pg_atomic_init_u32(volatile pg_atomic_uint32 *ptr, uint32 val)
 static inline uint32
 pg_atomic_read_u32(volatile pg_atomic_uint32 *ptr)
 {
-	AssertPointerAlignment(ptr, 4);
-	return pg_atomic_read_u32_impl(ptr);
+  AssertPointerAlignment(ptr, 4);
+  return pg_atomic_read_u32_impl(ptr);
 }
 
 /*
@@ -257,9 +257,9 @@ pg_atomic_read_u32(volatile pg_atomic_uint32 *ptr)
 static inline uint32
 pg_atomic_read_membarrier_u32(volatile pg_atomic_uint32 *ptr)
 {
-	AssertPointerAlignment(ptr, 4);
+  AssertPointerAlignment(ptr, 4);
 
-	return pg_atomic_read_membarrier_u32_impl(ptr);
+  return pg_atomic_read_membarrier_u32_impl(ptr);
 }
 
 /*
@@ -275,9 +275,9 @@ pg_atomic_read_membarrier_u32(volatile pg_atomic_uint32 *ptr)
 static inline void
 pg_atomic_write_u32(volatile pg_atomic_uint32 *ptr, uint32 val)
 {
-	AssertPointerAlignment(ptr, 4);
+  AssertPointerAlignment(ptr, 4);
 
-	pg_atomic_write_u32_impl(ptr, val);
+  pg_atomic_write_u32_impl(ptr, val);
 }
 
 /*
@@ -294,9 +294,9 @@ pg_atomic_write_u32(volatile pg_atomic_uint32 *ptr, uint32 val)
 static inline void
 pg_atomic_unlocked_write_u32(volatile pg_atomic_uint32 *ptr, uint32 val)
 {
-	AssertPointerAlignment(ptr, 4);
+  AssertPointerAlignment(ptr, 4);
 
-	pg_atomic_unlocked_write_u32_impl(ptr, val);
+  pg_atomic_unlocked_write_u32_impl(ptr, val);
 }
 
 /*
@@ -314,9 +314,9 @@ pg_atomic_unlocked_write_u32(volatile pg_atomic_uint32 *ptr, uint32 val)
 static inline void
 pg_atomic_write_membarrier_u32(volatile pg_atomic_uint32 *ptr, uint32 val)
 {
-	AssertPointerAlignment(ptr, 4);
+  AssertPointerAlignment(ptr, 4);
 
-	pg_atomic_write_membarrier_u32_impl(ptr, val);
+  pg_atomic_write_membarrier_u32_impl(ptr, val);
 }
 
 /*
@@ -329,9 +329,9 @@ pg_atomic_write_membarrier_u32(volatile pg_atomic_uint32 *ptr, uint32 val)
 static inline uint32
 pg_atomic_exchange_u32(volatile pg_atomic_uint32 *ptr, uint32 newval)
 {
-	AssertPointerAlignment(ptr, 4);
+  AssertPointerAlignment(ptr, 4);
 
-	return pg_atomic_exchange_u32_impl(ptr, newval);
+  return pg_atomic_exchange_u32_impl(ptr, newval);
 }
 
 /*
@@ -347,12 +347,12 @@ pg_atomic_exchange_u32(volatile pg_atomic_uint32 *ptr, uint32 newval)
  */
 static inline bool
 pg_atomic_compare_exchange_u32(volatile pg_atomic_uint32 *ptr,
-							   uint32 *expected, uint32 newval)
+                               uint32 *expected, uint32 newval)
 {
-	AssertPointerAlignment(ptr, 4);
-	AssertPointerAlignment(expected, 4);
+  AssertPointerAlignment(ptr, 4);
+  AssertPointerAlignment(expected, 4);
 
-	return pg_atomic_compare_exchange_u32_impl(ptr, expected, newval);
+  return pg_atomic_compare_exchange_u32_impl(ptr, expected, newval);
 }
 
 /*
@@ -365,8 +365,8 @@ pg_atomic_compare_exchange_u32(volatile pg_atomic_uint32 *ptr,
 static inline uint32
 pg_atomic_fetch_add_u32(volatile pg_atomic_uint32 *ptr, int32 add_)
 {
-	AssertPointerAlignment(ptr, 4);
-	return pg_atomic_fetch_add_u32_impl(ptr, add_);
+  AssertPointerAlignment(ptr, 4);
+  return pg_atomic_fetch_add_u32_impl(ptr, add_);
 }
 
 /*
@@ -380,9 +380,9 @@ pg_atomic_fetch_add_u32(volatile pg_atomic_uint32 *ptr, int32 add_)
 static inline uint32
 pg_atomic_fetch_sub_u32(volatile pg_atomic_uint32 *ptr, int32 sub_)
 {
-	AssertPointerAlignment(ptr, 4);
-	Assert(sub_ != INT_MIN);
-	return pg_atomic_fetch_sub_u32_impl(ptr, sub_);
+  AssertPointerAlignment(ptr, 4);
+  Assert(sub_ != INT_MIN);
+  return pg_atomic_fetch_sub_u32_impl(ptr, sub_);
 }
 
 /*
@@ -395,8 +395,8 @@ pg_atomic_fetch_sub_u32(volatile pg_atomic_uint32 *ptr, int32 sub_)
 static inline uint32
 pg_atomic_fetch_and_u32(volatile pg_atomic_uint32 *ptr, uint32 and_)
 {
-	AssertPointerAlignment(ptr, 4);
-	return pg_atomic_fetch_and_u32_impl(ptr, and_);
+  AssertPointerAlignment(ptr, 4);
+  return pg_atomic_fetch_and_u32_impl(ptr, and_);
 }
 
 /*
@@ -409,8 +409,8 @@ pg_atomic_fetch_and_u32(volatile pg_atomic_uint32 *ptr, uint32 and_)
 static inline uint32
 pg_atomic_fetch_or_u32(volatile pg_atomic_uint32 *ptr, uint32 or_)
 {
-	AssertPointerAlignment(ptr, 4);
-	return pg_atomic_fetch_or_u32_impl(ptr, or_);
+  AssertPointerAlignment(ptr, 4);
+  return pg_atomic_fetch_or_u32_impl(ptr, or_);
 }
 
 /*
@@ -423,8 +423,8 @@ pg_atomic_fetch_or_u32(volatile pg_atomic_uint32 *ptr, uint32 or_)
 static inline uint32
 pg_atomic_add_fetch_u32(volatile pg_atomic_uint32 *ptr, int32 add_)
 {
-	AssertPointerAlignment(ptr, 4);
-	return pg_atomic_add_fetch_u32_impl(ptr, add_);
+  AssertPointerAlignment(ptr, 4);
+  return pg_atomic_add_fetch_u32_impl(ptr, add_);
 }
 
 /*
@@ -438,9 +438,9 @@ pg_atomic_add_fetch_u32(volatile pg_atomic_uint32 *ptr, int32 add_)
 static inline uint32
 pg_atomic_sub_fetch_u32(volatile pg_atomic_uint32 *ptr, int32 sub_)
 {
-	AssertPointerAlignment(ptr, 4);
-	Assert(sub_ != INT_MIN);
-	return pg_atomic_sub_fetch_u32_impl(ptr, sub_);
+  AssertPointerAlignment(ptr, 4);
+  Assert(sub_ != INT_MIN);
+  return pg_atomic_sub_fetch_u32_impl(ptr, sub_);
 }
 
 /* ----
@@ -452,126 +452,126 @@ pg_atomic_sub_fetch_u32(volatile pg_atomic_uint32 *ptr, int32 sub_)
 static inline void
 pg_atomic_init_u64(volatile pg_atomic_uint64 *ptr, uint64 val)
 {
-	/*
-	 * Can't necessarily enforce alignment - and don't need it - when using
-	 * the spinlock based fallback implementation. Therefore only assert when
-	 * not using it.
-	 */
+  /*
+   * Can't necessarily enforce alignment - and don't need it - when using
+   * the spinlock based fallback implementation. Therefore only assert when
+   * not using it.
+   */
 #ifndef PG_HAVE_ATOMIC_U64_SIMULATION
-	AssertPointerAlignment(ptr, 8);
+  AssertPointerAlignment(ptr, 8);
 #endif
-	pg_atomic_init_u64_impl(ptr, val);
+  pg_atomic_init_u64_impl(ptr, val);
 }
 
 static inline uint64
 pg_atomic_read_u64(volatile pg_atomic_uint64 *ptr)
 {
 #ifndef PG_HAVE_ATOMIC_U64_SIMULATION
-	AssertPointerAlignment(ptr, 8);
+  AssertPointerAlignment(ptr, 8);
 #endif
-	return pg_atomic_read_u64_impl(ptr);
+  return pg_atomic_read_u64_impl(ptr);
 }
 
 static inline uint64
 pg_atomic_read_membarrier_u64(volatile pg_atomic_uint64 *ptr)
 {
 #ifndef PG_HAVE_ATOMIC_U64_SIMULATION
-	AssertPointerAlignment(ptr, 8);
+  AssertPointerAlignment(ptr, 8);
 #endif
-	return pg_atomic_read_membarrier_u64_impl(ptr);
+  return pg_atomic_read_membarrier_u64_impl(ptr);
 }
 
 static inline void
 pg_atomic_write_u64(volatile pg_atomic_uint64 *ptr, uint64 val)
 {
 #ifndef PG_HAVE_ATOMIC_U64_SIMULATION
-	AssertPointerAlignment(ptr, 8);
+  AssertPointerAlignment(ptr, 8);
 #endif
-	pg_atomic_write_u64_impl(ptr, val);
+  pg_atomic_write_u64_impl(ptr, val);
 }
 
 static inline void
 pg_atomic_write_membarrier_u64(volatile pg_atomic_uint64 *ptr, uint64 val)
 {
 #ifndef PG_HAVE_ATOMIC_U64_SIMULATION
-	AssertPointerAlignment(ptr, 8);
+  AssertPointerAlignment(ptr, 8);
 #endif
-	pg_atomic_write_membarrier_u64_impl(ptr, val);
+  pg_atomic_write_membarrier_u64_impl(ptr, val);
 }
 
 static inline uint64
 pg_atomic_exchange_u64(volatile pg_atomic_uint64 *ptr, uint64 newval)
 {
 #ifndef PG_HAVE_ATOMIC_U64_SIMULATION
-	AssertPointerAlignment(ptr, 8);
+  AssertPointerAlignment(ptr, 8);
 #endif
-	return pg_atomic_exchange_u64_impl(ptr, newval);
+  return pg_atomic_exchange_u64_impl(ptr, newval);
 }
 
 static inline bool
 pg_atomic_compare_exchange_u64(volatile pg_atomic_uint64 *ptr,
-							   uint64 *expected, uint64 newval)
+                               uint64 *expected, uint64 newval)
 {
 #ifndef PG_HAVE_ATOMIC_U64_SIMULATION
-	AssertPointerAlignment(ptr, 8);
+  AssertPointerAlignment(ptr, 8);
 #endif
-	return pg_atomic_compare_exchange_u64_impl(ptr, expected, newval);
+  return pg_atomic_compare_exchange_u64_impl(ptr, expected, newval);
 }
 
 static inline uint64
 pg_atomic_fetch_add_u64(volatile pg_atomic_uint64 *ptr, int64 add_)
 {
 #ifndef PG_HAVE_ATOMIC_U64_SIMULATION
-	AssertPointerAlignment(ptr, 8);
+  AssertPointerAlignment(ptr, 8);
 #endif
-	return pg_atomic_fetch_add_u64_impl(ptr, add_);
+  return pg_atomic_fetch_add_u64_impl(ptr, add_);
 }
 
 static inline uint64
 pg_atomic_fetch_sub_u64(volatile pg_atomic_uint64 *ptr, int64 sub_)
 {
 #ifndef PG_HAVE_ATOMIC_U64_SIMULATION
-	AssertPointerAlignment(ptr, 8);
+  AssertPointerAlignment(ptr, 8);
 #endif
-	Assert(sub_ != PG_INT64_MIN);
-	return pg_atomic_fetch_sub_u64_impl(ptr, sub_);
+  Assert(sub_ != PG_INT64_MIN);
+  return pg_atomic_fetch_sub_u64_impl(ptr, sub_);
 }
 
 static inline uint64
 pg_atomic_fetch_and_u64(volatile pg_atomic_uint64 *ptr, uint64 and_)
 {
 #ifndef PG_HAVE_ATOMIC_U64_SIMULATION
-	AssertPointerAlignment(ptr, 8);
+  AssertPointerAlignment(ptr, 8);
 #endif
-	return pg_atomic_fetch_and_u64_impl(ptr, and_);
+  return pg_atomic_fetch_and_u64_impl(ptr, and_);
 }
 
 static inline uint64
 pg_atomic_fetch_or_u64(volatile pg_atomic_uint64 *ptr, uint64 or_)
 {
 #ifndef PG_HAVE_ATOMIC_U64_SIMULATION
-	AssertPointerAlignment(ptr, 8);
+  AssertPointerAlignment(ptr, 8);
 #endif
-	return pg_atomic_fetch_or_u64_impl(ptr, or_);
+  return pg_atomic_fetch_or_u64_impl(ptr, or_);
 }
 
 static inline uint64
 pg_atomic_add_fetch_u64(volatile pg_atomic_uint64 *ptr, int64 add_)
 {
 #ifndef PG_HAVE_ATOMIC_U64_SIMULATION
-	AssertPointerAlignment(ptr, 8);
+  AssertPointerAlignment(ptr, 8);
 #endif
-	return pg_atomic_add_fetch_u64_impl(ptr, add_);
+  return pg_atomic_add_fetch_u64_impl(ptr, add_);
 }
 
 static inline uint64
 pg_atomic_sub_fetch_u64(volatile pg_atomic_uint64 *ptr, int64 sub_)
 {
 #ifndef PG_HAVE_ATOMIC_U64_SIMULATION
-	AssertPointerAlignment(ptr, 8);
+  AssertPointerAlignment(ptr, 8);
 #endif
-	Assert(sub_ != PG_INT64_MIN);
-	return pg_atomic_sub_fetch_u64_impl(ptr, sub_);
+  Assert(sub_ != PG_INT64_MIN);
+  return pg_atomic_sub_fetch_u64_impl(ptr, sub_);
 }
 
 /*
@@ -584,28 +584,29 @@ pg_atomic_sub_fetch_u64(volatile pg_atomic_uint64 *ptr, int64 sub_)
 static inline uint64
 pg_atomic_monotonic_advance_u64(volatile pg_atomic_uint64 *ptr, uint64 target)
 {
-	uint64		currval;
+  uint64    currval;
 
 #ifndef PG_HAVE_ATOMIC_U64_SIMULATION
-	AssertPointerAlignment(ptr, 8);
+  AssertPointerAlignment(ptr, 8);
 #endif
 
-	currval = pg_atomic_read_u64_impl(ptr);
-	if (currval >= target)
-	{
-		pg_memory_barrier();
-		return currval;
-	}
+  currval = pg_atomic_read_u64_impl(ptr);
 
-	while (currval < target)
-	{
-		if (pg_atomic_compare_exchange_u64(ptr, &currval, target))
-			return target;
-	}
+  if (currval >= target)
+  {
+    pg_memory_barrier();
+    return currval;
+  }
 
-	return currval;
+  while (currval < target)
+  {
+    if (pg_atomic_compare_exchange_u64(ptr, &currval, target))
+      return target;
+  }
+
+  return currval;
 }
 
 #undef INSIDE_ATOMICS_H
 
-#endif							/* ATOMICS_H */
+#endif              /* ATOMICS_H */

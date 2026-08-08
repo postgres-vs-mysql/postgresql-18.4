@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * jit.c
- *	  Provider independent JIT infrastructure.
+ *    Provider independent JIT infrastructure.
  *
  * Code related to loading JIT providers, redirecting calls into JIT providers
  * and error handling.  No code specific to a specific JIT implementation
@@ -11,7 +11,7 @@
  * Copyright (c) 2016-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/backend/jit/jit.c
+ *    src/backend/jit/jit.c
  *
  *-------------------------------------------------------------------------
  */
@@ -29,16 +29,16 @@
 #include "utils/fmgrprotos.h"
 
 /* GUCs */
-bool		jit_enabled = true;
-char	   *jit_provider = NULL;
-bool		jit_debugging_support = false;
-bool		jit_dump_bitcode = false;
-bool		jit_expressions = true;
-bool		jit_profiling_support = false;
-bool		jit_tuple_deforming = true;
-double		jit_above_cost = 100000;
-double		jit_inline_above_cost = 500000;
-double		jit_optimize_above_cost = 500000;
+bool    jit_enabled = true;
+char     *jit_provider = NULL;
+bool    jit_debugging_support = false;
+bool    jit_dump_bitcode = false;
+bool    jit_expressions = true;
+bool    jit_profiling_support = false;
+bool    jit_tuple_deforming = true;
+double    jit_above_cost = 100000;
+double    jit_inline_above_cost = 500000;
+double    jit_optimize_above_cost = 500000;
 
 static JitProviderCallbacks provider;
 static bool provider_successfully_loaded = false;
@@ -55,7 +55,7 @@ static bool provider_init(void);
 Datum
 pg_jit_available(PG_FUNCTION_ARGS)
 {
-	PG_RETURN_BOOL(provider_init());
+  PG_RETURN_BOOL(provider_init());
 }
 
 
@@ -66,57 +66,58 @@ pg_jit_available(PG_FUNCTION_ARGS)
 static bool
 provider_init(void)
 {
-	char		path[MAXPGPATH];
-	JitProviderInit init;
+  char    path[MAXPGPATH];
+  JitProviderInit init;
 
-	/* don't even try to load if not enabled */
-	if (!jit_enabled)
-		return false;
+  /* don't even try to load if not enabled */
+  if (!jit_enabled)
+    return false;
 
-	/*
-	 * Don't retry loading after failing - attempting to load JIT provider
-	 * isn't cheap.
-	 */
-	if (provider_failed_loading)
-		return false;
-	if (provider_successfully_loaded)
-		return true;
+  /*
+   * Don't retry loading after failing - attempting to load JIT provider
+   * isn't cheap.
+   */
+  if (provider_failed_loading)
+    return false;
 
-	/*
-	 * Check whether shared library exists. We do that check before actually
-	 * attempting to load the shared library (via load_external_function()),
-	 * because that'd error out in case the shlib isn't available.
-	 */
-	snprintf(path, MAXPGPATH, "%s/%s%s", pkglib_path, jit_provider, DLSUFFIX);
-	elog(DEBUG1, "probing availability of JIT provider at %s", path);
-	if (!pg_file_exists(path))
-	{
-		elog(DEBUG1,
-			 "provider not available, disabling JIT for current session");
-		provider_failed_loading = true;
-		return false;
-	}
+  if (provider_successfully_loaded)
+    return true;
 
-	/*
-	 * If loading functions fails, signal failure. We do so because
-	 * load_external_function() might error out despite the above check if
-	 * e.g. the library's dependencies aren't installed. We want to signal
-	 * ERROR in that case, so the user is notified, but we don't want to
-	 * continually retry.
-	 */
-	provider_failed_loading = true;
+  /*
+   * Check whether shared library exists. We do that check before actually
+   * attempting to load the shared library (via load_external_function()),
+   * because that'd error out in case the shlib isn't available.
+   */
+  snprintf(path, MAXPGPATH, "%s/%s%s", pkglib_path, jit_provider, DLSUFFIX);
+  elog(DEBUG1, "probing availability of JIT provider at %s", path);
 
-	/* and initialize */
-	init = (JitProviderInit)
-		load_external_function(path, "_PG_jit_provider_init", true, NULL);
-	init(&provider);
+  if (!pg_file_exists(path)) {
+    elog(DEBUG1,
+         "provider not available, disabling JIT for current session");
+    provider_failed_loading = true;
+    return false;
+  }
 
-	provider_successfully_loaded = true;
-	provider_failed_loading = false;
+  /*
+   * If loading functions fails, signal failure. We do so because
+   * load_external_function() might error out despite the above check if
+   * e.g. the library's dependencies aren't installed. We want to signal
+   * ERROR in that case, so the user is notified, but we don't want to
+   * continually retry.
+   */
+  provider_failed_loading = true;
 
-	elog(DEBUG1, "successfully loaded JIT provider in current session");
+  /* and initialize */
+  init = (JitProviderInit)
+         load_external_function(path, "_PG_jit_provider_init", true, NULL);
+  init(&provider);
 
-	return true;
+  provider_successfully_loaded = true;
+  provider_failed_loading = false;
+
+  elog(DEBUG1, "successfully loaded JIT provider in current session");
+
+  return true;
 }
 
 /*
@@ -126,8 +127,8 @@ provider_init(void)
 void
 jit_reset_after_error(void)
 {
-	if (provider_successfully_loaded)
-		provider.reset_after_error();
+  if (provider_successfully_loaded)
+    provider.reset_after_error();
 }
 
 /*
@@ -136,10 +137,10 @@ jit_reset_after_error(void)
 void
 jit_release_context(JitContext *context)
 {
-	if (provider_successfully_loaded)
-		provider.release_context(context);
+  if (provider_successfully_loaded)
+    provider.release_context(context);
 
-	pfree(context);
+  pfree(context);
 }
 
 /*
@@ -150,41 +151,41 @@ jit_release_context(JitContext *context)
 bool
 jit_compile_expr(struct ExprState *state)
 {
-	/*
-	 * We can easily create a one-off context for functions without an
-	 * associated PlanState (and thus EState). But because there's no executor
-	 * shutdown callback that could deallocate the created function, they'd
-	 * live to the end of the transactions, where they'd be cleaned up by the
-	 * resowner machinery. That can lead to a noticeable amount of memory
-	 * usage, and worse, trigger some quadratic behaviour in gdb. Therefore,
-	 * at least for now, don't create a JITed function in those circumstances.
-	 */
-	if (!state->parent)
-		return false;
+  /*
+   * We can easily create a one-off context for functions without an
+   * associated PlanState (and thus EState). But because there's no executor
+   * shutdown callback that could deallocate the created function, they'd
+   * live to the end of the transactions, where they'd be cleaned up by the
+   * resowner machinery. That can lead to a noticeable amount of memory
+   * usage, and worse, trigger some quadratic behaviour in gdb. Therefore,
+   * at least for now, don't create a JITed function in those circumstances.
+   */
+  if (!state->parent)
+    return false;
 
-	/* if no jitting should be performed at all */
-	if (!(state->parent->state->es_jit_flags & PGJIT_PERFORM))
-		return false;
+  /* if no jitting should be performed at all */
+  if (!(state->parent->state->es_jit_flags & PGJIT_PERFORM))
+    return false;
 
-	/* or if expressions aren't JITed */
-	if (!(state->parent->state->es_jit_flags & PGJIT_EXPR))
-		return false;
+  /* or if expressions aren't JITed */
+  if (!(state->parent->state->es_jit_flags & PGJIT_EXPR))
+    return false;
 
-	/* this also takes !jit_enabled into account */
-	if (provider_init())
-		return provider.compile_expr(state);
+  /* this also takes !jit_enabled into account */
+  if (provider_init())
+    return provider.compile_expr(state);
 
-	return false;
+  return false;
 }
 
 /* Aggregate JIT instrumentation information */
 void
 InstrJitAgg(JitInstrumentation *dst, JitInstrumentation *add)
 {
-	dst->created_functions += add->created_functions;
-	INSTR_TIME_ADD(dst->generation_counter, add->generation_counter);
-	INSTR_TIME_ADD(dst->deform_counter, add->deform_counter);
-	INSTR_TIME_ADD(dst->inlining_counter, add->inlining_counter);
-	INSTR_TIME_ADD(dst->optimization_counter, add->optimization_counter);
-	INSTR_TIME_ADD(dst->emission_counter, add->emission_counter);
+  dst->created_functions += add->created_functions;
+  INSTR_TIME_ADD(dst->generation_counter, add->generation_counter);
+  INSTR_TIME_ADD(dst->deform_counter, add->deform_counter);
+  INSTR_TIME_ADD(dst->inlining_counter, add->inlining_counter);
+  INSTR_TIME_ADD(dst->optimization_counter, add->optimization_counter);
+  INSTR_TIME_ADD(dst->emission_counter, add->emission_counter);
 }

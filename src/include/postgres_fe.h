@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * postgres_fe.h
- *	  Primary include file for PostgreSQL client-side .c files
+ *    Primary include file for PostgreSQL client-side .c files
  *
  * This should be the first file included by PostgreSQL client libraries and
  * application programs --- but not by backend modules, which should include
@@ -31,4 +31,4 @@
 
 /* IWYU pragma: end_exports */
 
-#endif							/* POSTGRES_FE_H */
+#endif              /* POSTGRES_FE_H */

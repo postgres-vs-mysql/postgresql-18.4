@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * functions.h
- *		Declarations for execution of SQL-language functions.
+ *    Declarations for execution of SQL-language functions.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -24,12 +24,12 @@
  */
 typedef struct SQLFunctionParseInfo
 {
-	char	   *fname;			/* function's name */
-	int			nargs;			/* number of input arguments */
-	Oid		   *argtypes;		/* resolved types of input arguments */
-	char	  **argnames;		/* names of input arguments; NULL if none */
-	/* Note that argnames[i] can be NULL, if some args are unnamed */
-	Oid			collation;		/* function's input collation, if known */
+  char     *fname;      /* function's name */
+  int     nargs;      /* number of input arguments */
+  Oid      *argtypes;   /* resolved types of input arguments */
+  char    **argnames;   /* names of input arguments; NULL if none */
+  /* Note that argnames[i] can be NULL, if some args are unnamed */
+  Oid     collation;    /* function's input collation, if known */
 } SQLFunctionParseInfo;
 
 typedef SQLFunctionParseInfo *SQLFunctionParseInfoPtr;
@@ -37,19 +37,19 @@ typedef SQLFunctionParseInfo *SQLFunctionParseInfoPtr;
 extern Datum fmgr_sql(PG_FUNCTION_ARGS);
 
 extern SQLFunctionParseInfoPtr prepare_sql_fn_parse_info(HeapTuple procedureTuple,
-														 Node *call_expr,
-														 Oid inputCollation);
+    Node *call_expr,
+    Oid inputCollation);
 
 extern void sql_fn_parser_setup(struct ParseState *pstate,
-								SQLFunctionParseInfoPtr pinfo);
+                                SQLFunctionParseInfoPtr pinfo);
 
 extern void check_sql_fn_statements(List *queryTreeLists);
 
 extern bool check_sql_fn_retval(List *queryTreeLists,
-								Oid rettype, TupleDesc rettupdesc,
-								char prokind,
-								bool insertDroppedCols);
+                                Oid rettype, TupleDesc rettupdesc,
+                                char prokind,
+                                bool insertDroppedCols);
 
 extern DestReceiver *CreateSQLFunctionDestReceiver(void);
 
-#endif							/* FUNCTIONS_H */
+#endif              /* FUNCTIONS_H */

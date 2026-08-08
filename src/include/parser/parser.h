@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * parser.h
- *		Definitions for the "raw" parser (flex and bison phases only)
+ *    Definitions for the "raw" parser (flex and bison phases only)
  *
  * This is the external API for the raw lexing/parsing functions.
  *
@@ -36,21 +36,21 @@
  */
 typedef enum
 {
-	RAW_PARSE_DEFAULT = 0,
-	RAW_PARSE_TYPE_NAME,
-	RAW_PARSE_PLPGSQL_EXPR,
-	RAW_PARSE_PLPGSQL_ASSIGN1,
-	RAW_PARSE_PLPGSQL_ASSIGN2,
-	RAW_PARSE_PLPGSQL_ASSIGN3,
+  RAW_PARSE_DEFAULT = 0,
+  RAW_PARSE_TYPE_NAME,
+  RAW_PARSE_PLPGSQL_EXPR,
+  RAW_PARSE_PLPGSQL_ASSIGN1,
+  RAW_PARSE_PLPGSQL_ASSIGN2,
+  RAW_PARSE_PLPGSQL_ASSIGN3,
 } RawParseMode;
 
 /* Values for the backslash_quote GUC */
 typedef enum
 {
-	BACKSLASH_QUOTE_OFF,
-	BACKSLASH_QUOTE_ON,
-	BACKSLASH_QUOTE_SAFE_ENCODING,
-}			BackslashQuoteType;
+  BACKSLASH_QUOTE_OFF,
+  BACKSLASH_QUOTE_ON,
+  BACKSLASH_QUOTE_SAFE_ENCODING,
+}     BackslashQuoteType;
 
 /* GUC variables in scan.l (every one of these is a bad idea :-() */
 extern PGDLLIMPORT int backslash_quote;
@@ -65,4 +65,4 @@ extern List *raw_parser(const char *str, RawParseMode mode);
 extern List *SystemFuncName(char *name);
 extern TypeName *SystemTypeName(char *name);
 
-#endif							/* PARSER_H */
+#endif              /* PARSER_H */

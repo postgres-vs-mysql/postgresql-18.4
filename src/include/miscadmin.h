@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * miscadmin.h
- *	  This file contains general postgres administration and initialization
- *	  stuff that used to be spread out between the following files:
- *		globals.h						global variables
- *		pdir.h							directory path crud
- *		pinit.h							postgres initialization
- *		pmod.h							processing modes
- *	  Over time, this has also become the preferred place for widely known
- *	  resource-limitation stuff, such as work_mem and check_stack_depth().
+ *    This file contains general postgres administration and initialization
+ *    stuff that used to be spread out between the following files:
+ *    globals.h           global variables
+ *    pdir.h              directory path crud
+ *    pinit.h             postgres initialization
+ *    pmod.h              processing modes
+ *    Over time, this has also become the preferred place for widely known
+ *    resource-limitation stuff, such as work_mem and check_stack_depth().
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -16,7 +16,7 @@
  * src/include/miscadmin.h
  *
  * NOTES
- *	  some of the information in this file should be moved to other files.
+ *    some of the information in this file should be moved to other files.
  *
  *-------------------------------------------------------------------------
  */
@@ -26,14 +26,14 @@
 #include <signal.h>
 
 #include "datatype/timestamp.h" /* for TimestampTz */
-#include "pgtime.h"				/* for pg_time_t */
+#include "pgtime.h"       /* for pg_time_t */
 
 
-#define InvalidPid				(-1)
+#define InvalidPid        (-1)
 
 
 /*****************************************************************************
- *	  System interrupt and critical section handling
+ *    System interrupt and critical section handling
  *
  * There are two types of interrupts that a running backend needs to accept
  * without messing up its state: QueryCancel (SIGINT) and ProcDie (SIGTERM).
@@ -80,7 +80,7 @@
  * mechanism.  A critical section not only holds off cancel/die interrupts,
  * but causes any ereport(ERROR) or ereport(FATAL) to become ereport(PANIC)
  * --- that is, a system-wide reset is forced.  Needless to say, only really
- * *critical* code should be marked as a critical section!	Currently, this
+ * *critical* code should be marked as a critical section!  Currently, this
  * mechanism is only used for XLOG-related code.
  *
  *****************************************************************************/
@@ -111,53 +111,53 @@ extern void ProcessInterrupts(void);
 /* Test whether an interrupt is pending */
 #ifndef WIN32
 #define INTERRUPTS_PENDING_CONDITION() \
-	(unlikely(InterruptPending))
+  (unlikely(InterruptPending))
 #else
 #define INTERRUPTS_PENDING_CONDITION() \
-	(unlikely(UNBLOCKED_SIGNAL_QUEUE()) ? \
-	 pgwin32_dispatch_queued_signals() : (void) 0, \
-	 unlikely(InterruptPending))
+  (unlikely(UNBLOCKED_SIGNAL_QUEUE()) ? \
+   pgwin32_dispatch_queued_signals() : (void) 0, \
+   unlikely(InterruptPending))
 #endif
 
 /* Service interrupt, if one is pending and it's safe to service it now */
 #define CHECK_FOR_INTERRUPTS() \
 do { \
-	if (INTERRUPTS_PENDING_CONDITION()) \
-		ProcessInterrupts(); \
+  if (INTERRUPTS_PENDING_CONDITION()) \
+    ProcessInterrupts(); \
 } while(0)
 
 /* Is ProcessInterrupts() guaranteed to clear InterruptPending? */
 #define INTERRUPTS_CAN_BE_PROCESSED() \
-	(InterruptHoldoffCount == 0 && CritSectionCount == 0 && \
-	 QueryCancelHoldoffCount == 0)
+  (InterruptHoldoffCount == 0 && CritSectionCount == 0 && \
+   QueryCancelHoldoffCount == 0)
 
 #define HOLD_INTERRUPTS()  (InterruptHoldoffCount++)
 
 #define RESUME_INTERRUPTS() \
 do { \
-	Assert(InterruptHoldoffCount > 0); \
-	InterruptHoldoffCount--; \
+  Assert(InterruptHoldoffCount > 0); \
+  InterruptHoldoffCount--; \
 } while(0)
 
 #define HOLD_CANCEL_INTERRUPTS()  (QueryCancelHoldoffCount++)
 
 #define RESUME_CANCEL_INTERRUPTS() \
 do { \
-	Assert(QueryCancelHoldoffCount > 0); \
-	QueryCancelHoldoffCount--; \
+  Assert(QueryCancelHoldoffCount > 0); \
+  QueryCancelHoldoffCount--; \
 } while(0)
 
 #define START_CRIT_SECTION()  (CritSectionCount++)
 
 #define END_CRIT_SECTION() \
 do { \
-	Assert(CritSectionCount > 0); \
-	CritSectionCount--; \
+  Assert(CritSectionCount > 0); \
+  CritSectionCount--; \
 } while(0)
 
 
 /*****************************************************************************
- *	  globals.h --															 *
+ *    globals.h --                               *
  *****************************************************************************/
 
 /*
@@ -214,17 +214,17 @@ extern PGDLLIMPORT bool MyDatabaseHasLoginEventTriggers;
  * Date/Time Configuration
  *
  * DateStyle defines the output formatting choice for date/time types:
- *	USE_POSTGRES_DATES specifies traditional Postgres format
- *	USE_ISO_DATES specifies ISO-compliant format
- *	USE_SQL_DATES specifies Oracle/Ingres-compliant format
- *	USE_GERMAN_DATES specifies German-style dd.mm/yyyy
+ *  USE_POSTGRES_DATES specifies traditional Postgres format
+ *  USE_ISO_DATES specifies ISO-compliant format
+ *  USE_SQL_DATES specifies Oracle/Ingres-compliant format
+ *  USE_GERMAN_DATES specifies German-style dd.mm/yyyy
  *
  * DateOrder defines the field order to be assumed when reading an
  * ambiguous date (anything not in YYYY-MM-DD format, with a four-digit
  * year field first, is taken to be ambiguous):
- *	DATEORDER_YMD specifies field order yy-mm-dd
- *	DATEORDER_DMY specifies field order dd-mm-yy ("European" convention)
- *	DATEORDER_MDY specifies field order mm-dd-yy ("US" convention)
+ *  DATEORDER_YMD specifies field order yy-mm-dd
+ *  DATEORDER_DMY specifies field order dd-mm-yy ("European" convention)
+ *  DATEORDER_MDY specifies field order mm-dd-yy ("US" convention)
  *
  * In the Postgres and SQL DateStyles, DateOrder also selects output field
  * order: day comes before month in DMY style, else month comes before day.
@@ -233,35 +233,35 @@ extern PGDLLIMPORT bool MyDatabaseHasLoginEventTriggers;
  */
 
 /* valid DateStyle values */
-#define USE_POSTGRES_DATES		0
-#define USE_ISO_DATES			1
-#define USE_SQL_DATES			2
-#define USE_GERMAN_DATES		3
-#define USE_XSD_DATES			4
+#define USE_POSTGRES_DATES    0
+#define USE_ISO_DATES     1
+#define USE_SQL_DATES     2
+#define USE_GERMAN_DATES    3
+#define USE_XSD_DATES     4
 
 /* valid DateOrder values */
-#define DATEORDER_YMD			0
-#define DATEORDER_DMY			1
-#define DATEORDER_MDY			2
+#define DATEORDER_YMD     0
+#define DATEORDER_DMY     1
+#define DATEORDER_MDY     2
 
 extern PGDLLIMPORT int DateStyle;
 extern PGDLLIMPORT int DateOrder;
 
 /*
  * IntervalStyles
- *	 INTSTYLE_POSTGRES			   Like Postgres < 8.4 when DateStyle = 'iso'
- *	 INTSTYLE_POSTGRES_VERBOSE	   Like Postgres < 8.4 when DateStyle != 'iso'
- *	 INTSTYLE_SQL_STANDARD		   SQL standard interval literals
- *	 INTSTYLE_ISO_8601			   ISO-8601-basic formatted intervals
+ *   INTSTYLE_POSTGRES         Like Postgres < 8.4 when DateStyle = 'iso'
+ *   INTSTYLE_POSTGRES_VERBOSE     Like Postgres < 8.4 when DateStyle != 'iso'
+ *   INTSTYLE_SQL_STANDARD       SQL standard interval literals
+ *   INTSTYLE_ISO_8601         ISO-8601-basic formatted intervals
  */
-#define INTSTYLE_POSTGRES			0
-#define INTSTYLE_POSTGRES_VERBOSE	1
-#define INTSTYLE_SQL_STANDARD		2
-#define INTSTYLE_ISO_8601			3
+#define INTSTYLE_POSTGRES     0
+#define INTSTYLE_POSTGRES_VERBOSE 1
+#define INTSTYLE_SQL_STANDARD   2
+#define INTSTYLE_ISO_8601     3
 
 extern PGDLLIMPORT int IntervalStyle;
 
-#define MAXTZLEN		10		/* max TZ name len, not counting tr. null */
+#define MAXTZLEN    10    /* max TZ name len, not counting tr. null */
 
 extern PGDLLIMPORT bool enableFsync;
 extern PGDLLIMPORT bool allowSystemTableMods;
@@ -310,14 +310,14 @@ extern void PreventCommandIfParallelMode(const char *cmdname);
 extern void PreventCommandDuringRecovery(const char *cmdname);
 
 /*****************************************************************************
- *	  pdir.h --																 *
- *			POSTGRES directory path definitions.                             *
+ *    pdir.h --                                *
+ *      POSTGRES directory path definitions.                             *
  *****************************************************************************/
 
 /* flags to be OR'd to form sec_context */
-#define SECURITY_LOCAL_USERID_CHANGE	0x0001
-#define SECURITY_RESTRICTED_OPERATION	0x0002
-#define SECURITY_NOFORCE_RLS			0x0004
+#define SECURITY_LOCAL_USERID_CHANGE  0x0001
+#define SECURITY_RESTRICTED_OPERATION 0x0002
+#define SECURITY_NOFORCE_RLS      0x0004
 
 extern PGDLLIMPORT char *DatabasePath;
 
@@ -336,66 +336,66 @@ extern void SwitchBackToLocalLatch(void);
  */
 typedef enum BackendType
 {
-	B_INVALID = 0,
+  B_INVALID = 0,
 
-	/* Backends and other backend-like processes */
-	B_BACKEND,
-	B_DEAD_END_BACKEND,
-	B_AUTOVAC_LAUNCHER,
-	B_AUTOVAC_WORKER,
-	B_BG_WORKER,
-	B_WAL_SENDER,
-	B_SLOTSYNC_WORKER,
+  /* Backends and other backend-like processes */
+  B_BACKEND,
+  B_DEAD_END_BACKEND,
+  B_AUTOVAC_LAUNCHER,
+  B_AUTOVAC_WORKER,
+  B_BG_WORKER,
+  B_WAL_SENDER,
+  B_SLOTSYNC_WORKER,
 
-	B_STANDALONE_BACKEND,
+  B_STANDALONE_BACKEND,
 
-	/*
-	 * Auxiliary processes. These have PGPROC entries, but they are not
-	 * attached to any particular database, and cannot run transactions or
-	 * even take heavyweight locks. There can be only one of each of these
-	 * running at a time, except for IO workers.
-	 *
-	 * If you modify these, make sure to update NUM_AUXILIARY_PROCS and the
-	 * glossary in the docs.
-	 */
-	B_ARCHIVER,
-	B_BG_WRITER,
-	B_CHECKPOINTER,
-	B_IO_WORKER,
-	B_STARTUP,
-	B_WAL_RECEIVER,
-	B_WAL_SUMMARIZER,
-	B_WAL_WRITER,
+  /*
+   * Auxiliary processes. These have PGPROC entries, but they are not
+   * attached to any particular database, and cannot run transactions or
+   * even take heavyweight locks. There can be only one of each of these
+   * running at a time, except for IO workers.
+   *
+   * If you modify these, make sure to update NUM_AUXILIARY_PROCS and the
+   * glossary in the docs.
+   */
+  B_ARCHIVER,
+  B_BG_WRITER,
+  B_CHECKPOINTER,
+  B_IO_WORKER,
+  B_STARTUP,
+  B_WAL_RECEIVER,
+  B_WAL_SUMMARIZER,
+  B_WAL_WRITER,
 
-	/*
-	 * Logger is not connected to shared memory and does not have a PGPROC
-	 * entry.
-	 */
-	B_LOGGER,
+  /*
+   * Logger is not connected to shared memory and does not have a PGPROC
+   * entry.
+   */
+  B_LOGGER,
 } BackendType;
 
 #define BACKEND_NUM_TYPES (B_LOGGER + 1)
 
 extern PGDLLIMPORT BackendType MyBackendType;
 
-#define AmRegularBackendProcess()	(MyBackendType == B_BACKEND)
+#define AmRegularBackendProcess() (MyBackendType == B_BACKEND)
 #define AmAutoVacuumLauncherProcess() (MyBackendType == B_AUTOVAC_LAUNCHER)
-#define AmAutoVacuumWorkerProcess()	(MyBackendType == B_AUTOVAC_WORKER)
+#define AmAutoVacuumWorkerProcess() (MyBackendType == B_AUTOVAC_WORKER)
 #define AmBackgroundWorkerProcess() (MyBackendType == B_BG_WORKER)
 #define AmWalSenderProcess()        (MyBackendType == B_WAL_SENDER)
 #define AmLogicalSlotSyncWorkerProcess() (MyBackendType == B_SLOTSYNC_WORKER)
-#define AmArchiverProcess()			(MyBackendType == B_ARCHIVER)
+#define AmArchiverProcess()     (MyBackendType == B_ARCHIVER)
 #define AmBackgroundWriterProcess() (MyBackendType == B_BG_WRITER)
-#define AmCheckpointerProcess()		(MyBackendType == B_CHECKPOINTER)
-#define AmStartupProcess()			(MyBackendType == B_STARTUP)
-#define AmWalReceiverProcess()		(MyBackendType == B_WAL_RECEIVER)
-#define AmWalSummarizerProcess()	(MyBackendType == B_WAL_SUMMARIZER)
-#define AmWalWriterProcess()		(MyBackendType == B_WAL_WRITER)
-#define AmIoWorkerProcess()			(MyBackendType == B_IO_WORKER)
+#define AmCheckpointerProcess()   (MyBackendType == B_CHECKPOINTER)
+#define AmStartupProcess()      (MyBackendType == B_STARTUP)
+#define AmWalReceiverProcess()    (MyBackendType == B_WAL_RECEIVER)
+#define AmWalSummarizerProcess()  (MyBackendType == B_WAL_SUMMARIZER)
+#define AmWalWriterProcess()    (MyBackendType == B_WAL_WRITER)
+#define AmIoWorkerProcess()     (MyBackendType == B_IO_WORKER)
 
 #define AmSpecialWorkerProcess() \
-	(AmAutoVacuumLauncherProcess() || \
-	 AmLogicalSlotSyncWorkerProcess())
+  (AmAutoVacuumLauncherProcess() || \
+   AmLogicalSlotSyncWorkerProcess())
 
 /*
  * Backend types that are spawned by the postmaster to serve a client or
@@ -403,7 +403,7 @@ extern PGDLLIMPORT BackendType MyBackendType;
  * externally initiated.
  */
 #define IsExternalConnectionBackend(backend_type) \
-	(backend_type == B_BACKEND || backend_type == B_WAL_SENDER)
+  (backend_type == B_BACKEND || backend_type == B_WAL_SENDER)
 
 extern const char *GetBackendTypeDesc(BackendType backendType);
 
@@ -413,11 +413,11 @@ extern void SetDataDir(const char *dir);
 extern void ChangeToDataDir(void);
 
 extern char *GetUserNameFromId(Oid roleid, bool noerr);
-extern Oid	GetUserId(void);
-extern Oid	GetOuterUserId(void);
-extern Oid	GetSessionUserId(void);
+extern Oid  GetUserId(void);
+extern Oid  GetOuterUserId(void);
+extern Oid  GetSessionUserId(void);
 extern bool GetSessionUserIsSuperuser(void);
-extern Oid	GetAuthenticatedUserId(void);
+extern Oid  GetAuthenticatedUserId(void);
 extern void SetAuthenticatedUserId(Oid userid);
 extern void GetUserIdAndSecContext(Oid *userid, int *sec_context);
 extern void SetUserIdAndSecContext(Oid userid, int sec_context);
@@ -427,28 +427,28 @@ extern bool InNoForceRLSOperation(void);
 extern void GetUserIdAndContext(Oid *userid, bool *sec_def_context);
 extern void SetUserIdAndContext(Oid userid, bool sec_def_context);
 extern void InitializeSessionUserId(const char *rolename, Oid roleid,
-									bool bypass_login_check);
+                                    bool bypass_login_check);
 extern void InitializeSessionUserIdStandalone(void);
 extern void SetSessionAuthorization(Oid userid, bool is_superuser);
-extern Oid	GetCurrentRoleId(void);
+extern Oid  GetCurrentRoleId(void);
 extern void SetCurrentRoleId(Oid roleid, bool is_superuser);
 extern void InitializeSystemUser(const char *authn_id,
-								 const char *auth_method);
+                                 const char *auth_method);
 extern const char *GetSystemUser(void);
 
 /* in utils/misc/superuser.c */
-extern bool superuser(void);	/* current user is superuser */
-extern bool superuser_arg(Oid roleid);	/* given user is superuser */
+extern bool superuser(void);  /* current user is superuser */
+extern bool superuser_arg(Oid roleid);  /* given user is superuser */
 
 
 /*****************************************************************************
- *	  pmod.h --																 *
- *			POSTGRES processing mode definitions.                            *
+ *    pmod.h --                                *
+ *      POSTGRES processing mode definitions.                            *
  *****************************************************************************/
 
 /*
  * Description:
- *		There are three processing modes in POSTGRES.  They are
+ *    There are three processing modes in POSTGRES.  They are
  * BootstrapProcessing or "bootstrap," InitProcessing or
  * "initialization," and NormalProcessing or "normal."
  *
@@ -467,45 +467,45 @@ extern bool superuser_arg(Oid roleid);	/* given user is superuser */
 
 typedef enum ProcessingMode
 {
-	BootstrapProcessing,		/* bootstrap creation of template database */
-	InitProcessing,				/* initializing system */
-	NormalProcessing,			/* normal processing */
+  BootstrapProcessing,    /* bootstrap creation of template database */
+  InitProcessing,       /* initializing system */
+  NormalProcessing,     /* normal processing */
 } ProcessingMode;
 
 extern PGDLLIMPORT ProcessingMode Mode;
 
 #define IsBootstrapProcessingMode() (Mode == BootstrapProcessing)
-#define IsInitProcessingMode()		(Mode == InitProcessing)
-#define IsNormalProcessingMode()	(Mode == NormalProcessing)
+#define IsInitProcessingMode()    (Mode == InitProcessing)
+#define IsNormalProcessingMode()  (Mode == NormalProcessing)
 
 #define GetProcessingMode() Mode
 
 #define SetProcessingMode(mode) \
-	do { \
-		Assert((mode) == BootstrapProcessing || \
-				  (mode) == InitProcessing || \
-				  (mode) == NormalProcessing); \
-		Mode = (mode); \
-	} while(0)
+  do { \
+    Assert((mode) == BootstrapProcessing || \
+          (mode) == InitProcessing || \
+          (mode) == NormalProcessing); \
+    Mode = (mode); \
+  } while(0)
 
 
 /*****************************************************************************
- *	  pinit.h --															 *
- *			POSTGRES initialization and cleanup definitions.                 *
+ *    pinit.h --                               *
+ *      POSTGRES initialization and cleanup definitions.                 *
  *****************************************************************************/
 
 /* in utils/init/postinit.c */
 /* flags for InitPostgres() */
-#define INIT_PG_LOAD_SESSION_LIBS		0x0001
-#define INIT_PG_OVERRIDE_ALLOW_CONNS	0x0002
-#define INIT_PG_OVERRIDE_ROLE_LOGIN		0x0004
+#define INIT_PG_LOAD_SESSION_LIBS   0x0001
+#define INIT_PG_OVERRIDE_ALLOW_CONNS  0x0002
+#define INIT_PG_OVERRIDE_ROLE_LOGIN   0x0004
 extern void pg_split_opts(char **argv, int *argcp, const char *optstr);
 extern void InitializeMaxBackends(void);
 extern void InitializeFastPathLocks(void);
 extern void InitPostgres(const char *in_dbname, Oid dboid,
-						 const char *username, Oid useroid,
-						 bits32 flags,
-						 char *out_dbname);
+                         const char *username, Oid useroid,
+                         bits32 flags,
+                         char *out_dbname);
 extern void BaseInit(void);
 
 /* in utils/init/miscinit.c */
@@ -519,7 +519,7 @@ extern PGDLLIMPORT char *local_preload_libraries_string;
 
 extern void CreateDataDirLockFile(bool amPostmaster);
 extern void CreateSocketLockFile(const char *socketfile, bool amPostmaster,
-								 const char *socketDir);
+                                 const char *socketDir);
 extern void TouchSocketLockFiles(void);
 extern void AddToDataDirLockFile(int target_line, const char *str);
 extern bool RecheckDataDirLockFile(void);
@@ -540,4 +540,4 @@ extern void RestoreClientConnectionInfo(char *conninfo);
 /* in executor/nodeHash.c */
 extern size_t get_hash_memory_limit(void);
 
-#endif							/* MISCADMIN_H */
+#endif              /* MISCADMIN_H */

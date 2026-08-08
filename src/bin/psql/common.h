@@ -19,7 +19,7 @@ extern bool openQueryOutputFile(const char *fname, FILE **fout, bool *is_pipe);
 extern bool setQFout(const char *fname);
 
 extern char *psql_get_variable(const char *varname, PsqlScanQuoteType quote,
-							   void *passthrough);
+                               void *passthrough);
 
 extern void NoticeProcessor(void *arg, const char *message);
 
@@ -32,7 +32,7 @@ extern void psql_setup_cancel_handler(void);
 extern void SetShellResultVariables(int wait_result);
 
 extern PGresult *PSQLexec(const char *query);
-extern int	PSQLexecWatch(const char *query, const printQueryOpt *opt, FILE *printQueryFout, int min_rows);
+extern int  PSQLexecWatch(const char *query, const printQueryOpt *opt, FILE *printQueryFout, int min_rows);
 
 extern bool SendQuery(const char *query);
 
@@ -46,4 +46,4 @@ extern void clean_extended_state(void);
 
 extern bool recognized_connection_string(const char *connstr);
 
-#endif							/* COMMON_H */
+#endif              /* COMMON_H */

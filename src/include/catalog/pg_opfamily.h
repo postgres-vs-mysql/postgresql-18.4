@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_opfamily.h
- *	  definition of the "operator family" system catalog (pg_opfamily)
+ *    definition of the "operator family" system catalog (pg_opfamily)
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -10,8 +10,8 @@
  * src/include/catalog/pg_opfamily.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -19,33 +19,34 @@
 #define PG_OPFAMILY_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_opfamily_d.h"	/* IWYU pragma: export */
+#include "catalog/pg_opfamily_d.h"  /* IWYU pragma: export */
 
 /* ----------------
- *		pg_opfamily definition. cpp turns this into
- *		typedef struct FormData_pg_opfamily
+ *    pg_opfamily definition. cpp turns this into
+ *    typedef struct FormData_pg_opfamily
  * ----------------
  */
-CATALOG(pg_opfamily,2753,OperatorFamilyRelationId)
+CATALOG(pg_opfamily, 2753, OperatorFamilyRelationId)
 {
-	Oid			oid;			/* oid */
+  Oid     oid;      /* oid */
 
-	/* index access method opfamily is for */
-	Oid			opfmethod BKI_LOOKUP(pg_am);
+  /* index access method opfamily is for */
+  Oid     opfmethod BKI_LOOKUP(pg_am);
 
-	/* name of this opfamily */
-	NameData	opfname;
+  /* name of this opfamily */
+  NameData  opfname;
 
-	/* namespace of this opfamily */
-	Oid			opfnamespace BKI_DEFAULT(pg_catalog) BKI_LOOKUP(pg_namespace);
+  /* namespace of this opfamily */
+  Oid     opfnamespace BKI_DEFAULT(pg_catalog) BKI_LOOKUP(pg_namespace);
 
-	/* opfamily owner */
-	Oid			opfowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
-} FormData_pg_opfamily;
+  /* opfamily owner */
+  Oid     opfowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
+}
+FormData_pg_opfamily;
 
 /* ----------------
- *		Form_pg_opfamily corresponds to a pointer to a tuple with
- *		the format of pg_opfamily relation.
+ *    Form_pg_opfamily corresponds to a pointer to a tuple with
+ *    the format of pg_opfamily relation.
  * ----------------
  */
 typedef FormData_pg_opfamily *Form_pg_opfamily;
@@ -60,8 +61,8 @@ MAKE_SYSCACHE(OPFAMILYOID, pg_opfamily_oid_index, 8);
 
 /* This does not account for non-core opfamilies that might accept boolean */
 #define IsBuiltinBooleanOpfamily(opfamily) \
-	((opfamily) == BOOL_BTREE_FAM_OID || (opfamily) == BOOL_HASH_FAM_OID)
+  ((opfamily) == BOOL_BTREE_FAM_OID || (opfamily) == BOOL_HASH_FAM_OID)
 
-#endif							/* EXPOSE_TO_CLIENT_CODE */
+#endif              /* EXPOSE_TO_CLIENT_CODE */
 
-#endif							/* PG_OPFAMILY_H */
+#endif              /* PG_OPFAMILY_H */

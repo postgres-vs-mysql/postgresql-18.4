@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * shippable.c
- *	  Determine which database objects are shippable to a remote server.
+ *    Determine which database objects are shippable to a remote server.
  *
  * We need to determine whether particular functions, operators, and indeed
  * data types are shippable to a remote server for execution --- that is,
@@ -16,7 +16,7 @@
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  contrib/postgres_fdw/shippable.c
+ *    contrib/postgres_fdw/shippable.c
  *
  *-------------------------------------------------------------------------
  */
@@ -38,18 +38,16 @@ static HTAB *ShippableCacheHash = NULL;
  * decisions may differ per-server.  Otherwise, objects are identified by
  * their (local!) OID and catalog OID.
  */
-typedef struct
-{
-	/* XXX we assume this struct contains no padding bytes */
-	Oid			objid;			/* function/operator/type OID */
-	Oid			classid;		/* OID of its catalog (pg_proc, etc) */
-	Oid			serverid;		/* FDW server we are concerned with */
+typedef struct {
+  /* XXX we assume this struct contains no padding bytes */
+  Oid     objid;      /* function/operator/type OID */
+  Oid     classid;    /* OID of its catalog (pg_proc, etc) */
+  Oid     serverid;   /* FDW server we are concerned with */
 } ShippableCacheKey;
 
-typedef struct
-{
-	ShippableCacheKey key;		/* hash key - must be first */
-	bool		shippable;
+typedef struct {
+  ShippableCacheKey key;    /* hash key - must be first */
+  bool    shippable;
 } ShippableCacheEntry;
 
 
@@ -64,24 +62,24 @@ typedef struct
 static void
 InvalidateShippableCacheCallback(Datum arg, int cacheid, uint32 hashvalue)
 {
-	HASH_SEQ_STATUS status;
-	ShippableCacheEntry *entry;
+  HASH_SEQ_STATUS status;
+  ShippableCacheEntry *entry;
 
-	/*
-	 * In principle we could flush only cache entries relating to the
-	 * pg_foreign_server entry being outdated; but that would be more
-	 * complicated, and it's probably not worth the trouble.  So for now, just
-	 * flush all entries.
-	 */
-	hash_seq_init(&status, ShippableCacheHash);
-	while ((entry = (ShippableCacheEntry *) hash_seq_search(&status)) != NULL)
-	{
-		if (hash_search(ShippableCacheHash,
-						&entry->key,
-						HASH_REMOVE,
-						NULL) == NULL)
-			elog(ERROR, "hash table corrupted");
-	}
+  /*
+   * In principle we could flush only cache entries relating to the
+   * pg_foreign_server entry being outdated; but that would be more
+   * complicated, and it's probably not worth the trouble.  So for now, just
+   * flush all entries.
+   */
+  hash_seq_init(&status, ShippableCacheHash);
+
+  while ((entry = (ShippableCacheEntry *) hash_seq_search(&status)) != NULL) {
+    if (hash_search(ShippableCacheHash,
+                    &entry->key,
+                    HASH_REMOVE,
+                    NULL) == NULL)
+      elog(ERROR, "hash table corrupted");
+  }
 }
 
 /*
@@ -90,18 +88,18 @@ InvalidateShippableCacheCallback(Datum arg, int cacheid, uint32 hashvalue)
 static void
 InitializeShippableCache(void)
 {
-	HASHCTL		ctl;
+  HASHCTL   ctl;
 
-	/* Create the hash table. */
-	ctl.keysize = sizeof(ShippableCacheKey);
-	ctl.entrysize = sizeof(ShippableCacheEntry);
-	ShippableCacheHash =
-		hash_create("Shippability cache", 256, &ctl, HASH_ELEM | HASH_BLOBS);
+  /* Create the hash table. */
+  ctl.keysize = sizeof(ShippableCacheKey);
+  ctl.entrysize = sizeof(ShippableCacheEntry);
+  ShippableCacheHash =
+    hash_create("Shippability cache", 256, &ctl, HASH_ELEM | HASH_BLOBS);
 
-	/* Set up invalidation callback on pg_foreign_server. */
-	CacheRegisterSyscacheCallback(FOREIGNSERVEROID,
-								  InvalidateShippableCacheCallback,
-								  (Datum) 0);
+  /* Set up invalidation callback on pg_foreign_server. */
+  CacheRegisterSyscacheCallback(FOREIGNSERVEROID,
+                                InvalidateShippableCacheCallback,
+                                (Datum) 0);
 }
 
 /*
@@ -115,20 +113,20 @@ InitializeShippableCache(void)
 static bool
 lookup_shippable(Oid objectId, Oid classId, PgFdwRelationInfo *fpinfo)
 {
-	Oid			extensionOid;
+  Oid     extensionOid;
 
-	/*
-	 * Is object a member of some extension?  (Note: this is a fairly
-	 * expensive lookup, which is why we try to cache the results.)
-	 */
-	extensionOid = getExtensionOfObject(classId, objectId);
+  /*
+   * Is object a member of some extension?  (Note: this is a fairly
+   * expensive lookup, which is why we try to cache the results.)
+   */
+  extensionOid = getExtensionOfObject(classId, objectId);
 
-	/* If so, is that extension in fpinfo->shippable_extensions? */
-	if (OidIsValid(extensionOid) &&
-		list_member_oid(fpinfo->shippable_extensions, extensionOid))
-		return true;
+  /* If so, is that extension in fpinfo->shippable_extensions? */
+  if (OidIsValid(extensionOid) &&
+      list_member_oid(fpinfo->shippable_extensions, extensionOid))
+    return true;
 
-	return false;
+  return false;
 }
 
 /*
@@ -151,55 +149,54 @@ lookup_shippable(Oid objectId, Oid classId, PgFdwRelationInfo *fpinfo)
 bool
 is_builtin(Oid objectId)
 {
-	return (objectId < FirstGenbkiObjectId);
+  return (objectId < FirstGenbkiObjectId);
 }
 
 /*
  * is_shippable
- *	   Is this object (function/operator/type) shippable to foreign server?
+ *     Is this object (function/operator/type) shippable to foreign server?
  */
 bool
 is_shippable(Oid objectId, Oid classId, PgFdwRelationInfo *fpinfo)
 {
-	ShippableCacheKey key;
-	ShippableCacheEntry *entry;
+  ShippableCacheKey key;
+  ShippableCacheEntry *entry;
 
-	/* Built-in objects are presumed shippable. */
-	if (is_builtin(objectId))
-		return true;
+  /* Built-in objects are presumed shippable. */
+  if (is_builtin(objectId))
+    return true;
 
-	/* Otherwise, give up if user hasn't specified any shippable extensions. */
-	if (fpinfo->shippable_extensions == NIL)
-		return false;
+  /* Otherwise, give up if user hasn't specified any shippable extensions. */
+  if (fpinfo->shippable_extensions == NIL)
+    return false;
 
-	/* Initialize cache if first time through. */
-	if (!ShippableCacheHash)
-		InitializeShippableCache();
+  /* Initialize cache if first time through. */
+  if (!ShippableCacheHash)
+    InitializeShippableCache();
 
-	/* Set up cache hash key */
-	key.objid = objectId;
-	key.classid = classId;
-	key.serverid = fpinfo->server->serverid;
+  /* Set up cache hash key */
+  key.objid = objectId;
+  key.classid = classId;
+  key.serverid = fpinfo->server->serverid;
 
-	/* See if we already cached the result. */
-	entry = (ShippableCacheEntry *)
-		hash_search(ShippableCacheHash, &key, HASH_FIND, NULL);
+  /* See if we already cached the result. */
+  entry = (ShippableCacheEntry *)
+          hash_search(ShippableCacheHash, &key, HASH_FIND, NULL);
 
-	if (!entry)
-	{
-		/* Not found in cache, so perform shippability lookup. */
-		bool		shippable = lookup_shippable(objectId, classId, fpinfo);
+  if (!entry) {
+    /* Not found in cache, so perform shippability lookup. */
+    bool    shippable = lookup_shippable(objectId, classId, fpinfo);
 
-		/*
-		 * Don't create a new hash entry until *after* we have the shippable
-		 * result in hand, as the underlying catalog lookups might trigger a
-		 * cache invalidation.
-		 */
-		entry = (ShippableCacheEntry *)
-			hash_search(ShippableCacheHash, &key, HASH_ENTER, NULL);
+    /*
+     * Don't create a new hash entry until *after* we have the shippable
+     * result in hand, as the underlying catalog lookups might trigger a
+     * cache invalidation.
+     */
+    entry = (ShippableCacheEntry *)
+            hash_search(ShippableCacheHash, &key, HASH_ENTER, NULL);
 
-		entry->shippable = shippable;
-	}
+    entry->shippable = shippable;
+  }
 
-	return entry->shippable;
+  return entry->shippable;
 }

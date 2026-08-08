@@ -16,26 +16,26 @@
 
 typedef struct RegisNode
 {
-	uint32
-				type:2,
-				len:16,
-				unused:14;
-	struct RegisNode *next;
-	unsigned char data[FLEXIBLE_ARRAY_MEMBER];
+  uint32
+  type: 2,
+        len: 16,
+        unused: 14;
+  struct RegisNode *next;
+  unsigned char data[FLEXIBLE_ARRAY_MEMBER];
 } RegisNode;
 
-#define  RNHDRSZ	(offsetof(RegisNode,data))
+#define  RNHDRSZ  (offsetof(RegisNode,data))
 
-#define RSF_ONEOF	1
-#define RSF_NONEOF	2
+#define RSF_ONEOF 1
+#define RSF_NONEOF  2
 
 typedef struct Regis
 {
-	RegisNode  *node;
-	uint32
-				issuffix:1,
-				nchar:16,
-				unused:15;
+  RegisNode  *node;
+  uint32
+  issuffix: 1,
+            nchar: 16,
+            unused: 15;
 } Regis;
 
 extern bool RS_isRegis(const char *str);

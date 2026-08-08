@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * pg_numa.c
- * 		Basic NUMA portability routines
+ *    Basic NUMA portability routines
  *
  *
  * Copyright (c) 2025, PostgreSQL Global Development Group
  *
  *
  * IDENTIFICATION
- *	  src/port/pg_numa.c
+ *    src/port/pg_numa.c
  *
  *-------------------------------------------------------------------------
  */
@@ -47,19 +47,19 @@
 int
 pg_numa_init(void)
 {
-	int			r;
+  int     r;
 
-	/*
-	 * XXX libnuma versions before 2.0.19 don't handle EPERM by disabling
-	 * NUMA, which then leads to unexpected failures later. This affects
-	 * containers that disable get_mempolicy by a seccomp profile.
-	 */
-	if (get_mempolicy(NULL, NULL, 0, 0, 0) < 0 && (errno == EPERM))
-		r = -1;
-	else
-		r = numa_available();
+  /*
+   * XXX libnuma versions before 2.0.19 don't handle EPERM by disabling
+   * NUMA, which then leads to unexpected failures later. This affects
+   * containers that disable get_mempolicy by a seccomp profile.
+   */
+  if (get_mempolicy(NULL, NULL, 0, 0, 0) < 0 && (errno == EPERM))
+    r = -1;
+  else
+    r = numa_available();
 
-	return r;
+  return r;
 }
 
 /*
@@ -75,47 +75,46 @@ pg_numa_init(void)
 int
 pg_numa_query_pages(int pid, unsigned long count, void **pages, int *status)
 {
-	unsigned long next = 0;
-	int			ret = 0;
+  unsigned long next = 0;
+  int     ret = 0;
 
-	/*
-	 * Chunk pointers passed to numa_move_pages to NUMA_QUERY_CHUNK_SIZE
-	 * items, to work around a kernel bug in do_pages_stat().
-	 */
-	while (next < count)
-	{
-		unsigned long count_chunk = Min(count - next,
-										NUMA_QUERY_CHUNK_SIZE);
+  /*
+   * Chunk pointers passed to numa_move_pages to NUMA_QUERY_CHUNK_SIZE
+   * items, to work around a kernel bug in do_pages_stat().
+   */
+  while (next < count) {
+    unsigned long count_chunk = Min(count - next,
+                                    NUMA_QUERY_CHUNK_SIZE);
 
 #ifndef FRONTEND
-		CHECK_FOR_INTERRUPTS();
+    CHECK_FOR_INTERRUPTS();
 #endif
 
-		/*
-		 * Bail out if any of the chunks errors out (ret<0). We ignore (ret>0)
-		 * which is used to return number of nonmigrated pages, but we're not
-		 * migrating any pages here.
-		 */
-		ret = numa_move_pages(pid, count_chunk, &pages[next], NULL, &status[next], 0);
-		if (ret < 0)
-		{
-			/* plain error, return as is */
-			return ret;
-		}
+    /*
+     * Bail out if any of the chunks errors out (ret<0). We ignore (ret>0)
+     * which is used to return number of nonmigrated pages, but we're not
+     * migrating any pages here.
+     */
+    ret = numa_move_pages(pid, count_chunk, &pages[next], NULL, &status[next], 0);
 
-		next += count_chunk;
-	}
+    if (ret < 0) {
+      /* plain error, return as is */
+      return ret;
+    }
 
-	/* should have consumed the input array exactly */
-	Assert(next == count);
+    next += count_chunk;
+  }
 
-	return 0;
+  /* should have consumed the input array exactly */
+  Assert(next == count);
+
+  return 0;
 }
 
 int
 pg_numa_get_max_node(void)
 {
-	return numa_max_node();
+  return numa_max_node();
 }
 
 #else
@@ -124,20 +123,20 @@ pg_numa_get_max_node(void)
 int
 pg_numa_init(void)
 {
-	/* We state that NUMA is not available */
-	return -1;
+  /* We state that NUMA is not available */
+  return -1;
 }
 
 int
 pg_numa_query_pages(int pid, unsigned long count, void **pages, int *status)
 {
-	return 0;
+  return 0;
 }
 
 int
 pg_numa_get_max_node(void)
 {
-	return 0;
+  return 0;
 }
 
 #endif

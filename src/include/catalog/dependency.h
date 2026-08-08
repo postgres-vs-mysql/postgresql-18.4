@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * dependency.h
- *	  Routines to support inter-object dependencies.
+ *    Routines to support inter-object dependencies.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -30,13 +30,13 @@
 
 typedef enum DependencyType
 {
-	DEPENDENCY_NORMAL = 'n',
-	DEPENDENCY_AUTO = 'a',
-	DEPENDENCY_INTERNAL = 'i',
-	DEPENDENCY_PARTITION_PRI = 'P',
-	DEPENDENCY_PARTITION_SEC = 'S',
-	DEPENDENCY_EXTENSION = 'e',
-	DEPENDENCY_AUTO_EXTENSION = 'x',
+  DEPENDENCY_NORMAL = 'n',
+  DEPENDENCY_AUTO = 'a',
+  DEPENDENCY_INTERNAL = 'i',
+  DEPENDENCY_PARTITION_PRI = 'P',
+  DEPENDENCY_PARTITION_SEC = 'S',
+  DEPENDENCY_EXTENSION = 'e',
+  DEPENDENCY_AUTO_EXTENSION = 'x',
 } DependencyType;
 
 /*
@@ -77,25 +77,25 @@ typedef enum DependencyType
  */
 typedef enum SharedDependencyType
 {
-	SHARED_DEPENDENCY_OWNER = 'o',
-	SHARED_DEPENDENCY_ACL = 'a',
-	SHARED_DEPENDENCY_INITACL = 'i',
-	SHARED_DEPENDENCY_POLICY = 'r',
-	SHARED_DEPENDENCY_TABLESPACE = 't',
-	SHARED_DEPENDENCY_INVALID = 0,
+  SHARED_DEPENDENCY_OWNER = 'o',
+  SHARED_DEPENDENCY_ACL = 'a',
+  SHARED_DEPENDENCY_INITACL = 'i',
+  SHARED_DEPENDENCY_POLICY = 'r',
+  SHARED_DEPENDENCY_TABLESPACE = 't',
+  SHARED_DEPENDENCY_INVALID = 0,
 } SharedDependencyType;
 
 /* expansible list of ObjectAddresses (private in dependency.c) */
 typedef struct ObjectAddresses ObjectAddresses;
 
 /* flag bits for performDeletion/performMultipleDeletions: */
-#define PERFORM_DELETION_INTERNAL			0x0001	/* internal action */
-#define PERFORM_DELETION_CONCURRENTLY		0x0002	/* concurrent drop */
-#define PERFORM_DELETION_QUIETLY			0x0004	/* suppress notices */
-#define PERFORM_DELETION_SKIP_ORIGINAL		0x0008	/* keep original obj */
-#define PERFORM_DELETION_SKIP_EXTENSIONS	0x0010	/* keep extensions */
-#define PERFORM_DELETION_CONCURRENT_LOCK	0x0020	/* normal drop with
-													 * concurrent lock mode */
+#define PERFORM_DELETION_INTERNAL     0x0001  /* internal action */
+#define PERFORM_DELETION_CONCURRENTLY   0x0002  /* concurrent drop */
+#define PERFORM_DELETION_QUIETLY      0x0004  /* suppress notices */
+#define PERFORM_DELETION_SKIP_ORIGINAL    0x0008  /* keep original obj */
+#define PERFORM_DELETION_SKIP_EXTENSIONS  0x0010  /* keep extensions */
+#define PERFORM_DELETION_CONCURRENT_LOCK  0x0020  /* normal drop with
+                           * concurrent lock mode */
 
 
 /* in dependency.c */
@@ -105,32 +105,32 @@ extern void AcquireDeletionLock(const ObjectAddress *object, int flags);
 extern void ReleaseDeletionLock(const ObjectAddress *object);
 
 extern void performDeletion(const ObjectAddress *object,
-							DropBehavior behavior, int flags);
+                            DropBehavior behavior, int flags);
 
 extern void performMultipleDeletions(const ObjectAddresses *objects,
-									 DropBehavior behavior, int flags);
+                                     DropBehavior behavior, int flags);
 
 extern void recordDependencyOnExpr(const ObjectAddress *depender,
-								   Node *expr, List *rtable,
-								   DependencyType behavior);
+                                   Node *expr, List *rtable,
+                                   DependencyType behavior);
 
 extern void recordDependencyOnSingleRelExpr(const ObjectAddress *depender,
-											Node *expr, Oid relId,
-											DependencyType behavior,
-											DependencyType self_behavior,
-											bool reverse_self);
+    Node *expr, Oid relId,
+    DependencyType behavior,
+    DependencyType self_behavior,
+    bool reverse_self);
 
 extern ObjectAddresses *new_object_addresses(void);
 
 extern void add_exact_object_address(const ObjectAddress *object,
-									 ObjectAddresses *addrs);
+                                     ObjectAddresses *addrs);
 
 extern bool object_address_present(const ObjectAddress *object,
-								   const ObjectAddresses *addrs);
+                                   const ObjectAddresses *addrs);
 
 extern void record_object_address_dependencies(const ObjectAddress *depender,
-											   ObjectAddresses *referenced,
-											   DependencyType behavior);
+    ObjectAddresses *referenced,
+    DependencyType behavior);
 
 extern void sort_object_addresses(ObjectAddresses *addrs);
 
@@ -139,83 +139,83 @@ extern void free_object_addresses(ObjectAddresses *addrs);
 /* in pg_depend.c */
 
 extern void recordDependencyOn(const ObjectAddress *depender,
-							   const ObjectAddress *referenced,
-							   DependencyType behavior);
+                               const ObjectAddress *referenced,
+                               DependencyType behavior);
 
 extern void recordMultipleDependencies(const ObjectAddress *depender,
-									   const ObjectAddress *referenced,
-									   int nreferenced,
-									   DependencyType behavior);
+                                       const ObjectAddress *referenced,
+                                       int nreferenced,
+                                       DependencyType behavior);
 
 extern void recordDependencyOnCurrentExtension(const ObjectAddress *object,
-											   bool isReplace);
+    bool isReplace);
 
 extern void checkMembershipInCurrentExtension(const ObjectAddress *object);
 
 extern long deleteDependencyRecordsFor(Oid classId, Oid objectId,
-									   bool skipExtensionDeps);
+                                       bool skipExtensionDeps);
 
 extern long deleteDependencyRecordsForClass(Oid classId, Oid objectId,
-											Oid refclassId, char deptype);
+    Oid refclassId, char deptype);
 
 extern long deleteDependencyRecordsForSpecific(Oid classId, Oid objectId,
-											   char deptype,
-											   Oid refclassId, Oid refobjectId);
+    char deptype,
+    Oid refclassId, Oid refobjectId);
 
 extern long changeDependencyFor(Oid classId, Oid objectId,
-								Oid refClassId, Oid oldRefObjectId,
-								Oid newRefObjectId);
+                                Oid refClassId, Oid oldRefObjectId,
+                                Oid newRefObjectId);
 
 extern long changeDependenciesOf(Oid classId, Oid oldObjectId,
-								 Oid newObjectId);
+                                 Oid newObjectId);
 
 extern long changeDependenciesOn(Oid refClassId, Oid oldRefObjectId,
-								 Oid newRefObjectId);
+                                 Oid newRefObjectId);
 
-extern Oid	getExtensionOfObject(Oid classId, Oid objectId);
+extern Oid  getExtensionOfObject(Oid classId, Oid objectId);
 extern List *getAutoExtensionsOfObject(Oid classId, Oid objectId);
 
-extern Oid	getExtensionType(Oid extensionOid, const char *typname);
+extern Oid  getExtensionType(Oid extensionOid, const char *typname);
 
 extern bool sequenceIsOwned(Oid seqId, char deptype, Oid *tableId, int32 *colId);
 extern List *getOwnedSequences(Oid relid);
-extern Oid	getIdentitySequence(Relation rel, AttrNumber attnum, bool missing_ok);
+extern Oid  getIdentitySequence(Relation rel, AttrNumber attnum, bool missing_ok);
 
-extern Oid	get_index_constraint(Oid indexId);
+extern Oid  get_index_constraint(Oid indexId);
 
 extern List *get_index_ref_constraints(Oid indexId);
 
 /* in pg_shdepend.c */
 
 extern void recordSharedDependencyOn(ObjectAddress *depender,
-									 ObjectAddress *referenced,
-									 SharedDependencyType deptype);
+                                     ObjectAddress *referenced,
+                                     SharedDependencyType deptype);
 
 extern void deleteSharedDependencyRecordsFor(Oid classId, Oid objectId,
-											 int32 objectSubId);
+    int32 objectSubId);
 
 extern void recordDependencyOnOwner(Oid classId, Oid objectId, Oid owner);
 
 extern void changeDependencyOnOwner(Oid classId, Oid objectId,
-									Oid newOwnerId);
+                                    Oid newOwnerId);
 
 extern void recordDependencyOnTablespace(Oid classId, Oid objectId,
-										 Oid tablespace);
+    Oid tablespace);
 
 extern void changeDependencyOnTablespace(Oid classId, Oid objectId,
-										 Oid newTablespaceId);
+    Oid newTablespaceId);
 
 extern void updateAclDependencies(Oid classId, Oid objectId, int32 objsubId,
-								  Oid ownerId,
-								  int noldmembers, Oid *oldmembers,
-								  int nnewmembers, Oid *newmembers);
+                                  Oid ownerId,
+                                  int noldmembers, Oid *oldmembers,
+                                  int nnewmembers, Oid *newmembers);
 
 extern void updateInitAclDependencies(Oid classId, Oid objectId, int32 objsubId,
-									  int noldmembers, Oid *oldmembers,
-									  int nnewmembers, Oid *newmembers);
+                                      int noldmembers, Oid *oldmembers,
+                                      int nnewmembers, Oid *newmembers);
 
 extern bool checkSharedDependencies(Oid classId, Oid objectId,
-									char **detail_msg, char **detail_log_msg);
+                                    char **detail_msg, char **detail_log_msg);
 
 extern void shdepLockAndCheckObject(Oid classId, Oid objectId);
 
@@ -227,4 +227,4 @@ extern void shdepDropOwned(List *roleids, DropBehavior behavior);
 
 extern void shdepReassignOwned(List *roleids, Oid newrole);
 
-#endif							/* DEPENDENCY_H */
+#endif              /* DEPENDENCY_H */

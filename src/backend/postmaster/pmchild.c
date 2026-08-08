@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pmchild.c
- *	  Functions for keeping track of postmaster child processes.
+ *    Functions for keeping track of postmaster child processes.
  *
  * Postmaster keeps track of all child processes so that when a process exits,
  * it knows what kind of a process it was and can clean up accordingly.  Every
@@ -24,7 +24,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/postmaster/pmchild.c
+ *    src/backend/postmaster/pmchild.c
  *
  *-------------------------------------------------------------------------
  */
@@ -43,12 +43,11 @@
  * pools for each, so that for example launching a lot of regular backends
  * cannot prevent autovacuum or an aux process from launching.
  */
-typedef struct PMChildPool
-{
-	int			size;			/* number of PMChild slots reserved for this
-								 * kind of processes */
-	int			first_slotno;	/* first slot belonging to this pool */
-	dlist_head	freelist;		/* currently unused PMChild entries */
+typedef struct PMChildPool {
+  int     size;     /* number of PMChild slots reserved for this
+                 * kind of processes */
+  int     first_slotno; /* first slot belonging to this pool */
+  dlist_head  freelist;   /* currently unused PMChild entries */
 } PMChildPool;
 
 static PMChildPool pmchild_pools[BACKEND_NUM_TYPES];
@@ -57,7 +56,7 @@ NON_EXEC_STATIC int num_pmchild_slots = 0;
 /*
  * List of active child processes.  This includes dead-end children.
  */
-dlist_head	ActiveChildList;
+dlist_head  ActiveChildList;
 
 /*
  * MaxLivePostmasterChildren
@@ -69,9 +68,10 @@ dlist_head	ActiveChildList;
 int
 MaxLivePostmasterChildren(void)
 {
-	if (num_pmchild_slots == 0)
-		elog(ERROR, "PM child array not initialized yet");
-	return num_pmchild_slots;
+  if (num_pmchild_slots == 0)
+    elog(ERROR, "PM child array not initialized yet");
+
+  return num_pmchild_slots;
 }
 
 /*
@@ -85,69 +85,70 @@ MaxLivePostmasterChildren(void)
 void
 InitPostmasterChildSlots(void)
 {
-	int			slotno;
-	PMChild    *slots;
+  int     slotno;
+  PMChild    *slots;
 
-	/*
-	 * We allow more connections here than we can have backends because some
-	 * might still be authenticating; they might fail auth, or some existing
-	 * backend might exit before the auth cycle is completed.  The exact
-	 * MaxConnections limit is enforced when a new backend tries to join the
-	 * PGPROC array.
-	 *
-	 * WAL senders start out as regular backends, so they share the same pool.
-	 */
-	pmchild_pools[B_BACKEND].size = 2 * (MaxConnections + max_wal_senders);
+  /*
+   * We allow more connections here than we can have backends because some
+   * might still be authenticating; they might fail auth, or some existing
+   * backend might exit before the auth cycle is completed.  The exact
+   * MaxConnections limit is enforced when a new backend tries to join the
+   * PGPROC array.
+   *
+   * WAL senders start out as regular backends, so they share the same pool.
+   */
+  pmchild_pools[B_BACKEND].size = 2 * (MaxConnections + max_wal_senders);
 
-	pmchild_pools[B_AUTOVAC_WORKER].size = autovacuum_worker_slots;
-	pmchild_pools[B_BG_WORKER].size = max_worker_processes;
-	pmchild_pools[B_IO_WORKER].size = MAX_IO_WORKERS;
+  pmchild_pools[B_AUTOVAC_WORKER].size = autovacuum_worker_slots;
+  pmchild_pools[B_BG_WORKER].size = max_worker_processes;
+  pmchild_pools[B_IO_WORKER].size = MAX_IO_WORKERS;
 
-	/*
-	 * There can be only one of each of these running at a time.  They each
-	 * get their own pool of just one entry.
-	 */
-	pmchild_pools[B_AUTOVAC_LAUNCHER].size = 1;
-	pmchild_pools[B_SLOTSYNC_WORKER].size = 1;
-	pmchild_pools[B_ARCHIVER].size = 1;
-	pmchild_pools[B_BG_WRITER].size = 1;
-	pmchild_pools[B_CHECKPOINTER].size = 1;
-	pmchild_pools[B_STARTUP].size = 1;
-	pmchild_pools[B_WAL_RECEIVER].size = 1;
-	pmchild_pools[B_WAL_SUMMARIZER].size = 1;
-	pmchild_pools[B_WAL_WRITER].size = 1;
-	pmchild_pools[B_LOGGER].size = 1;
+  /*
+   * There can be only one of each of these running at a time.  They each
+   * get their own pool of just one entry.
+   */
+  pmchild_pools[B_AUTOVAC_LAUNCHER].size = 1;
+  pmchild_pools[B_SLOTSYNC_WORKER].size = 1;
+  pmchild_pools[B_ARCHIVER].size = 1;
+  pmchild_pools[B_BG_WRITER].size = 1;
+  pmchild_pools[B_CHECKPOINTER].size = 1;
+  pmchild_pools[B_STARTUP].size = 1;
+  pmchild_pools[B_WAL_RECEIVER].size = 1;
+  pmchild_pools[B_WAL_SUMMARIZER].size = 1;
+  pmchild_pools[B_WAL_WRITER].size = 1;
+  pmchild_pools[B_LOGGER].size = 1;
 
-	/* The rest of the pmchild_pools are left at zero size */
+  /* The rest of the pmchild_pools are left at zero size */
 
-	/* Count the total number of slots */
-	num_pmchild_slots = 0;
-	for (int i = 0; i < BACKEND_NUM_TYPES; i++)
-		num_pmchild_slots += pmchild_pools[i].size;
+  /* Count the total number of slots */
+  num_pmchild_slots = 0;
 
-	/* Initialize them */
-	slots = palloc(num_pmchild_slots * sizeof(PMChild));
-	slotno = 0;
-	for (int btype = 0; btype < BACKEND_NUM_TYPES; btype++)
-	{
-		pmchild_pools[btype].first_slotno = slotno + 1;
-		dlist_init(&pmchild_pools[btype].freelist);
+  for (int i = 0; i < BACKEND_NUM_TYPES; i++)
+    num_pmchild_slots += pmchild_pools[i].size;
 
-		for (int j = 0; j < pmchild_pools[btype].size; j++)
-		{
-			slots[slotno].pid = 0;
-			slots[slotno].child_slot = slotno + 1;
-			slots[slotno].bkend_type = B_INVALID;
-			slots[slotno].rw = NULL;
-			slots[slotno].bgworker_notify = false;
-			dlist_push_tail(&pmchild_pools[btype].freelist, &slots[slotno].elem);
-			slotno++;
-		}
-	}
-	Assert(slotno == num_pmchild_slots);
+  /* Initialize them */
+  slots = palloc(num_pmchild_slots * sizeof(PMChild));
+  slotno = 0;
 
-	/* Initialize other structures */
-	dlist_init(&ActiveChildList);
+  for (int btype = 0; btype < BACKEND_NUM_TYPES; btype++) {
+    pmchild_pools[btype].first_slotno = slotno + 1;
+    dlist_init(&pmchild_pools[btype].freelist);
+
+    for (int j = 0; j < pmchild_pools[btype].size; j++) {
+      slots[slotno].pid = 0;
+      slots[slotno].child_slot = slotno + 1;
+      slots[slotno].bkend_type = B_INVALID;
+      slots[slotno].rw = NULL;
+      slots[slotno].bgworker_notify = false;
+      dlist_push_tail(&pmchild_pools[btype].freelist, &slots[slotno].elem);
+      slotno++;
+    }
+  }
+
+  Assert(slotno == num_pmchild_slots);
+
+  /* Initialize other structures */
+  dlist_init(&ActiveChildList);
 }
 
 /*
@@ -161,42 +162,42 @@ InitPostmasterChildSlots(void)
 PMChild *
 AssignPostmasterChildSlot(BackendType btype)
 {
-	dlist_head *freelist;
-	PMChild    *pmchild;
+  dlist_head *freelist;
+  PMChild    *pmchild;
 
-	if (pmchild_pools[btype].size == 0)
-		elog(ERROR, "cannot allocate a PMChild slot for backend type %d", btype);
+  if (pmchild_pools[btype].size == 0)
+    elog(ERROR, "cannot allocate a PMChild slot for backend type %d", btype);
 
-	freelist = &pmchild_pools[btype].freelist;
-	if (dlist_is_empty(freelist))
-		return NULL;
+  freelist = &pmchild_pools[btype].freelist;
 
-	pmchild = dlist_container(PMChild, elem, dlist_pop_head_node(freelist));
-	pmchild->pid = 0;
-	pmchild->bkend_type = btype;
-	pmchild->rw = NULL;
-	pmchild->bgworker_notify = true;
+  if (dlist_is_empty(freelist))
+    return NULL;
 
-	/*
-	 * pmchild->child_slot for each entry was initialized when the array of
-	 * slots was allocated.  Sanity check it.
-	 */
-	if (!(pmchild->child_slot >= pmchild_pools[btype].first_slotno &&
-		  pmchild->child_slot < pmchild_pools[btype].first_slotno + pmchild_pools[btype].size))
-	{
-		elog(ERROR, "pmchild freelist for backend type %d is corrupt",
-			 pmchild->bkend_type);
-	}
+  pmchild = dlist_container(PMChild, elem, dlist_pop_head_node(freelist));
+  pmchild->pid = 0;
+  pmchild->bkend_type = btype;
+  pmchild->rw = NULL;
+  pmchild->bgworker_notify = true;
 
-	dlist_push_head(&ActiveChildList, &pmchild->elem);
+  /*
+   * pmchild->child_slot for each entry was initialized when the array of
+   * slots was allocated.  Sanity check it.
+   */
+  if (!(pmchild->child_slot >= pmchild_pools[btype].first_slotno &&
+        pmchild->child_slot < pmchild_pools[btype].first_slotno + pmchild_pools[btype].size)) {
+    elog(ERROR, "pmchild freelist for backend type %d is corrupt",
+         pmchild->bkend_type);
+  }
 
-	/* Update the status in the shared memory array */
-	MarkPostmasterChildSlotAssigned(pmchild->child_slot);
+  dlist_push_head(&ActiveChildList, &pmchild->elem);
 
-	elog(DEBUG2, "assigned pm child slot %d for %s",
-		 pmchild->child_slot, PostmasterChildName(btype));
+  /* Update the status in the shared memory array */
+  MarkPostmasterChildSlotAssigned(pmchild->child_slot);
 
-	return pmchild;
+  elog(DEBUG2, "assigned pm child slot %d for %s",
+       pmchild->child_slot, PostmasterChildName(btype));
+
+  return pmchild;
 }
 
 /*
@@ -207,23 +208,23 @@ AssignPostmasterChildSlot(BackendType btype)
 PMChild *
 AllocDeadEndChild(void)
 {
-	PMChild    *pmchild;
+  PMChild    *pmchild;
 
-	elog(DEBUG2, "allocating dead-end child");
+  elog(DEBUG2, "allocating dead-end child");
 
-	pmchild = (PMChild *) palloc_extended(sizeof(PMChild), MCXT_ALLOC_NO_OOM);
-	if (pmchild)
-	{
-		pmchild->pid = 0;
-		pmchild->child_slot = 0;
-		pmchild->bkend_type = B_DEAD_END_BACKEND;
-		pmchild->rw = NULL;
-		pmchild->bgworker_notify = false;
+  pmchild = (PMChild *) palloc_extended(sizeof(PMChild), MCXT_ALLOC_NO_OOM);
 
-		dlist_push_head(&ActiveChildList, &pmchild->elem);
-	}
+  if (pmchild) {
+    pmchild->pid = 0;
+    pmchild->child_slot = 0;
+    pmchild->bkend_type = B_DEAD_END_BACKEND;
+    pmchild->rw = NULL;
+    pmchild->bgworker_notify = false;
 
-	return pmchild;
+    dlist_push_head(&ActiveChildList, &pmchild->elem);
+  }
+
+  return pmchild;
 }
 
 /*
@@ -235,36 +236,33 @@ AllocDeadEndChild(void)
 bool
 ReleasePostmasterChildSlot(PMChild *pmchild)
 {
-	dlist_delete(&pmchild->elem);
-	if (pmchild->bkend_type == B_DEAD_END_BACKEND)
-	{
-		elog(DEBUG2, "releasing dead-end backend");
-		pfree(pmchild);
-		return true;
-	}
-	else
-	{
-		PMChildPool *pool;
+  dlist_delete(&pmchild->elem);
 
-		elog(DEBUG2, "releasing pm child slot %d", pmchild->child_slot);
+  if (pmchild->bkend_type == B_DEAD_END_BACKEND) {
+    elog(DEBUG2, "releasing dead-end backend");
+    pfree(pmchild);
+    return true;
+  } else {
+    PMChildPool *pool;
 
-		/* WAL senders start out as regular backends, and share the pool */
-		if (pmchild->bkend_type == B_WAL_SENDER)
-			pool = &pmchild_pools[B_BACKEND];
-		else
-			pool = &pmchild_pools[pmchild->bkend_type];
+    elog(DEBUG2, "releasing pm child slot %d", pmchild->child_slot);
 
-		/* sanity check that we return the entry to the right pool */
-		if (!(pmchild->child_slot >= pool->first_slotno &&
-			  pmchild->child_slot < pool->first_slotno + pool->size))
-		{
-			elog(ERROR, "pmchild freelist for backend type %d is corrupt",
-				 pmchild->bkend_type);
-		}
+    /* WAL senders start out as regular backends, and share the pool */
+    if (pmchild->bkend_type == B_WAL_SENDER)
+      pool = &pmchild_pools[B_BACKEND];
+    else
+      pool = &pmchild_pools[pmchild->bkend_type];
 
-		dlist_push_head(&pool->freelist, &pmchild->elem);
-		return MarkPostmasterChildSlotUnassigned(pmchild->child_slot);
-	}
+    /* sanity check that we return the entry to the right pool */
+    if (!(pmchild->child_slot >= pool->first_slotno &&
+          pmchild->child_slot < pool->first_slotno + pool->size)) {
+      elog(ERROR, "pmchild freelist for backend type %d is corrupt",
+           pmchild->bkend_type);
+    }
+
+    dlist_push_head(&pool->freelist, &pmchild->elem);
+    return MarkPostmasterChildSlotUnassigned(pmchild->child_slot);
+  }
 }
 
 /*
@@ -273,14 +271,13 @@ ReleasePostmasterChildSlot(PMChild *pmchild)
 PMChild *
 FindPostmasterChildByPid(int pid)
 {
-	dlist_iter	iter;
+  dlist_iter  iter;
 
-	dlist_foreach(iter, &ActiveChildList)
-	{
-		PMChild    *bp = dlist_container(PMChild, elem, iter.cur);
+  dlist_foreach(iter, &ActiveChildList) {
+    PMChild    *bp = dlist_container(PMChild, elem, iter.cur);
 
-		if (bp->pid == pid)
-			return bp;
-	}
-	return NULL;
+    if (bp->pid == pid)
+      return bp;
+  }
+  return NULL;
 }

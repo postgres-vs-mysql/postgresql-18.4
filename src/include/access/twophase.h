@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * twophase.h
- *	  Two-phase-commit related declarations.
+ *    Two-phase-commit related declarations.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -35,20 +35,20 @@ extern void AtAbort_Twophase(void);
 extern void PostPrepare_Twophase(void);
 
 extern TransactionId TwoPhaseGetXidByVirtualXID(VirtualTransactionId vxid,
-												bool *have_more);
+    bool *have_more);
 extern PGPROC *TwoPhaseGetDummyProc(TransactionId xid, bool lock_held);
-extern int	TwoPhaseGetDummyProcNumber(TransactionId xid, bool lock_held);
+extern int  TwoPhaseGetDummyProcNumber(TransactionId xid, bool lock_held);
 
 extern GlobalTransaction MarkAsPreparing(TransactionId xid, const char *gid,
-										 TimestampTz prepared_at,
-										 Oid owner, Oid databaseid);
+    TimestampTz prepared_at,
+    Oid owner, Oid databaseid);
 
 extern void StartPrepare(GlobalTransaction gxact);
 extern void EndPrepare(GlobalTransaction gxact);
 extern bool StandbyTransactionIdIsPrepared(TransactionId xid);
 
 extern TransactionId PrescanPreparedTransactions(TransactionId **xids_p,
-												 int *nxids_p);
+    int *nxids_p);
 extern void StandbyRecoverPreparedTransactions(void);
 extern void RecoverPreparedTransactions(void);
 
@@ -57,14 +57,14 @@ extern void CheckPointTwoPhase(XLogRecPtr redo_horizon);
 extern void FinishPreparedTransaction(const char *gid, bool isCommit);
 
 extern void PrepareRedoAdd(char *buf, XLogRecPtr start_lsn,
-						   XLogRecPtr end_lsn, RepOriginId origin_id);
+                           XLogRecPtr end_lsn, RepOriginId origin_id);
 extern void PrepareRedoRemove(TransactionId xid, bool giveWarning);
 extern void restoreTwoPhaseData(void);
 extern bool LookupGXact(const char *gid, XLogRecPtr prepare_end_lsn,
-						TimestampTz origin_prepare_timestamp);
+                        TimestampTz origin_prepare_timestamp);
 
 extern void TwoPhaseTransactionGid(Oid subid, TransactionId xid, char *gid_res,
-								   int szgid);
+                                   int szgid);
 extern bool LookupGXactBySubid(Oid subid);
 
-#endif							/* TWOPHASE_H */
+#endif              /* TWOPHASE_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * miscnodes.h
- *	  Definitions for hard-to-classify node types.
+ *    Definitions for hard-to-classify node types.
  *
  * Node types declared here are not part of parse trees, plan trees,
  * or execution state trees.  We only assign them NodeTag values because
@@ -24,7 +24,7 @@
 
 /*
  * ErrorSaveContext -
- *		function call context node for handling of "soft" errors
+ *    function call context node for handling of "soft" errors
  *
  * A caller wishing to trap soft errors must initialize a struct like this
  * with all fields zero/NULL except for the NodeTag.  Optionally, set
@@ -43,15 +43,15 @@
  */
 typedef struct ErrorSaveContext
 {
-	NodeTag		type;
-	bool		error_occurred; /* set to true if we detect a soft error */
-	bool		details_wanted; /* does caller want more info than that? */
-	ErrorData  *error_data;		/* details of error, if so */
+  NodeTag   type;
+  bool    error_occurred; /* set to true if we detect a soft error */
+  bool    details_wanted; /* does caller want more info than that? */
+  ErrorData  *error_data;   /* details of error, if so */
 } ErrorSaveContext;
 
 /* Often-useful macro for checking if a soft error was reported */
 #define SOFT_ERROR_OCCURRED(escontext) \
-	((escontext) != NULL && IsA(escontext, ErrorSaveContext) && \
-	 ((ErrorSaveContext *) (escontext))->error_occurred)
+  ((escontext) != NULL && IsA(escontext, ErrorSaveContext) && \
+   ((ErrorSaveContext *) (escontext))->error_occurred)
 
-#endif							/* MISCNODES_H */
+#endif              /* MISCNODES_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * logicalworker.h
- *	  Exports for logical replication workers.
+ *    Exports for logical replication workers.
  *
  * Portions Copyright (c) 2016-2025, PostgreSQL Global Development Group
  *
@@ -30,4 +30,4 @@ extern void LogicalRepWorkersWakeupAtCommit(Oid subid);
 
 extern void AtEOXact_LogicalRepWorkers(bool isCommit);
 
-#endif							/* LOGICALWORKER_H */
+#endif              /* LOGICALWORKER_H */

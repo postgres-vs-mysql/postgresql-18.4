@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * relfilenumbermap.h
- *	  relfilenumber to oid mapping cache.
+ *    relfilenumber to oid mapping cache.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -15,7 +15,7 @@
 
 #include "common/relpath.h"
 
-extern Oid	RelidByRelfilenumber(Oid reltablespace,
-								 RelFileNumber relfilenumber);
+extern Oid  RelidByRelfilenumber(Oid reltablespace,
+                                 RelFileNumber relfilenumber);
 
-#endif							/* RELFILENUMBERMAP_H */
+#endif              /* RELFILENUMBERMAP_H */

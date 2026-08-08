@@ -25,13 +25,13 @@ extern void ExecReScanIndexOnlyScan(IndexOnlyScanState *node);
 
 /* Support functions for parallel index-only scans */
 extern void ExecIndexOnlyScanEstimate(IndexOnlyScanState *node,
-									  ParallelContext *pcxt);
+                                      ParallelContext *pcxt);
 extern void ExecIndexOnlyScanInitializeDSM(IndexOnlyScanState *node,
-										   ParallelContext *pcxt);
+    ParallelContext *pcxt);
 extern void ExecIndexOnlyScanReInitializeDSM(IndexOnlyScanState *node,
-											 ParallelContext *pcxt);
+    ParallelContext *pcxt);
 extern void ExecIndexOnlyScanInitializeWorker(IndexOnlyScanState *node,
-											  ParallelWorkerContext *pwcxt);
+    ParallelWorkerContext *pwcxt);
 extern void ExecIndexOnlyScanRetrieveInstrumentation(IndexOnlyScanState *node);
 
-#endif							/* NODEINDEXONLYSCAN_H */
+#endif              /* NODEINDEXONLYSCAN_H */

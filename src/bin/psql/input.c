@@ -33,18 +33,18 @@ static bool useHistory;
 
 static char *psql_history;
 
-static int	history_lines_added;
+static int  history_lines_added;
 
 
 /*
- *	Preserve newlines in saved queries by mapping '\n' to NL_IN_HISTORY
+ *  Preserve newlines in saved queries by mapping '\n' to NL_IN_HISTORY
  *
- *	It is assumed NL_IN_HISTORY will never be entered by the user
- *	nor appear inside a multi-byte string.  0x00 is not properly
- *	handled by the readline routines so it can not be used
- *	for this purpose.
+ *  It is assumed NL_IN_HISTORY will never be entered by the user
+ *  nor appear inside a multi-byte string.  0x00 is not properly
+ *  handled by the readline routines so it can not be used
+ *  for this purpose.
  */
-#define NL_IN_HISTORY	0x01
+#define NL_IN_HISTORY 0x01
 #endif
 
 static void finishInput(void);
@@ -67,42 +67,43 @@ char *
 gets_interactive(const char *prompt, PQExpBuffer query_buf)
 {
 #ifdef USE_READLINE
-	if (useReadline)
-	{
-		char	   *result;
 
-		/*
-		 * Some versions of readline don't notice SIGWINCH signals that arrive
-		 * when not actively reading input.  The simplest fix is to always
-		 * re-read the terminal size.  This leaves a window for SIGWINCH to be
-		 * missed between here and where readline() enables libreadline's
-		 * signal handler, but that's probably short enough to be ignored.
-		 */
+  if (useReadline) {
+    char     *result;
+
+    /*
+     * Some versions of readline don't notice SIGWINCH signals that arrive
+     * when not actively reading input.  The simplest fix is to always
+     * re-read the terminal size.  This leaves a window for SIGWINCH to be
+     * missed between here and where readline() enables libreadline's
+     * signal handler, but that's probably short enough to be ignored.
+     */
 #ifdef HAVE_RL_RESET_SCREEN_SIZE
-		rl_reset_screen_size();
+    rl_reset_screen_size();
 #endif
 
-		/* Make current query_buf available to tab completion callback */
-		tab_completion_query_buf = query_buf;
+    /* Make current query_buf available to tab completion callback */
+    tab_completion_query_buf = query_buf;
 
-		/* Enable SIGINT to longjmp to sigint_interrupt_jmp */
-		sigint_interrupt_enabled = true;
+    /* Enable SIGINT to longjmp to sigint_interrupt_jmp */
+    sigint_interrupt_enabled = true;
 
-		result = readline(prompt);
+    result = readline(prompt);
 
-		/* Disable SIGINT again */
-		sigint_interrupt_enabled = false;
+    /* Disable SIGINT again */
+    sigint_interrupt_enabled = false;
 
-		/* Pure neatnik-ism */
-		tab_completion_query_buf = NULL;
+    /* Pure neatnik-ism */
+    tab_completion_query_buf = NULL;
 
-		return result;
-	}
+    return result;
+  }
+
 #endif
 
-	fputs(prompt, stdout);
-	fflush(stdout);
-	return gets_fromFile(stdin);
+  fputs(prompt, stdout);
+  fflush(stdout);
+  return gets_fromFile(stdin);
 }
 
 
@@ -113,12 +114,14 @@ void
 pg_append_history(const char *s, PQExpBuffer history_buf)
 {
 #ifdef USE_READLINE
-	if (useHistory && s)
-	{
-		appendPQExpBufferStr(history_buf, s);
-		if (!s[0] || s[strlen(s) - 1] != '\n')
-			appendPQExpBufferChar(history_buf, '\n');
-	}
+
+  if (useHistory && s) {
+    appendPQExpBufferStr(history_buf, s);
+
+    if (!s[0] || s[strlen(s) - 1] != '\n')
+      appendPQExpBufferChar(history_buf, '\n');
+  }
+
 #endif
 }
 
@@ -135,38 +138,35 @@ void
 pg_send_history(PQExpBuffer history_buf)
 {
 #ifdef USE_READLINE
-	static char *prev_hist = NULL;
+  static char *prev_hist = NULL;
 
-	char	   *s = history_buf->data;
-	int			i;
+  char     *s = history_buf->data;
+  int     i;
 
-	/* Trim any trailing \n's (OK to scribble on history_buf) */
-	for (i = strlen(s) - 1; i >= 0 && s[i] == '\n'; i--)
-		;
-	s[i + 1] = '\0';
+  /* Trim any trailing \n's (OK to scribble on history_buf) */
+  for (i = strlen(s) - 1; i >= 0 && s[i] == '\n'; i--)
+    ;
 
-	if (useHistory && s[0])
-	{
-		if (((pset.histcontrol & hctl_ignorespace) &&
-			 s[0] == ' ') ||
-			((pset.histcontrol & hctl_ignoredups) &&
-			 prev_hist && strcmp(s, prev_hist) == 0))
-		{
-			/* Ignore this line as far as history is concerned */
-		}
-		else
-		{
-			/* Save each previous line for ignoredups processing */
-			free(prev_hist);
-			prev_hist = pg_strdup(s);
-			/* And send it to readline */
-			add_history(s);
-			/* Count lines added to history for use later */
-			history_lines_added++;
-		}
-	}
+  s[i + 1] = '\0';
 
-	resetPQExpBuffer(history_buf);
+  if (useHistory && s[0]) {
+    if (((pset.histcontrol & hctl_ignorespace) &&
+         s[0] == ' ') ||
+        ((pset.histcontrol & hctl_ignoredups) &&
+         prev_hist && strcmp(s, prev_hist) == 0)) {
+      /* Ignore this line as far as history is concerned */
+    } else {
+      /* Save each previous line for ignoredups processing */
+      free(prev_hist);
+      prev_hist = pg_strdup(s);
+      /* And send it to readline */
+      add_history(s);
+      /* Count lines added to history for use later */
+      history_lines_added++;
+    }
+  }
+
+  resetPQExpBuffer(history_buf);
 #endif
 }
 
@@ -185,60 +185,56 @@ pg_send_history(PQExpBuffer history_buf)
 char *
 gets_fromFile(FILE *source)
 {
-	static PQExpBuffer buffer = NULL;
+  static PQExpBuffer buffer = NULL;
 
-	char		line[1024];
+  char    line[1024];
 
-	if (buffer == NULL)			/* first time through? */
-		buffer = createPQExpBuffer();
-	else
-		resetPQExpBuffer(buffer);
+  if (buffer == NULL)     /* first time through? */
+    buffer = createPQExpBuffer();
+  else
+    resetPQExpBuffer(buffer);
 
-	for (;;)
-	{
-		char	   *result;
+  for (;;) {
+    char     *result;
 
-		/* Enable SIGINT to longjmp to sigint_interrupt_jmp */
-		sigint_interrupt_enabled = true;
+    /* Enable SIGINT to longjmp to sigint_interrupt_jmp */
+    sigint_interrupt_enabled = true;
 
-		/* Get some data */
-		result = fgets(line, sizeof(line), source);
+    /* Get some data */
+    result = fgets(line, sizeof(line), source);
 
-		/* Disable SIGINT again */
-		sigint_interrupt_enabled = false;
+    /* Disable SIGINT again */
+    sigint_interrupt_enabled = false;
 
-		/* EOF or error? */
-		if (result == NULL)
-		{
-			if (ferror(source))
-			{
-				pg_log_error("could not read from input file: %m");
-				return NULL;
-			}
-			break;
-		}
+    /* EOF or error? */
+    if (result == NULL) {
+      if (ferror(source)) {
+        pg_log_error("could not read from input file: %m");
+        return NULL;
+      }
 
-		appendPQExpBufferStr(buffer, line);
+      break;
+    }
 
-		if (PQExpBufferBroken(buffer))
-		{
-			pg_log_error("out of memory");
-			return NULL;
-		}
+    appendPQExpBufferStr(buffer, line);
 
-		/* EOL? */
-		if (buffer->len > 0 && buffer->data[buffer->len - 1] == '\n')
-		{
-			buffer->data[buffer->len - 1] = '\0';
-			return pg_strdup(buffer->data);
-		}
-	}
+    if (PQExpBufferBroken(buffer)) {
+      pg_log_error("out of memory");
+      return NULL;
+    }
 
-	if (buffer->len > 0)		/* EOF after reading some bufferload(s) */
-		return pg_strdup(buffer->data);
+    /* EOL? */
+    if (buffer->len > 0 && buffer->data[buffer->len - 1] == '\n') {
+      buffer->data[buffer->len - 1] = '\0';
+      return pg_strdup(buffer->data);
+    }
+  }
 
-	/* EOF, so return null */
-	return NULL;
+  if (buffer->len > 0)    /* EOF after reading some bufferload(s) */
+    return pg_strdup(buffer->data);
+
+  /* EOF, so return null */
+  return NULL;
 }
 
 
@@ -268,28 +264,28 @@ gets_fromFile(FILE *source)
  *
  * Usage pattern is:
  *
- *		BEGIN_ITERATE_HISTORY(varname);
- *		{
- *			loop body referencing varname->line;
- *		}
- *		END_ITERATE_HISTORY();
+ *    BEGIN_ITERATE_HISTORY(varname);
+ *    {
+ *      loop body referencing varname->line;
+ *    }
+ *    END_ITERATE_HISTORY();
  */
 #define BEGIN_ITERATE_HISTORY(VARNAME) \
-	do { \
-		HIST_ENTRY *VARNAME; \
-		bool		use_prev_; \
-		\
-		history_set_pos(0); \
-		use_prev_ = (previous_history() != NULL); \
-		history_set_pos(0); \
-		for (VARNAME = current_history(); VARNAME != NULL; \
-			 VARNAME = use_prev_ ? previous_history() : next_history()) \
-		{ \
-			(void) 0
+  do { \
+    HIST_ENTRY *VARNAME; \
+    bool    use_prev_; \
+    \
+    history_set_pos(0); \
+    use_prev_ = (previous_history() != NULL); \
+    history_set_pos(0); \
+    for (VARNAME = current_history(); VARNAME != NULL; \
+       VARNAME = use_prev_ ? previous_history() : next_history()) \
+    { \
+      (void) 0
 
 #define END_ITERATE_HISTORY() \
-		} \
-	} while(0)
+    } \
+  } while(0)
 
 
 /*
@@ -298,18 +294,17 @@ gets_fromFile(FILE *source)
 static void
 encode_history(void)
 {
-	BEGIN_ITERATE_HISTORY(cur_hist);
-	{
-		char	   *cur_ptr;
+  BEGIN_ITERATE_HISTORY(cur_hist);
+  {
+    char     *cur_ptr;
 
-		/* some platforms declare HIST_ENTRY.line as const char * */
-		for (cur_ptr = (char *) cur_hist->line; *cur_ptr; cur_ptr++)
-		{
-			if (*cur_ptr == '\n')
-				*cur_ptr = NL_IN_HISTORY;
-		}
-	}
-	END_ITERATE_HISTORY();
+    /* some platforms declare HIST_ENTRY.line as const char * */
+    for (cur_ptr = (char *) cur_hist->line; *cur_ptr; cur_ptr++) {
+      if (*cur_ptr == '\n')
+        *cur_ptr = NL_IN_HISTORY;
+    }
+  }
+  END_ITERATE_HISTORY();
 }
 
 /*
@@ -318,20 +313,19 @@ encode_history(void)
 static void
 decode_history(void)
 {
-	BEGIN_ITERATE_HISTORY(cur_hist);
-	{
-		char	   *cur_ptr;
+  BEGIN_ITERATE_HISTORY(cur_hist);
+  {
+    char     *cur_ptr;
 
-		/* some platforms declare HIST_ENTRY.line as const char * */
-		for (cur_ptr = (char *) cur_hist->line; *cur_ptr; cur_ptr++)
-		{
-			if (*cur_ptr == NL_IN_HISTORY)
-				*cur_ptr = '\n';
-		}
-	}
-	END_ITERATE_HISTORY();
+    /* some platforms declare HIST_ENTRY.line as const char * */
+    for (cur_ptr = (char *) cur_hist->line; *cur_ptr; cur_ptr++) {
+      if (*cur_ptr == NL_IN_HISTORY)
+        *cur_ptr = '\n';
+    }
+  }
+  END_ITERATE_HISTORY();
 }
-#endif							/* USE_READLINE */
+#endif              /* USE_READLINE */
 
 
 /*
@@ -344,59 +338,56 @@ void
 initializeInput(int flags)
 {
 #ifdef USE_READLINE
-	if (flags & 1)
-	{
-		const char *histfile;
-		char		home[MAXPGPATH];
 
-		useReadline = true;
+  if (flags & 1) {
+    const char *histfile;
+    char    home[MAXPGPATH];
 
-		/* set appropriate values for Readline's global variables */
-		initialize_readline();
+    useReadline = true;
+
+    /* set appropriate values for Readline's global variables */
+    initialize_readline();
 
 #ifdef HAVE_RL_VARIABLE_BIND
-		/* set comment-begin to a useful value for SQL */
-		(void) rl_variable_bind("comment-begin", "-- ");
+    /* set comment-begin to a useful value for SQL */
+    (void) rl_variable_bind("comment-begin", "-- ");
 #endif
 
-		/* this reads ~/.inputrc, so do it after rl_variable_bind */
-		rl_initialize();
+    /* this reads ~/.inputrc, so do it after rl_variable_bind */
+    rl_initialize();
 
-		useHistory = true;
-		using_history();
-		history_lines_added = 0;
+    useHistory = true;
+    using_history();
+    history_lines_added = 0;
 
-		histfile = GetVariable(pset.vars, "HISTFILE");
+    histfile = GetVariable(pset.vars, "HISTFILE");
 
-		if (histfile == NULL)
-		{
-			char	   *envhist;
+    if (histfile == NULL) {
+      char     *envhist;
 
-			envhist = getenv("PSQL_HISTORY");
-			if (envhist != NULL && strlen(envhist) > 0)
-				histfile = envhist;
-		}
+      envhist = getenv("PSQL_HISTORY");
 
-		if (histfile == NULL)
-		{
-			if (get_home_path(home))
-				psql_history = psprintf("%s/%s", home, PSQLHISTORY);
-		}
-		else
-		{
-			psql_history = pg_strdup(histfile);
-			expand_tilde(&psql_history);
-		}
+      if (envhist != NULL && strlen(envhist) > 0)
+        histfile = envhist;
+    }
 
-		if (psql_history)
-		{
-			read_history(psql_history);
-			decode_history();
-		}
-	}
+    if (histfile == NULL) {
+      if (get_home_path(home))
+        psql_history = psprintf("%s/%s", home, PSQLHISTORY);
+    } else {
+      psql_history = pg_strdup(histfile);
+      expand_tilde(&psql_history);
+    }
+
+    if (psql_history) {
+      read_history(psql_history);
+      decode_history();
+    }
+  }
+
 #endif
 
-	atexit(finishInput);
+  atexit(finishInput);
 }
 
 
@@ -412,70 +403,76 @@ initializeInput(int flags)
 static bool
 saveHistory(char *fname, int max_lines)
 {
-	int			errnum;
+  int     errnum;
 
-	/*
-	 * Suppressing the write attempt when HISTFILE is set to /dev/null may
-	 * look like a negligible optimization, but it's necessary on e.g. macOS,
-	 * where write_history will fail because it tries to chmod the target
-	 * file.
-	 */
-	if (strcmp(fname, DEVNULL) != 0)
-	{
-		/*
-		 * Encode \n, since otherwise readline will reload multiline history
-		 * entries as separate lines.  (libedit doesn't really need this, but
-		 * we do it anyway since it's too hard to tell which implementation we
-		 * are using.)
-		 */
-		encode_history();
+  /*
+   * Suppressing the write attempt when HISTFILE is set to /dev/null may
+   * look like a negligible optimization, but it's necessary on e.g. macOS,
+   * where write_history will fail because it tries to chmod the target
+   * file.
+   */
+  if (strcmp(fname, DEVNULL) != 0) {
+    /*
+     * Encode \n, since otherwise readline will reload multiline history
+     * entries as separate lines.  (libedit doesn't really need this, but
+     * we do it anyway since it's too hard to tell which implementation we
+     * are using.)
+     */
+    encode_history();
 
-		/*
-		 * On newer versions of libreadline, truncate the history file as
-		 * needed and then append what we've added.  This avoids overwriting
-		 * history from other concurrent sessions (although there are still
-		 * race conditions when two sessions exit at about the same time). If
-		 * we don't have those functions, fall back to write_history().
-		 */
+    /*
+     * On newer versions of libreadline, truncate the history file as
+     * needed and then append what we've added.  This avoids overwriting
+     * history from other concurrent sessions (although there are still
+     * race conditions when two sessions exit at about the same time). If
+     * we don't have those functions, fall back to write_history().
+     */
 #if defined(HAVE_HISTORY_TRUNCATE_FILE) && defined(HAVE_APPEND_HISTORY)
-		{
-			int			nlines;
-			int			fd;
+    {
+      int     nlines;
+      int     fd;
 
-			/* truncate previous entries if needed */
-			if (max_lines >= 0)
-			{
-				nlines = Max(max_lines - history_lines_added, 0);
-				(void) history_truncate_file(fname, nlines);
-			}
-			/* append_history fails if file doesn't already exist :-( */
-			fd = open(fname, O_CREAT | O_WRONLY | PG_BINARY, 0600);
-			if (fd >= 0)
-				close(fd);
-			/* append the appropriate number of lines */
-			if (max_lines >= 0)
-				nlines = Min(max_lines, history_lines_added);
-			else
-				nlines = history_lines_added;
-			errnum = append_history(nlines, fname);
-			if (errnum == 0)
-				return true;
-		}
-#else							/* don't have append support */
-		{
-			/* truncate what we have ... */
-			if (max_lines >= 0)
-				stifle_history(max_lines);
-			/* ... and overwrite file.  Tough luck for concurrent sessions. */
-			errnum = write_history(fname);
-			if (errnum == 0)
-				return true;
-		}
+      /* truncate previous entries if needed */
+      if (max_lines >= 0) {
+        nlines = Max(max_lines - history_lines_added, 0);
+        (void) history_truncate_file(fname, nlines);
+      }
+
+      /* append_history fails if file doesn't already exist :-( */
+      fd = open(fname, O_CREAT | O_WRONLY | PG_BINARY, 0600);
+
+      if (fd >= 0)
+        close(fd);
+
+      /* append the appropriate number of lines */
+      if (max_lines >= 0)
+        nlines = Min(max_lines, history_lines_added);
+      else
+        nlines = history_lines_added;
+
+      errnum = append_history(nlines, fname);
+
+      if (errnum == 0)
+        return true;
+    }
+#else             /* don't have append support */
+    {
+      /* truncate what we have ... */
+      if (max_lines >= 0)
+        stifle_history(max_lines);
+
+      /* ... and overwrite file.  Tough luck for concurrent sessions. */
+      errnum = write_history(fname);
+
+      if (errnum == 0)
+        return true;
+    }
 #endif
 
-		pg_log_error("could not save history to file \"%s\": %m", fname);
-	}
-	return false;
+    pg_log_error("could not save history to file \"%s\": %m", fname);
+  }
+
+  return false;
 }
 #endif
 
@@ -494,44 +491,42 @@ bool
 printHistory(const char *fname, unsigned short int pager)
 {
 #ifdef USE_READLINE
-	FILE	   *output;
-	bool		is_pager;
+  FILE     *output;
+  bool    is_pager;
 
-	if (!useHistory)
-		return false;
+  if (!useHistory)
+    return false;
 
-	if (fname == NULL)
-	{
-		/* use pager, if enabled, when printing to console */
-		output = PageOutput(INT_MAX, pager ? &(pset.popt.topt) : NULL);
-		is_pager = true;
-	}
-	else
-	{
-		output = fopen(fname, "w");
-		if (output == NULL)
-		{
-			pg_log_error("could not save history to file \"%s\": %m", fname);
-			return false;
-		}
-		is_pager = false;
-	}
+  if (fname == NULL) {
+    /* use pager, if enabled, when printing to console */
+    output = PageOutput(INT_MAX, pager ? & (pset.popt.topt) : NULL);
+    is_pager = true;
+  } else {
+    output = fopen(fname, "w");
 
-	BEGIN_ITERATE_HISTORY(cur_hist);
-	{
-		fprintf(output, "%s\n", cur_hist->line);
-	}
-	END_ITERATE_HISTORY();
+    if (output == NULL) {
+      pg_log_error("could not save history to file \"%s\": %m", fname);
+      return false;
+    }
 
-	if (is_pager)
-		ClosePager(output);
-	else
-		fclose(output);
+    is_pager = false;
+  }
 
-	return true;
+  BEGIN_ITERATE_HISTORY(cur_hist);
+  {
+    fprintf(output, "%s\n", cur_hist->line);
+  }
+  END_ITERATE_HISTORY();
+
+  if (is_pager)
+    ClosePager(output);
+  else
+    fclose(output);
+
+  return true;
 #else
-	pg_log_error("history is not supported by this installation");
-	return false;
+  pg_log_error("history is not supported by this installation");
+  return false;
 #endif
 }
 
@@ -540,11 +535,12 @@ static void
 finishInput(void)
 {
 #ifdef USE_READLINE
-	if (useHistory && psql_history)
-	{
-		(void) saveHistory(psql_history, pset.histsize);
-		free(psql_history);
-		psql_history = NULL;
-	}
+
+  if (useHistory && psql_history) {
+    (void) saveHistory(psql_history, pset.histsize);
+    free(psql_history);
+    psql_history = NULL;
+  }
+
 #endif
 }

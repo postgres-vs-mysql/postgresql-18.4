@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * bgwriter.h
- *	  Exports from postmaster/bgwriter.c and postmaster/checkpointer.c.
+ *    Exports from postmaster/bgwriter.c and postmaster/checkpointer.c.
  *
  * The bgwriter process used to handle checkpointing duties too.  Now
  * there is a separate process, but we did not bother to split this header.
@@ -42,4 +42,4 @@ extern void CheckpointerShmemInit(void);
 
 extern bool FirstCallSinceLastCheckpoint(void);
 
-#endif							/* _BGWRITER_H */
+#endif              /* _BGWRITER_H */

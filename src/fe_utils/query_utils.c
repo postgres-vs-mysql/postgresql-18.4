@@ -21,22 +21,22 @@
 PGresult *
 executeQuery(PGconn *conn, const char *query, bool echo)
 {
-	PGresult   *res;
+  PGresult   *res;
 
-	if (echo)
-		printf("%s\n", query);
+  if (echo)
+    printf("%s\n", query);
 
-	res = PQexec(conn, query);
-	if (!res ||
-		PQresultStatus(res) != PGRES_TUPLES_OK)
-	{
-		pg_log_error("query failed: %s", PQerrorMessage(conn));
-		pg_log_error_detail("Query was: %s", query);
-		PQfinish(conn);
-		exit(1);
-	}
+  res = PQexec(conn, query);
 
-	return res;
+  if (!res ||
+      PQresultStatus(res) != PGRES_TUPLES_OK) {
+    pg_log_error("query failed: %s", PQerrorMessage(conn));
+    pg_log_error_detail("Query was: %s", query);
+    PQfinish(conn);
+    exit(1);
+  }
+
+  return res;
 }
 
 
@@ -46,22 +46,22 @@ executeQuery(PGconn *conn, const char *query, bool echo)
 void
 executeCommand(PGconn *conn, const char *query, bool echo)
 {
-	PGresult   *res;
+  PGresult   *res;
 
-	if (echo)
-		printf("%s\n", query);
+  if (echo)
+    printf("%s\n", query);
 
-	res = PQexec(conn, query);
-	if (!res ||
-		PQresultStatus(res) != PGRES_COMMAND_OK)
-	{
-		pg_log_error("query failed: %s", PQerrorMessage(conn));
-		pg_log_error_detail("Query was: %s", query);
-		PQfinish(conn);
-		exit(1);
-	}
+  res = PQexec(conn, query);
 
-	PQclear(res);
+  if (!res ||
+      PQresultStatus(res) != PGRES_COMMAND_OK) {
+    pg_log_error("query failed: %s", PQerrorMessage(conn));
+    pg_log_error_detail("Query was: %s", query);
+    PQfinish(conn);
+    exit(1);
+  }
+
+  PQclear(res);
 }
 
 
@@ -73,19 +73,19 @@ executeCommand(PGconn *conn, const char *query, bool echo)
 bool
 executeMaintenanceCommand(PGconn *conn, const char *query, bool echo)
 {
-	PGresult   *res;
-	bool		r;
+  PGresult   *res;
+  bool    r;
 
-	if (echo)
-		printf("%s\n", query);
+  if (echo)
+    printf("%s\n", query);
 
-	SetCancelConn(conn);
-	res = PQexec(conn, query);
-	ResetCancelConn();
+  SetCancelConn(conn);
+  res = PQexec(conn, query);
+  ResetCancelConn();
 
-	r = (res && PQresultStatus(res) == PGRES_COMMAND_OK);
+  r = (res && PQresultStatus(res) == PGRES_COMMAND_OK);
 
-	PQclear(res);
+  PQclear(res);
 
-	return r;
+  return r;
 }

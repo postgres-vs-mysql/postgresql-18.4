@@ -6,7 +6,7 @@
  * Written by D'Arcy J.M. Cain
  *
  * Functions to allow input and output of money normally but store
- *	and handle it as 64 bit integer.
+ *  and handle it as 64 bit integer.
  */
 
 #ifndef CASH_H
@@ -20,16 +20,16 @@ typedef int64 Cash;
 static inline Cash
 DatumGetCash(Datum X)
 {
-	return DatumGetInt64(X);
+  return DatumGetInt64(X);
 }
 
 static inline Datum
 CashGetDatum(Cash X)
 {
-	return Int64GetDatum(X);
+  return Int64GetDatum(X);
 }
 
-#define PG_GETARG_CASH(n)	DatumGetCash(PG_GETARG_DATUM(n))
-#define PG_RETURN_CASH(x)	return CashGetDatum(x)
+#define PG_GETARG_CASH(n) DatumGetCash(PG_GETARG_DATUM(n))
+#define PG_RETURN_CASH(x) return CashGetDatum(x)
 
-#endif							/* CASH_H */
+#endif              /* CASH_H */

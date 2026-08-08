@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * sequence.h
- *	  Generic routines for sequence-related code.
+ *    Generic routines for sequence-related code.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -20,4 +20,4 @@
 extern Relation sequence_open(Oid relationId, LOCKMODE lockmode);
 extern void sequence_close(Relation relation, LOCKMODE lockmode);
 
-#endif							/* ACCESS_SEQUENCE_H */
+#endif              /* ACCESS_SEQUENCE_H */

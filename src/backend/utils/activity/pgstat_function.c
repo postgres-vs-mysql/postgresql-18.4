@@ -1,7 +1,7 @@
 /* -------------------------------------------------------------------------
  *
  * pgstat_function.c
- *	  Implementation of function statistics.
+ *    Implementation of function statistics.
  *
  * This file contains the implementation of function statistics. It is kept
  * separate from pgstat.c to enforce the line between the statistics access /
@@ -11,7 +11,7 @@
  * Copyright (c) 2001-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/backend/utils/activity/pgstat_function.c
+ *    src/backend/utils/activity/pgstat_function.c
  * -------------------------------------------------------------------------
  */
 
@@ -27,7 +27,7 @@
  * GUC parameters
  * ----------
  */
-int			pgstat_track_functions = TRACK_FUNC_OFF;
+int     pgstat_track_functions = TRACK_FUNC_OFF;
 
 
 /*
@@ -44,9 +44,9 @@ static instr_time total_func_time;
 void
 pgstat_create_function(Oid proid)
 {
-	pgstat_create_transactional(PGSTAT_KIND_FUNCTION,
-								MyDatabaseId,
-								proid);
+  pgstat_create_transactional(PGSTAT_KIND_FUNCTION,
+                              MyDatabaseId,
+                              proid);
 }
 
 /*
@@ -59,9 +59,9 @@ pgstat_create_function(Oid proid)
 void
 pgstat_drop_function(Oid proid)
 {
-	pgstat_drop_transactional(PGSTAT_KIND_FUNCTION,
-							  MyDatabaseId,
-							  proid);
+  pgstat_drop_transactional(PGSTAT_KIND_FUNCTION,
+                            MyDatabaseId,
+                            proid);
 }
 
 /*
@@ -70,67 +70,65 @@ pgstat_drop_function(Oid proid)
  */
 void
 pgstat_init_function_usage(FunctionCallInfo fcinfo,
-						   PgStat_FunctionCallUsage *fcu)
+                           PgStat_FunctionCallUsage *fcu)
 {
-	PgStat_EntryRef *entry_ref;
-	PgStat_FunctionCounts *pending;
-	bool		created_entry;
+  PgStat_EntryRef *entry_ref;
+  PgStat_FunctionCounts *pending;
+  bool    created_entry;
 
-	if (pgstat_track_functions <= fcinfo->flinfo->fn_stats)
-	{
-		/* stats not wanted */
-		fcu->fs = NULL;
-		return;
-	}
+  if (pgstat_track_functions <= fcinfo->flinfo->fn_stats) {
+    /* stats not wanted */
+    fcu->fs = NULL;
+    return;
+  }
 
-	entry_ref = pgstat_prep_pending_entry(PGSTAT_KIND_FUNCTION,
-										  MyDatabaseId,
-										  fcinfo->flinfo->fn_oid,
-										  &created_entry);
+  entry_ref = pgstat_prep_pending_entry(PGSTAT_KIND_FUNCTION,
+                                        MyDatabaseId,
+                                        fcinfo->flinfo->fn_oid,
+                                        &created_entry);
 
-	/*
-	 * If no shared entry already exists, check if the function has been
-	 * deleted concurrently. This can go unnoticed until here because
-	 * executing a statement that just calls a function, does not trigger
-	 * cache invalidation processing. The reason we care about this case is
-	 * that otherwise we could create a new stats entry for an already dropped
-	 * function (for relations etc this is not possible because emitting stats
-	 * requires a lock for the relation to already have been acquired).
-	 *
-	 * It's somewhat ugly to have a behavioral difference based on
-	 * track_functions being enabled/disabled. But it seems acceptable, given
-	 * that there's already behavioral differences depending on whether the
-	 * function is the caches etc.
-	 *
-	 * For correctness it'd be sufficient to set ->dropped to true. However,
-	 * the accepted invalidation will commonly cause "low level" failures in
-	 * PL code, with an OID in the error message. Making this harder to
-	 * test...
-	 */
-	if (created_entry)
-	{
-		AcceptInvalidationMessages();
-		if (!SearchSysCacheExists1(PROCOID, ObjectIdGetDatum(fcinfo->flinfo->fn_oid)))
-		{
-			pgstat_drop_entry(PGSTAT_KIND_FUNCTION, MyDatabaseId,
-							  fcinfo->flinfo->fn_oid);
-			ereport(ERROR, errcode(ERRCODE_UNDEFINED_FUNCTION),
-					errmsg("function call to dropped function"));
-		}
-	}
+  /*
+   * If no shared entry already exists, check if the function has been
+   * deleted concurrently. This can go unnoticed until here because
+   * executing a statement that just calls a function, does not trigger
+   * cache invalidation processing. The reason we care about this case is
+   * that otherwise we could create a new stats entry for an already dropped
+   * function (for relations etc this is not possible because emitting stats
+   * requires a lock for the relation to already have been acquired).
+   *
+   * It's somewhat ugly to have a behavioral difference based on
+   * track_functions being enabled/disabled. But it seems acceptable, given
+   * that there's already behavioral differences depending on whether the
+   * function is the caches etc.
+   *
+   * For correctness it'd be sufficient to set ->dropped to true. However,
+   * the accepted invalidation will commonly cause "low level" failures in
+   * PL code, with an OID in the error message. Making this harder to
+   * test...
+   */
+  if (created_entry) {
+    AcceptInvalidationMessages();
 
-	pending = entry_ref->pending;
+    if (!SearchSysCacheExists1(PROCOID, ObjectIdGetDatum(fcinfo->flinfo->fn_oid))) {
+      pgstat_drop_entry(PGSTAT_KIND_FUNCTION, MyDatabaseId,
+                        fcinfo->flinfo->fn_oid);
+      ereport(ERROR, errcode(ERRCODE_UNDEFINED_FUNCTION),
+              errmsg("function call to dropped function"));
+    }
+  }
 
-	fcu->fs = pending;
+  pending = entry_ref->pending;
 
-	/* save stats for this function, later used to compensate for recursion */
-	fcu->save_f_total_time = pending->total_time;
+  fcu->fs = pending;
 
-	/* save current backend-wide total time */
-	fcu->save_total = total_func_time;
+  /* save stats for this function, later used to compensate for recursion */
+  fcu->save_f_total_time = pending->total_time;
 
-	/* get clock time as of function start */
-	INSTR_TIME_SET_CURRENT(fcu->start);
+  /* save current backend-wide total time */
+  fcu->save_total = total_func_time;
+
+  /* get clock time as of function start */
+  INSTR_TIME_SET_CURRENT(fcu->start);
 }
 
 /*
@@ -145,42 +143,43 @@ pgstat_init_function_usage(FunctionCallInfo fcinfo,
 void
 pgstat_end_function_usage(PgStat_FunctionCallUsage *fcu, bool finalize)
 {
-	PgStat_FunctionCounts *fs = fcu->fs;
-	instr_time	total;
-	instr_time	others;
-	instr_time	self;
+  PgStat_FunctionCounts *fs = fcu->fs;
+  instr_time  total;
+  instr_time  others;
+  instr_time  self;
 
-	/* stats not wanted? */
-	if (fs == NULL)
-		return;
+  /* stats not wanted? */
+  if (fs == NULL)
+    return;
 
-	/* total elapsed time in this function call */
-	INSTR_TIME_SET_CURRENT(total);
-	INSTR_TIME_SUBTRACT(total, fcu->start);
+  /* total elapsed time in this function call */
+  INSTR_TIME_SET_CURRENT(total);
+  INSTR_TIME_SUBTRACT(total, fcu->start);
 
-	/* self usage: elapsed minus anything already charged to other calls */
-	others = total_func_time;
-	INSTR_TIME_SUBTRACT(others, fcu->save_total);
-	self = total;
-	INSTR_TIME_SUBTRACT(self, others);
+  /* self usage: elapsed minus anything already charged to other calls */
+  others = total_func_time;
+  INSTR_TIME_SUBTRACT(others, fcu->save_total);
+  self = total;
+  INSTR_TIME_SUBTRACT(self, others);
 
-	/* update backend-wide total time */
-	INSTR_TIME_ADD(total_func_time, self);
+  /* update backend-wide total time */
+  INSTR_TIME_ADD(total_func_time, self);
 
-	/*
-	 * Compute the new total_time as the total elapsed time added to the
-	 * pre-call value of total_time.  This is necessary to avoid
-	 * double-counting any time taken by recursive calls of myself.  (We do
-	 * not need any similar kluge for self time, since that already excludes
-	 * any recursive calls.)
-	 */
-	INSTR_TIME_ADD(total, fcu->save_f_total_time);
+  /*
+   * Compute the new total_time as the total elapsed time added to the
+   * pre-call value of total_time.  This is necessary to avoid
+   * double-counting any time taken by recursive calls of myself.  (We do
+   * not need any similar kluge for self time, since that already excludes
+   * any recursive calls.)
+   */
+  INSTR_TIME_ADD(total, fcu->save_f_total_time);
 
-	/* update counters in function stats table */
-	if (finalize)
-		fs->numcalls++;
-	fs->total_time = total;
-	INSTR_TIME_ADD(fs->self_time, self);
+  /* update counters in function stats table */
+  if (finalize)
+    fs->numcalls++;
+
+  fs->total_time = total;
+  INSTR_TIME_ADD(fs->self_time, self);
 }
 
 /*
@@ -192,26 +191,26 @@ pgstat_end_function_usage(PgStat_FunctionCallUsage *fcu, bool finalize)
 bool
 pgstat_function_flush_cb(PgStat_EntryRef *entry_ref, bool nowait)
 {
-	PgStat_FunctionCounts *localent;
-	PgStatShared_Function *shfuncent;
+  PgStat_FunctionCounts *localent;
+  PgStatShared_Function *shfuncent;
 
-	localent = (PgStat_FunctionCounts *) entry_ref->pending;
-	shfuncent = (PgStatShared_Function *) entry_ref->shared_stats;
+  localent = (PgStat_FunctionCounts *) entry_ref->pending;
+  shfuncent = (PgStatShared_Function *) entry_ref->shared_stats;
 
-	/* localent always has non-zero content */
+  /* localent always has non-zero content */
 
-	if (!pgstat_lock_entry(entry_ref, nowait))
-		return false;
+  if (!pgstat_lock_entry(entry_ref, nowait))
+    return false;
 
-	shfuncent->stats.numcalls += localent->numcalls;
-	shfuncent->stats.total_time +=
-		INSTR_TIME_GET_MICROSEC(localent->total_time);
-	shfuncent->stats.self_time +=
-		INSTR_TIME_GET_MICROSEC(localent->self_time);
+  shfuncent->stats.numcalls += localent->numcalls;
+  shfuncent->stats.total_time +=
+    INSTR_TIME_GET_MICROSEC(localent->total_time);
+  shfuncent->stats.self_time +=
+    INSTR_TIME_GET_MICROSEC(localent->self_time);
 
-	pgstat_unlock_entry(entry_ref);
+  pgstat_unlock_entry(entry_ref);
 
-	return true;
+  return true;
 }
 
 /*
@@ -222,13 +221,14 @@ pgstat_function_flush_cb(PgStat_EntryRef *entry_ref, bool nowait)
 PgStat_FunctionCounts *
 find_funcstat_entry(Oid func_id)
 {
-	PgStat_EntryRef *entry_ref;
+  PgStat_EntryRef *entry_ref;
 
-	entry_ref = pgstat_fetch_pending_entry(PGSTAT_KIND_FUNCTION, MyDatabaseId, func_id);
+  entry_ref = pgstat_fetch_pending_entry(PGSTAT_KIND_FUNCTION, MyDatabaseId, func_id);
 
-	if (entry_ref)
-		return entry_ref->pending;
-	return NULL;
+  if (entry_ref)
+    return entry_ref->pending;
+
+  return NULL;
 }
 
 /*
@@ -238,6 +238,6 @@ find_funcstat_entry(Oid func_id)
 PgStat_StatFuncEntry *
 pgstat_fetch_stat_funcentry(Oid func_id)
 {
-	return (PgStat_StatFuncEntry *)
-		pgstat_fetch_entry(PGSTAT_KIND_FUNCTION, MyDatabaseId, func_id);
+  return (PgStat_StatFuncEntry *)
+         pgstat_fetch_entry(PGSTAT_KIND_FUNCTION, MyDatabaseId, func_id);
 }

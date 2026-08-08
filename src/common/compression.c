@@ -17,7 +17,7 @@
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *		  src/common/compression.c
+ *      src/common/compression.c
  *-------------------------------------------------------------------------
  */
 
@@ -36,10 +36,10 @@
 
 #include "common/compression.h"
 
-static int	expect_integer_value(char *keyword, char *value,
-								 pg_compress_specification *result);
+static int  expect_integer_value(char *keyword, char *value,
+                                 pg_compress_specification *result);
 static bool expect_boolean_value(char *keyword, char *value,
-								 pg_compress_specification *result);
+                                 pg_compress_specification *result);
 
 /*
  * Look up a compression algorithm by name. Returns true and sets *algorithm
@@ -48,17 +48,18 @@ static bool expect_boolean_value(char *keyword, char *value,
 bool
 parse_compress_algorithm(char *name, pg_compress_algorithm *algorithm)
 {
-	if (strcmp(name, "none") == 0)
-		*algorithm = PG_COMPRESSION_NONE;
-	else if (strcmp(name, "gzip") == 0)
-		*algorithm = PG_COMPRESSION_GZIP;
-	else if (strcmp(name, "lz4") == 0)
-		*algorithm = PG_COMPRESSION_LZ4;
-	else if (strcmp(name, "zstd") == 0)
-		*algorithm = PG_COMPRESSION_ZSTD;
-	else
-		return false;
-	return true;
+  if (strcmp(name, "none") == 0)
+    *algorithm = PG_COMPRESSION_NONE;
+  else if (strcmp(name, "gzip") == 0)
+    *algorithm = PG_COMPRESSION_GZIP;
+  else if (strcmp(name, "lz4") == 0)
+    *algorithm = PG_COMPRESSION_LZ4;
+  else if (strcmp(name, "zstd") == 0)
+    *algorithm = PG_COMPRESSION_ZSTD;
+  else
+    return false;
+
+  return true;
 }
 
 /*
@@ -68,20 +69,23 @@ parse_compress_algorithm(char *name, pg_compress_algorithm *algorithm)
 const char *
 get_compress_algorithm_name(pg_compress_algorithm algorithm)
 {
-	switch (algorithm)
-	{
-		case PG_COMPRESSION_NONE:
-			return "none";
-		case PG_COMPRESSION_GZIP:
-			return "gzip";
-		case PG_COMPRESSION_LZ4:
-			return "lz4";
-		case PG_COMPRESSION_ZSTD:
-			return "zstd";
-			/* no default, to provoke compiler warnings if values are added */
-	}
-	Assert(false);
-	return "???";				/* placate compiler */
+  switch (algorithm) {
+    case PG_COMPRESSION_NONE:
+      return "none";
+
+    case PG_COMPRESSION_GZIP:
+      return "gzip";
+
+    case PG_COMPRESSION_LZ4:
+      return "lz4";
+
+    case PG_COMPRESSION_ZSTD:
+      return "zstd";
+      /* no default, to provoke compiler warnings if values are added */
+  }
+
+  Assert(false);
+  return "???";       /* placate compiler */
 }
 
 /*
@@ -105,164 +109,161 @@ get_compress_algorithm_name(pg_compress_algorithm algorithm)
  */
 void
 parse_compress_specification(pg_compress_algorithm algorithm, char *specification,
-							 pg_compress_specification *result)
+                             pg_compress_specification *result)
 {
-	int			bare_level;
-	char	   *bare_level_endp;
+  int     bare_level;
+  char     *bare_level_endp;
 
-	/* Initial setup of result object. */
-	result->algorithm = algorithm;
-	result->options = 0;
-	result->parse_error = NULL;
+  /* Initial setup of result object. */
+  result->algorithm = algorithm;
+  result->options = 0;
+  result->parse_error = NULL;
 
-	/*
-	 * Assign a default level depending on the compression method.  This may
-	 * be enforced later.
-	 */
-	switch (result->algorithm)
-	{
-		case PG_COMPRESSION_NONE:
-			result->level = 0;
-			break;
-		case PG_COMPRESSION_LZ4:
+  /*
+   * Assign a default level depending on the compression method.  This may
+   * be enforced later.
+   */
+  switch (result->algorithm) {
+    case PG_COMPRESSION_NONE:
+      result->level = 0;
+      break;
+
+    case PG_COMPRESSION_LZ4:
 #ifdef USE_LZ4
-			result->level = 0;	/* fast compression mode */
+      result->level = 0;  /* fast compression mode */
 #else
-			result->parse_error =
-				psprintf(_("this build does not support compression with %s"),
-						 "LZ4");
+      result->parse_error =
+        psprintf(_("this build does not support compression with %s"),
+                 "LZ4");
 #endif
-			break;
-		case PG_COMPRESSION_ZSTD:
+      break;
+
+    case PG_COMPRESSION_ZSTD:
 #ifdef USE_ZSTD
-			result->level = ZSTD_CLEVEL_DEFAULT;
+      result->level = ZSTD_CLEVEL_DEFAULT;
 #else
-			result->parse_error =
-				psprintf(_("this build does not support compression with %s"),
-						 "ZSTD");
+      result->parse_error =
+        psprintf(_("this build does not support compression with %s"),
+                 "ZSTD");
 #endif
-			break;
-		case PG_COMPRESSION_GZIP:
+      break;
+
+    case PG_COMPRESSION_GZIP:
 #ifdef HAVE_LIBZ
-			result->level = Z_DEFAULT_COMPRESSION;
+      result->level = Z_DEFAULT_COMPRESSION;
 #else
-			result->parse_error =
-				psprintf(_("this build does not support compression with %s"),
-						 "gzip");
+      result->parse_error =
+        psprintf(_("this build does not support compression with %s"),
+                 "gzip");
 #endif
-			break;
-	}
+      break;
+  }
 
-	/* If there is no specification, we're done already. */
-	if (specification == NULL)
-		return;
+  /* If there is no specification, we're done already. */
+  if (specification == NULL)
+    return;
 
-	/* As a special case, the specification can be a bare integer. */
-	bare_level = strtol(specification, &bare_level_endp, 10);
-	if (specification != bare_level_endp && *bare_level_endp == '\0')
-	{
-		result->level = bare_level;
-		return;
-	}
+  /* As a special case, the specification can be a bare integer. */
+  bare_level = strtol(specification, &bare_level_endp, 10);
 
-	/* Look for comma-separated keyword or keyword=value entries. */
-	while (1)
-	{
-		char	   *kwstart;
-		char	   *kwend;
-		char	   *vstart;
-		char	   *vend;
-		int			kwlen;
-		int			vlen;
-		bool		has_value;
-		char	   *keyword;
-		char	   *value;
+  if (specification != bare_level_endp && *bare_level_endp == '\0') {
+    result->level = bare_level;
+    return;
+  }
 
-		/* Figure start, end, and length of next keyword and any value. */
-		kwstart = kwend = specification;
-		while (*kwend != '\0' && *kwend != ',' && *kwend != '=')
-			++kwend;
-		kwlen = kwend - kwstart;
-		if (*kwend != '=')
-		{
-			vstart = vend = NULL;
-			vlen = 0;
-			has_value = false;
-		}
-		else
-		{
-			vstart = vend = kwend + 1;
-			while (*vend != '\0' && *vend != ',')
-				++vend;
-			vlen = vend - vstart;
-			has_value = true;
-		}
+  /* Look for comma-separated keyword or keyword=value entries. */
+  while (1) {
+    char     *kwstart;
+    char     *kwend;
+    char     *vstart;
+    char     *vend;
+    int     kwlen;
+    int     vlen;
+    bool    has_value;
+    char     *keyword;
+    char     *value;
 
-		/* Reject empty keyword. */
-		if (kwlen == 0)
-		{
-			result->parse_error =
-				pstrdup(_("found empty string where a compression option was expected"));
-			break;
-		}
+    /* Figure start, end, and length of next keyword and any value. */
+    kwstart = kwend = specification;
 
-		/* Extract keyword and value as separate C strings. */
-		keyword = palloc(kwlen + 1);
-		memcpy(keyword, kwstart, kwlen);
-		keyword[kwlen] = '\0';
-		if (!has_value)
-			value = NULL;
-		else
-		{
-			value = palloc(vlen + 1);
-			memcpy(value, vstart, vlen);
-			value[vlen] = '\0';
-		}
+    while (*kwend != '\0' && *kwend != ',' && *kwend != '=')
+      ++kwend;
 
-		/* Handle whatever keyword we found. */
-		if (strcmp(keyword, "level") == 0)
-		{
-			result->level = expect_integer_value(keyword, value, result);
+    kwlen = kwend - kwstart;
 
-			/*
-			 * No need to set a flag in "options", there is a default level
-			 * set at least thanks to the logic above.
-			 */
-		}
-		else if (strcmp(keyword, "workers") == 0)
-		{
-			result->workers = expect_integer_value(keyword, value, result);
-			result->options |= PG_COMPRESSION_OPTION_WORKERS;
-		}
-		else if (strcmp(keyword, "long") == 0)
-		{
-			result->long_distance = expect_boolean_value(keyword, value, result);
-			result->options |= PG_COMPRESSION_OPTION_LONG_DISTANCE;
-		}
-		else
-			result->parse_error =
-				psprintf(_("unrecognized compression option: \"%s\""), keyword);
+    if (*kwend != '=') {
+      vstart = vend = NULL;
+      vlen = 0;
+      has_value = false;
+    } else {
+      vstart = vend = kwend + 1;
 
-		/* Release memory, just to be tidy. */
-		pfree(keyword);
-		if (value != NULL)
-			pfree(value);
+      while (*vend != '\0' && *vend != ',')
+        ++vend;
 
-		/*
-		 * If we got an error or have reached the end of the string, stop.
-		 *
-		 * If there is no value, then the end of the keyword might have been
-		 * the end of the string. If there is a value, then the end of the
-		 * keyword cannot have been the end of the string, but the end of the
-		 * value might have been.
-		 */
-		if (result->parse_error != NULL ||
-			(vend == NULL ? *kwend == '\0' : *vend == '\0'))
-			break;
+      vlen = vend - vstart;
+      has_value = true;
+    }
 
-		/* Advance to next entry and loop around. */
-		specification = vend == NULL ? kwend + 1 : vend + 1;
-	}
+    /* Reject empty keyword. */
+    if (kwlen == 0) {
+      result->parse_error =
+        pstrdup(_("found empty string where a compression option was expected"));
+      break;
+    }
+
+    /* Extract keyword and value as separate C strings. */
+    keyword = palloc(kwlen + 1);
+    memcpy(keyword, kwstart, kwlen);
+    keyword[kwlen] = '\0';
+
+    if (!has_value)
+      value = NULL;
+    else {
+      value = palloc(vlen + 1);
+      memcpy(value, vstart, vlen);
+      value[vlen] = '\0';
+    }
+
+    /* Handle whatever keyword we found. */
+    if (strcmp(keyword, "level") == 0) {
+      result->level = expect_integer_value(keyword, value, result);
+
+      /*
+       * No need to set a flag in "options", there is a default level
+       * set at least thanks to the logic above.
+       */
+    } else if (strcmp(keyword, "workers") == 0) {
+      result->workers = expect_integer_value(keyword, value, result);
+      result->options |= PG_COMPRESSION_OPTION_WORKERS;
+    } else if (strcmp(keyword, "long") == 0) {
+      result->long_distance = expect_boolean_value(keyword, value, result);
+      result->options |= PG_COMPRESSION_OPTION_LONG_DISTANCE;
+    } else
+      result->parse_error =
+        psprintf(_("unrecognized compression option: \"%s\""), keyword);
+
+    /* Release memory, just to be tidy. */
+    pfree(keyword);
+
+    if (value != NULL)
+      pfree(value);
+
+    /*
+     * If we got an error or have reached the end of the string, stop.
+     *
+     * If there is no value, then the end of the keyword might have been
+     * the end of the string. If there is a value, then the end of the
+     * keyword cannot have been the end of the string, but the end of the
+     * value might have been.
+     */
+    if (result->parse_error != NULL ||
+        (vend == NULL ? *kwend == '\0' : *vend == '\0'))
+      break;
+
+    /* Advance to next entry and loop around. */
+    specification = vend == NULL ? kwend + 1 : vend + 1;
+  }
 }
 
 /*
@@ -274,26 +275,26 @@ parse_compress_specification(pg_compress_algorithm algorithm, char *specificatio
 static int
 expect_integer_value(char *keyword, char *value, pg_compress_specification *result)
 {
-	int			ivalue;
-	char	   *ivalue_endp;
+  int     ivalue;
+  char     *ivalue_endp;
 
-	if (value == NULL)
-	{
-		result->parse_error =
-			psprintf(_("compression option \"%s\" requires a value"),
-					 keyword);
-		return -1;
-	}
+  if (value == NULL) {
+    result->parse_error =
+      psprintf(_("compression option \"%s\" requires a value"),
+               keyword);
+    return -1;
+  }
 
-	ivalue = strtol(value, &ivalue_endp, 10);
-	if (ivalue_endp == value || *ivalue_endp != '\0')
-	{
-		result->parse_error =
-			psprintf(_("value for compression option \"%s\" must be an integer"),
-					 keyword);
-		return -1;
-	}
-	return ivalue;
+  ivalue = strtol(value, &ivalue_endp, 10);
+
+  if (ivalue_endp == value || *ivalue_endp != '\0') {
+    result->parse_error =
+      psprintf(_("value for compression option \"%s\" must be an integer"),
+               keyword);
+    return -1;
+  }
+
+  return ivalue;
 }
 
 /*
@@ -310,27 +311,31 @@ expect_integer_value(char *keyword, char *value, pg_compress_specification *resu
 static bool
 expect_boolean_value(char *keyword, char *value, pg_compress_specification *result)
 {
-	if (value == NULL)
-		return true;
+  if (value == NULL)
+    return true;
 
-	if (pg_strcasecmp(value, "yes") == 0)
-		return true;
-	if (pg_strcasecmp(value, "on") == 0)
-		return true;
-	if (pg_strcasecmp(value, "1") == 0)
-		return true;
+  if (pg_strcasecmp(value, "yes") == 0)
+    return true;
 
-	if (pg_strcasecmp(value, "no") == 0)
-		return false;
-	if (pg_strcasecmp(value, "off") == 0)
-		return false;
-	if (pg_strcasecmp(value, "0") == 0)
-		return false;
+  if (pg_strcasecmp(value, "on") == 0)
+    return true;
 
-	result->parse_error =
-		psprintf(_("value for compression option \"%s\" must be a Boolean value"),
-				 keyword);
-	return false;
+  if (pg_strcasecmp(value, "1") == 0)
+    return true;
+
+  if (pg_strcasecmp(value, "no") == 0)
+    return false;
+
+  if (pg_strcasecmp(value, "off") == 0)
+    return false;
+
+  if (pg_strcasecmp(value, "0") == 0)
+    return false;
+
+  result->parse_error =
+    psprintf(_("value for compression option \"%s\" must be a Boolean value"),
+             keyword);
+  return false;
 }
 
 /*
@@ -343,73 +348,74 @@ expect_boolean_value(char *keyword, char *value, pg_compress_specification *resu
 char *
 validate_compress_specification(pg_compress_specification *spec)
 {
-	int			min_level = 1;
-	int			max_level = 1;
-	int			default_level = 0;
+  int     min_level = 1;
+  int     max_level = 1;
+  int     default_level = 0;
 
-	/* If it didn't even parse OK, it's definitely no good. */
-	if (spec->parse_error != NULL)
-		return spec->parse_error;
+  /* If it didn't even parse OK, it's definitely no good. */
+  if (spec->parse_error != NULL)
+    return spec->parse_error;
 
-	/*
-	 * Check that the algorithm expects a compression level and it is within
-	 * the legal range for the algorithm.
-	 */
-	switch (spec->algorithm)
-	{
-		case PG_COMPRESSION_GZIP:
-			max_level = 9;
+  /*
+   * Check that the algorithm expects a compression level and it is within
+   * the legal range for the algorithm.
+   */
+  switch (spec->algorithm) {
+    case PG_COMPRESSION_GZIP:
+      max_level = 9;
 #ifdef HAVE_LIBZ
-			default_level = Z_DEFAULT_COMPRESSION;
+      default_level = Z_DEFAULT_COMPRESSION;
 #endif
-			break;
-		case PG_COMPRESSION_LZ4:
-			max_level = 12;
-			default_level = 0;	/* fast mode */
-			break;
-		case PG_COMPRESSION_ZSTD:
+      break;
+
+    case PG_COMPRESSION_LZ4:
+      max_level = 12;
+      default_level = 0;  /* fast mode */
+      break;
+
+    case PG_COMPRESSION_ZSTD:
 #ifdef USE_ZSTD
-			max_level = ZSTD_maxCLevel();
-			min_level = ZSTD_minCLevel();
-			default_level = ZSTD_CLEVEL_DEFAULT;
+      max_level = ZSTD_maxCLevel();
+      min_level = ZSTD_minCLevel();
+      default_level = ZSTD_CLEVEL_DEFAULT;
 #endif
-			break;
-		case PG_COMPRESSION_NONE:
-			if (spec->level != 0)
-				return psprintf(_("compression algorithm \"%s\" does not accept a compression level"),
-								get_compress_algorithm_name(spec->algorithm));
-			break;
-	}
+      break;
 
-	if ((spec->level < min_level || spec->level > max_level) &&
-		spec->level != default_level)
-		return psprintf(_("compression algorithm \"%s\" expects a compression level between %d and %d (default at %d)"),
-						get_compress_algorithm_name(spec->algorithm),
-						min_level, max_level, default_level);
+    case PG_COMPRESSION_NONE:
+      if (spec->level != 0)
+        return psprintf(_("compression algorithm \"%s\" does not accept a compression level"),
+                        get_compress_algorithm_name(spec->algorithm));
 
-	/*
-	 * Of the compression algorithms that we currently support, only zstd
-	 * allows parallel workers.
-	 */
-	if ((spec->options & PG_COMPRESSION_OPTION_WORKERS) != 0 &&
-		(spec->algorithm != PG_COMPRESSION_ZSTD))
-	{
-		return psprintf(_("compression algorithm \"%s\" does not accept a worker count"),
-						get_compress_algorithm_name(spec->algorithm));
-	}
+      break;
+  }
 
-	/*
-	 * Of the compression algorithms that we currently support, only zstd
-	 * supports long-distance mode.
-	 */
-	if ((spec->options & PG_COMPRESSION_OPTION_LONG_DISTANCE) != 0 &&
-		(spec->algorithm != PG_COMPRESSION_ZSTD))
-	{
-		return psprintf(_("compression algorithm \"%s\" does not support long-distance mode"),
-						get_compress_algorithm_name(spec->algorithm));
-	}
+  if ((spec->level < min_level || spec->level > max_level) &&
+      spec->level != default_level)
+    return psprintf(_("compression algorithm \"%s\" expects a compression level between %d and %d (default at %d)"),
+                    get_compress_algorithm_name(spec->algorithm),
+                    min_level, max_level, default_level);
 
-	return NULL;
+  /*
+   * Of the compression algorithms that we currently support, only zstd
+   * allows parallel workers.
+   */
+  if ((spec->options & PG_COMPRESSION_OPTION_WORKERS) != 0 &&
+      (spec->algorithm != PG_COMPRESSION_ZSTD)) {
+    return psprintf(_("compression algorithm \"%s\" does not accept a worker count"),
+                    get_compress_algorithm_name(spec->algorithm));
+  }
+
+  /*
+   * Of the compression algorithms that we currently support, only zstd
+   * supports long-distance mode.
+   */
+  if ((spec->options & PG_COMPRESSION_OPTION_LONG_DISTANCE) != 0 &&
+      (spec->algorithm != PG_COMPRESSION_ZSTD)) {
+    return psprintf(_("compression algorithm \"%s\" does not support long-distance mode"),
+                    get_compress_algorithm_name(spec->algorithm));
+  }
+
+  return NULL;
 }
 
 #ifdef FRONTEND
@@ -425,52 +431,48 @@ validate_compress_specification(pg_compress_specification *spec)
 void
 parse_compress_options(const char *option, char **algorithm, char **detail)
 {
-	const char *sep;
-	char	   *endp;
-	long		result;
+  const char *sep;
+  char     *endp;
+  long    result;
 
-	/*
-	 * Check whether the compression specification consists of a bare integer.
-	 *
-	 * For backward-compatibility, assume "none" if the integer found is zero
-	 * and "gzip" otherwise.
-	 */
-	result = strtol(option, &endp, 10);
-	if (*endp == '\0')
-	{
-		if (result == 0)
-		{
-			*algorithm = pstrdup("none");
-			*detail = NULL;
-		}
-		else
-		{
-			*algorithm = pstrdup("gzip");
-			*detail = pstrdup(option);
-		}
-		return;
-	}
+  /*
+   * Check whether the compression specification consists of a bare integer.
+   *
+   * For backward-compatibility, assume "none" if the integer found is zero
+   * and "gzip" otherwise.
+   */
+  result = strtol(option, &endp, 10);
 
-	/*
-	 * Check whether there is a compression detail following the algorithm
-	 * name.
-	 */
-	sep = strchr(option, ':');
-	if (sep == NULL)
-	{
-		*algorithm = pstrdup(option);
-		*detail = NULL;
-	}
-	else
-	{
-		char	   *alg;
+  if (*endp == '\0') {
+    if (result == 0) {
+      *algorithm = pstrdup("none");
+      *detail = NULL;
+    } else {
+      *algorithm = pstrdup("gzip");
+      *detail = pstrdup(option);
+    }
 
-		alg = palloc((sep - option) + 1);
-		memcpy(alg, option, sep - option);
-		alg[sep - option] = '\0';
+    return;
+  }
 
-		*algorithm = alg;
-		*detail = pstrdup(sep + 1);
-	}
+  /*
+   * Check whether there is a compression detail following the algorithm
+   * name.
+   */
+  sep = strchr(option, ':');
+
+  if (sep == NULL) {
+    *algorithm = pstrdup(option);
+    *detail = NULL;
+  } else {
+    char     *alg;
+
+    alg = palloc((sep - option) + 1);
+    memcpy(alg, option, sep - option);
+    alg[sep - option] = '\0';
+
+    *algorithm = alg;
+    *detail = pstrdup(sep + 1);
+  }
 }
-#endif							/* FRONTEND */
+#endif              /* FRONTEND */

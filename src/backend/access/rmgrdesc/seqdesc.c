@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * seqdesc.c
- *	  rmgr descriptor routines for commands/sequence.c
+ *    rmgr descriptor routines for commands/sequence.c
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/backend/access/rmgrdesc/seqdesc.c
+ *    src/backend/access/rmgrdesc/seqdesc.c
  *
  *-------------------------------------------------------------------------
  */
@@ -20,27 +20,26 @@
 void
 seq_desc(StringInfo buf, XLogReaderState *record)
 {
-	char	   *rec = XLogRecGetData(record);
-	uint8		info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
-	xl_seq_rec *xlrec = (xl_seq_rec *) rec;
+  char     *rec = XLogRecGetData(record);
+  uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
+  xl_seq_rec *xlrec = (xl_seq_rec *) rec;
 
-	if (info == XLOG_SEQ_LOG)
-		appendStringInfo(buf, "rel %u/%u/%u",
-						 xlrec->locator.spcOid, xlrec->locator.dbOid,
-						 xlrec->locator.relNumber);
+  if (info == XLOG_SEQ_LOG)
+    appendStringInfo(buf, "rel %u/%u/%u",
+                     xlrec->locator.spcOid, xlrec->locator.dbOid,
+                     xlrec->locator.relNumber);
 }
 
 const char *
 seq_identify(uint8 info)
 {
-	const char *id = NULL;
+  const char *id = NULL;
 
-	switch (info & ~XLR_INFO_MASK)
-	{
-		case XLOG_SEQ_LOG:
-			id = "LOG";
-			break;
-	}
+  switch (info & ~XLR_INFO_MASK) {
+    case XLOG_SEQ_LOG:
+      id = "LOG";
+      break;
+  }
 
-	return id;
+  return id;
 }

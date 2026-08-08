@@ -16,18 +16,18 @@
 #include "nodes/execnodes.h"
 
 extern void ExecInitGenerated(ResultRelInfo *resultRelInfo,
-							  EState *estate,
-							  CmdType cmdtype);
+                              EState *estate,
+                              CmdType cmdtype);
 
 extern void ExecComputeStoredGenerated(ResultRelInfo *resultRelInfo,
-									   EState *estate, TupleTableSlot *slot,
-									   CmdType cmdtype);
+                                       EState *estate, TupleTableSlot *slot,
+                                       CmdType cmdtype);
 
 extern ModifyTableState *ExecInitModifyTable(ModifyTable *node, EState *estate, int eflags);
 extern void ExecEndModifyTable(ModifyTableState *node);
 extern void ExecReScanModifyTable(ModifyTableState *node);
 
 extern void ExecInitMergeTupleSlots(ModifyTableState *mtstate,
-									ResultRelInfo *resultRelInfo);
+                                    ResultRelInfo *resultRelInfo);
 
-#endif							/* NODEMODIFYTABLE_H */
+#endif              /* NODEMODIFYTABLE_H */

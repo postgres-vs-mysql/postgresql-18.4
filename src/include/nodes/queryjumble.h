@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * queryjumble.h
- *	  Query normalization and fingerprinting.
+ *    Query normalization and fingerprinting.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/include/nodes/queryjumble.h
+ *    src/include/nodes/queryjumble.h
  *
  *-------------------------------------------------------------------------
  */
@@ -21,14 +21,14 @@
  */
 typedef struct LocationLen
 {
-	int			location;		/* start offset in query text */
-	int			length;			/* length in bytes, or -1 to ignore */
+  int     location;   /* start offset in query text */
+  int     length;     /* length in bytes, or -1 to ignore */
 
-	/* Does this location represent a squashed list? */
-	bool		squashed;
+  /* Does this location represent a squashed list? */
+  bool    squashed;
 
-	/* Is this location a PARAM_EXTERN parameter? */
-	bool		extern_param;
+  /* Is this location a PARAM_EXTERN parameter? */
+  bool    extern_param;
 } LocationLen;
 
 /*
@@ -37,53 +37,53 @@ typedef struct LocationLen
  */
 typedef struct JumbleState
 {
-	/* Jumble of current query tree */
-	unsigned char *jumble;
+  /* Jumble of current query tree */
+  unsigned char *jumble;
 
-	/* Number of bytes used in jumble[] */
-	Size		jumble_len;
+  /* Number of bytes used in jumble[] */
+  Size    jumble_len;
 
-	/* Array of locations of constants that should be removed */
-	LocationLen *clocations;
+  /* Array of locations of constants that should be removed */
+  LocationLen *clocations;
 
-	/* Allocated length of clocations array */
-	int			clocations_buf_size;
+  /* Allocated length of clocations array */
+  int     clocations_buf_size;
 
-	/* Current number of valid entries in clocations array */
-	int			clocations_count;
+  /* Current number of valid entries in clocations array */
+  int     clocations_count;
 
-	/*
-	 * ID of the highest PARAM_EXTERN parameter we've seen in the query; used
-	 * to start normalization correctly.  However, if there are any squashed
-	 * lists in the query, we disregard query-supplied parameter numbers and
-	 * renumber everything.  This is to avoid possible gaps caused by
-	 * squashing in case any params are in squashed lists.
-	 */
-	int			highest_extern_param_id;
+  /*
+   * ID of the highest PARAM_EXTERN parameter we've seen in the query; used
+   * to start normalization correctly.  However, if there are any squashed
+   * lists in the query, we disregard query-supplied parameter numbers and
+   * renumber everything.  This is to avoid possible gaps caused by
+   * squashing in case any params are in squashed lists.
+   */
+  int     highest_extern_param_id;
 
-	/* Whether squashable lists are present */
-	bool		has_squashed_lists;
+  /* Whether squashable lists are present */
+  bool    has_squashed_lists;
 
-	/*
-	 * Count of the number of NULL nodes seen since last appending a value.
-	 * These are flushed out to the jumble buffer before subsequent appends
-	 * and before performing the final jumble hash.
-	 */
-	unsigned int pending_nulls;
+  /*
+   * Count of the number of NULL nodes seen since last appending a value.
+   * These are flushed out to the jumble buffer before subsequent appends
+   * and before performing the final jumble hash.
+   */
+  unsigned int pending_nulls;
 
 #ifdef USE_ASSERT_CHECKING
-	/* The total number of bytes added to the jumble buffer */
-	Size		total_jumble_len;
+  /* The total number of bytes added to the jumble buffer */
+  Size    total_jumble_len;
 #endif
 } JumbleState;
 
 /* Values for the compute_query_id GUC */
 enum ComputeQueryIdType
 {
-	COMPUTE_QUERY_ID_OFF,
-	COMPUTE_QUERY_ID_ON,
-	COMPUTE_QUERY_ID_AUTO,
-	COMPUTE_QUERY_ID_REGRESS,
+  COMPUTE_QUERY_ID_OFF,
+  COMPUTE_QUERY_ID_ON,
+  COMPUTE_QUERY_ID_AUTO,
+  COMPUTE_QUERY_ID_REGRESS,
 };
 
 /* GUC parameters */
@@ -103,11 +103,13 @@ extern PGDLLIMPORT bool query_id_enabled;
 static inline bool
 IsQueryIdEnabled(void)
 {
-	if (compute_query_id == COMPUTE_QUERY_ID_OFF)
-		return false;
-	if (compute_query_id == COMPUTE_QUERY_ID_ON)
-		return true;
-	return query_id_enabled;
+  if (compute_query_id == COMPUTE_QUERY_ID_OFF)
+    return false;
+
+  if (compute_query_id == COMPUTE_QUERY_ID_ON)
+    return true;
+
+  return query_id_enabled;
 }
 
-#endif							/* QUERYJUMBLE_H */
+#endif              /* QUERYJUMBLE_H */

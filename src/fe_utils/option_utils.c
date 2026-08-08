@@ -22,21 +22,19 @@
  */
 void
 handle_help_version_opts(int argc, char *argv[],
-						 const char *fixed_progname, help_handler hlp)
+                         const char *fixed_progname, help_handler hlp)
 {
-	if (argc > 1)
-	{
-		if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-?") == 0)
-		{
-			hlp(get_progname(argv[0]));
-			exit(0);
-		}
-		if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-V") == 0)
-		{
-			printf("%s (PostgreSQL) " PG_VERSION "\n", fixed_progname);
-			exit(0);
-		}
-	}
+  if (argc > 1) {
+    if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-?") == 0) {
+      hlp(get_progname(argv[0]));
+      exit(0);
+    }
+
+    if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-V") == 0) {
+      printf("%s (PostgreSQL) " PG_VERSION "\n", fixed_progname);
+      exit(0);
+    }
+  }
 }
 
 /*
@@ -48,39 +46,38 @@ handle_help_version_opts(int argc, char *argv[],
  */
 bool
 option_parse_int(const char *optarg, const char *optname,
-				 int min_range, int max_range,
-				 int *result)
+                 int min_range, int max_range,
+                 int *result)
 {
-	char	   *endptr;
-	int			val;
+  char     *endptr;
+  int     val;
 
-	errno = 0;
-	val = strtoint(optarg, &endptr, 10);
+  errno = 0;
+  val = strtoint(optarg, &endptr, 10);
 
-	/*
-	 * Skip any trailing whitespace; if anything but whitespace remains before
-	 * the terminating character, fail.
-	 */
-	while (*endptr != '\0' && isspace((unsigned char) *endptr))
-		endptr++;
+  /*
+   * Skip any trailing whitespace; if anything but whitespace remains before
+   * the terminating character, fail.
+   */
+  while (*endptr != '\0' && isspace((unsigned char) *endptr))
+    endptr++;
 
-	if (*endptr != '\0')
-	{
-		pg_log_error("invalid value \"%s\" for option %s",
-					 optarg, optname);
-		return false;
-	}
+  if (*endptr != '\0') {
+    pg_log_error("invalid value \"%s\" for option %s",
+                 optarg, optname);
+    return false;
+  }
 
-	if (errno == ERANGE || val < min_range || val > max_range)
-	{
-		pg_log_error("%s must be in range %d..%d",
-					 optname, min_range, max_range);
-		return false;
-	}
+  if (errno == ERANGE || val < min_range || val > max_range) {
+    pg_log_error("%s must be in range %d..%d",
+                 optname, min_range, max_range);
+    return false;
+  }
 
-	if (result)
-		*result = val;
-	return true;
+  if (result)
+    *result = val;
+
+  return true;
 }
 
 /*
@@ -89,23 +86,20 @@ option_parse_int(const char *optarg, const char *optname,
 bool
 parse_sync_method(const char *optarg, DataDirSyncMethod *sync_method)
 {
-	if (strcmp(optarg, "fsync") == 0)
-		*sync_method = DATA_DIR_SYNC_METHOD_FSYNC;
-	else if (strcmp(optarg, "syncfs") == 0)
-	{
+  if (strcmp(optarg, "fsync") == 0)
+    *sync_method = DATA_DIR_SYNC_METHOD_FSYNC;
+  else if (strcmp(optarg, "syncfs") == 0) {
 #ifdef HAVE_SYNCFS
-		*sync_method = DATA_DIR_SYNC_METHOD_SYNCFS;
+    *sync_method = DATA_DIR_SYNC_METHOD_SYNCFS;
 #else
-		pg_log_error("this build does not support sync method \"%s\"",
-					 "syncfs");
-		return false;
+    pg_log_error("this build does not support sync method \"%s\"",
+                 "syncfs");
+    return false;
 #endif
-	}
-	else
-	{
-		pg_log_error("unrecognized sync method: %s", optarg);
-		return false;
-	}
+  } else {
+    pg_log_error("unrecognized sync method: %s", optarg);
+    return false;
+  }
 
-	return true;
+  return true;
 }

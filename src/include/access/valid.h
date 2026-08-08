@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * valid.h
- *	  POSTGRES tuple qualification validity definitions.
+ *    POSTGRES tuple qualification validity definitions.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -20,39 +20,39 @@
 #include "access/tupdesc.h"
 
 /*
- *		HeapKeyTest
+ *    HeapKeyTest
  *
- *		Test a heap tuple to see if it satisfies a scan key.
+ *    Test a heap tuple to see if it satisfies a scan key.
  */
 static inline bool
 HeapKeyTest(HeapTuple tuple, TupleDesc tupdesc, int nkeys, ScanKey keys)
 {
-	int			cur_nkeys = nkeys;
-	ScanKey		cur_key = keys;
+  int     cur_nkeys = nkeys;
+  ScanKey   cur_key = keys;
 
-	for (; cur_nkeys--; cur_key++)
-	{
-		Datum		atp;
-		bool		isnull;
-		Datum		test;
+  for (; cur_nkeys--; cur_key++)
+  {
+    Datum   atp;
+    bool    isnull;
+    Datum   test;
 
-		if (cur_key->sk_flags & SK_ISNULL)
-			return false;
+    if (cur_key->sk_flags & SK_ISNULL)
+      return false;
 
-		atp = heap_getattr(tuple, cur_key->sk_attno, tupdesc, &isnull);
+    atp = heap_getattr(tuple, cur_key->sk_attno, tupdesc, &isnull);
 
-		if (isnull)
-			return false;
+    if (isnull)
+      return false;
 
-		test = FunctionCall2Coll(&cur_key->sk_func,
-								 cur_key->sk_collation,
-								 atp, cur_key->sk_argument);
+    test = FunctionCall2Coll(&cur_key->sk_func,
+                             cur_key->sk_collation,
+                             atp, cur_key->sk_argument);
 
-		if (!DatumGetBool(test))
-			return false;
-	}
+    if (!DatumGetBool(test))
+      return false;
+  }
 
-	return true;
+  return true;
 }
 
-#endif							/* VALID_H */
+#endif              /* VALID_H */

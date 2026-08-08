@@ -8,7 +8,7 @@
  *
  *
  * IDENTIFICATION
- *	  src/backend/utils/adt/misc.c
+ *    src/backend/utils/adt/misc.c
  *
  *-------------------------------------------------------------------------
  */
@@ -51,19 +51,18 @@
 /*
  * structure to cache metadata needed in pg_input_is_valid_common
  */
-typedef struct ValidIOData
-{
-	Oid			typoid;
-	int32		typmod;
-	bool		typname_constant;
-	Oid			typiofunc;
-	Oid			typioparam;
-	FmgrInfo	inputproc;
+typedef struct ValidIOData {
+  Oid     typoid;
+  int32   typmod;
+  bool    typname_constant;
+  Oid     typiofunc;
+  Oid     typioparam;
+  FmgrInfo  inputproc;
 } ValidIOData;
 
 static bool pg_input_is_valid_common(FunctionCallInfo fcinfo,
-									 text *txt, text *typname,
-									 ErrorSaveContext *escontext);
+                                     text *txt, text *typname,
+                                     ErrorSaveContext *escontext);
 
 
 /*
@@ -74,148 +73,143 @@ static bool pg_input_is_valid_common(FunctionCallInfo fcinfo,
  */
 static bool
 count_nulls(FunctionCallInfo fcinfo,
-			int32 *nargs, int32 *nulls)
+            int32 *nargs, int32 *nulls)
 {
-	int32		count = 0;
-	int			i;
+  int32   count = 0;
+  int     i;
 
-	/* Did we get a VARIADIC array argument, or separate arguments? */
-	if (get_fn_expr_variadic(fcinfo->flinfo))
-	{
-		ArrayType  *arr;
-		int			ndims,
-					nitems,
-				   *dims;
-		bits8	   *bitmap;
+  /* Did we get a VARIADIC array argument, or separate arguments? */
+  if (get_fn_expr_variadic(fcinfo->flinfo)) {
+    ArrayType  *arr;
+    int     ndims,
+            nitems,
+            *dims;
+    bits8    *bitmap;
 
-		Assert(PG_NARGS() == 1);
+    Assert(PG_NARGS() == 1);
 
-		/*
-		 * If we get a null as VARIADIC array argument, we can't say anything
-		 * useful about the number of elements, so return NULL.  This behavior
-		 * is consistent with other variadic functions - see concat_internal.
-		 */
-		if (PG_ARGISNULL(0))
-			return false;
+    /*
+     * If we get a null as VARIADIC array argument, we can't say anything
+     * useful about the number of elements, so return NULL.  This behavior
+     * is consistent with other variadic functions - see concat_internal.
+     */
+    if (PG_ARGISNULL(0))
+      return false;
 
-		/*
-		 * Non-null argument had better be an array.  We assume that any call
-		 * context that could let get_fn_expr_variadic return true will have
-		 * checked that a VARIADIC-labeled parameter actually is an array.  So
-		 * it should be okay to just Assert that it's an array rather than
-		 * doing a full-fledged error check.
-		 */
-		Assert(OidIsValid(get_base_element_type(get_fn_expr_argtype(fcinfo->flinfo, 0))));
+    /*
+     * Non-null argument had better be an array.  We assume that any call
+     * context that could let get_fn_expr_variadic return true will have
+     * checked that a VARIADIC-labeled parameter actually is an array.  So
+     * it should be okay to just Assert that it's an array rather than
+     * doing a full-fledged error check.
+     */
+    Assert(OidIsValid(get_base_element_type(get_fn_expr_argtype(fcinfo->flinfo, 0))));
 
-		/* OK, safe to fetch the array value */
-		arr = PG_GETARG_ARRAYTYPE_P(0);
+    /* OK, safe to fetch the array value */
+    arr = PG_GETARG_ARRAYTYPE_P(0);
 
-		/* Count the array elements */
-		ndims = ARR_NDIM(arr);
-		dims = ARR_DIMS(arr);
-		nitems = ArrayGetNItems(ndims, dims);
+    /* Count the array elements */
+    ndims = ARR_NDIM(arr);
+    dims = ARR_DIMS(arr);
+    nitems = ArrayGetNItems(ndims, dims);
 
-		/* Count those that are NULL */
-		bitmap = ARR_NULLBITMAP(arr);
-		if (bitmap)
-		{
-			int			bitmask = 1;
+    /* Count those that are NULL */
+    bitmap = ARR_NULLBITMAP(arr);
 
-			for (i = 0; i < nitems; i++)
-			{
-				if ((*bitmap & bitmask) == 0)
-					count++;
+    if (bitmap) {
+      int     bitmask = 1;
 
-				bitmask <<= 1;
-				if (bitmask == 0x100)
-				{
-					bitmap++;
-					bitmask = 1;
-				}
-			}
-		}
+      for (i = 0; i < nitems; i++) {
+        if ((*bitmap & bitmask) == 0)
+          count++;
 
-		*nargs = nitems;
-		*nulls = count;
-	}
-	else
-	{
-		/* Separate arguments, so just count 'em */
-		for (i = 0; i < PG_NARGS(); i++)
-		{
-			if (PG_ARGISNULL(i))
-				count++;
-		}
+        bitmask <<= 1;
 
-		*nargs = PG_NARGS();
-		*nulls = count;
-	}
+        if (bitmask == 0x100) {
+          bitmap++;
+          bitmask = 1;
+        }
+      }
+    }
 
-	return true;
+    *nargs = nitems;
+    *nulls = count;
+  } else {
+    /* Separate arguments, so just count 'em */
+    for (i = 0; i < PG_NARGS(); i++) {
+      if (PG_ARGISNULL(i))
+        count++;
+    }
+
+    *nargs = PG_NARGS();
+    *nulls = count;
+  }
+
+  return true;
 }
 
 /*
  * num_nulls()
- *	Count the number of NULL arguments
+ *  Count the number of NULL arguments
  */
 Datum
 pg_num_nulls(PG_FUNCTION_ARGS)
 {
-	int32		nargs,
-				nulls;
+  int32   nargs,
+          nulls;
 
-	if (!count_nulls(fcinfo, &nargs, &nulls))
-		PG_RETURN_NULL();
+  if (!count_nulls(fcinfo, &nargs, &nulls))
+    PG_RETURN_NULL();
 
-	PG_RETURN_INT32(nulls);
+  PG_RETURN_INT32(nulls);
 }
 
 /*
  * num_nonnulls()
- *	Count the number of non-NULL arguments
+ *  Count the number of non-NULL arguments
  */
 Datum
 pg_num_nonnulls(PG_FUNCTION_ARGS)
 {
-	int32		nargs,
-				nulls;
+  int32   nargs,
+          nulls;
 
-	if (!count_nulls(fcinfo, &nargs, &nulls))
-		PG_RETURN_NULL();
+  if (!count_nulls(fcinfo, &nargs, &nulls))
+    PG_RETURN_NULL();
 
-	PG_RETURN_INT32(nargs - nulls);
+  PG_RETURN_INT32(nargs - nulls);
 }
 
 
 /*
  * current_database()
- *	Expose the current database to the user
+ *  Expose the current database to the user
  */
 Datum
 current_database(PG_FUNCTION_ARGS)
 {
-	Name		db;
+  Name    db;
 
-	db = (Name) palloc(NAMEDATALEN);
+  db = (Name) palloc(NAMEDATALEN);
 
-	namestrcpy(db, get_database_name(MyDatabaseId));
-	PG_RETURN_NAME(db);
+  namestrcpy(db, get_database_name(MyDatabaseId));
+  PG_RETURN_NAME(db);
 }
 
 
 /*
  * current_query()
- *	Expose the current query to the user (useful in stored procedures)
- *	We might want to use ActivePortal->sourceText someday.
+ *  Expose the current query to the user (useful in stored procedures)
+ *  We might want to use ActivePortal->sourceText someday.
  */
 Datum
 current_query(PG_FUNCTION_ARGS)
 {
-	/* there is no easy way to access the more concise 'query_string' */
-	if (debug_query_string)
-		PG_RETURN_TEXT_P(cstring_to_text(debug_query_string));
-	else
-		PG_RETURN_NULL();
+  /* there is no easy way to access the more concise 'query_string' */
+  if (debug_query_string)
+    PG_RETURN_TEXT_P(cstring_to_text(debug_query_string));
+  else
+    PG_RETURN_NULL();
 }
 
 /* Function to find out which databases make use of a tablespace */
@@ -223,74 +217,72 @@ current_query(PG_FUNCTION_ARGS)
 Datum
 pg_tablespace_databases(PG_FUNCTION_ARGS)
 {
-	Oid			tablespaceOid = PG_GETARG_OID(0);
-	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
-	char	   *location;
-	DIR		   *dirdesc;
-	struct dirent *de;
+  Oid     tablespaceOid = PG_GETARG_OID(0);
+  ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+  char     *location;
+  DIR      *dirdesc;
+  struct dirent *de;
 
-	InitMaterializedSRF(fcinfo, MAT_SRF_USE_EXPECTED_DESC);
+  InitMaterializedSRF(fcinfo, MAT_SRF_USE_EXPECTED_DESC);
 
-	if (tablespaceOid == GLOBALTABLESPACE_OID)
-	{
-		ereport(WARNING,
-				(errmsg("global tablespace never has databases")));
-		/* return empty tuplestore */
-		return (Datum) 0;
-	}
+  if (tablespaceOid == GLOBALTABLESPACE_OID) {
+    ereport(WARNING,
+            (errmsg("global tablespace never has databases")));
+    /* return empty tuplestore */
+    return (Datum) 0;
+  }
 
-	if (tablespaceOid == DEFAULTTABLESPACE_OID)
-		location = "base";
-	else
-		location = psprintf("%s/%u/%s", PG_TBLSPC_DIR, tablespaceOid,
-							TABLESPACE_VERSION_DIRECTORY);
+  if (tablespaceOid == DEFAULTTABLESPACE_OID)
+    location = "base";
+  else
+    location = psprintf("%s/%u/%s", PG_TBLSPC_DIR, tablespaceOid,
+                        TABLESPACE_VERSION_DIRECTORY);
 
-	dirdesc = AllocateDir(location);
+  dirdesc = AllocateDir(location);
 
-	if (!dirdesc)
-	{
-		/* the only expected error is ENOENT */
-		if (errno != ENOENT)
-			ereport(ERROR,
-					(errcode_for_file_access(),
-					 errmsg("could not open directory \"%s\": %m",
-							location)));
-		ereport(WARNING,
-				(errmsg("%u is not a tablespace OID", tablespaceOid)));
-		/* return empty tuplestore */
-		return (Datum) 0;
-	}
+  if (!dirdesc) {
+    /* the only expected error is ENOENT */
+    if (errno != ENOENT)
+      ereport(ERROR,
+              (errcode_for_file_access(),
+               errmsg("could not open directory \"%s\": %m",
+                      location)));
 
-	while ((de = ReadDir(dirdesc, location)) != NULL)
-	{
-		Oid			datOid = atooid(de->d_name);
-		char	   *subdir;
-		bool		isempty;
-		Datum		values[1];
-		bool		nulls[1];
+    ereport(WARNING,
+            (errmsg("%u is not a tablespace OID", tablespaceOid)));
+    /* return empty tuplestore */
+    return (Datum) 0;
+  }
 
-		/* this test skips . and .., but is awfully weak */
-		if (!datOid)
-			continue;
+  while ((de = ReadDir(dirdesc, location)) != NULL) {
+    Oid     datOid = atooid(de->d_name);
+    char     *subdir;
+    bool    isempty;
+    Datum   values[1];
+    bool    nulls[1];
 
-		/* if database subdir is empty, don't report tablespace as used */
+    /* this test skips . and .., but is awfully weak */
+    if (!datOid)
+      continue;
 
-		subdir = psprintf("%s/%s", location, de->d_name);
-		isempty = directory_is_empty(subdir);
-		pfree(subdir);
+    /* if database subdir is empty, don't report tablespace as used */
 
-		if (isempty)
-			continue;			/* indeed, nothing in it */
+    subdir = psprintf("%s/%s", location, de->d_name);
+    isempty = directory_is_empty(subdir);
+    pfree(subdir);
 
-		values[0] = ObjectIdGetDatum(datOid);
-		nulls[0] = false;
+    if (isempty)
+      continue;     /* indeed, nothing in it */
 
-		tuplestore_putvalues(rsinfo->setResult, rsinfo->setDesc,
-							 values, nulls);
-	}
+    values[0] = ObjectIdGetDatum(datOid);
+    nulls[0] = false;
 
-	FreeDir(dirdesc);
-	return (Datum) 0;
+    tuplestore_putvalues(rsinfo->setResult, rsinfo->setDesc,
+                         values, nulls);
+  }
+
+  FreeDir(dirdesc);
+  return (Datum) 0;
 }
 
 
@@ -300,67 +292,69 @@ pg_tablespace_databases(PG_FUNCTION_ARGS)
 Datum
 pg_tablespace_location(PG_FUNCTION_ARGS)
 {
-	Oid			tablespaceOid = PG_GETARG_OID(0);
-	char		sourcepath[MAXPGPATH];
-	char		targetpath[MAXPGPATH];
-	int			rllen;
-	struct stat st;
+  Oid     tablespaceOid = PG_GETARG_OID(0);
+  char    sourcepath[MAXPGPATH];
+  char    targetpath[MAXPGPATH];
+  int     rllen;
+  struct stat st;
 
-	/*
-	 * It's useful to apply this function to pg_class.reltablespace, wherein
-	 * zero means "the database's default tablespace".  So, rather than
-	 * throwing an error for zero, we choose to assume that's what is meant.
-	 */
-	if (tablespaceOid == InvalidOid)
-		tablespaceOid = MyDatabaseTableSpace;
+  /*
+   * It's useful to apply this function to pg_class.reltablespace, wherein
+   * zero means "the database's default tablespace".  So, rather than
+   * throwing an error for zero, we choose to assume that's what is meant.
+   */
+  if (tablespaceOid == InvalidOid)
+    tablespaceOid = MyDatabaseTableSpace;
 
-	/*
-	 * Return empty string for the cluster's default tablespaces
-	 */
-	if (tablespaceOid == DEFAULTTABLESPACE_OID ||
-		tablespaceOid == GLOBALTABLESPACE_OID)
-		PG_RETURN_TEXT_P(cstring_to_text(""));
+  /*
+   * Return empty string for the cluster's default tablespaces
+   */
+  if (tablespaceOid == DEFAULTTABLESPACE_OID ||
+      tablespaceOid == GLOBALTABLESPACE_OID)
+    PG_RETURN_TEXT_P(cstring_to_text(""));
 
-	/*
-	 * Find the location of the tablespace by reading the symbolic link that
-	 * is in pg_tblspc/<oid>.
-	 */
-	snprintf(sourcepath, sizeof(sourcepath), "%s/%u", PG_TBLSPC_DIR, tablespaceOid);
+  /*
+   * Find the location of the tablespace by reading the symbolic link that
+   * is in pg_tblspc/<oid>.
+   */
+  snprintf(sourcepath, sizeof(sourcepath), "%s/%u", PG_TBLSPC_DIR, tablespaceOid);
 
-	/*
-	 * Before reading the link, check if the source path is a link or a
-	 * junction point.  Note that a directory is possible for a tablespace
-	 * created with allow_in_place_tablespaces enabled.  If a directory is
-	 * found, a relative path to the data directory is returned.
-	 */
-	if (lstat(sourcepath, &st) < 0)
-	{
-		ereport(ERROR,
-				(errcode_for_file_access(),
-				 errmsg("could not stat file \"%s\": %m",
-						sourcepath)));
-	}
+  /*
+   * Before reading the link, check if the source path is a link or a
+   * junction point.  Note that a directory is possible for a tablespace
+   * created with allow_in_place_tablespaces enabled.  If a directory is
+   * found, a relative path to the data directory is returned.
+   */
+  if (lstat(sourcepath, &st) < 0) {
+    ereport(ERROR,
+            (errcode_for_file_access(),
+             errmsg("could not stat file \"%s\": %m",
+                    sourcepath)));
+  }
 
-	if (!S_ISLNK(st.st_mode))
-		PG_RETURN_TEXT_P(cstring_to_text(sourcepath));
+  if (!S_ISLNK(st.st_mode))
+    PG_RETURN_TEXT_P(cstring_to_text(sourcepath));
 
-	/*
-	 * In presence of a link or a junction point, return the path pointing to.
-	 */
-	rllen = readlink(sourcepath, targetpath, sizeof(targetpath));
-	if (rllen < 0)
-		ereport(ERROR,
-				(errcode_for_file_access(),
-				 errmsg("could not read symbolic link \"%s\": %m",
-						sourcepath)));
-	if (rllen >= sizeof(targetpath))
-		ereport(ERROR,
-				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-				 errmsg("symbolic link \"%s\" target is too long",
-						sourcepath)));
-	targetpath[rllen] = '\0';
+  /*
+   * In presence of a link or a junction point, return the path pointing to.
+   */
+  rllen = readlink(sourcepath, targetpath, sizeof(targetpath));
 
-	PG_RETURN_TEXT_P(cstring_to_text(targetpath));
+  if (rllen < 0)
+    ereport(ERROR,
+            (errcode_for_file_access(),
+             errmsg("could not read symbolic link \"%s\": %m",
+                    sourcepath)));
+
+  if (rllen >= sizeof(targetpath))
+    ereport(ERROR,
+            (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+             errmsg("symbolic link \"%s\" target is too long",
+                    sourcepath)));
+
+  targetpath[rllen] = '\0';
+
+  PG_RETURN_TEXT_P(cstring_to_text(targetpath));
 }
 
 /*
@@ -369,125 +363,124 @@ pg_tablespace_location(PG_FUNCTION_ARGS)
 Datum
 pg_sleep(PG_FUNCTION_ARGS)
 {
-	float8		secs = PG_GETARG_FLOAT8(0);
-	float8		endtime;
+  float8    secs = PG_GETARG_FLOAT8(0);
+  float8    endtime;
 
-	/*
-	 * We sleep using WaitLatch, to ensure that we'll wake up promptly if an
-	 * important signal (such as SIGALRM or SIGINT) arrives.  Because
-	 * WaitLatch's upper limit of delay is INT_MAX milliseconds, and the user
-	 * might ask for more than that, we sleep for at most 10 minutes and then
-	 * loop.
-	 *
-	 * By computing the intended stop time initially, we avoid accumulation of
-	 * extra delay across multiple sleeps.  This also ensures we won't delay
-	 * less than the specified time when WaitLatch is terminated early by a
-	 * non-query-canceling signal such as SIGHUP.
-	 */
-#define GetNowFloat()	((float8) GetCurrentTimestamp() / 1000000.0)
+  /*
+   * We sleep using WaitLatch, to ensure that we'll wake up promptly if an
+   * important signal (such as SIGALRM or SIGINT) arrives.  Because
+   * WaitLatch's upper limit of delay is INT_MAX milliseconds, and the user
+   * might ask for more than that, we sleep for at most 10 minutes and then
+   * loop.
+   *
+   * By computing the intended stop time initially, we avoid accumulation of
+   * extra delay across multiple sleeps.  This also ensures we won't delay
+   * less than the specified time when WaitLatch is terminated early by a
+   * non-query-canceling signal such as SIGHUP.
+   */
+#define GetNowFloat() ((float8) GetCurrentTimestamp() / 1000000.0)
 
-	endtime = GetNowFloat() + secs;
+  endtime = GetNowFloat() + secs;
 
-	for (;;)
-	{
-		float8		delay;
-		long		delay_ms;
+  for (;;) {
+    float8    delay;
+    long    delay_ms;
 
-		CHECK_FOR_INTERRUPTS();
+    CHECK_FOR_INTERRUPTS();
 
-		delay = endtime - GetNowFloat();
-		if (delay >= 600.0)
-			delay_ms = 600000;
-		else if (delay > 0.0)
-			delay_ms = (long) ceil(delay * 1000.0);
-		else
-			break;
+    delay = endtime - GetNowFloat();
 
-		(void) WaitLatch(MyLatch,
-						 WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
-						 delay_ms,
-						 WAIT_EVENT_PG_SLEEP);
-		ResetLatch(MyLatch);
-	}
+    if (delay >= 600.0)
+      delay_ms = 600000;
+    else if (delay > 0.0)
+      delay_ms = (long) ceil(delay * 1000.0);
+    else
+      break;
 
-	PG_RETURN_VOID();
+    (void) WaitLatch(MyLatch,
+                     WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
+                     delay_ms,
+                     WAIT_EVENT_PG_SLEEP);
+    ResetLatch(MyLatch);
+  }
+
+  PG_RETURN_VOID();
 }
 
 /* Function to return the list of grammar keywords */
 Datum
 pg_get_keywords(PG_FUNCTION_ARGS)
 {
-	FuncCallContext *funcctx;
+  FuncCallContext *funcctx;
 
-	if (SRF_IS_FIRSTCALL())
-	{
-		MemoryContext oldcontext;
-		TupleDesc	tupdesc;
+  if (SRF_IS_FIRSTCALL()) {
+    MemoryContext oldcontext;
+    TupleDesc tupdesc;
 
-		funcctx = SRF_FIRSTCALL_INIT();
-		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+    funcctx = SRF_FIRSTCALL_INIT();
+    oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
 
-		if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
-			elog(ERROR, "return type must be a row type");
-		funcctx->tuple_desc = tupdesc;
-		funcctx->attinmeta = TupleDescGetAttInMetadata(tupdesc);
+    if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+      elog(ERROR, "return type must be a row type");
 
-		MemoryContextSwitchTo(oldcontext);
-	}
+    funcctx->tuple_desc = tupdesc;
+    funcctx->attinmeta = TupleDescGetAttInMetadata(tupdesc);
 
-	funcctx = SRF_PERCALL_SETUP();
+    MemoryContextSwitchTo(oldcontext);
+  }
 
-	if (funcctx->call_cntr < ScanKeywords.num_keywords)
-	{
-		char	   *values[5];
-		HeapTuple	tuple;
+  funcctx = SRF_PERCALL_SETUP();
 
-		/* cast-away-const is ugly but alternatives aren't much better */
-		values[0] = unconstify(char *,
-							   GetScanKeyword(funcctx->call_cntr,
-											  &ScanKeywords));
+  if (funcctx->call_cntr < ScanKeywords.num_keywords) {
+    char     *values[5];
+    HeapTuple tuple;
 
-		switch (ScanKeywordCategories[funcctx->call_cntr])
-		{
-			case UNRESERVED_KEYWORD:
-				values[1] = "U";
-				values[3] = _("unreserved");
-				break;
-			case COL_NAME_KEYWORD:
-				values[1] = "C";
-				values[3] = _("unreserved (cannot be function or type name)");
-				break;
-			case TYPE_FUNC_NAME_KEYWORD:
-				values[1] = "T";
-				values[3] = _("reserved (can be function or type name)");
-				break;
-			case RESERVED_KEYWORD:
-				values[1] = "R";
-				values[3] = _("reserved");
-				break;
-			default:			/* shouldn't be possible */
-				values[1] = NULL;
-				values[3] = NULL;
-				break;
-		}
+    /* cast-away-const is ugly but alternatives aren't much better */
+    values[0] = unconstify(char *,
+                           GetScanKeyword(funcctx->call_cntr,
+                                          &ScanKeywords));
 
-		if (ScanKeywordBareLabel[funcctx->call_cntr])
-		{
-			values[2] = "true";
-			values[4] = _("can be bare label");
-		}
-		else
-		{
-			values[2] = "false";
-			values[4] = _("requires AS");
-		}
+    switch (ScanKeywordCategories[funcctx->call_cntr]) {
+      case UNRESERVED_KEYWORD:
+        values[1] = "U";
+        values[3] = _("unreserved");
+        break;
 
-		tuple = BuildTupleFromCStrings(funcctx->attinmeta, values);
+      case COL_NAME_KEYWORD:
+        values[1] = "C";
+        values[3] = _("unreserved (cannot be function or type name)");
+        break;
 
-		SRF_RETURN_NEXT(funcctx, HeapTupleGetDatum(tuple));
-	}
+      case TYPE_FUNC_NAME_KEYWORD:
+        values[1] = "T";
+        values[3] = _("reserved (can be function or type name)");
+        break;
 
-	SRF_RETURN_DONE(funcctx);
+      case RESERVED_KEYWORD:
+        values[1] = "R";
+        values[3] = _("reserved");
+        break;
+
+      default:      /* shouldn't be possible */
+        values[1] = NULL;
+        values[3] = NULL;
+        break;
+    }
+
+    if (ScanKeywordBareLabel[funcctx->call_cntr]) {
+      values[2] = "true";
+      values[4] = _("can be bare label");
+    } else {
+      values[2] = "false";
+      values[4] = _("requires AS");
+    }
+
+    tuple = BuildTupleFromCStrings(funcctx->attinmeta, values);
+
+    SRF_RETURN_NEXT(funcctx, HeapTupleGetDatum(tuple));
+  }
+
+  SRF_RETURN_DONE(funcctx);
 }
 
 
@@ -495,65 +488,64 @@ pg_get_keywords(PG_FUNCTION_ARGS)
 Datum
 pg_get_catalog_foreign_keys(PG_FUNCTION_ARGS)
 {
-	FuncCallContext *funcctx;
-	FmgrInfo   *arrayinp;
+  FuncCallContext *funcctx;
+  FmgrInfo   *arrayinp;
 
-	if (SRF_IS_FIRSTCALL())
-	{
-		MemoryContext oldcontext;
-		TupleDesc	tupdesc;
+  if (SRF_IS_FIRSTCALL()) {
+    MemoryContext oldcontext;
+    TupleDesc tupdesc;
 
-		funcctx = SRF_FIRSTCALL_INIT();
-		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+    funcctx = SRF_FIRSTCALL_INIT();
+    oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
 
-		if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
-			elog(ERROR, "return type must be a row type");
-		funcctx->tuple_desc = BlessTupleDesc(tupdesc);
+    if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+      elog(ERROR, "return type must be a row type");
 
-		/*
-		 * We use array_in to convert the C strings in sys_fk_relationships[]
-		 * to text arrays.  But we cannot use DirectFunctionCallN to call
-		 * array_in, and it wouldn't be very efficient if we could.  Fill an
-		 * FmgrInfo to use for the call.
-		 */
-		arrayinp = (FmgrInfo *) palloc(sizeof(FmgrInfo));
-		fmgr_info(F_ARRAY_IN, arrayinp);
-		funcctx->user_fctx = arrayinp;
+    funcctx->tuple_desc = BlessTupleDesc(tupdesc);
 
-		MemoryContextSwitchTo(oldcontext);
-	}
+    /*
+     * We use array_in to convert the C strings in sys_fk_relationships[]
+     * to text arrays.  But we cannot use DirectFunctionCallN to call
+     * array_in, and it wouldn't be very efficient if we could.  Fill an
+     * FmgrInfo to use for the call.
+     */
+    arrayinp = (FmgrInfo *) palloc(sizeof(FmgrInfo));
+    fmgr_info(F_ARRAY_IN, arrayinp);
+    funcctx->user_fctx = arrayinp;
 
-	funcctx = SRF_PERCALL_SETUP();
-	arrayinp = (FmgrInfo *) funcctx->user_fctx;
+    MemoryContextSwitchTo(oldcontext);
+  }
 
-	if (funcctx->call_cntr < lengthof(sys_fk_relationships))
-	{
-		const SysFKRelationship *fkrel = &sys_fk_relationships[funcctx->call_cntr];
-		Datum		values[6];
-		bool		nulls[6];
-		HeapTuple	tuple;
+  funcctx = SRF_PERCALL_SETUP();
+  arrayinp = (FmgrInfo *) funcctx->user_fctx;
 
-		memset(nulls, false, sizeof(nulls));
+  if (funcctx->call_cntr < lengthof(sys_fk_relationships)) {
+    const SysFKRelationship *fkrel = &sys_fk_relationships[funcctx->call_cntr];
+    Datum   values[6];
+    bool    nulls[6];
+    HeapTuple tuple;
 
-		values[0] = ObjectIdGetDatum(fkrel->fk_table);
-		values[1] = FunctionCall3(arrayinp,
-								  CStringGetDatum(fkrel->fk_columns),
-								  ObjectIdGetDatum(TEXTOID),
-								  Int32GetDatum(-1));
-		values[2] = ObjectIdGetDatum(fkrel->pk_table);
-		values[3] = FunctionCall3(arrayinp,
-								  CStringGetDatum(fkrel->pk_columns),
-								  ObjectIdGetDatum(TEXTOID),
-								  Int32GetDatum(-1));
-		values[4] = BoolGetDatum(fkrel->is_array);
-		values[5] = BoolGetDatum(fkrel->is_opt);
+    memset(nulls, false, sizeof(nulls));
 
-		tuple = heap_form_tuple(funcctx->tuple_desc, values, nulls);
+    values[0] = ObjectIdGetDatum(fkrel->fk_table);
+    values[1] = FunctionCall3(arrayinp,
+                              CStringGetDatum(fkrel->fk_columns),
+                              ObjectIdGetDatum(TEXTOID),
+                              Int32GetDatum(-1));
+    values[2] = ObjectIdGetDatum(fkrel->pk_table);
+    values[3] = FunctionCall3(arrayinp,
+                              CStringGetDatum(fkrel->pk_columns),
+                              ObjectIdGetDatum(TEXTOID),
+                              Int32GetDatum(-1));
+    values[4] = BoolGetDatum(fkrel->is_array);
+    values[5] = BoolGetDatum(fkrel->is_opt);
 
-		SRF_RETURN_NEXT(funcctx, HeapTupleGetDatum(tuple));
-	}
+    tuple = heap_form_tuple(funcctx->tuple_desc, values, nulls);
 
-	SRF_RETURN_DONE(funcctx);
+    SRF_RETURN_NEXT(funcctx, HeapTupleGetDatum(tuple));
+  }
+
+  SRF_RETURN_DONE(funcctx);
 }
 
 
@@ -563,16 +555,16 @@ pg_get_catalog_foreign_keys(PG_FUNCTION_ARGS)
 Datum
 pg_typeof(PG_FUNCTION_ARGS)
 {
-	PG_RETURN_OID(get_fn_expr_argtype(fcinfo->flinfo, 0));
+  PG_RETURN_OID(get_fn_expr_argtype(fcinfo->flinfo, 0));
 }
 
 
 /*
  * Return the base type of the argument.
- *		If the given type is a domain, return its base type;
- *		otherwise return the type's own OID.
- *		Return NULL if the type OID doesn't exist or points to a
- *		non-existent base type.
+ *    If the given type is a domain, return its base type;
+ *    otherwise return the type's own OID.
+ *    Return NULL if the type OID doesn't exist or points to a
+ *    non-existent base type.
  *
  * This is a SQL-callable version of getBaseType().  Unlike that function,
  * we don't want to fail for a bogus type OID; this is helpful to keep race
@@ -582,32 +574,33 @@ pg_typeof(PG_FUNCTION_ARGS)
 Datum
 pg_basetype(PG_FUNCTION_ARGS)
 {
-	Oid			typid = PG_GETARG_OID(0);
+  Oid     typid = PG_GETARG_OID(0);
 
-	/*
-	 * We loop to find the bottom base type in a stack of domains.
-	 */
-	for (;;)
-	{
-		HeapTuple	tup;
-		Form_pg_type typTup;
+  /*
+   * We loop to find the bottom base type in a stack of domains.
+   */
+  for (;;) {
+    HeapTuple tup;
+    Form_pg_type typTup;
 
-		tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
-		if (!HeapTupleIsValid(tup))
-			PG_RETURN_NULL();	/* return NULL for bogus OID */
-		typTup = (Form_pg_type) GETSTRUCT(tup);
-		if (typTup->typtype != TYPTYPE_DOMAIN)
-		{
-			/* Not a domain, so done */
-			ReleaseSysCache(tup);
-			break;
-		}
+    tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
 
-		typid = typTup->typbasetype;
-		ReleaseSysCache(tup);
-	}
+    if (!HeapTupleIsValid(tup))
+      PG_RETURN_NULL(); /* return NULL for bogus OID */
 
-	PG_RETURN_OID(typid);
+    typTup = (Form_pg_type) GETSTRUCT(tup);
+
+    if (typTup->typtype != TYPTYPE_DOMAIN) {
+      /* Not a domain, so done */
+      ReleaseSysCache(tup);
+      break;
+    }
+
+    typid = typTup->typbasetype;
+    ReleaseSysCache(tup);
+  }
+
+  PG_RETURN_OID(typid);
 }
 
 
@@ -618,22 +611,26 @@ pg_basetype(PG_FUNCTION_ARGS)
 Datum
 pg_collation_for(PG_FUNCTION_ARGS)
 {
-	Oid			typeid;
-	Oid			collid;
+  Oid     typeid;
+  Oid     collid;
 
-	typeid = get_fn_expr_argtype(fcinfo->flinfo, 0);
-	if (!typeid)
-		PG_RETURN_NULL();
-	if (!type_is_collatable(typeid) && typeid != UNKNOWNOID)
-		ereport(ERROR,
-				(errcode(ERRCODE_DATATYPE_MISMATCH),
-				 errmsg("collations are not supported by type %s",
-						format_type_be(typeid))));
+  typeid = get_fn_expr_argtype(fcinfo->flinfo, 0);
 
-	collid = PG_GET_COLLATION();
-	if (!collid)
-		PG_RETURN_NULL();
-	PG_RETURN_TEXT_P(cstring_to_text(generate_collation_name(collid)));
+  if (!typeid)
+    PG_RETURN_NULL();
+
+  if (!type_is_collatable(typeid) && typeid != UNKNOWNOID)
+    ereport(ERROR,
+            (errcode(ERRCODE_DATATYPE_MISMATCH),
+             errmsg("collations are not supported by type %s",
+                    format_type_be(typeid))));
+
+  collid = PG_GET_COLLATION();
+
+  if (!collid)
+    PG_RETURN_NULL();
+
+  PG_RETURN_TEXT_P(cstring_to_text(generate_collation_name(collid)));
 }
 
 
@@ -647,10 +644,10 @@ pg_collation_for(PG_FUNCTION_ARGS)
 Datum
 pg_relation_is_updatable(PG_FUNCTION_ARGS)
 {
-	Oid			reloid = PG_GETARG_OID(0);
-	bool		include_triggers = PG_GETARG_BOOL(1);
+  Oid     reloid = PG_GETARG_OID(0);
+  bool    include_triggers = PG_GETARG_BOOL(1);
 
-	PG_RETURN_INT32(relation_is_updatable(reloid, NIL, include_triggers, NULL));
+  PG_RETURN_INT32(relation_is_updatable(reloid, NIL, include_triggers, NULL));
 }
 
 /*
@@ -664,23 +661,23 @@ pg_relation_is_updatable(PG_FUNCTION_ARGS)
 Datum
 pg_column_is_updatable(PG_FUNCTION_ARGS)
 {
-	Oid			reloid = PG_GETARG_OID(0);
-	AttrNumber	attnum = PG_GETARG_INT16(1);
-	AttrNumber	col = attnum - FirstLowInvalidHeapAttributeNumber;
-	bool		include_triggers = PG_GETARG_BOOL(2);
-	int			events;
+  Oid     reloid = PG_GETARG_OID(0);
+  AttrNumber  attnum = PG_GETARG_INT16(1);
+  AttrNumber  col = attnum - FirstLowInvalidHeapAttributeNumber;
+  bool    include_triggers = PG_GETARG_BOOL(2);
+  int     events;
 
-	/* System columns are never updatable */
-	if (attnum <= 0)
-		PG_RETURN_BOOL(false);
+  /* System columns are never updatable */
+  if (attnum <= 0)
+    PG_RETURN_BOOL(false);
 
-	events = relation_is_updatable(reloid, NIL, include_triggers,
-								   bms_make_singleton(col));
+  events = relation_is_updatable(reloid, NIL, include_triggers,
+                                 bms_make_singleton(col));
 
-	/* We require both updatability and deletability of the relation */
+  /* We require both updatability and deletability of the relation */
 #define REQ_EVENTS ((1 << CMD_UPDATE) | (1 << CMD_DELETE))
 
-	PG_RETURN_BOOL((events & REQ_EVENTS) == REQ_EVENTS);
+  PG_RETURN_BOOL((events & REQ_EVENTS) == REQ_EVENTS);
 }
 
 
@@ -695,12 +692,12 @@ pg_column_is_updatable(PG_FUNCTION_ARGS)
 Datum
 pg_input_is_valid(PG_FUNCTION_ARGS)
 {
-	text	   *txt = PG_GETARG_TEXT_PP(0);
-	text	   *typname = PG_GETARG_TEXT_PP(1);
-	ErrorSaveContext escontext = {T_ErrorSaveContext};
+  text     *txt = PG_GETARG_TEXT_PP(0);
+  text     *typname = PG_GETARG_TEXT_PP(1);
+  ErrorSaveContext escontext = {T_ErrorSaveContext};
 
-	PG_RETURN_BOOL(pg_input_is_valid_common(fcinfo, txt, typname,
-											&escontext));
+  PG_RETURN_BOOL(pg_input_is_valid_common(fcinfo, txt, typname,
+                                          &escontext));
 }
 
 /*
@@ -715,108 +712,105 @@ pg_input_is_valid(PG_FUNCTION_ARGS)
 Datum
 pg_input_error_info(PG_FUNCTION_ARGS)
 {
-	text	   *txt = PG_GETARG_TEXT_PP(0);
-	text	   *typname = PG_GETARG_TEXT_PP(1);
-	ErrorSaveContext escontext = {T_ErrorSaveContext};
-	TupleDesc	tupdesc;
-	Datum		values[4];
-	bool		isnull[4];
+  text     *txt = PG_GETARG_TEXT_PP(0);
+  text     *typname = PG_GETARG_TEXT_PP(1);
+  ErrorSaveContext escontext = {T_ErrorSaveContext};
+  TupleDesc tupdesc;
+  Datum   values[4];
+  bool    isnull[4];
 
-	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
-		elog(ERROR, "return type must be a row type");
+  if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+    elog(ERROR, "return type must be a row type");
 
-	/* Enable details_wanted */
-	escontext.details_wanted = true;
+  /* Enable details_wanted */
+  escontext.details_wanted = true;
 
-	if (pg_input_is_valid_common(fcinfo, txt, typname,
-								 &escontext))
-		memset(isnull, true, sizeof(isnull));
-	else
-	{
-		char	   *sqlstate;
+  if (pg_input_is_valid_common(fcinfo, txt, typname,
+                               &escontext))
+    memset(isnull, true, sizeof(isnull));
+  else {
+    char     *sqlstate;
 
-		Assert(escontext.error_occurred);
-		Assert(escontext.error_data != NULL);
-		Assert(escontext.error_data->message != NULL);
+    Assert(escontext.error_occurred);
+    Assert(escontext.error_data != NULL);
+    Assert(escontext.error_data->message != NULL);
 
-		memset(isnull, false, sizeof(isnull));
+    memset(isnull, false, sizeof(isnull));
 
-		values[0] = CStringGetTextDatum(escontext.error_data->message);
+    values[0] = CStringGetTextDatum(escontext.error_data->message);
 
-		if (escontext.error_data->detail != NULL)
-			values[1] = CStringGetTextDatum(escontext.error_data->detail);
-		else
-			isnull[1] = true;
+    if (escontext.error_data->detail != NULL)
+      values[1] = CStringGetTextDatum(escontext.error_data->detail);
+    else
+      isnull[1] = true;
 
-		if (escontext.error_data->hint != NULL)
-			values[2] = CStringGetTextDatum(escontext.error_data->hint);
-		else
-			isnull[2] = true;
+    if (escontext.error_data->hint != NULL)
+      values[2] = CStringGetTextDatum(escontext.error_data->hint);
+    else
+      isnull[2] = true;
 
-		sqlstate = unpack_sql_state(escontext.error_data->sqlerrcode);
-		values[3] = CStringGetTextDatum(sqlstate);
-	}
+    sqlstate = unpack_sql_state(escontext.error_data->sqlerrcode);
+    values[3] = CStringGetTextDatum(sqlstate);
+  }
 
-	return HeapTupleGetDatum(heap_form_tuple(tupdesc, values, isnull));
+  return HeapTupleGetDatum(heap_form_tuple(tupdesc, values, isnull));
 }
 
 /* Common subroutine for the above */
 static bool
 pg_input_is_valid_common(FunctionCallInfo fcinfo,
-						 text *txt, text *typname,
-						 ErrorSaveContext *escontext)
+                         text *txt, text *typname,
+                         ErrorSaveContext *escontext)
 {
-	char	   *str = text_to_cstring(txt);
-	ValidIOData *my_extra;
-	Datum		converted;
+  char     *str = text_to_cstring(txt);
+  ValidIOData *my_extra;
+  Datum   converted;
 
-	/*
-	 * We arrange to look up the needed I/O info just once per series of
-	 * calls, assuming the data type doesn't change underneath us.
-	 */
-	my_extra = (ValidIOData *) fcinfo->flinfo->fn_extra;
-	if (my_extra == NULL)
-	{
-		fcinfo->flinfo->fn_extra =
-			MemoryContextAlloc(fcinfo->flinfo->fn_mcxt,
-							   sizeof(ValidIOData));
-		my_extra = (ValidIOData *) fcinfo->flinfo->fn_extra;
-		my_extra->typoid = InvalidOid;
-		/* Detect whether typname argument is constant. */
-		my_extra->typname_constant = get_fn_expr_arg_stable(fcinfo->flinfo, 1);
-	}
+  /*
+   * We arrange to look up the needed I/O info just once per series of
+   * calls, assuming the data type doesn't change underneath us.
+   */
+  my_extra = (ValidIOData *) fcinfo->flinfo->fn_extra;
 
-	/*
-	 * If the typname argument is constant, we only need to parse it the first
-	 * time through.
-	 */
-	if (my_extra->typoid == InvalidOid || !my_extra->typname_constant)
-	{
-		char	   *typnamestr = text_to_cstring(typname);
-		Oid			typoid;
+  if (my_extra == NULL) {
+    fcinfo->flinfo->fn_extra =
+      MemoryContextAlloc(fcinfo->flinfo->fn_mcxt,
+                         sizeof(ValidIOData));
+    my_extra = (ValidIOData *) fcinfo->flinfo->fn_extra;
+    my_extra->typoid = InvalidOid;
+    /* Detect whether typname argument is constant. */
+    my_extra->typname_constant = get_fn_expr_arg_stable(fcinfo->flinfo, 1);
+  }
 
-		/* Parse type-name argument to obtain type OID and encoded typmod. */
-		(void) parseTypeString(typnamestr, &typoid, &my_extra->typmod, NULL);
+  /*
+   * If the typname argument is constant, we only need to parse it the first
+   * time through.
+   */
+  if (my_extra->typoid == InvalidOid || !my_extra->typname_constant) {
+    char     *typnamestr = text_to_cstring(typname);
+    Oid     typoid;
 
-		/* Update type-specific info if typoid changed. */
-		if (my_extra->typoid != typoid)
-		{
-			getTypeInputInfo(typoid,
-							 &my_extra->typiofunc,
-							 &my_extra->typioparam);
-			fmgr_info_cxt(my_extra->typiofunc, &my_extra->inputproc,
-						  fcinfo->flinfo->fn_mcxt);
-			my_extra->typoid = typoid;
-		}
-	}
+    /* Parse type-name argument to obtain type OID and encoded typmod. */
+    (void) parseTypeString(typnamestr, &typoid, &my_extra->typmod, NULL);
 
-	/* Now we can try to perform the conversion. */
-	return InputFunctionCallSafe(&my_extra->inputproc,
-								 str,
-								 my_extra->typioparam,
-								 my_extra->typmod,
-								 (Node *) escontext,
-								 &converted);
+    /* Update type-specific info if typoid changed. */
+    if (my_extra->typoid != typoid) {
+      getTypeInputInfo(typoid,
+                       &my_extra->typiofunc,
+                       &my_extra->typioparam);
+      fmgr_info_cxt(my_extra->typiofunc, &my_extra->inputproc,
+                    fcinfo->flinfo->fn_mcxt);
+      my_extra->typoid = typoid;
+    }
+  }
+
+  /* Now we can try to perform the conversion. */
+  return InputFunctionCallSafe(&my_extra->inputproc,
+                               str,
+                               my_extra->typioparam,
+                               my_extra->typmod,
+                               (Node *) escontext,
+                               &converted);
 }
 
 
@@ -827,15 +821,18 @@ pg_input_is_valid_common(FunctionCallInfo fcinfo,
 static bool
 is_ident_start(unsigned char c)
 {
-	/* Underscores and ASCII letters are OK */
-	if (c == '_')
-		return true;
-	if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
-		return true;
-	/* Any high-bit-set character is OK (might be part of a multibyte char) */
-	if (IS_HIGHBIT_SET(c))
-		return true;
-	return false;
+  /* Underscores and ASCII letters are OK */
+  if (c == '_')
+    return true;
+
+  if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
+    return true;
+
+  /* Any high-bit-set character is OK (might be part of a multibyte char) */
+  if (IS_HIGHBIT_SET(c))
+    return true;
+
+  return false;
 }
 
 /*
@@ -845,11 +842,12 @@ is_ident_start(unsigned char c)
 static bool
 is_ident_cont(unsigned char c)
 {
-	/* Can be digit or dollar sign ... */
-	if ((c >= '0' && c <= '9') || c == '$')
-		return true;
-	/* ... or an identifier start character */
-	return is_ident_start(c);
+  /* Can be digit or dollar sign ... */
+  if ((c >= '0' && c <= '9') || c == '$')
+    return true;
+
+  /* ... or an identifier start character */
+  return is_ident_start(c);
 }
 
 /*
@@ -860,135 +858,132 @@ is_ident_cont(unsigned char c)
 Datum
 parse_ident(PG_FUNCTION_ARGS)
 {
-	text	   *qualname = PG_GETARG_TEXT_PP(0);
-	bool		strict = PG_GETARG_BOOL(1);
-	char	   *qualname_str = text_to_cstring(qualname);
-	ArrayBuildState *astate = NULL;
-	char	   *nextp;
-	bool		after_dot = false;
+  text     *qualname = PG_GETARG_TEXT_PP(0);
+  bool    strict = PG_GETARG_BOOL(1);
+  char     *qualname_str = text_to_cstring(qualname);
+  ArrayBuildState *astate = NULL;
+  char     *nextp;
+  bool    after_dot = false;
 
-	/*
-	 * The code below scribbles on qualname_str in some cases, so we should
-	 * reconvert qualname if we need to show the original string in error
-	 * messages.
-	 */
-	nextp = qualname_str;
+  /*
+   * The code below scribbles on qualname_str in some cases, so we should
+   * reconvert qualname if we need to show the original string in error
+   * messages.
+   */
+  nextp = qualname_str;
 
-	/* skip leading whitespace */
-	while (scanner_isspace(*nextp))
-		nextp++;
+  /* skip leading whitespace */
+  while (scanner_isspace(*nextp))
+    nextp++;
 
-	for (;;)
-	{
-		char	   *curname;
-		bool		missing_ident = true;
+  for (;;) {
+    char     *curname;
+    bool    missing_ident = true;
 
-		if (*nextp == '"')
-		{
-			char	   *endp;
+    if (*nextp == '"') {
+      char     *endp;
 
-			curname = nextp + 1;
-			for (;;)
-			{
-				endp = strchr(nextp + 1, '"');
-				if (endp == NULL)
-					ereport(ERROR,
-							(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-							 errmsg("string is not a valid identifier: \"%s\"",
-									text_to_cstring(qualname)),
-							 errdetail("String has unclosed double quotes.")));
-				if (endp[1] != '"')
-					break;
-				memmove(endp, endp + 1, strlen(endp));
-				nextp = endp;
-			}
-			nextp = endp + 1;
-			*endp = '\0';
+      curname = nextp + 1;
 
-			if (endp - curname == 0)
-				ereport(ERROR,
-						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-						 errmsg("string is not a valid identifier: \"%s\"",
-								text_to_cstring(qualname)),
-						 errdetail("Quoted identifier must not be empty.")));
+      for (;;) {
+        endp = strchr(nextp + 1, '"');
 
-			astate = accumArrayResult(astate, CStringGetTextDatum(curname),
-									  false, TEXTOID, CurrentMemoryContext);
-			missing_ident = false;
-		}
-		else if (is_ident_start((unsigned char) *nextp))
-		{
-			char	   *downname;
-			int			len;
-			text	   *part;
+        if (endp == NULL)
+          ereport(ERROR,
+                  (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                   errmsg("string is not a valid identifier: \"%s\"",
+                          text_to_cstring(qualname)),
+                   errdetail("String has unclosed double quotes.")));
 
-			curname = nextp++;
-			while (is_ident_cont((unsigned char) *nextp))
-				nextp++;
+        if (endp[1] != '"')
+          break;
 
-			len = nextp - curname;
+        memmove(endp, endp + 1, strlen(endp));
+        nextp = endp;
+      }
 
-			/*
-			 * We don't implicitly truncate identifiers. This is useful for
-			 * allowing the user to check for specific parts of the identifier
-			 * being too long. It's easy enough for the user to get the
-			 * truncated names by casting our output to name[].
-			 */
-			downname = downcase_identifier(curname, len, false, false);
-			part = cstring_to_text_with_len(downname, len);
-			astate = accumArrayResult(astate, PointerGetDatum(part), false,
-									  TEXTOID, CurrentMemoryContext);
-			missing_ident = false;
-		}
+      nextp = endp + 1;
+      *endp = '\0';
 
-		if (missing_ident)
-		{
-			/* Different error messages based on where we failed. */
-			if (*nextp == '.')
-				ereport(ERROR,
-						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-						 errmsg("string is not a valid identifier: \"%s\"",
-								text_to_cstring(qualname)),
-						 errdetail("No valid identifier before \".\".")));
-			else if (after_dot)
-				ereport(ERROR,
-						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-						 errmsg("string is not a valid identifier: \"%s\"",
-								text_to_cstring(qualname)),
-						 errdetail("No valid identifier after \".\".")));
-			else
-				ereport(ERROR,
-						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-						 errmsg("string is not a valid identifier: \"%s\"",
-								text_to_cstring(qualname))));
-		}
+      if (endp - curname == 0)
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("string is not a valid identifier: \"%s\"",
+                        text_to_cstring(qualname)),
+                 errdetail("Quoted identifier must not be empty.")));
 
-		while (scanner_isspace(*nextp))
-			nextp++;
+      astate = accumArrayResult(astate, CStringGetTextDatum(curname),
+                                false, TEXTOID, CurrentMemoryContext);
+      missing_ident = false;
+    } else if (is_ident_start((unsigned char) *nextp)) {
+      char     *downname;
+      int     len;
+      text     *part;
 
-		if (*nextp == '.')
-		{
-			after_dot = true;
-			nextp++;
-			while (scanner_isspace(*nextp))
-				nextp++;
-		}
-		else if (*nextp == '\0')
-		{
-			break;
-		}
-		else
-		{
-			if (strict)
-				ereport(ERROR,
-						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-						 errmsg("string is not a valid identifier: \"%s\"",
-								text_to_cstring(qualname))));
-			break;
-		}
-	}
+      curname = nextp++;
 
-	PG_RETURN_DATUM(makeArrayResult(astate, CurrentMemoryContext));
+      while (is_ident_cont((unsigned char) *nextp))
+        nextp++;
+
+      len = nextp - curname;
+
+      /*
+       * We don't implicitly truncate identifiers. This is useful for
+       * allowing the user to check for specific parts of the identifier
+       * being too long. It's easy enough for the user to get the
+       * truncated names by casting our output to name[].
+       */
+      downname = downcase_identifier(curname, len, false, false);
+      part = cstring_to_text_with_len(downname, len);
+      astate = accumArrayResult(astate, PointerGetDatum(part), false,
+                                TEXTOID, CurrentMemoryContext);
+      missing_ident = false;
+    }
+
+    if (missing_ident) {
+      /* Different error messages based on where we failed. */
+      if (*nextp == '.')
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("string is not a valid identifier: \"%s\"",
+                        text_to_cstring(qualname)),
+                 errdetail("No valid identifier before \".\".")));
+      else if (after_dot)
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("string is not a valid identifier: \"%s\"",
+                        text_to_cstring(qualname)),
+                 errdetail("No valid identifier after \".\".")));
+      else
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("string is not a valid identifier: \"%s\"",
+                        text_to_cstring(qualname))));
+    }
+
+    while (scanner_isspace(*nextp))
+      nextp++;
+
+    if (*nextp == '.') {
+      after_dot = true;
+      nextp++;
+
+      while (scanner_isspace(*nextp))
+        nextp++;
+    } else if (*nextp == '\0') {
+      break;
+    } else {
+      if (strict)
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("string is not a valid identifier: \"%s\"",
+                        text_to_cstring(qualname))));
+
+      break;
+    }
+  }
+
+  PG_RETURN_DATUM(makeArrayResult(astate, CurrentMemoryContext));
 }
 
 /*
@@ -999,86 +994,85 @@ parse_ident(PG_FUNCTION_ARGS)
 Datum
 pg_current_logfile(PG_FUNCTION_ARGS)
 {
-	FILE	   *fd;
-	char		lbuffer[MAXPGPATH];
-	char	   *logfmt;
+  FILE     *fd;
+  char    lbuffer[MAXPGPATH];
+  char     *logfmt;
 
-	/* The log format parameter is optional */
-	if (PG_NARGS() == 0 || PG_ARGISNULL(0))
-		logfmt = NULL;
-	else
-	{
-		logfmt = text_to_cstring(PG_GETARG_TEXT_PP(0));
+  /* The log format parameter is optional */
+  if (PG_NARGS() == 0 || PG_ARGISNULL(0))
+    logfmt = NULL;
+  else {
+    logfmt = text_to_cstring(PG_GETARG_TEXT_PP(0));
 
-		if (strcmp(logfmt, "stderr") != 0 &&
-			strcmp(logfmt, "csvlog") != 0 &&
-			strcmp(logfmt, "jsonlog") != 0)
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("log format \"%s\" is not supported", logfmt),
-					 errhint("The supported log formats are \"stderr\", \"csvlog\", and \"jsonlog\".")));
-	}
+    if (strcmp(logfmt, "stderr") != 0 &&
+        strcmp(logfmt, "csvlog") != 0 &&
+        strcmp(logfmt, "jsonlog") != 0)
+      ereport(ERROR,
+              (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+               errmsg("log format \"%s\" is not supported", logfmt),
+               errhint("The supported log formats are \"stderr\", \"csvlog\", and \"jsonlog\".")));
+  }
 
-	fd = AllocateFile(LOG_METAINFO_DATAFILE, "r");
-	if (fd == NULL)
-	{
-		if (errno != ENOENT)
-			ereport(ERROR,
-					(errcode_for_file_access(),
-					 errmsg("could not read file \"%s\": %m",
-							LOG_METAINFO_DATAFILE)));
-		PG_RETURN_NULL();
-	}
+  fd = AllocateFile(LOG_METAINFO_DATAFILE, "r");
+
+  if (fd == NULL) {
+    if (errno != ENOENT)
+      ereport(ERROR,
+              (errcode_for_file_access(),
+               errmsg("could not read file \"%s\": %m",
+                      LOG_METAINFO_DATAFILE)));
+
+    PG_RETURN_NULL();
+  }
 
 #ifdef WIN32
-	/* syslogger.c writes CRLF line endings on Windows */
-	_setmode(_fileno(fd), _O_TEXT);
+  /* syslogger.c writes CRLF line endings on Windows */
+  _setmode(_fileno(fd), _O_TEXT);
 #endif
 
-	/*
-	 * Read the file to gather current log filename(s) registered by the
-	 * syslogger.
-	 */
-	while (fgets(lbuffer, sizeof(lbuffer), fd) != NULL)
-	{
-		char	   *log_format;
-		char	   *log_filepath;
-		char	   *nlpos;
+  /*
+   * Read the file to gather current log filename(s) registered by the
+   * syslogger.
+   */
+  while (fgets(lbuffer, sizeof(lbuffer), fd) != NULL) {
+    char     *log_format;
+    char     *log_filepath;
+    char     *nlpos;
 
-		/* Extract log format and log file path from the line. */
-		log_format = lbuffer;
-		log_filepath = strchr(lbuffer, ' ');
-		if (log_filepath == NULL)
-		{
-			/* Uh oh.  No space found, so file content is corrupted. */
-			elog(ERROR,
-				 "missing space character in \"%s\"", LOG_METAINFO_DATAFILE);
-			break;
-		}
+    /* Extract log format and log file path from the line. */
+    log_format = lbuffer;
+    log_filepath = strchr(lbuffer, ' ');
 
-		*log_filepath = '\0';
-		log_filepath++;
-		nlpos = strchr(log_filepath, '\n');
-		if (nlpos == NULL)
-		{
-			/* Uh oh.  No newline found, so file content is corrupted. */
-			elog(ERROR,
-				 "missing newline character in \"%s\"", LOG_METAINFO_DATAFILE);
-			break;
-		}
-		*nlpos = '\0';
+    if (log_filepath == NULL) {
+      /* Uh oh.  No space found, so file content is corrupted. */
+      elog(ERROR,
+           "missing space character in \"%s\"", LOG_METAINFO_DATAFILE);
+      break;
+    }
 
-		if (logfmt == NULL || strcmp(logfmt, log_format) == 0)
-		{
-			FreeFile(fd);
-			PG_RETURN_TEXT_P(cstring_to_text(log_filepath));
-		}
-	}
+    *log_filepath = '\0';
+    log_filepath++;
+    nlpos = strchr(log_filepath, '\n');
 
-	/* Close the current log filename file. */
-	FreeFile(fd);
+    if (nlpos == NULL) {
+      /* Uh oh.  No newline found, so file content is corrupted. */
+      elog(ERROR,
+           "missing newline character in \"%s\"", LOG_METAINFO_DATAFILE);
+      break;
+    }
 
-	PG_RETURN_NULL();
+    *nlpos = '\0';
+
+    if (logfmt == NULL || strcmp(logfmt, log_format) == 0) {
+      FreeFile(fd);
+      PG_RETURN_TEXT_P(cstring_to_text(log_filepath));
+    }
+  }
+
+  /* Close the current log filename file. */
+  FreeFile(fd);
+
+  PG_RETURN_NULL();
 }
 
 /*
@@ -1091,7 +1085,7 @@ pg_current_logfile(PG_FUNCTION_ARGS)
 Datum
 pg_current_logfile_1arg(PG_FUNCTION_ARGS)
 {
-	return pg_current_logfile(fcinfo);
+  return pg_current_logfile(fcinfo);
 }
 
 /*
@@ -1100,18 +1094,18 @@ pg_current_logfile_1arg(PG_FUNCTION_ARGS)
 Datum
 pg_get_replica_identity_index(PG_FUNCTION_ARGS)
 {
-	Oid			reloid = PG_GETARG_OID(0);
-	Oid			idxoid;
-	Relation	rel;
+  Oid     reloid = PG_GETARG_OID(0);
+  Oid     idxoid;
+  Relation  rel;
 
-	rel = table_open(reloid, AccessShareLock);
-	idxoid = RelationGetReplicaIndex(rel);
-	table_close(rel, AccessShareLock);
+  rel = table_open(reloid, AccessShareLock);
+  idxoid = RelationGetReplicaIndex(rel);
+  table_close(rel, AccessShareLock);
 
-	if (OidIsValid(idxoid))
-		PG_RETURN_OID(idxoid);
-	else
-		PG_RETURN_NULL();
+  if (OidIsValid(idxoid))
+    PG_RETURN_OID(idxoid);
+  else
+    PG_RETURN_NULL();
 }
 
 /*
@@ -1120,5 +1114,5 @@ pg_get_replica_identity_index(PG_FUNCTION_ARGS)
 Datum
 any_value_transfn(PG_FUNCTION_ARGS)
 {
-	PG_RETURN_DATUM(PG_GETARG_DATUM(0));
+  PG_RETURN_DATUM(PG_GETARG_DATUM(0));
 }

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * list.c
- *	  implementation for PostgreSQL generic list package
+ *    implementation for PostgreSQL generic list package
  *
  * See comments in pg_list.h.
  *
@@ -11,7 +11,7 @@
  *
  *
  * IDENTIFICATION
- *	  src/backend/nodes/list.c
+ *    src/backend/nodes/list.c
  *
  *-------------------------------------------------------------------------
  */
@@ -46,16 +46,16 @@
 
 /* Overhead for the fixed part of a List header, measured in ListCells */
 #define LIST_HEADER_OVERHEAD  \
-	((int) ((offsetof(List, initial_elements) - 1) / sizeof(ListCell) + 1))
+  ((int) ((offsetof(List, initial_elements) - 1) / sizeof(ListCell) + 1))
 
 /*
  * Macros to simplify writing assertions about the type of a list; a
  * NIL list is considered to be an empty list of any type.
  */
-#define IsPointerList(l)		((l) == NIL || IsA((l), List))
-#define IsIntegerList(l)		((l) == NIL || IsA((l), IntList))
-#define IsOidList(l)			((l) == NIL || IsA((l), OidList))
-#define IsXidList(l)			((l) == NIL || IsA((l), XidList))
+#define IsPointerList(l)    ((l) == NIL || IsA((l), List))
+#define IsIntegerList(l)    ((l) == NIL || IsA((l), IntList))
+#define IsOidList(l)      ((l) == NIL || IsA((l), OidList))
+#define IsXidList(l)      ((l) == NIL || IsA((l), XidList))
 
 #ifdef USE_ASSERT_CHECKING
 /*
@@ -64,21 +64,21 @@
 static void
 check_list_invariants(const List *list)
 {
-	if (list == NIL)
-		return;
+  if (list == NIL)
+    return;
 
-	Assert(list->length > 0);
-	Assert(list->length <= list->max_length);
-	Assert(list->elements != NULL);
+  Assert(list->length > 0);
+  Assert(list->length <= list->max_length);
+  Assert(list->elements != NULL);
 
-	Assert(list->type == T_List ||
-		   list->type == T_IntList ||
-		   list->type == T_OidList ||
-		   list->type == T_XidList);
+  Assert(list->type == T_List ||
+         list->type == T_IntList ||
+         list->type == T_OidList ||
+         list->type == T_XidList);
 }
 #else
 #define check_list_invariants(l)  ((void) 0)
-#endif							/* USE_ASSERT_CHECKING */
+#endif              /* USE_ASSERT_CHECKING */
 
 /*
  * Return a freshly allocated List with room for at least min_size cells.
@@ -90,58 +90,58 @@ check_list_invariants(const List *list)
 static List *
 new_list(NodeTag type, int min_size)
 {
-	List	   *newlist;
-	int			max_size;
+  List     *newlist;
+  int     max_size;
 
-	Assert(min_size > 0);
+  Assert(min_size > 0);
 
-	/*
-	 * We allocate all the requested cells, and possibly some more, as part of
-	 * the same palloc request as the List header.  This is a big win for the
-	 * typical case of short fixed-length lists.  It can lose if we allocate a
-	 * moderately long list and then it gets extended; we'll be wasting more
-	 * initial_elements[] space than if we'd made the header small.  However,
-	 * rounding up the request as we do in the normal code path provides some
-	 * defense against small extensions.
-	 */
+  /*
+   * We allocate all the requested cells, and possibly some more, as part of
+   * the same palloc request as the List header.  This is a big win for the
+   * typical case of short fixed-length lists.  It can lose if we allocate a
+   * moderately long list and then it gets extended; we'll be wasting more
+   * initial_elements[] space than if we'd made the header small.  However,
+   * rounding up the request as we do in the normal code path provides some
+   * defense against small extensions.
+   */
 
 #ifndef DEBUG_LIST_MEMORY_USAGE
 
-	/*
-	 * Normally, we set up a list with some extra cells, to allow it to grow
-	 * without a repalloc.  Prefer cell counts chosen to make the total
-	 * allocation a power-of-2, since palloc would round it up to that anyway.
-	 * (That stops being true for very large allocations, but very long lists
-	 * are infrequent, so it doesn't seem worth special logic for such cases.)
-	 *
-	 * The minimum allocation is 8 ListCell units, providing either 4 or 5
-	 * available ListCells depending on the machine's word width.  Counting
-	 * palloc's overhead, this uses the same amount of space as a one-cell
-	 * list did in the old implementation, and less space for any longer list.
-	 *
-	 * We needn't worry about integer overflow; no caller passes min_size
-	 * that's more than twice the size of an existing list, so the size limits
-	 * within palloc will ensure that we don't overflow here.
-	 */
-	max_size = pg_nextpower2_32(Max(8, min_size + LIST_HEADER_OVERHEAD));
-	max_size -= LIST_HEADER_OVERHEAD;
+  /*
+   * Normally, we set up a list with some extra cells, to allow it to grow
+   * without a repalloc.  Prefer cell counts chosen to make the total
+   * allocation a power-of-2, since palloc would round it up to that anyway.
+   * (That stops being true for very large allocations, but very long lists
+   * are infrequent, so it doesn't seem worth special logic for such cases.)
+   *
+   * The minimum allocation is 8 ListCell units, providing either 4 or 5
+   * available ListCells depending on the machine's word width.  Counting
+   * palloc's overhead, this uses the same amount of space as a one-cell
+   * list did in the old implementation, and less space for any longer list.
+   *
+   * We needn't worry about integer overflow; no caller passes min_size
+   * that's more than twice the size of an existing list, so the size limits
+   * within palloc will ensure that we don't overflow here.
+   */
+  max_size = pg_nextpower2_32(Max(8, min_size + LIST_HEADER_OVERHEAD));
+  max_size -= LIST_HEADER_OVERHEAD;
 #else
 
-	/*
-	 * For debugging, don't allow any extra space.  This forces any cell
-	 * addition to go through enlarge_list() and thus move the existing data.
-	 */
-	max_size = min_size;
+  /*
+   * For debugging, don't allow any extra space.  This forces any cell
+   * addition to go through enlarge_list() and thus move the existing data.
+   */
+  max_size = min_size;
 #endif
 
-	newlist = (List *) palloc(offsetof(List, initial_elements) +
-							  max_size * sizeof(ListCell));
-	newlist->type = type;
-	newlist->length = min_size;
-	newlist->max_length = max_size;
-	newlist->elements = newlist->initial_elements;
+  newlist = (List *) palloc(offsetof(List, initial_elements) +
+                            max_size * sizeof(ListCell));
+  newlist->type = type;
+  newlist->length = min_size;
+  newlist->max_length = max_size;
+  newlist->elements = newlist->initial_elements;
 
-	return newlist;
+  return newlist;
 }
 
 /*
@@ -154,78 +154,75 @@ new_list(NodeTag type, int min_size)
 static void
 enlarge_list(List *list, int min_size)
 {
-	int			new_max_len;
+  int     new_max_len;
 
-	Assert(min_size > list->max_length);	/* else we shouldn't be here */
+  Assert(min_size > list->max_length);  /* else we shouldn't be here */
 
 #ifndef DEBUG_LIST_MEMORY_USAGE
 
-	/*
-	 * As above, we prefer power-of-two total allocations; but here we need
-	 * not account for list header overhead.
-	 */
+  /*
+   * As above, we prefer power-of-two total allocations; but here we need
+   * not account for list header overhead.
+   */
 
-	/* clamp the minimum value to 16, a semi-arbitrary small power of 2 */
-	new_max_len = pg_nextpower2_32(Max(16, min_size));
+  /* clamp the minimum value to 16, a semi-arbitrary small power of 2 */
+  new_max_len = pg_nextpower2_32(Max(16, min_size));
 
 #else
-	/* As above, don't allocate anything extra */
-	new_max_len = min_size;
+  /* As above, don't allocate anything extra */
+  new_max_len = min_size;
 #endif
 
-	if (list->elements == list->initial_elements)
-	{
-		/*
-		 * Replace original in-line allocation with a separate palloc block.
-		 * Ensure it is in the same memory context as the List header.  (The
-		 * previous List implementation did not offer any guarantees about
-		 * keeping all list cells in the same context, but it seems reasonable
-		 * to create such a guarantee now.)
-		 */
-		list->elements = (ListCell *)
-			MemoryContextAlloc(GetMemoryChunkContext(list),
-							   new_max_len * sizeof(ListCell));
-		memcpy(list->elements, list->initial_elements,
-			   list->length * sizeof(ListCell));
+  if (list->elements == list->initial_elements) {
+    /*
+     * Replace original in-line allocation with a separate palloc block.
+     * Ensure it is in the same memory context as the List header.  (The
+     * previous List implementation did not offer any guarantees about
+     * keeping all list cells in the same context, but it seems reasonable
+     * to create such a guarantee now.)
+     */
+    list->elements = (ListCell *)
+                     MemoryContextAlloc(GetMemoryChunkContext(list),
+                                        new_max_len * sizeof(ListCell));
+    memcpy(list->elements, list->initial_elements,
+           list->length * sizeof(ListCell));
 
-		/*
-		 * We must not move the list header, so it's unsafe to try to reclaim
-		 * the initial_elements[] space via repalloc.  In debugging builds,
-		 * however, we can clear that space and/or mark it inaccessible.
-		 * (wipe_mem includes VALGRIND_MAKE_MEM_NOACCESS.)
-		 */
+    /*
+     * We must not move the list header, so it's unsafe to try to reclaim
+     * the initial_elements[] space via repalloc.  In debugging builds,
+     * however, we can clear that space and/or mark it inaccessible.
+     * (wipe_mem includes VALGRIND_MAKE_MEM_NOACCESS.)
+     */
 #ifdef CLOBBER_FREED_MEMORY
-		wipe_mem(list->initial_elements,
-				 list->max_length * sizeof(ListCell));
+    wipe_mem(list->initial_elements,
+             list->max_length * sizeof(ListCell));
 #else
-		VALGRIND_MAKE_MEM_NOACCESS(list->initial_elements,
-								   list->max_length * sizeof(ListCell));
+    VALGRIND_MAKE_MEM_NOACCESS(list->initial_elements,
+                               list->max_length * sizeof(ListCell));
 #endif
-	}
-	else
-	{
+  } else {
 #ifndef DEBUG_LIST_MEMORY_USAGE
-		/* Normally, let repalloc deal with enlargement */
-		list->elements = (ListCell *) repalloc(list->elements,
-											   new_max_len * sizeof(ListCell));
+    /* Normally, let repalloc deal with enlargement */
+    list->elements = (ListCell *) repalloc(list->elements,
+                                           new_max_len * sizeof(ListCell));
 #else
-		/*
-		 * repalloc() might enlarge the space in-place, which we don't want
-		 * for debugging purposes, so forcibly move the data somewhere else.
-		 */
-		ListCell   *newelements;
+    /*
+     * repalloc() might enlarge the space in-place, which we don't want
+     * for debugging purposes, so forcibly move the data somewhere else.
+     */
+    ListCell   *newelements;
 
-		newelements = (ListCell *)
-			MemoryContextAlloc(GetMemoryChunkContext(list),
-							   new_max_len * sizeof(ListCell));
-		memcpy(newelements, list->elements,
-			   list->length * sizeof(ListCell));
-		pfree(list->elements);
-		list->elements = newelements;
+    newelements = (ListCell *)
+                  MemoryContextAlloc(GetMemoryChunkContext(list),
+                                     new_max_len * sizeof(ListCell));
+    memcpy(newelements, list->elements,
+           list->length * sizeof(ListCell));
+    pfree(list->elements);
+    list->elements = newelements;
 #endif
-	}
+  }
 
-	list->max_length = new_max_len;
+  list->max_length = new_max_len;
 }
 
 /*
@@ -235,64 +232,64 @@ enlarge_list(List *list, int min_size)
 List *
 list_make1_impl(NodeTag t, ListCell datum1)
 {
-	List	   *list = new_list(t, 1);
+  List     *list = new_list(t, 1);
 
-	list->elements[0] = datum1;
-	check_list_invariants(list);
-	return list;
+  list->elements[0] = datum1;
+  check_list_invariants(list);
+  return list;
 }
 
 List *
 list_make2_impl(NodeTag t, ListCell datum1, ListCell datum2)
 {
-	List	   *list = new_list(t, 2);
+  List     *list = new_list(t, 2);
 
-	list->elements[0] = datum1;
-	list->elements[1] = datum2;
-	check_list_invariants(list);
-	return list;
+  list->elements[0] = datum1;
+  list->elements[1] = datum2;
+  check_list_invariants(list);
+  return list;
 }
 
 List *
 list_make3_impl(NodeTag t, ListCell datum1, ListCell datum2,
-				ListCell datum3)
+                ListCell datum3)
 {
-	List	   *list = new_list(t, 3);
+  List     *list = new_list(t, 3);
 
-	list->elements[0] = datum1;
-	list->elements[1] = datum2;
-	list->elements[2] = datum3;
-	check_list_invariants(list);
-	return list;
+  list->elements[0] = datum1;
+  list->elements[1] = datum2;
+  list->elements[2] = datum3;
+  check_list_invariants(list);
+  return list;
 }
 
 List *
 list_make4_impl(NodeTag t, ListCell datum1, ListCell datum2,
-				ListCell datum3, ListCell datum4)
+                ListCell datum3, ListCell datum4)
 {
-	List	   *list = new_list(t, 4);
+  List     *list = new_list(t, 4);
 
-	list->elements[0] = datum1;
-	list->elements[1] = datum2;
-	list->elements[2] = datum3;
-	list->elements[3] = datum4;
-	check_list_invariants(list);
-	return list;
+  list->elements[0] = datum1;
+  list->elements[1] = datum2;
+  list->elements[2] = datum3;
+  list->elements[3] = datum4;
+  check_list_invariants(list);
+  return list;
 }
 
 List *
 list_make5_impl(NodeTag t, ListCell datum1, ListCell datum2,
-				ListCell datum3, ListCell datum4, ListCell datum5)
+                ListCell datum3, ListCell datum4, ListCell datum5)
 {
-	List	   *list = new_list(t, 5);
+  List     *list = new_list(t, 5);
 
-	list->elements[0] = datum1;
-	list->elements[1] = datum2;
-	list->elements[2] = datum3;
-	list->elements[3] = datum4;
-	list->elements[4] = datum5;
-	check_list_invariants(list);
-	return list;
+  list->elements[0] = datum1;
+  list->elements[1] = datum2;
+  list->elements[2] = datum3;
+  list->elements[3] = datum4;
+  list->elements[4] = datum5;
+  check_list_invariants(list);
+  return list;
 }
 
 /*
@@ -304,13 +301,14 @@ list_make5_impl(NodeTag t, ListCell datum1, ListCell datum2,
 static void
 new_head_cell(List *list)
 {
-	/* Enlarge array if necessary */
-	if (list->length >= list->max_length)
-		enlarge_list(list, list->length + 1);
-	/* Now shove the existing data over */
-	memmove(&list->elements[1], &list->elements[0],
-			list->length * sizeof(ListCell));
-	list->length++;
+  /* Enlarge array if necessary */
+  if (list->length >= list->max_length)
+    enlarge_list(list, list->length + 1);
+
+  /* Now shove the existing data over */
+  memmove(&list->elements[1], &list->elements[0],
+          list->length * sizeof(ListCell));
+  list->length++;
 }
 
 /*
@@ -322,10 +320,11 @@ new_head_cell(List *list)
 static void
 new_tail_cell(List *list)
 {
-	/* Enlarge array if necessary */
-	if (list->length >= list->max_length)
-		enlarge_list(list, list->length + 1);
-	list->length++;
+  /* Enlarge array if necessary */
+  if (list->length >= list->max_length)
+    enlarge_list(list, list->length + 1);
+
+  list->length++;
 }
 
 /*
@@ -338,16 +337,16 @@ new_tail_cell(List *list)
 List *
 lappend(List *list, void *datum)
 {
-	Assert(IsPointerList(list));
+  Assert(IsPointerList(list));
 
-	if (list == NIL)
-		list = new_list(T_List, 1);
-	else
-		new_tail_cell(list);
+  if (list == NIL)
+    list = new_list(T_List, 1);
+  else
+    new_tail_cell(list);
 
-	llast(list) = datum;
-	check_list_invariants(list);
-	return list;
+  llast(list) = datum;
+  check_list_invariants(list);
+  return list;
 }
 
 /*
@@ -356,16 +355,16 @@ lappend(List *list, void *datum)
 List *
 lappend_int(List *list, int datum)
 {
-	Assert(IsIntegerList(list));
+  Assert(IsIntegerList(list));
 
-	if (list == NIL)
-		list = new_list(T_IntList, 1);
-	else
-		new_tail_cell(list);
+  if (list == NIL)
+    list = new_list(T_IntList, 1);
+  else
+    new_tail_cell(list);
 
-	llast_int(list) = datum;
-	check_list_invariants(list);
-	return list;
+  llast_int(list) = datum;
+  check_list_invariants(list);
+  return list;
 }
 
 /*
@@ -374,16 +373,16 @@ lappend_int(List *list, int datum)
 List *
 lappend_oid(List *list, Oid datum)
 {
-	Assert(IsOidList(list));
+  Assert(IsOidList(list));
 
-	if (list == NIL)
-		list = new_list(T_OidList, 1);
-	else
-		new_tail_cell(list);
+  if (list == NIL)
+    list = new_list(T_OidList, 1);
+  else
+    new_tail_cell(list);
 
-	llast_oid(list) = datum;
-	check_list_invariants(list);
-	return list;
+  llast_oid(list) = datum;
+  check_list_invariants(list);
+  return list;
 }
 
 /*
@@ -392,16 +391,16 @@ lappend_oid(List *list, Oid datum)
 List *
 lappend_xid(List *list, TransactionId datum)
 {
-	Assert(IsXidList(list));
+  Assert(IsXidList(list));
 
-	if (list == NIL)
-		list = new_list(T_XidList, 1);
-	else
-		new_tail_cell(list);
+  if (list == NIL)
+    list = new_list(T_XidList, 1);
+  else
+    new_tail_cell(list);
 
-	llast_xid(list) = datum;
-	check_list_invariants(list);
-	return list;
+  llast_xid(list) = datum;
+  check_list_invariants(list);
+  return list;
 }
 
 /*
@@ -414,18 +413,20 @@ lappend_xid(List *list, TransactionId datum)
 static ListCell *
 insert_new_cell(List *list, int pos)
 {
-	Assert(pos >= 0 && pos <= list->length);
+  Assert(pos >= 0 && pos <= list->length);
 
-	/* Enlarge array if necessary */
-	if (list->length >= list->max_length)
-		enlarge_list(list, list->length + 1);
-	/* Now shove the existing data over */
-	if (pos < list->length)
-		memmove(&list->elements[pos + 1], &list->elements[pos],
-				(list->length - pos) * sizeof(ListCell));
-	list->length++;
+  /* Enlarge array if necessary */
+  if (list->length >= list->max_length)
+    enlarge_list(list, list->length + 1);
 
-	return &list->elements[pos];
+  /* Now shove the existing data over */
+  if (pos < list->length)
+    memmove(&list->elements[pos + 1], &list->elements[pos],
+            (list->length - pos) * sizeof(ListCell));
+
+  list->length++;
+
+  return &list->elements[pos];
 }
 
 /*
@@ -438,43 +439,43 @@ insert_new_cell(List *list, int pos)
 List *
 list_insert_nth(List *list, int pos, void *datum)
 {
-	if (list == NIL)
-	{
-		Assert(pos == 0);
-		return list_make1(datum);
-	}
-	Assert(IsPointerList(list));
-	lfirst(insert_new_cell(list, pos)) = datum;
-	check_list_invariants(list);
-	return list;
+  if (list == NIL) {
+    Assert(pos == 0);
+    return list_make1(datum);
+  }
+
+  Assert(IsPointerList(list));
+  lfirst(insert_new_cell(list, pos)) = datum;
+  check_list_invariants(list);
+  return list;
 }
 
 List *
 list_insert_nth_int(List *list, int pos, int datum)
 {
-	if (list == NIL)
-	{
-		Assert(pos == 0);
-		return list_make1_int(datum);
-	}
-	Assert(IsIntegerList(list));
-	lfirst_int(insert_new_cell(list, pos)) = datum;
-	check_list_invariants(list);
-	return list;
+  if (list == NIL) {
+    Assert(pos == 0);
+    return list_make1_int(datum);
+  }
+
+  Assert(IsIntegerList(list));
+  lfirst_int(insert_new_cell(list, pos)) = datum;
+  check_list_invariants(list);
+  return list;
 }
 
 List *
 list_insert_nth_oid(List *list, int pos, Oid datum)
 {
-	if (list == NIL)
-	{
-		Assert(pos == 0);
-		return list_make1_oid(datum);
-	}
-	Assert(IsOidList(list));
-	lfirst_oid(insert_new_cell(list, pos)) = datum;
-	check_list_invariants(list);
-	return list;
+  if (list == NIL) {
+    Assert(pos == 0);
+    return list_make1_oid(datum);
+  }
+
+  Assert(IsOidList(list));
+  lfirst_oid(insert_new_cell(list, pos)) = datum;
+  check_list_invariants(list);
+  return list;
 }
 
 /*
@@ -494,16 +495,16 @@ list_insert_nth_oid(List *list, int pos, Oid datum)
 List *
 lcons(void *datum, List *list)
 {
-	Assert(IsPointerList(list));
+  Assert(IsPointerList(list));
 
-	if (list == NIL)
-		list = new_list(T_List, 1);
-	else
-		new_head_cell(list);
+  if (list == NIL)
+    list = new_list(T_List, 1);
+  else
+    new_head_cell(list);
 
-	linitial(list) = datum;
-	check_list_invariants(list);
-	return list;
+  linitial(list) = datum;
+  check_list_invariants(list);
+  return list;
 }
 
 /*
@@ -512,16 +513,16 @@ lcons(void *datum, List *list)
 List *
 lcons_int(int datum, List *list)
 {
-	Assert(IsIntegerList(list));
+  Assert(IsIntegerList(list));
 
-	if (list == NIL)
-		list = new_list(T_IntList, 1);
-	else
-		new_head_cell(list);
+  if (list == NIL)
+    list = new_list(T_IntList, 1);
+  else
+    new_head_cell(list);
 
-	linitial_int(list) = datum;
-	check_list_invariants(list);
-	return list;
+  linitial_int(list) = datum;
+  check_list_invariants(list);
+  return list;
 }
 
 /*
@@ -530,16 +531,16 @@ lcons_int(int datum, List *list)
 List *
 lcons_oid(Oid datum, List *list)
 {
-	Assert(IsOidList(list));
+  Assert(IsOidList(list));
 
-	if (list == NIL)
-		list = new_list(T_OidList, 1);
-	else
-		new_head_cell(list);
+  if (list == NIL)
+    list = new_list(T_OidList, 1);
+  else
+    new_head_cell(list);
 
-	linitial_oid(list) = datum;
-	check_list_invariants(list);
-	return list;
+  linitial_oid(list) = datum;
+  check_list_invariants(list);
+  return list;
 }
 
 /*
@@ -560,27 +561,29 @@ lcons_oid(Oid datum, List *list)
 List *
 list_concat(List *list1, const List *list2)
 {
-	int			new_len;
+  int     new_len;
 
-	if (list1 == NIL)
-		return list_copy(list2);
-	if (list2 == NIL)
-		return list1;
+  if (list1 == NIL)
+    return list_copy(list2);
 
-	Assert(list1->type == list2->type);
+  if (list2 == NIL)
+    return list1;
 
-	new_len = list1->length + list2->length;
-	/* Enlarge array if necessary */
-	if (new_len > list1->max_length)
-		enlarge_list(list1, new_len);
+  Assert(list1->type == list2->type);
 
-	/* Even if list1 == list2, using memcpy should be safe here */
-	memcpy(&list1->elements[list1->length], &list2->elements[0],
-		   list2->length * sizeof(ListCell));
-	list1->length = new_len;
+  new_len = list1->length + list2->length;
 
-	check_list_invariants(list1);
-	return list1;
+  /* Enlarge array if necessary */
+  if (new_len > list1->max_length)
+    enlarge_list(list1, new_len);
+
+  /* Even if list1 == list2, using memcpy should be safe here */
+  memcpy(&list1->elements[list1->length], &list2->elements[0],
+         list2->length * sizeof(ListCell));
+  list1->length = new_len;
+
+  check_list_invariants(list1);
+  return list1;
 }
 
 /*
@@ -597,25 +600,26 @@ list_concat(List *list1, const List *list2)
 List *
 list_concat_copy(const List *list1, const List *list2)
 {
-	List	   *result;
-	int			new_len;
+  List     *result;
+  int     new_len;
 
-	if (list1 == NIL)
-		return list_copy(list2);
-	if (list2 == NIL)
-		return list_copy(list1);
+  if (list1 == NIL)
+    return list_copy(list2);
 
-	Assert(list1->type == list2->type);
+  if (list2 == NIL)
+    return list_copy(list1);
 
-	new_len = list1->length + list2->length;
-	result = new_list(list1->type, new_len);
-	memcpy(result->elements, list1->elements,
-		   list1->length * sizeof(ListCell));
-	memcpy(result->elements + list1->length, list2->elements,
-		   list2->length * sizeof(ListCell));
+  Assert(list1->type == list2->type);
 
-	check_list_invariants(result);
-	return result;
+  new_len = list1->length + list2->length;
+  result = new_list(list1->type, new_len);
+  memcpy(result->elements, list1->elements,
+         list1->length * sizeof(ListCell));
+  memcpy(result->elements + list1->length, list2->elements,
+         list2->length * sizeof(ListCell));
+
+  check_list_invariants(result);
+  return result;
 }
 
 /*
@@ -630,24 +634,24 @@ list_concat_copy(const List *list1, const List *list2)
 List *
 list_truncate(List *list, int new_size)
 {
-	if (new_size <= 0)
-		return NIL;				/* truncate to zero length */
+  if (new_size <= 0)
+    return NIL;       /* truncate to zero length */
 
-	/* If asked to effectively extend the list, do nothing */
-	if (new_size < list_length(list))
-		list->length = new_size;
+  /* If asked to effectively extend the list, do nothing */
+  if (new_size < list_length(list))
+    list->length = new_size;
 
-	/*
-	 * Note: unlike the individual-list-cell deletion functions, we don't move
-	 * the list cells to new storage, even in DEBUG_LIST_MEMORY_USAGE mode.
-	 * This is because none of them can move in this operation, so just like
-	 * in the old cons-cell-based implementation, this function doesn't
-	 * invalidate any pointers to cells of the list.  This is also the reason
-	 * for not wiping the memory of the deleted cells: the old code didn't
-	 * free them either.  Perhaps later we'll tighten this up.
-	 */
+  /*
+   * Note: unlike the individual-list-cell deletion functions, we don't move
+   * the list cells to new storage, even in DEBUG_LIST_MEMORY_USAGE mode.
+   * This is because none of them can move in this operation, so just like
+   * in the old cons-cell-based implementation, this function doesn't
+   * invalidate any pointers to cells of the list.  This is also the reason
+   * for not wiping the memory of the deleted cells: the old code didn't
+   * free them either.  Perhaps later we'll tighten this up.
+   */
 
-	return list;
+  return list;
 }
 
 /*
@@ -660,18 +664,17 @@ list_truncate(List *list, int new_size)
 bool
 list_member(const List *list, const void *datum)
 {
-	const ListCell *cell;
+  const ListCell *cell;
 
-	Assert(IsPointerList(list));
-	check_list_invariants(list);
+  Assert(IsPointerList(list));
+  check_list_invariants(list);
 
-	foreach(cell, list)
-	{
-		if (equal(lfirst(cell), datum))
-			return true;
-	}
+  foreach(cell, list) {
+    if (equal(lfirst(cell), datum))
+      return true;
+  }
 
-	return false;
+  return false;
 }
 
 /*
@@ -681,18 +684,17 @@ list_member(const List *list, const void *datum)
 bool
 list_member_ptr(const List *list, const void *datum)
 {
-	const ListCell *cell;
+  const ListCell *cell;
 
-	Assert(IsPointerList(list));
-	check_list_invariants(list);
+  Assert(IsPointerList(list));
+  check_list_invariants(list);
 
-	foreach(cell, list)
-	{
-		if (lfirst(cell) == datum)
-			return true;
-	}
+  foreach(cell, list) {
+    if (lfirst(cell) == datum)
+      return true;
+  }
 
-	return false;
+  return false;
 }
 
 /*
@@ -701,18 +703,17 @@ list_member_ptr(const List *list, const void *datum)
 bool
 list_member_int(const List *list, int datum)
 {
-	const ListCell *cell;
+  const ListCell *cell;
 
-	Assert(IsIntegerList(list));
-	check_list_invariants(list);
+  Assert(IsIntegerList(list));
+  check_list_invariants(list);
 
-	foreach(cell, list)
-	{
-		if (lfirst_int(cell) == datum)
-			return true;
-	}
+  foreach(cell, list) {
+    if (lfirst_int(cell) == datum)
+      return true;
+  }
 
-	return false;
+  return false;
 }
 
 /*
@@ -721,18 +722,17 @@ list_member_int(const List *list, int datum)
 bool
 list_member_oid(const List *list, Oid datum)
 {
-	const ListCell *cell;
+  const ListCell *cell;
 
-	Assert(IsOidList(list));
-	check_list_invariants(list);
+  Assert(IsOidList(list));
+  check_list_invariants(list);
 
-	foreach(cell, list)
-	{
-		if (lfirst_oid(cell) == datum)
-			return true;
-	}
+  foreach(cell, list) {
+    if (lfirst_oid(cell) == datum)
+      return true;
+  }
 
-	return false;
+  return false;
 }
 
 /*
@@ -741,18 +741,17 @@ list_member_oid(const List *list, Oid datum)
 bool
 list_member_xid(const List *list, TransactionId datum)
 {
-	const ListCell *cell;
+  const ListCell *cell;
 
-	Assert(IsXidList(list));
-	check_list_invariants(list);
+  Assert(IsXidList(list));
+  check_list_invariants(list);
 
-	foreach(cell, list)
-	{
-		if (lfirst_xid(cell) == datum)
-			return true;
-	}
+  foreach(cell, list) {
+    if (lfirst_xid(cell) == datum)
+      return true;
+  }
 
-	return false;
+  return false;
 }
 
 /*
@@ -766,66 +765,66 @@ list_member_xid(const List *list, TransactionId datum)
 List *
 list_delete_nth_cell(List *list, int n)
 {
-	check_list_invariants(list);
+  check_list_invariants(list);
 
-	Assert(n >= 0 && n < list->length);
+  Assert(n >= 0 && n < list->length);
 
-	/*
-	 * If we're about to delete the last node from the list, free the whole
-	 * list instead and return NIL, which is the only valid representation of
-	 * a zero-length list.
-	 */
-	if (list->length == 1)
-	{
-		list_free(list);
-		return NIL;
-	}
+  /*
+   * If we're about to delete the last node from the list, free the whole
+   * list instead and return NIL, which is the only valid representation of
+   * a zero-length list.
+   */
+  if (list->length == 1) {
+    list_free(list);
+    return NIL;
+  }
 
-	/*
-	 * Otherwise, we normally just collapse out the removed element.  But for
-	 * debugging purposes, move the whole list contents someplace else.
-	 *
-	 * (Note that we *must* keep the contents in the same memory context.)
-	 */
+  /*
+   * Otherwise, we normally just collapse out the removed element.  But for
+   * debugging purposes, move the whole list contents someplace else.
+   *
+   * (Note that we *must* keep the contents in the same memory context.)
+   */
 #ifndef DEBUG_LIST_MEMORY_USAGE
-	memmove(&list->elements[n], &list->elements[n + 1],
-			(list->length - 1 - n) * sizeof(ListCell));
-	list->length--;
+  memmove(&list->elements[n], &list->elements[n + 1],
+          (list->length - 1 - n) * sizeof(ListCell));
+  list->length--;
 #else
-	{
-		ListCell   *newelems;
-		int			newmaxlen = list->length - 1;
+  {
+    ListCell   *newelems;
+    int     newmaxlen = list->length - 1;
 
-		newelems = (ListCell *)
-			MemoryContextAlloc(GetMemoryChunkContext(list),
-							   newmaxlen * sizeof(ListCell));
-		memcpy(newelems, list->elements, n * sizeof(ListCell));
-		memcpy(&newelems[n], &list->elements[n + 1],
-			   (list->length - 1 - n) * sizeof(ListCell));
-		if (list->elements != list->initial_elements)
-			pfree(list->elements);
-		else
-		{
-			/*
-			 * As in enlarge_list(), clear the initial_elements[] space and/or
-			 * mark it inaccessible.
-			 */
+    newelems = (ListCell *)
+               MemoryContextAlloc(GetMemoryChunkContext(list),
+                                  newmaxlen * sizeof(ListCell));
+    memcpy(newelems, list->elements, n * sizeof(ListCell));
+    memcpy(&newelems[n], &list->elements[n + 1],
+           (list->length - 1 - n) * sizeof(ListCell));
+
+    if (list->elements != list->initial_elements)
+      pfree(list->elements);
+    else {
+      /*
+       * As in enlarge_list(), clear the initial_elements[] space and/or
+       * mark it inaccessible.
+       */
 #ifdef CLOBBER_FREED_MEMORY
-			wipe_mem(list->initial_elements,
-					 list->max_length * sizeof(ListCell));
+      wipe_mem(list->initial_elements,
+               list->max_length * sizeof(ListCell));
 #else
-			VALGRIND_MAKE_MEM_NOACCESS(list->initial_elements,
-									   list->max_length * sizeof(ListCell));
+      VALGRIND_MAKE_MEM_NOACCESS(list->initial_elements,
+                                 list->max_length * sizeof(ListCell));
 #endif
-		}
-		list->elements = newelems;
-		list->max_length = newmaxlen;
-		list->length--;
-		check_list_invariants(list);
-	}
+    }
+
+    list->elements = newelems;
+    list->max_length = newmaxlen;
+    list->length--;
+    check_list_invariants(list);
+  }
 #endif
 
-	return list;
+  return list;
 }
 
 /*
@@ -840,7 +839,7 @@ list_delete_nth_cell(List *list, int n)
 List *
 list_delete_cell(List *list, ListCell *cell)
 {
-	return list_delete_nth_cell(list, cell - list->elements);
+  return list_delete_nth_cell(list, cell - list->elements);
 }
 
 /*
@@ -852,76 +851,72 @@ list_delete_cell(List *list, ListCell *cell)
 List *
 list_delete(List *list, void *datum)
 {
-	ListCell   *cell;
+  ListCell   *cell;
 
-	Assert(IsPointerList(list));
-	check_list_invariants(list);
+  Assert(IsPointerList(list));
+  check_list_invariants(list);
 
-	foreach(cell, list)
-	{
-		if (equal(lfirst(cell), datum))
-			return list_delete_cell(list, cell);
-	}
+  foreach(cell, list) {
+    if (equal(lfirst(cell), datum))
+      return list_delete_cell(list, cell);
+  }
 
-	/* Didn't find a match: return the list unmodified */
-	return list;
+  /* Didn't find a match: return the list unmodified */
+  return list;
 }
 
 /* As above, but use simple pointer equality */
 List *
 list_delete_ptr(List *list, void *datum)
 {
-	ListCell   *cell;
+  ListCell   *cell;
 
-	Assert(IsPointerList(list));
-	check_list_invariants(list);
+  Assert(IsPointerList(list));
+  check_list_invariants(list);
 
-	foreach(cell, list)
-	{
-		if (lfirst(cell) == datum)
-			return list_delete_cell(list, cell);
-	}
+  foreach(cell, list) {
+    if (lfirst(cell) == datum)
+      return list_delete_cell(list, cell);
+  }
 
-	/* Didn't find a match: return the list unmodified */
-	return list;
+  /* Didn't find a match: return the list unmodified */
+  return list;
 }
 
 /* As above, but for integers */
 List *
 list_delete_int(List *list, int datum)
 {
-	ListCell   *cell;
+  ListCell   *cell;
 
-	Assert(IsIntegerList(list));
-	check_list_invariants(list);
+  Assert(IsIntegerList(list));
+  check_list_invariants(list);
 
-	foreach(cell, list)
-	{
-		if (lfirst_int(cell) == datum)
-			return list_delete_cell(list, cell);
-	}
+  foreach(cell, list) {
+    if (lfirst_int(cell) == datum)
+      return list_delete_cell(list, cell);
+  }
 
-	/* Didn't find a match: return the list unmodified */
-	return list;
+  /* Didn't find a match: return the list unmodified */
+  return list;
 }
 
 /* As above, but for OIDs */
 List *
 list_delete_oid(List *list, Oid datum)
 {
-	ListCell   *cell;
+  ListCell   *cell;
 
-	Assert(IsOidList(list));
-	check_list_invariants(list);
+  Assert(IsOidList(list));
+  check_list_invariants(list);
 
-	foreach(cell, list)
-	{
-		if (lfirst_oid(cell) == datum)
-			return list_delete_cell(list, cell);
-	}
+  foreach(cell, list) {
+    if (lfirst_oid(cell) == datum)
+      return list_delete_cell(list, cell);
+  }
 
-	/* Didn't find a match: return the list unmodified */
-	return list;
+  /* Didn't find a match: return the list unmodified */
+  return list;
 }
 
 /*
@@ -942,12 +937,12 @@ list_delete_oid(List *list, Oid datum)
 List *
 list_delete_first(List *list)
 {
-	check_list_invariants(list);
+  check_list_invariants(list);
 
-	if (list == NIL)
-		return NIL;				/* would an error be better? */
+  if (list == NIL)
+    return NIL;       /* would an error be better? */
 
-	return list_delete_nth_cell(list, 0);
+  return list_delete_nth_cell(list, 0);
 }
 
 /*
@@ -956,19 +951,18 @@ list_delete_first(List *list)
 List *
 list_delete_last(List *list)
 {
-	check_list_invariants(list);
+  check_list_invariants(list);
 
-	if (list == NIL)
-		return NIL;				/* would an error be better? */
+  if (list == NIL)
+    return NIL;       /* would an error be better? */
 
-	/* list_truncate won't free list if it goes to empty, but this should */
-	if (list_length(list) <= 1)
-	{
-		list_free(list);
-		return NIL;
-	}
+  /* list_truncate won't free list if it goes to empty, but this should */
+  if (list_length(list) <= 1) {
+    list_free(list);
+    return NIL;
+  }
 
-	return list_truncate(list, list_length(list) - 1);
+  return list_truncate(list, list_length(list) - 1);
 }
 
 /*
@@ -982,62 +976,62 @@ list_delete_last(List *list)
 List *
 list_delete_first_n(List *list, int n)
 {
-	check_list_invariants(list);
+  check_list_invariants(list);
 
-	/* No-op request? */
-	if (n <= 0)
-		return list;
+  /* No-op request? */
+  if (n <= 0)
+    return list;
 
-	/* Delete whole list? */
-	if (n >= list_length(list))
-	{
-		list_free(list);
-		return NIL;
-	}
+  /* Delete whole list? */
+  if (n >= list_length(list)) {
+    list_free(list);
+    return NIL;
+  }
 
-	/*
-	 * Otherwise, we normally just collapse out the removed elements.  But for
-	 * debugging purposes, move the whole list contents someplace else.
-	 *
-	 * (Note that we *must* keep the contents in the same memory context.)
-	 */
+  /*
+   * Otherwise, we normally just collapse out the removed elements.  But for
+   * debugging purposes, move the whole list contents someplace else.
+   *
+   * (Note that we *must* keep the contents in the same memory context.)
+   */
 #ifndef DEBUG_LIST_MEMORY_USAGE
-	memmove(&list->elements[0], &list->elements[n],
-			(list->length - n) * sizeof(ListCell));
-	list->length -= n;
+  memmove(&list->elements[0], &list->elements[n],
+          (list->length - n) * sizeof(ListCell));
+  list->length -= n;
 #else
-	{
-		ListCell   *newelems;
-		int			newmaxlen = list->length - n;
+  {
+    ListCell   *newelems;
+    int     newmaxlen = list->length - n;
 
-		newelems = (ListCell *)
-			MemoryContextAlloc(GetMemoryChunkContext(list),
-							   newmaxlen * sizeof(ListCell));
-		memcpy(newelems, &list->elements[n], newmaxlen * sizeof(ListCell));
-		if (list->elements != list->initial_elements)
-			pfree(list->elements);
-		else
-		{
-			/*
-			 * As in enlarge_list(), clear the initial_elements[] space and/or
-			 * mark it inaccessible.
-			 */
+    newelems = (ListCell *)
+               MemoryContextAlloc(GetMemoryChunkContext(list),
+                                  newmaxlen * sizeof(ListCell));
+    memcpy(newelems, &list->elements[n], newmaxlen * sizeof(ListCell));
+
+    if (list->elements != list->initial_elements)
+      pfree(list->elements);
+    else {
+      /*
+       * As in enlarge_list(), clear the initial_elements[] space and/or
+       * mark it inaccessible.
+       */
 #ifdef CLOBBER_FREED_MEMORY
-			wipe_mem(list->initial_elements,
-					 list->max_length * sizeof(ListCell));
+      wipe_mem(list->initial_elements,
+               list->max_length * sizeof(ListCell));
 #else
-			VALGRIND_MAKE_MEM_NOACCESS(list->initial_elements,
-									   list->max_length * sizeof(ListCell));
+      VALGRIND_MAKE_MEM_NOACCESS(list->initial_elements,
+                                 list->max_length * sizeof(ListCell));
 #endif
-		}
-		list->elements = newelems;
-		list->max_length = newmaxlen;
-		list->length = newmaxlen;
-		check_list_invariants(list);
-	}
+    }
+
+    list->elements = newelems;
+    list->max_length = newmaxlen;
+    list->length = newmaxlen;
+    check_list_invariants(list);
+  }
 #endif
 
-	return list;
+  return list;
 }
 
 /*
@@ -1065,21 +1059,21 @@ list_delete_first_n(List *list, int n)
 List *
 list_union(const List *list1, const List *list2)
 {
-	List	   *result;
-	const ListCell *cell;
+  List     *result;
+  const ListCell *cell;
 
-	Assert(IsPointerList(list1));
-	Assert(IsPointerList(list2));
+  Assert(IsPointerList(list1));
+  Assert(IsPointerList(list2));
 
-	result = list_copy(list1);
-	foreach(cell, list2)
-	{
-		if (!list_member(result, lfirst(cell)))
-			result = lappend(result, lfirst(cell));
-	}
+  result = list_copy(list1);
 
-	check_list_invariants(result);
-	return result;
+  foreach(cell, list2) {
+    if (!list_member(result, lfirst(cell)))
+      result = lappend(result, lfirst(cell));
+  }
+
+  check_list_invariants(result);
+  return result;
 }
 
 /*
@@ -1089,21 +1083,21 @@ list_union(const List *list1, const List *list2)
 List *
 list_union_ptr(const List *list1, const List *list2)
 {
-	List	   *result;
-	const ListCell *cell;
+  List     *result;
+  const ListCell *cell;
 
-	Assert(IsPointerList(list1));
-	Assert(IsPointerList(list2));
+  Assert(IsPointerList(list1));
+  Assert(IsPointerList(list2));
 
-	result = list_copy(list1);
-	foreach(cell, list2)
-	{
-		if (!list_member_ptr(result, lfirst(cell)))
-			result = lappend(result, lfirst(cell));
-	}
+  result = list_copy(list1);
 
-	check_list_invariants(result);
-	return result;
+  foreach(cell, list2) {
+    if (!list_member_ptr(result, lfirst(cell)))
+      result = lappend(result, lfirst(cell));
+  }
+
+  check_list_invariants(result);
+  return result;
 }
 
 /*
@@ -1112,21 +1106,21 @@ list_union_ptr(const List *list1, const List *list2)
 List *
 list_union_int(const List *list1, const List *list2)
 {
-	List	   *result;
-	const ListCell *cell;
+  List     *result;
+  const ListCell *cell;
 
-	Assert(IsIntegerList(list1));
-	Assert(IsIntegerList(list2));
+  Assert(IsIntegerList(list1));
+  Assert(IsIntegerList(list2));
 
-	result = list_copy(list1);
-	foreach(cell, list2)
-	{
-		if (!list_member_int(result, lfirst_int(cell)))
-			result = lappend_int(result, lfirst_int(cell));
-	}
+  result = list_copy(list1);
 
-	check_list_invariants(result);
-	return result;
+  foreach(cell, list2) {
+    if (!list_member_int(result, lfirst_int(cell)))
+      result = lappend_int(result, lfirst_int(cell));
+  }
+
+  check_list_invariants(result);
+  return result;
 }
 
 /*
@@ -1135,21 +1129,21 @@ list_union_int(const List *list1, const List *list2)
 List *
 list_union_oid(const List *list1, const List *list2)
 {
-	List	   *result;
-	const ListCell *cell;
+  List     *result;
+  const ListCell *cell;
 
-	Assert(IsOidList(list1));
-	Assert(IsOidList(list2));
+  Assert(IsOidList(list1));
+  Assert(IsOidList(list2));
 
-	result = list_copy(list1);
-	foreach(cell, list2)
-	{
-		if (!list_member_oid(result, lfirst_oid(cell)))
-			result = lappend_oid(result, lfirst_oid(cell));
-	}
+  result = list_copy(list1);
 
-	check_list_invariants(result);
-	return result;
+  foreach(cell, list2) {
+    if (!list_member_oid(result, lfirst_oid(cell)))
+      result = lappend_oid(result, lfirst_oid(cell));
+  }
+
+  check_list_invariants(result);
+  return result;
 }
 
 /*
@@ -1173,24 +1167,24 @@ list_union_oid(const List *list1, const List *list2)
 List *
 list_intersection(const List *list1, const List *list2)
 {
-	List	   *result;
-	const ListCell *cell;
+  List     *result;
+  const ListCell *cell;
 
-	if (list1 == NIL || list2 == NIL)
-		return NIL;
+  if (list1 == NIL || list2 == NIL)
+    return NIL;
 
-	Assert(IsPointerList(list1));
-	Assert(IsPointerList(list2));
+  Assert(IsPointerList(list1));
+  Assert(IsPointerList(list2));
 
-	result = NIL;
-	foreach(cell, list1)
-	{
-		if (list_member(list2, lfirst(cell)))
-			result = lappend(result, lfirst(cell));
-	}
+  result = NIL;
 
-	check_list_invariants(result);
-	return result;
+  foreach(cell, list1) {
+    if (list_member(list2, lfirst(cell)))
+      result = lappend(result, lfirst(cell));
+  }
+
+  check_list_invariants(result);
+  return result;
 }
 
 /*
@@ -1199,24 +1193,24 @@ list_intersection(const List *list1, const List *list2)
 List *
 list_intersection_int(const List *list1, const List *list2)
 {
-	List	   *result;
-	const ListCell *cell;
+  List     *result;
+  const ListCell *cell;
 
-	if (list1 == NIL || list2 == NIL)
-		return NIL;
+  if (list1 == NIL || list2 == NIL)
+    return NIL;
 
-	Assert(IsIntegerList(list1));
-	Assert(IsIntegerList(list2));
+  Assert(IsIntegerList(list1));
+  Assert(IsIntegerList(list2));
 
-	result = NIL;
-	foreach(cell, list1)
-	{
-		if (list_member_int(list2, lfirst_int(cell)))
-			result = lappend_int(result, lfirst_int(cell));
-	}
+  result = NIL;
 
-	check_list_invariants(result);
-	return result;
+  foreach(cell, list1) {
+    if (list_member_int(list2, lfirst_int(cell)))
+      result = lappend_int(result, lfirst_int(cell));
+  }
+
+  check_list_invariants(result);
+  return result;
 }
 
 /*
@@ -1236,23 +1230,22 @@ list_intersection_int(const List *list1, const List *list2)
 List *
 list_difference(const List *list1, const List *list2)
 {
-	const ListCell *cell;
-	List	   *result = NIL;
+  const ListCell *cell;
+  List     *result = NIL;
 
-	Assert(IsPointerList(list1));
-	Assert(IsPointerList(list2));
+  Assert(IsPointerList(list1));
+  Assert(IsPointerList(list2));
 
-	if (list2 == NIL)
-		return list_copy(list1);
+  if (list2 == NIL)
+    return list_copy(list1);
 
-	foreach(cell, list1)
-	{
-		if (!list_member(list2, lfirst(cell)))
-			result = lappend(result, lfirst(cell));
-	}
+  foreach(cell, list1) {
+    if (!list_member(list2, lfirst(cell)))
+      result = lappend(result, lfirst(cell));
+  }
 
-	check_list_invariants(result);
-	return result;
+  check_list_invariants(result);
+  return result;
 }
 
 /*
@@ -1262,23 +1255,22 @@ list_difference(const List *list1, const List *list2)
 List *
 list_difference_ptr(const List *list1, const List *list2)
 {
-	const ListCell *cell;
-	List	   *result = NIL;
+  const ListCell *cell;
+  List     *result = NIL;
 
-	Assert(IsPointerList(list1));
-	Assert(IsPointerList(list2));
+  Assert(IsPointerList(list1));
+  Assert(IsPointerList(list2));
 
-	if (list2 == NIL)
-		return list_copy(list1);
+  if (list2 == NIL)
+    return list_copy(list1);
 
-	foreach(cell, list1)
-	{
-		if (!list_member_ptr(list2, lfirst(cell)))
-			result = lappend(result, lfirst(cell));
-	}
+  foreach(cell, list1) {
+    if (!list_member_ptr(list2, lfirst(cell)))
+      result = lappend(result, lfirst(cell));
+  }
 
-	check_list_invariants(result);
-	return result;
+  check_list_invariants(result);
+  return result;
 }
 
 /*
@@ -1287,23 +1279,22 @@ list_difference_ptr(const List *list1, const List *list2)
 List *
 list_difference_int(const List *list1, const List *list2)
 {
-	const ListCell *cell;
-	List	   *result = NIL;
+  const ListCell *cell;
+  List     *result = NIL;
 
-	Assert(IsIntegerList(list1));
-	Assert(IsIntegerList(list2));
+  Assert(IsIntegerList(list1));
+  Assert(IsIntegerList(list2));
 
-	if (list2 == NIL)
-		return list_copy(list1);
+  if (list2 == NIL)
+    return list_copy(list1);
 
-	foreach(cell, list1)
-	{
-		if (!list_member_int(list2, lfirst_int(cell)))
-			result = lappend_int(result, lfirst_int(cell));
-	}
+  foreach(cell, list1) {
+    if (!list_member_int(list2, lfirst_int(cell)))
+      result = lappend_int(result, lfirst_int(cell));
+  }
 
-	check_list_invariants(result);
-	return result;
+  check_list_invariants(result);
+  return result;
 }
 
 /*
@@ -1312,23 +1303,22 @@ list_difference_int(const List *list1, const List *list2)
 List *
 list_difference_oid(const List *list1, const List *list2)
 {
-	const ListCell *cell;
-	List	   *result = NIL;
+  const ListCell *cell;
+  List     *result = NIL;
 
-	Assert(IsOidList(list1));
-	Assert(IsOidList(list2));
+  Assert(IsOidList(list1));
+  Assert(IsOidList(list2));
 
-	if (list2 == NIL)
-		return list_copy(list1);
+  if (list2 == NIL)
+    return list_copy(list1);
 
-	foreach(cell, list1)
-	{
-		if (!list_member_oid(list2, lfirst_oid(cell)))
-			result = lappend_oid(result, lfirst_oid(cell));
-	}
+  foreach(cell, list1) {
+    if (!list_member_oid(list2, lfirst_oid(cell)))
+      result = lappend_oid(result, lfirst_oid(cell));
+  }
 
-	check_list_invariants(result);
-	return result;
+  check_list_invariants(result);
+  return result;
 }
 
 /*
@@ -1342,10 +1332,10 @@ list_difference_oid(const List *list1, const List *list2)
 List *
 list_append_unique(List *list, void *datum)
 {
-	if (list_member(list, datum))
-		return list;
-	else
-		return lappend(list, datum);
+  if (list_member(list, datum))
+    return list;
+  else
+    return lappend(list, datum);
 }
 
 /*
@@ -1355,10 +1345,10 @@ list_append_unique(List *list, void *datum)
 List *
 list_append_unique_ptr(List *list, void *datum)
 {
-	if (list_member_ptr(list, datum))
-		return list;
-	else
-		return lappend(list, datum);
+  if (list_member_ptr(list, datum))
+    return list;
+  else
+    return lappend(list, datum);
 }
 
 /*
@@ -1367,10 +1357,10 @@ list_append_unique_ptr(List *list, void *datum)
 List *
 list_append_unique_int(List *list, int datum)
 {
-	if (list_member_int(list, datum))
-		return list;
-	else
-		return lappend_int(list, datum);
+  if (list_member_int(list, datum))
+    return list;
+  else
+    return lappend_int(list, datum);
 }
 
 /*
@@ -1379,10 +1369,10 @@ list_append_unique_int(List *list, int datum)
 List *
 list_append_unique_oid(List *list, Oid datum)
 {
-	if (list_member_oid(list, datum))
-		return list;
-	else
-		return lappend_oid(list, datum);
+  if (list_member_oid(list, datum))
+    return list;
+  else
+    return lappend_oid(list, datum);
 }
 
 /*
@@ -1404,19 +1394,18 @@ list_append_unique_oid(List *list, Oid datum)
 List *
 list_concat_unique(List *list1, const List *list2)
 {
-	ListCell   *cell;
+  ListCell   *cell;
 
-	Assert(IsPointerList(list1));
-	Assert(IsPointerList(list2));
+  Assert(IsPointerList(list1));
+  Assert(IsPointerList(list2));
 
-	foreach(cell, list2)
-	{
-		if (!list_member(list1, lfirst(cell)))
-			list1 = lappend(list1, lfirst(cell));
-	}
+  foreach(cell, list2) {
+    if (!list_member(list1, lfirst(cell)))
+      list1 = lappend(list1, lfirst(cell));
+  }
 
-	check_list_invariants(list1);
-	return list1;
+  check_list_invariants(list1);
+  return list1;
 }
 
 /*
@@ -1426,19 +1415,18 @@ list_concat_unique(List *list1, const List *list2)
 List *
 list_concat_unique_ptr(List *list1, const List *list2)
 {
-	ListCell   *cell;
+  ListCell   *cell;
 
-	Assert(IsPointerList(list1));
-	Assert(IsPointerList(list2));
+  Assert(IsPointerList(list1));
+  Assert(IsPointerList(list2));
 
-	foreach(cell, list2)
-	{
-		if (!list_member_ptr(list1, lfirst(cell)))
-			list1 = lappend(list1, lfirst(cell));
-	}
+  foreach(cell, list2) {
+    if (!list_member_ptr(list1, lfirst(cell)))
+      list1 = lappend(list1, lfirst(cell));
+  }
 
-	check_list_invariants(list1);
-	return list1;
+  check_list_invariants(list1);
+  return list1;
 }
 
 /*
@@ -1447,19 +1435,18 @@ list_concat_unique_ptr(List *list1, const List *list2)
 List *
 list_concat_unique_int(List *list1, const List *list2)
 {
-	ListCell   *cell;
+  ListCell   *cell;
 
-	Assert(IsIntegerList(list1));
-	Assert(IsIntegerList(list2));
+  Assert(IsIntegerList(list1));
+  Assert(IsIntegerList(list2));
 
-	foreach(cell, list2)
-	{
-		if (!list_member_int(list1, lfirst_int(cell)))
-			list1 = lappend_int(list1, lfirst_int(cell));
-	}
+  foreach(cell, list2) {
+    if (!list_member_int(list1, lfirst_int(cell)))
+      list1 = lappend_int(list1, lfirst_int(cell));
+  }
 
-	check_list_invariants(list1);
-	return list1;
+  check_list_invariants(list1);
+  return list1;
 }
 
 /*
@@ -1468,19 +1455,18 @@ list_concat_unique_int(List *list1, const List *list2)
 List *
 list_concat_unique_oid(List *list1, const List *list2)
 {
-	ListCell   *cell;
+  ListCell   *cell;
 
-	Assert(IsOidList(list1));
-	Assert(IsOidList(list2));
+  Assert(IsOidList(list1));
+  Assert(IsOidList(list2));
 
-	foreach(cell, list2)
-	{
-		if (!list_member_oid(list1, lfirst_oid(cell)))
-			list1 = lappend_oid(list1, lfirst_oid(cell));
-	}
+  foreach(cell, list2) {
+    if (!list_member_oid(list1, lfirst_oid(cell)))
+      list1 = lappend_oid(list1, lfirst_oid(cell));
+  }
 
-	check_list_invariants(list1);
-	return list1;
+  check_list_invariants(list1);
+  return list1;
 }
 
 /*
@@ -1494,23 +1480,24 @@ list_concat_unique_oid(List *list1, const List *list2)
 void
 list_deduplicate_oid(List *list)
 {
-	int			len;
+  int     len;
 
-	Assert(IsOidList(list));
-	len = list_length(list);
-	if (len > 1)
-	{
-		ListCell   *elements = list->elements;
-		int			i = 0;
+  Assert(IsOidList(list));
+  len = list_length(list);
 
-		for (int j = 1; j < len; j++)
-		{
-			if (elements[i].oid_value != elements[j].oid_value)
-				elements[++i].oid_value = elements[j].oid_value;
-		}
-		list->length = i + 1;
-	}
-	check_list_invariants(list);
+  if (len > 1) {
+    ListCell   *elements = list->elements;
+    int     i = 0;
+
+    for (int j = 1; j < len; j++) {
+      if (elements[i].oid_value != elements[j].oid_value)
+        elements[++i].oid_value = elements[j].oid_value;
+    }
+
+    list->length = i + 1;
+  }
+
+  check_list_invariants(list);
 }
 
 /*
@@ -1519,19 +1506,20 @@ list_deduplicate_oid(List *list)
 static void
 list_free_private(List *list, bool deep)
 {
-	if (list == NIL)
-		return;					/* nothing to do */
+  if (list == NIL)
+    return;         /* nothing to do */
 
-	check_list_invariants(list);
+  check_list_invariants(list);
 
-	if (deep)
-	{
-		for (int i = 0; i < list->length; i++)
-			pfree(lfirst(&list->elements[i]));
-	}
-	if (list->elements != list->initial_elements)
-		pfree(list->elements);
-	pfree(list);
+  if (deep) {
+    for (int i = 0; i < list->length; i++)
+      pfree(lfirst(&list->elements[i]));
+  }
+
+  if (list->elements != list->initial_elements)
+    pfree(list->elements);
+
+  pfree(list);
 }
 
 /*
@@ -1545,7 +1533,7 @@ list_free_private(List *list, bool deep)
 void
 list_free(List *list)
 {
-	list_free_private(list, false);
+  list_free_private(list, false);
 }
 
 /*
@@ -1559,11 +1547,11 @@ list_free(List *list)
 void
 list_free_deep(List *list)
 {
-	/*
-	 * A "deep" free operation only makes sense on a list of pointers.
-	 */
-	Assert(IsPointerList(list));
-	list_free_private(list, true);
+  /*
+   * A "deep" free operation only makes sense on a list of pointers.
+   */
+  Assert(IsPointerList(list));
+  list_free_private(list, true);
 }
 
 /*
@@ -1572,17 +1560,17 @@ list_free_deep(List *list)
 List *
 list_copy(const List *oldlist)
 {
-	List	   *newlist;
+  List     *newlist;
 
-	if (oldlist == NIL)
-		return NIL;
+  if (oldlist == NIL)
+    return NIL;
 
-	newlist = new_list(oldlist->type, oldlist->length);
-	memcpy(newlist->elements, oldlist->elements,
-		   newlist->length * sizeof(ListCell));
+  newlist = new_list(oldlist->type, oldlist->length);
+  memcpy(newlist->elements, oldlist->elements,
+         newlist->length * sizeof(ListCell));
 
-	check_list_invariants(newlist);
-	return newlist;
+  check_list_invariants(newlist);
+  return newlist;
 }
 
 /*
@@ -1592,18 +1580,18 @@ list_copy(const List *oldlist)
 List *
 list_copy_head(const List *oldlist, int len)
 {
-	List	   *newlist;
+  List     *newlist;
 
-	if (oldlist == NIL || len <= 0)
-		return NIL;
+  if (oldlist == NIL || len <= 0)
+    return NIL;
 
-	len = Min(oldlist->length, len);
+  len = Min(oldlist->length, len);
 
-	newlist = new_list(oldlist->type, len);
-	memcpy(newlist->elements, oldlist->elements, len * sizeof(ListCell));
+  newlist = new_list(oldlist->type, len);
+  memcpy(newlist->elements, oldlist->elements, len * sizeof(ListCell));
 
-	check_list_invariants(newlist);
-	return newlist;
+  check_list_invariants(newlist);
+  return newlist;
 }
 
 /*
@@ -1612,20 +1600,20 @@ list_copy_head(const List *oldlist, int len)
 List *
 list_copy_tail(const List *oldlist, int nskip)
 {
-	List	   *newlist;
+  List     *newlist;
 
-	if (nskip < 0)
-		nskip = 0;				/* would it be better to elog? */
+  if (nskip < 0)
+    nskip = 0;        /* would it be better to elog? */
 
-	if (oldlist == NIL || nskip >= oldlist->length)
-		return NIL;
+  if (oldlist == NIL || nskip >= oldlist->length)
+    return NIL;
 
-	newlist = new_list(oldlist->type, oldlist->length - nskip);
-	memcpy(newlist->elements, &oldlist->elements[nskip],
-		   newlist->length * sizeof(ListCell));
+  newlist = new_list(oldlist->type, oldlist->length - nskip);
+  memcpy(newlist->elements, &oldlist->elements[nskip],
+         newlist->length * sizeof(ListCell));
 
-	check_list_invariants(newlist);
-	return newlist;
+  check_list_invariants(newlist);
+  return newlist;
 }
 
 /*
@@ -1638,21 +1626,22 @@ list_copy_tail(const List *oldlist, int nskip)
 List *
 list_copy_deep(const List *oldlist)
 {
-	List	   *newlist;
+  List     *newlist;
 
-	if (oldlist == NIL)
-		return NIL;
+  if (oldlist == NIL)
+    return NIL;
 
-	/* This is only sensible for pointer Lists */
-	Assert(IsA(oldlist, List));
+  /* This is only sensible for pointer Lists */
+  Assert(IsA(oldlist, List));
 
-	newlist = new_list(oldlist->type, oldlist->length);
-	for (int i = 0; i < newlist->length; i++)
-		lfirst(&newlist->elements[i]) =
-			copyObjectImpl(lfirst(&oldlist->elements[i]));
+  newlist = new_list(oldlist->type, oldlist->length);
 
-	check_list_invariants(newlist);
-	return newlist;
+  for (int i = 0; i < newlist->length; i++)
+    lfirst(&newlist->elements[i]) =
+      copyObjectImpl(lfirst(&oldlist->elements[i]));
+
+  check_list_invariants(newlist);
+  return newlist;
 }
 
 /*
@@ -1673,15 +1662,16 @@ list_copy_deep(const List *oldlist)
 void
 list_sort(List *list, list_sort_comparator cmp)
 {
-	typedef int (*qsort_comparator) (const void *a, const void *b);
-	int			len;
+  typedef int (*qsort_comparator) (const void *a, const void *b);
+  int     len;
 
-	check_list_invariants(list);
+  check_list_invariants(list);
 
-	/* Nothing to do if there's less than two elements */
-	len = list_length(list);
-	if (len > 1)
-		qsort(list->elements, len, sizeof(ListCell), (qsort_comparator) cmp);
+  /* Nothing to do if there's less than two elements */
+  len = list_length(list);
+
+  if (len > 1)
+    qsort(list->elements, len, sizeof(ListCell), (qsort_comparator) cmp);
 }
 
 /*
@@ -1690,10 +1680,10 @@ list_sort(List *list, list_sort_comparator cmp)
 int
 list_int_cmp(const ListCell *p1, const ListCell *p2)
 {
-	int			v1 = lfirst_int(p1);
-	int			v2 = lfirst_int(p2);
+  int     v1 = lfirst_int(p1);
+  int     v2 = lfirst_int(p2);
 
-	return pg_cmp_s32(v1, v2);
+  return pg_cmp_s32(v1, v2);
 }
 
 /*
@@ -1702,8 +1692,8 @@ list_int_cmp(const ListCell *p1, const ListCell *p2)
 int
 list_oid_cmp(const ListCell *p1, const ListCell *p2)
 {
-	Oid			v1 = lfirst_oid(p1);
-	Oid			v2 = lfirst_oid(p2);
+  Oid     v1 = lfirst_oid(p1);
+  Oid     v2 = lfirst_oid(p2);
 
-	return pg_cmp_u32(v1, v2);
+  return pg_cmp_u32(v1, v2);
 }

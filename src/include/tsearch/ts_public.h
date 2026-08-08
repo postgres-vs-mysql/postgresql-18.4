@@ -1,8 +1,8 @@
 /*-------------------------------------------------------------------------
  *
  * ts_public.h
- *	  Public interface to various tsearch modules, such as
- *	  parsers and dictionaries.
+ *    Public interface to various tsearch modules, such as
+ *    parsers and dictionaries.
  *
  * Copyright (c) 1998-2025, PostgreSQL Global Development Group
  *
@@ -24,9 +24,9 @@
  */
 typedef struct
 {
-	int			lexid;
-	char	   *alias;
-	char	   *descr;
+  int     lexid;
+  char     *alias;
+  char     *descr;
 } LexDescr;
 
 /*
@@ -57,54 +57,54 @@ typedef struct
  */
 typedef struct
 {
-	uint32		selected:1,		/* token is to be highlighted */
-				in:1,			/* token is part of headline */
-				replace:1,		/* token is to be replaced with a space */
-				repeated:1,		/* duplicate entry to hold item pointer */
-				skip:1,			/* token is to be skipped (not output) */
-				unused:3,		/* available bits */
-				type:8,			/* parser's token category */
-				len:16;			/* length of token */
-	WordEntryPos pos;			/* position of token */
-	char	   *word;			/* text of token (not null-terminated) */
-	QueryOperand *item;			/* a matching query operand, or NULL if none */
+  uint32    selected: 1,  /* token is to be highlighted */
+            in: 1,    /* token is part of headline */
+            replace: 1,   /* token is to be replaced with a space */
+            repeated: 1,  /* duplicate entry to hold item pointer */
+            skip: 1,    /* token is to be skipped (not output) */
+            unused: 3,  /* available bits */
+            type: 8,    /* parser's token category */
+            len: 16;    /* length of token */
+  WordEntryPos pos;     /* position of token */
+  char     *word;     /* text of token (not null-terminated) */
+  QueryOperand *item;     /* a matching query operand, or NULL if none */
 } HeadlineWordEntry;
 
 typedef struct
 {
-	/* Fields filled by core code before calling prsheadline function: */
-	HeadlineWordEntry *words;
-	int32		lenwords;		/* allocated length of words[] */
-	int32		curwords;		/* current number of valid entries */
-	int32		vectorpos;		/* used by ts_parse.c in filling pos fields */
+  /* Fields filled by core code before calling prsheadline function: */
+  HeadlineWordEntry *words;
+  int32   lenwords;   /* allocated length of words[] */
+  int32   curwords;   /* current number of valid entries */
+  int32   vectorpos;    /* used by ts_parse.c in filling pos fields */
 
-	/* The prsheadline function must fill these fields: */
-	/* Strings for marking selected tokens and separating fragments: */
-	char	   *startsel;		/* palloc'd strings */
-	char	   *stopsel;
-	char	   *fragdelim;
-	int16		startsellen;	/* lengths of strings */
-	int16		stopsellen;
-	int16		fragdelimlen;
+  /* The prsheadline function must fill these fields: */
+  /* Strings for marking selected tokens and separating fragments: */
+  char     *startsel;   /* palloc'd strings */
+  char     *stopsel;
+  char     *fragdelim;
+  int16   startsellen;  /* lengths of strings */
+  int16   stopsellen;
+  int16   fragdelimlen;
 } HeadlineParsedText;
 
 /*
  * Common useful things for tsearch subsystem
  */
 extern char *get_tsearch_config_filename(const char *basename,
-										 const char *extension);
+    const char *extension);
 
 /*
  * Often useful stopword list management
  */
 typedef struct
 {
-	int			len;
-	char	  **stop;
+  int     len;
+  char    **stop;
 } StopList;
 
 extern void readstoplist(const char *fname, StopList *s,
-						 char *(*wordop) (const char *, size_t, Oid));
+                         char *(*wordop) (const char *, size_t, Oid));
 extern bool searchstoplist(StopList *s, char *key);
 
 /*
@@ -114,34 +114,34 @@ extern bool searchstoplist(StopList *s, char *key);
 /* return struct for any lexize function */
 typedef struct
 {
-	/*----------
-	 * Number of current variant of split word.  For example the Norwegian
-	 * word 'fotballklubber' has two variants to split: ( fotball, klubb )
-	 * and ( fot, ball, klubb ). So, dictionary should return:
-	 *
-	 * nvariant    lexeme
-	 *	   1	   fotball
-	 *	   1	   klubb
-	 *	   2	   fot
-	 *	   2	   ball
-	 *	   2	   klubb
-	 *
-	 * In general, a TSLexeme will be considered to belong to the same split
-	 * variant as the previous one if they have the same nvariant value.
-	 * The exact values don't matter, only changes from one lexeme to next.
-	 *----------
-	 */
-	uint16		nvariant;
+  /*----------
+   * Number of current variant of split word.  For example the Norwegian
+   * word 'fotballklubber' has two variants to split: ( fotball, klubb )
+   * and ( fot, ball, klubb ). So, dictionary should return:
+   *
+   * nvariant    lexeme
+   *     1     fotball
+   *     1     klubb
+   *     2     fot
+   *     2     ball
+   *     2     klubb
+   *
+   * In general, a TSLexeme will be considered to belong to the same split
+   * variant as the previous one if they have the same nvariant value.
+   * The exact values don't matter, only changes from one lexeme to next.
+   *----------
+   */
+  uint16    nvariant;
 
-	uint16		flags;			/* See flag bits below */
+  uint16    flags;      /* See flag bits below */
 
-	char	   *lexeme;			/* C string */
+  char     *lexeme;     /* C string */
 } TSLexeme;
 
 /* Flag bits that can appear in TSLexeme.flags */
-#define TSL_ADDPOS		0x01
-#define TSL_PREFIX		0x02
-#define TSL_FILTER		0x04
+#define TSL_ADDPOS    0x01
+#define TSL_PREFIX    0x02
+#define TSL_FILTER    0x04
 
 /*
  * Struct for supporting complex dictionaries like thesaurus.
@@ -149,11 +149,11 @@ typedef struct
  */
 typedef struct
 {
-	bool		isend;			/* in: marks for lexize_info about text end is
-								 * reached */
-	bool		getnext;		/* out: dict wants next lexeme */
-	void	   *private_state;	/* internal dict state between calls with
-								 * getnext == true */
+  bool    isend;      /* in: marks for lexize_info about text end is
+                 * reached */
+  bool    getnext;    /* out: dict wants next lexeme */
+  void     *private_state;  /* internal dict state between calls with
+                 * getnext == true */
 } DictSubState;
 
-#endif							/* _PG_TS_PUBLIC_H_ */
+#endif              /* _PG_TS_PUBLIC_H_ */

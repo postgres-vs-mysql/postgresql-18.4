@@ -1,5 +1,5 @@
 /*
- *	qsort_interruptible.c: qsort_arg that includes CHECK_FOR_INTERRUPTS
+ *  qsort_interruptible.c: qsort_arg that includes CHECK_FOR_INTERRUPTS
  */
 
 #include "postgres.h"

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * bootstrap.h
- *	  include file for the bootstrapping code
+ *    include file for the bootstrapping code
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -24,8 +24,8 @@
  */
 #define MAXATTR 40
 
-#define BOOTCOL_NULL_AUTO			1
-#define BOOTCOL_NULL_FORCE_NULL		2
+#define BOOTCOL_NULL_AUTO     1
+#define BOOTCOL_NULL_FORCE_NULL   2
 #define BOOTCOL_NULL_FORCE_NOT_NULL 3
 
 extern PGDLLIMPORT Relation boot_reldesc;
@@ -47,13 +47,13 @@ extern void index_register(Oid heap, Oid ind, const IndexInfo *indexInfo);
 extern void build_indices(void);
 
 extern void boot_get_type_io_data(Oid typid,
-								  int16 *typlen,
-								  bool *typbyval,
-								  char *typalign,
-								  char *typdelim,
-								  Oid *typioparam,
-								  Oid *typinput,
-								  Oid *typoutput);
+                                  int16 *typlen,
+                                  bool *typbyval,
+                                  char *typalign,
+                                  char *typdelim,
+                                  Oid *typioparam,
+                                  Oid *typinput,
+                                  Oid *typoutput);
 
 union YYSTYPE;
 #ifndef YY_TYPEDEF_YY_SCANNER_T
@@ -61,9 +61,9 @@ union YYSTYPE;
 typedef void *yyscan_t;
 #endif
 
-extern int	boot_yyparse(yyscan_t yyscanner);
-extern int	boot_yylex_init(yyscan_t *yyscannerp);
-extern int	boot_yylex(union YYSTYPE *yylval_param, yyscan_t yyscanner);
+extern int  boot_yyparse(yyscan_t yyscanner);
+extern int  boot_yylex_init(yyscan_t *yyscannerp);
+extern int  boot_yylex(union YYSTYPE *yylval_param, yyscan_t yyscanner);
 pg_noreturn extern void boot_yyerror(yyscan_t yyscanner, const char *message);
 
-#endif							/* BOOTSTRAP_H */
+#endif              /* BOOTSTRAP_H */

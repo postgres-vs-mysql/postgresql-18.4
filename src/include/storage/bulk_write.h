@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * bulk_write.h
- *	  Efficiently and reliably populate a new relation
+ *    Efficiently and reliably populate a new relation
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -38,4 +38,4 @@ extern void smgr_bulk_write(BulkWriteState *bulkstate, BlockNumber blocknum, Bul
 
 extern void smgr_bulk_finish(BulkWriteState *bulkstate);
 
-#endif							/* BULK_WRITE_H */
+#endif              /* BULK_WRITE_H */

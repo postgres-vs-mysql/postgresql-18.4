@@ -20,7 +20,7 @@
 
 PG_MODULE_MAGIC;
 
-void		_PG_init(void);
+void    _PG_init(void);
 
 /* hook function */
 static char *rot13_passphrase(char *password);
@@ -31,26 +31,26 @@ static char *rot13_passphrase(char *password);
 void
 _PG_init(void)
 {
-	ldap_password_hook = rot13_passphrase;
+  ldap_password_hook = rot13_passphrase;
 }
 
 static char *
 rot13_passphrase(char *pw)
 {
-	size_t		size = strlen(pw) + 1;
+  size_t    size = strlen(pw) + 1;
 
-	char	   *new_pw = (char *) palloc(size);
+  char     *new_pw = (char *) palloc(size);
 
-	strlcpy(new_pw, pw, size);
-	for (char *p = new_pw; *p; p++)
-	{
-		char		c = *p;
+  strlcpy(new_pw, pw, size);
 
-		if ((c >= 'a' && c <= 'm') || (c >= 'A' && c <= 'M'))
-			*p = c + 13;
-		else if ((c >= 'n' && c <= 'z') || (c >= 'N' && c <= 'Z'))
-			*p = c - 13;
-	}
+  for (char *p = new_pw; *p; p++) {
+    char    c = *p;
 
-	return new_pw;
+    if ((c >= 'a' && c <= 'm') || (c >= 'A' && c <= 'M'))
+      *p = c + 13;
+    else if ((c >= 'n' && c <= 'z') || (c >= 'N' && c <= 'Z'))
+      *p = c - 13;
+  }
+
+  return new_pw;
 }

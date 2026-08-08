@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * tidstore.c
- *		TID (ItemPointerData) storage implementation.
+ *    TID (ItemPointerData) storage implementation.
  *
  * TidStore is a in-memory data structure to store TIDs (ItemPointerData).
  * Internally it uses a radix tree as the storage for TIDs. The key is the
@@ -15,7 +15,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/access/common/tidstore.c
+ *    src/backend/access/common/tidstore.c
  *
  *-------------------------------------------------------------------------
  */
@@ -28,8 +28,8 @@
 #include "utils/dsa.h"
 
 
-#define WORDNUM(x)	((x) / BITS_PER_BITMAPWORD)
-#define BITNUM(x)	((x) % BITS_PER_BITMAPWORD)
+#define WORDNUM(x)  ((x) / BITS_PER_BITMAPWORD)
+#define BITNUM(x) ((x) % BITS_PER_BITMAPWORD)
 
 /* number of active words for a page: */
 #define WORDS_PER_PAGE(n) ((n) / BITS_PER_BITMAPWORD + 1)
@@ -41,39 +41,37 @@
  * This is named similarly to PagetableEntry in tidbitmap.c
  * because the two have a similar function.
  */
-typedef struct BlocktableEntry
-{
-	struct
-	{
+typedef struct BlocktableEntry {
+  struct {
 #ifndef WORDS_BIGENDIAN
-		/*
-		 * We need to position this member to reserve space for the backing
-		 * radix tree to tag the lowest bit when struct 'header' is stored
-		 * inside a pointer or DSA pointer.
-		 */
-		uint8		flags;
+    /*
+     * We need to position this member to reserve space for the backing
+     * radix tree to tag the lowest bit when struct 'header' is stored
+     * inside a pointer or DSA pointer.
+     */
+    uint8   flags;
 
-		int8		nwords;
+    int8    nwords;
 #endif
 
-		/*
-		 * We can store a small number of offsets here to avoid wasting space
-		 * with a sparse bitmap.
-		 */
-		OffsetNumber full_offsets[NUM_FULL_OFFSETS];
+    /*
+     * We can store a small number of offsets here to avoid wasting space
+     * with a sparse bitmap.
+     */
+    OffsetNumber full_offsets[NUM_FULL_OFFSETS];
 
 #ifdef WORDS_BIGENDIAN
-		int8		nwords;
-		uint8		flags;
+    int8    nwords;
+    uint8   flags;
 #endif
-	}			header;
+  }     header;
 
-	/*
-	 * We don't expect any padding space here, but to be cautious, code
-	 * creating new entries should zero out space up to 'words'.
-	 */
+  /*
+   * We don't expect any padding space here, but to be cautious, code
+   * creating new entries should zero out space up to 'words'.
+   */
 
-	bitmapword	words[FLEXIBLE_ARRAY_MEMBER];
+  bitmapword  words[FLEXIBLE_ARRAY_MEMBER];
 } BlocktableEntry;
 
 /*
@@ -84,8 +82,8 @@ typedef struct BlocktableEntry
 #define MAX_OFFSET_IN_BITMAP Min(BITS_PER_BITMAPWORD * PG_INT8_MAX - 1, MaxOffsetNumber)
 
 #define MaxBlocktableEntrySize \
-	offsetof(BlocktableEntry, words) + \
-		(sizeof(bitmapword) * WORDS_PER_PAGE(MAX_OFFSET_IN_BITMAP))
+  offsetof(BlocktableEntry, words) + \
+    (sizeof(bitmapword) * WORDS_PER_PAGE(MAX_OFFSET_IN_BITMAP))
 
 #define RT_PREFIX local_ts
 #define RT_SCOPE static
@@ -93,8 +91,8 @@ typedef struct BlocktableEntry
 #define RT_DEFINE
 #define RT_VALUE_TYPE BlocktableEntry
 #define RT_VARLEN_VALUE_SIZE(page) \
-	(offsetof(BlocktableEntry, words) + \
-	sizeof(bitmapword) * (page)->header.nwords)
+  (offsetof(BlocktableEntry, words) + \
+  sizeof(bitmapword) * (page)->header.nwords)
 #define RT_RUNTIME_EMBEDDABLE_VALUE
 #include "lib/radixtree.h"
 
@@ -105,46 +103,42 @@ typedef struct BlocktableEntry
 #define RT_DEFINE
 #define RT_VALUE_TYPE BlocktableEntry
 #define RT_VARLEN_VALUE_SIZE(page) \
-	(offsetof(BlocktableEntry, words) + \
-	sizeof(bitmapword) * (page)->header.nwords)
+  (offsetof(BlocktableEntry, words) + \
+  sizeof(bitmapword) * (page)->header.nwords)
 #define RT_RUNTIME_EMBEDDABLE_VALUE
 #include "lib/radixtree.h"
 
 /* Per-backend state for a TidStore */
-struct TidStore
-{
-	/*
-	 * MemoryContext for the radix tree when using local memory, NULL for
-	 * shared memory
-	 */
-	MemoryContext rt_context;
+struct TidStore {
+  /*
+   * MemoryContext for the radix tree when using local memory, NULL for
+   * shared memory
+   */
+  MemoryContext rt_context;
 
-	/* Storage for TIDs. Use either one depending on TidStoreIsShared() */
-	union
-	{
-		local_ts_radix_tree *local;
-		shared_ts_radix_tree *shared;
-	}			tree;
+  /* Storage for TIDs. Use either one depending on TidStoreIsShared() */
+  union {
+    local_ts_radix_tree *local;
+    shared_ts_radix_tree *shared;
+  }     tree;
 
-	/* DSA area for TidStore if using shared memory */
-	dsa_area   *area;
+  /* DSA area for TidStore if using shared memory */
+  dsa_area   *area;
 };
 #define TidStoreIsShared(ts) ((ts)->area != NULL)
 
 /* Iterator for TidStore */
-struct TidStoreIter
-{
-	TidStore   *ts;
+struct TidStoreIter {
+  TidStore   *ts;
 
-	/* iterator of radix tree. Use either one depending on TidStoreIsShared() */
-	union
-	{
-		shared_ts_iter *shared;
-		local_ts_iter *local;
-	}			tree_iter;
+  /* iterator of radix tree. Use either one depending on TidStoreIsShared() */
+  union {
+    shared_ts_iter *shared;
+    local_ts_iter *local;
+  }     tree_iter;
 
-	/* output for the caller */
-	TidStoreIterResult output;
+  /* output for the caller */
+  TidStoreIterResult output;
 };
 
 /*
@@ -161,41 +155,38 @@ struct TidStoreIter
 TidStore *
 TidStoreCreateLocal(size_t max_bytes, bool insert_only)
 {
-	TidStore   *ts;
-	size_t		initBlockSize = ALLOCSET_DEFAULT_INITSIZE;
-	size_t		minContextSize = ALLOCSET_DEFAULT_MINSIZE;
-	size_t		maxBlockSize = ALLOCSET_DEFAULT_MAXSIZE;
+  TidStore   *ts;
+  size_t    initBlockSize = ALLOCSET_DEFAULT_INITSIZE;
+  size_t    minContextSize = ALLOCSET_DEFAULT_MINSIZE;
+  size_t    maxBlockSize = ALLOCSET_DEFAULT_MAXSIZE;
 
-	ts = palloc0(sizeof(TidStore));
+  ts = palloc0(sizeof(TidStore));
 
-	/* choose the maxBlockSize to be no larger than 1/16 of max_bytes */
-	while (16 * maxBlockSize > max_bytes)
-		maxBlockSize >>= 1;
+  /* choose the maxBlockSize to be no larger than 1/16 of max_bytes */
+  while (16 * maxBlockSize > max_bytes)
+    maxBlockSize >>= 1;
 
-	if (maxBlockSize < ALLOCSET_DEFAULT_INITSIZE)
-		maxBlockSize = ALLOCSET_DEFAULT_INITSIZE;
+  if (maxBlockSize < ALLOCSET_DEFAULT_INITSIZE)
+    maxBlockSize = ALLOCSET_DEFAULT_INITSIZE;
 
-	/* Create a memory context for the TID storage */
-	if (insert_only)
-	{
-		ts->rt_context = BumpContextCreate(CurrentMemoryContext,
-										   "TID storage",
-										   minContextSize,
-										   initBlockSize,
-										   maxBlockSize);
-	}
-	else
-	{
-		ts->rt_context = AllocSetContextCreate(CurrentMemoryContext,
-											   "TID storage",
-											   minContextSize,
-											   initBlockSize,
-											   maxBlockSize);
-	}
+  /* Create a memory context for the TID storage */
+  if (insert_only) {
+    ts->rt_context = BumpContextCreate(CurrentMemoryContext,
+                                       "TID storage",
+                                       minContextSize,
+                                       initBlockSize,
+                                       maxBlockSize);
+  } else {
+    ts->rt_context = AllocSetContextCreate(CurrentMemoryContext,
+                                           "TID storage",
+                                           minContextSize,
+                                           initBlockSize,
+                                           maxBlockSize);
+  }
 
-	ts->tree.local = local_ts_create(ts->rt_context);
+  ts->tree.local = local_ts_create(ts->rt_context);
 
-	return ts;
+  return ts;
 }
 
 /*
@@ -207,31 +198,31 @@ TidStoreCreateLocal(size_t max_bytes, bool insert_only)
 TidStore *
 TidStoreCreateShared(size_t max_bytes, int tranche_id)
 {
-	TidStore   *ts;
-	dsa_area   *area;
-	size_t		dsa_init_size = DSA_DEFAULT_INIT_SEGMENT_SIZE;
-	size_t		dsa_max_size = DSA_MAX_SEGMENT_SIZE;
+  TidStore   *ts;
+  dsa_area   *area;
+  size_t    dsa_init_size = DSA_DEFAULT_INIT_SEGMENT_SIZE;
+  size_t    dsa_max_size = DSA_MAX_SEGMENT_SIZE;
 
-	ts = palloc0(sizeof(TidStore));
+  ts = palloc0(sizeof(TidStore));
 
-	/*
-	 * Choose the initial and maximum DSA segment sizes to be no longer than
-	 * 1/8 of max_bytes.
-	 */
-	while (8 * dsa_max_size > max_bytes)
-		dsa_max_size >>= 1;
+  /*
+   * Choose the initial and maximum DSA segment sizes to be no longer than
+   * 1/8 of max_bytes.
+   */
+  while (8 * dsa_max_size > max_bytes)
+    dsa_max_size >>= 1;
 
-	if (dsa_max_size < DSA_MIN_SEGMENT_SIZE)
-		dsa_max_size = DSA_MIN_SEGMENT_SIZE;
+  if (dsa_max_size < DSA_MIN_SEGMENT_SIZE)
+    dsa_max_size = DSA_MIN_SEGMENT_SIZE;
 
-	if (dsa_init_size > dsa_max_size)
-		dsa_init_size = dsa_max_size;
+  if (dsa_init_size > dsa_max_size)
+    dsa_init_size = dsa_max_size;
 
-	area = dsa_create_ext(tranche_id, dsa_init_size, dsa_max_size);
-	ts->tree.shared = shared_ts_create(area, tranche_id);
-	ts->area = area;
+  area = dsa_create_ext(tranche_id, dsa_init_size, dsa_max_size);
+  ts->tree.shared = shared_ts_create(area, tranche_id);
+  ts->area = area;
 
-	return ts;
+  return ts;
 }
 
 /*
@@ -243,22 +234,22 @@ TidStoreCreateShared(size_t max_bytes, int tranche_id)
 TidStore *
 TidStoreAttach(dsa_handle area_handle, dsa_pointer handle)
 {
-	TidStore   *ts;
-	dsa_area   *area;
+  TidStore   *ts;
+  dsa_area   *area;
 
-	Assert(area_handle != DSA_HANDLE_INVALID);
-	Assert(DsaPointerIsValid(handle));
+  Assert(area_handle != DSA_HANDLE_INVALID);
+  Assert(DsaPointerIsValid(handle));
 
-	/* create per-backend state */
-	ts = palloc0(sizeof(TidStore));
+  /* create per-backend state */
+  ts = palloc0(sizeof(TidStore));
 
-	area = dsa_attach(area_handle);
+  area = dsa_attach(area_handle);
 
-	/* Find the shared the shared radix tree */
-	ts->tree.shared = shared_ts_attach(area, handle);
-	ts->area = area;
+  /* Find the shared the shared radix tree */
+  ts->tree.shared = shared_ts_attach(area, handle);
+  ts->area = area;
 
-	return ts;
+  return ts;
 }
 
 /*
@@ -268,12 +259,12 @@ TidStoreAttach(dsa_handle area_handle, dsa_pointer handle)
 void
 TidStoreDetach(TidStore *ts)
 {
-	Assert(TidStoreIsShared(ts));
+  Assert(TidStoreIsShared(ts));
 
-	shared_ts_detach(ts->tree.shared);
-	dsa_detach(ts->area);
+  shared_ts_detach(ts->tree.shared);
+  dsa_detach(ts->area);
 
-	pfree(ts);
+  pfree(ts);
 }
 
 /*
@@ -286,22 +277,22 @@ TidStoreDetach(TidStore *ts)
 void
 TidStoreLockExclusive(TidStore *ts)
 {
-	if (TidStoreIsShared(ts))
-		shared_ts_lock_exclusive(ts->tree.shared);
+  if (TidStoreIsShared(ts))
+    shared_ts_lock_exclusive(ts->tree.shared);
 }
 
 void
 TidStoreLockShare(TidStore *ts)
 {
-	if (TidStoreIsShared(ts))
-		shared_ts_lock_share(ts->tree.shared);
+  if (TidStoreIsShared(ts))
+    shared_ts_lock_share(ts->tree.shared);
 }
 
 void
 TidStoreUnlock(TidStore *ts)
 {
-	if (TidStoreIsShared(ts))
-		shared_ts_unlock(ts->tree.shared);
+  if (TidStoreIsShared(ts))
+    shared_ts_unlock(ts->tree.shared);
 }
 
 /*
@@ -316,19 +307,16 @@ TidStoreUnlock(TidStore *ts)
 void
 TidStoreDestroy(TidStore *ts)
 {
-	/* Destroy underlying radix tree */
-	if (TidStoreIsShared(ts))
-	{
-		shared_ts_free(ts->tree.shared);
-		dsa_detach(ts->area);
-	}
-	else
-	{
-		local_ts_free(ts->tree.local);
-		MemoryContextDelete(ts->rt_context);
-	}
+  /* Destroy underlying radix tree */
+  if (TidStoreIsShared(ts)) {
+    shared_ts_free(ts->tree.shared);
+    dsa_detach(ts->area);
+  } else {
+    local_ts_free(ts->tree.local);
+    MemoryContextDelete(ts->rt_context);
+  }
 
-	pfree(ts);
+  pfree(ts);
 }
 
 /*
@@ -339,123 +327,113 @@ TidStoreDestroy(TidStore *ts)
  *
  * - The offset numbers "offsets" must be sorted in ascending order.
  * - If the block number already exists, the entry will be replaced --
- *	 there is no way to add or remove offsets from an entry.
+ *   there is no way to add or remove offsets from an entry.
  */
 void
 TidStoreSetBlockOffsets(TidStore *ts, BlockNumber blkno, OffsetNumber *offsets,
-						int num_offsets)
+                        int num_offsets)
 {
-	union
-	{
-		char		data[MaxBlocktableEntrySize];
-		BlocktableEntry force_align_entry;
-	}			data;
-	BlocktableEntry *page = (BlocktableEntry *) data.data;
-	bitmapword	word;
-	int			wordnum;
-	int			next_word_threshold;
-	int			idx = 0;
+  union {
+    char    data[MaxBlocktableEntrySize];
+    BlocktableEntry force_align_entry;
+  }     data;
+  BlocktableEntry *page = (BlocktableEntry *) data.data;
+  bitmapword  word;
+  int     wordnum;
+  int     next_word_threshold;
+  int     idx = 0;
 
-	Assert(num_offsets > 0);
+  Assert(num_offsets > 0);
 
-	/* Check if the given offset numbers are ordered */
-	for (int i = 1; i < num_offsets; i++)
-		Assert(offsets[i] > offsets[i - 1]);
+  /* Check if the given offset numbers are ordered */
+  for (int i = 1; i < num_offsets; i++)
+    Assert(offsets[i] > offsets[i - 1]);
 
-	memset(page, 0, offsetof(BlocktableEntry, words));
+  memset(page, 0, offsetof(BlocktableEntry, words));
 
-	if (num_offsets <= NUM_FULL_OFFSETS)
-	{
-		for (int i = 0; i < num_offsets; i++)
-		{
-			OffsetNumber off = offsets[i];
+  if (num_offsets <= NUM_FULL_OFFSETS) {
+    for (int i = 0; i < num_offsets; i++) {
+      OffsetNumber off = offsets[i];
 
-			/* safety check to ensure we don't overrun bit array bounds */
-			if (off == InvalidOffsetNumber || off > MAX_OFFSET_IN_BITMAP)
-				elog(ERROR, "tuple offset out of range: %u", off);
+      /* safety check to ensure we don't overrun bit array bounds */
+      if (off == InvalidOffsetNumber || off > MAX_OFFSET_IN_BITMAP)
+        elog(ERROR, "tuple offset out of range: %u", off);
 
-			page->header.full_offsets[i] = off;
-		}
+      page->header.full_offsets[i] = off;
+    }
 
-		page->header.nwords = 0;
-	}
-	else
-	{
-		for (wordnum = 0, next_word_threshold = BITS_PER_BITMAPWORD;
-			 wordnum <= WORDNUM(offsets[num_offsets - 1]);
-			 wordnum++, next_word_threshold += BITS_PER_BITMAPWORD)
-		{
-			word = 0;
+    page->header.nwords = 0;
+  } else {
+    for (wordnum = 0, next_word_threshold = BITS_PER_BITMAPWORD;
+         wordnum <= WORDNUM(offsets[num_offsets - 1]);
+         wordnum++, next_word_threshold += BITS_PER_BITMAPWORD) {
+      word = 0;
 
-			while (idx < num_offsets)
-			{
-				OffsetNumber off = offsets[idx];
+      while (idx < num_offsets) {
+        OffsetNumber off = offsets[idx];
 
-				/* safety check to ensure we don't overrun bit array bounds */
-				if (off == InvalidOffsetNumber || off > MAX_OFFSET_IN_BITMAP)
-					elog(ERROR, "tuple offset out of range: %u", off);
+        /* safety check to ensure we don't overrun bit array bounds */
+        if (off == InvalidOffsetNumber || off > MAX_OFFSET_IN_BITMAP)
+          elog(ERROR, "tuple offset out of range: %u", off);
 
-				if (off >= next_word_threshold)
-					break;
+        if (off >= next_word_threshold)
+          break;
 
-				word |= ((bitmapword) 1 << BITNUM(off));
-				idx++;
-			}
+        word |= ((bitmapword) 1 << BITNUM(off));
+        idx++;
+      }
 
-			/* write out offset bitmap for this wordnum */
-			page->words[wordnum] = word;
-		}
+      /* write out offset bitmap for this wordnum */
+      page->words[wordnum] = word;
+    }
 
-		page->header.nwords = wordnum;
-		Assert(page->header.nwords == WORDS_PER_PAGE(offsets[num_offsets - 1]));
-	}
+    page->header.nwords = wordnum;
+    Assert(page->header.nwords == WORDS_PER_PAGE(offsets[num_offsets - 1]));
+  }
 
-	if (TidStoreIsShared(ts))
-		shared_ts_set(ts->tree.shared, blkno, page);
-	else
-		local_ts_set(ts->tree.local, blkno, page);
+  if (TidStoreIsShared(ts))
+    shared_ts_set(ts->tree.shared, blkno, page);
+  else
+    local_ts_set(ts->tree.local, blkno, page);
 }
 
 /* Return true if the given TID is present in the TidStore */
 bool
 TidStoreIsMember(TidStore *ts, ItemPointer tid)
 {
-	int			wordnum;
-	int			bitnum;
-	BlocktableEntry *page;
-	BlockNumber blk = ItemPointerGetBlockNumber(tid);
-	OffsetNumber off = ItemPointerGetOffsetNumber(tid);
+  int     wordnum;
+  int     bitnum;
+  BlocktableEntry *page;
+  BlockNumber blk = ItemPointerGetBlockNumber(tid);
+  OffsetNumber off = ItemPointerGetOffsetNumber(tid);
 
-	if (TidStoreIsShared(ts))
-		page = shared_ts_find(ts->tree.shared, blk);
-	else
-		page = local_ts_find(ts->tree.local, blk);
+  if (TidStoreIsShared(ts))
+    page = shared_ts_find(ts->tree.shared, blk);
+  else
+    page = local_ts_find(ts->tree.local, blk);
 
-	/* no entry for the blk */
-	if (page == NULL)
-		return false;
+  /* no entry for the blk */
+  if (page == NULL)
+    return false;
 
-	if (page->header.nwords == 0)
-	{
-		/* we have offsets in the header */
-		for (int i = 0; i < NUM_FULL_OFFSETS; i++)
-		{
-			if (page->header.full_offsets[i] == off)
-				return true;
-		}
-		return false;
-	}
-	else
-	{
-		wordnum = WORDNUM(off);
-		bitnum = BITNUM(off);
+  if (page->header.nwords == 0) {
+    /* we have offsets in the header */
+    for (int i = 0; i < NUM_FULL_OFFSETS; i++) {
+      if (page->header.full_offsets[i] == off)
+        return true;
+    }
 
-		/* no bitmap for the off */
-		if (wordnum >= page->header.nwords)
-			return false;
+    return false;
+  } else {
+    wordnum = WORDNUM(off);
+    bitnum = BITNUM(off);
 
-		return (page->words[wordnum] & ((bitmapword) 1 << bitnum)) != 0;
-	}
+    /* no bitmap for the off */
+    if (wordnum >= page->header.nwords)
+      return false;
+
+    return (page->words[wordnum] & ((bitmapword) 1 << bitnum)) != 0;
+  }
 }
 
 /*
@@ -470,17 +448,17 @@ TidStoreIsMember(TidStore *ts, ItemPointer tid)
 TidStoreIter *
 TidStoreBeginIterate(TidStore *ts)
 {
-	TidStoreIter *iter;
+  TidStoreIter *iter;
 
-	iter = palloc0(sizeof(TidStoreIter));
-	iter->ts = ts;
+  iter = palloc0(sizeof(TidStoreIter));
+  iter->ts = ts;
 
-	if (TidStoreIsShared(ts))
-		iter->tree_iter.shared = shared_ts_begin_iterate(ts->tree.shared);
-	else
-		iter->tree_iter.local = local_ts_begin_iterate(ts->tree.local);
+  if (TidStoreIsShared(ts))
+    iter->tree_iter.shared = shared_ts_begin_iterate(ts->tree.shared);
+  else
+    iter->tree_iter.local = local_ts_begin_iterate(ts->tree.local);
 
-	return iter;
+  return iter;
 }
 
 
@@ -492,21 +470,21 @@ TidStoreBeginIterate(TidStore *ts)
 TidStoreIterResult *
 TidStoreIterateNext(TidStoreIter *iter)
 {
-	uint64		key;
-	BlocktableEntry *page;
+  uint64    key;
+  BlocktableEntry *page;
 
-	if (TidStoreIsShared(iter->ts))
-		page = shared_ts_iterate_next(iter->tree_iter.shared, &key);
-	else
-		page = local_ts_iterate_next(iter->tree_iter.local, &key);
+  if (TidStoreIsShared(iter->ts))
+    page = shared_ts_iterate_next(iter->tree_iter.shared, &key);
+  else
+    page = local_ts_iterate_next(iter->tree_iter.local, &key);
 
-	if (page == NULL)
-		return NULL;
+  if (page == NULL)
+    return NULL;
 
-	iter->output.blkno = key;
-	iter->output.internal_page = page;
+  iter->output.blkno = key;
+  iter->output.internal_page = page;
 
-	return &(iter->output);
+  return &(iter->output);
 }
 
 /*
@@ -517,12 +495,12 @@ TidStoreIterateNext(TidStoreIter *iter)
 void
 TidStoreEndIterate(TidStoreIter *iter)
 {
-	if (TidStoreIsShared(iter->ts))
-		shared_ts_end_iterate(iter->tree_iter.shared);
-	else
-		local_ts_end_iterate(iter->tree_iter.local);
+  if (TidStoreIsShared(iter->ts))
+    shared_ts_end_iterate(iter->tree_iter.shared);
+  else
+    local_ts_end_iterate(iter->tree_iter.local);
 
-	pfree(iter);
+  pfree(iter);
 }
 
 /*
@@ -531,10 +509,10 @@ TidStoreEndIterate(TidStoreIter *iter)
 size_t
 TidStoreMemoryUsage(TidStore *ts)
 {
-	if (TidStoreIsShared(ts))
-		return shared_ts_memory_usage(ts->tree.shared);
-	else
-		return local_ts_memory_usage(ts->tree.local);
+  if (TidStoreIsShared(ts))
+    return shared_ts_memory_usage(ts->tree.shared);
+  else
+    return local_ts_memory_usage(ts->tree.local);
 }
 
 /*
@@ -543,17 +521,17 @@ TidStoreMemoryUsage(TidStore *ts)
 dsa_area *
 TidStoreGetDSA(TidStore *ts)
 {
-	Assert(TidStoreIsShared(ts));
+  Assert(TidStoreIsShared(ts));
 
-	return ts->area;
+  return ts->area;
 }
 
 dsa_pointer
 TidStoreGetHandle(TidStore *ts)
 {
-	Assert(TidStoreIsShared(ts));
+  Assert(TidStoreIsShared(ts));
 
-	return (dsa_pointer) shared_ts_get_handle(ts->tree.shared);
+  return (dsa_pointer) shared_ts_get_handle(ts->tree.shared);
 }
 
 /*
@@ -564,46 +542,41 @@ TidStoreGetHandle(TidStore *ts)
  */
 int
 TidStoreGetBlockOffsets(TidStoreIterResult *result,
-						OffsetNumber *offsets,
-						int max_offsets)
+                        OffsetNumber *offsets,
+                        int max_offsets)
 {
-	BlocktableEntry *page = result->internal_page;
-	int			num_offsets = 0;
-	int			wordnum;
+  BlocktableEntry *page = result->internal_page;
+  int     num_offsets = 0;
+  int     wordnum;
 
-	if (page->header.nwords == 0)
-	{
-		/* we have offsets in the header */
-		for (int i = 0; i < NUM_FULL_OFFSETS; i++)
-		{
-			if (page->header.full_offsets[i] != InvalidOffsetNumber)
-			{
-				if (num_offsets < max_offsets)
-					offsets[num_offsets] = page->header.full_offsets[i];
-				num_offsets++;
-			}
-		}
-	}
-	else
-	{
-		for (wordnum = 0; wordnum < page->header.nwords; wordnum++)
-		{
-			bitmapword	w = page->words[wordnum];
-			int			off = wordnum * BITS_PER_BITMAPWORD;
+  if (page->header.nwords == 0) {
+    /* we have offsets in the header */
+    for (int i = 0; i < NUM_FULL_OFFSETS; i++) {
+      if (page->header.full_offsets[i] != InvalidOffsetNumber) {
+        if (num_offsets < max_offsets)
+          offsets[num_offsets] = page->header.full_offsets[i];
 
-			while (w != 0)
-			{
-				if (w & 1)
-				{
-					if (num_offsets < max_offsets)
-						offsets[num_offsets] = (OffsetNumber) off;
-					num_offsets++;
-				}
-				off++;
-				w >>= 1;
-			}
-		}
-	}
+        num_offsets++;
+      }
+    }
+  } else {
+    for (wordnum = 0; wordnum < page->header.nwords; wordnum++) {
+      bitmapword  w = page->words[wordnum];
+      int     off = wordnum * BITS_PER_BITMAPWORD;
 
-	return num_offsets;
+      while (w != 0) {
+        if (w & 1) {
+          if (num_offsets < max_offsets)
+            offsets[num_offsets] = (OffsetNumber) off;
+
+          num_offsets++;
+        }
+
+        off++;
+        w >>= 1;
+      }
+    }
+  }
+
+  return num_offsets;
 }

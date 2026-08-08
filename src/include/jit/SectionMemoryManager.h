@@ -94,7 +94,7 @@ public:
     /// \r error_success if the function was successful, or an error_code
     /// describing the failure if an error occurred.
     virtual std::error_code protectMappedMemory(const sys::MemoryBlock &Block,
-                                                unsigned Flags) = 0;
+        unsigned Flags) = 0;
 
     /// This method releases a block of memory that was allocated with the
     /// allocateMappedMemory method. It should not be used to release any memory
@@ -120,7 +120,9 @@ public:
   ~SectionMemoryManager() override;
 
   /// Enable reserveAllocationSpace when requested.
-  bool needsToReserveAllocationSpace() override { return ReserveAllocation; }
+  bool needsToReserveAllocationSpace() override {
+    return ReserveAllocation;
+  }
 
   /// Implements allocating all memory in a single block. This is required to
   /// limit memory offsets to fit the ARM ABI; large memory systems may
@@ -178,7 +180,8 @@ public:
   virtual void invalidateInstructionCache();
 
 private:
-  struct FreeMemBlock {
+  struct FreeMemBlock
+{
     // The actual block of free memory
     sys::MemoryBlock Free;
     // If there is a pending allocation from the same reservation right before
@@ -188,7 +191,8 @@ private:
     unsigned PendingPrefixIndex;
   };
 
-  struct MemoryGroup {
+  struct MemoryGroup
+{
     // PendingMem contains all blocks of memory (subblocks of AllocatedMem)
     // which have not yet had their permissions applied, but have been given
     // out to the user. FreeMem contains all block of memory, which have
@@ -206,7 +210,7 @@ private:
                            unsigned Alignment);
 
   std::error_code applyMemoryGroupPermissions(MemoryGroup &MemGroup,
-                                              unsigned Permissions);
+      unsigned Permissions);
 
   bool hasSpace(const MemoryGroup &MemGroup, uintptr_t Size) const;
 

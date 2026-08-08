@@ -35,8 +35,8 @@
  *
  * https://www.unicode.org/versions/Unicode16.0.0/core-spec/chapter-5/#G29675
  */
-#define UNICODE_CASEMAP_LEN		3
-#define UNICODE_CASEMAP_BUFSZ	(UNICODE_CASEMAP_LEN * MAX_MULTIBYTE_CHAR_LEN)
+#define UNICODE_CASEMAP_LEN   3
+#define UNICODE_CASEMAP_BUFSZ (UNICODE_CASEMAP_LEN * MAX_MULTIBYTE_CHAR_LEN)
 
 /* GUC settings */
 extern PGDLLIMPORT char *locale_messages;
@@ -72,28 +72,28 @@ typedef struct pg_locale_struct *pg_locale_t;
 /* methods that define collation behavior */
 struct collate_methods
 {
-	/* required */
-	int			(*strncoll) (const char *arg1, ssize_t len1,
-							 const char *arg2, ssize_t len2,
-							 pg_locale_t locale);
+  /* required */
+  int     (*strncoll) (const char *arg1, ssize_t len1,
+                       const char *arg2, ssize_t len2,
+                       pg_locale_t locale);
 
-	/* required */
-	size_t		(*strnxfrm) (char *dest, size_t destsize,
-							 const char *src, ssize_t srclen,
-							 pg_locale_t locale);
+  /* required */
+  size_t    (*strnxfrm) (char *dest, size_t destsize,
+                         const char *src, ssize_t srclen,
+                         pg_locale_t locale);
 
-	/* optional */
-	size_t		(*strnxfrm_prefix) (char *dest, size_t destsize,
-									const char *src, ssize_t srclen,
-									pg_locale_t locale);
+  /* optional */
+  size_t    (*strnxfrm_prefix) (char *dest, size_t destsize,
+                                const char *src, ssize_t srclen,
+                                pg_locale_t locale);
 
-	/*
-	 * If the strnxfrm method is not trusted to return the correct results,
-	 * set strxfrm_is_safe to false. It set to false, the method will not be
-	 * used in most cases, but the planner still expects it to be there for
-	 * estimation purposes (where incorrect results are acceptable).
-	 */
-	bool		strxfrm_is_safe;
+  /*
+   * If the strnxfrm method is not trusted to return the correct results,
+   * set strxfrm_is_safe to false. It set to false, the method will not be
+   * used in most cases, but the planner still expects it to be there for
+   * estimation purposes (where incorrect results are acceptable).
+   */
+  bool    strxfrm_is_safe;
 };
 
 /*
@@ -114,30 +114,30 @@ struct collate_methods
  */
 struct pg_locale_struct
 {
-	char		provider;
-	bool		deterministic;
-	bool		collate_is_c;
-	bool		ctype_is_c;
-	bool		is_default;
+  char    provider;
+  bool    deterministic;
+  bool    collate_is_c;
+  bool    ctype_is_c;
+  bool    is_default;
 
-	const struct collate_methods *collate;	/* NULL if collate_is_c */
+  const struct collate_methods *collate;  /* NULL if collate_is_c */
 
-	union
-	{
-		struct
-		{
-			const char *locale;
-			bool		casemap_full;
-		}			builtin;
-		locale_t	lt;
+  union
+  {
+    struct
+    {
+      const char *locale;
+      bool    casemap_full;
+    }     builtin;
+    locale_t  lt;
 #ifdef USE_ICU
-		struct
-		{
-			const char *locale;
-			UCollator  *ucol;
-		}			icu;
+    struct
+    {
+      const char *locale;
+      UCollator  *ucol;
+    }     icu;
 #endif
-	}			info;
+  }     info;
 };
 
 extern void init_database_collation(void);
@@ -145,32 +145,32 @@ extern pg_locale_t pg_newlocale_from_collation(Oid collid);
 
 extern char *get_collation_actual_version(char collprovider, const char *collcollate);
 extern size_t pg_strlower(char *dst, size_t dstsize,
-						  const char *src, ssize_t srclen,
-						  pg_locale_t locale);
+                          const char *src, ssize_t srclen,
+                          pg_locale_t locale);
 extern size_t pg_strtitle(char *dst, size_t dstsize,
-						  const char *src, ssize_t srclen,
-						  pg_locale_t locale);
+                          const char *src, ssize_t srclen,
+                          pg_locale_t locale);
 extern size_t pg_strupper(char *dst, size_t dstsize,
-						  const char *src, ssize_t srclen,
-						  pg_locale_t locale);
+                          const char *src, ssize_t srclen,
+                          pg_locale_t locale);
 extern size_t pg_strfold(char *dst, size_t dstsize,
-						 const char *src, ssize_t srclen,
-						 pg_locale_t locale);
-extern int	pg_strcoll(const char *arg1, const char *arg2, pg_locale_t locale);
-extern int	pg_strncoll(const char *arg1, ssize_t len1,
-						const char *arg2, ssize_t len2, pg_locale_t locale);
+                         const char *src, ssize_t srclen,
+                         pg_locale_t locale);
+extern int  pg_strcoll(const char *arg1, const char *arg2, pg_locale_t locale);
+extern int  pg_strncoll(const char *arg1, ssize_t len1,
+                        const char *arg2, ssize_t len2, pg_locale_t locale);
 extern bool pg_strxfrm_enabled(pg_locale_t locale);
 extern size_t pg_strxfrm(char *dest, const char *src, size_t destsize,
-						 pg_locale_t locale);
+                         pg_locale_t locale);
 extern size_t pg_strnxfrm(char *dest, size_t destsize, const char *src,
-						  ssize_t srclen, pg_locale_t locale);
+                          ssize_t srclen, pg_locale_t locale);
 extern bool pg_strxfrm_prefix_enabled(pg_locale_t locale);
 extern size_t pg_strxfrm_prefix(char *dest, const char *src, size_t destsize,
-								pg_locale_t locale);
+                                pg_locale_t locale);
 extern size_t pg_strnxfrm_prefix(char *dest, size_t destsize, const char *src,
-								 ssize_t srclen, pg_locale_t locale);
+                                 ssize_t srclen, pg_locale_t locale);
 
-extern int	builtin_locale_encoding(const char *locale);
+extern int  builtin_locale_encoding(const char *locale);
 extern const char *builtin_validate_locale(int encoding, const char *locale);
 extern void icu_validate_locale(const char *loc_str);
 extern char *icu_language_tag(const char *loc_str, int elevel);
@@ -178,8 +178,8 @@ extern void report_newlocale_failure(const char *localename);
 
 /* These functions convert from/to libc's wchar_t, *not* pg_wchar_t */
 extern size_t wchar2char(char *to, const wchar_t *from, size_t tolen,
-						 pg_locale_t locale);
+                         pg_locale_t locale);
 extern size_t char2wchar(wchar_t *to, size_t tolen,
-						 const char *from, size_t fromlen, pg_locale_t locale);
+                         const char *from, size_t fromlen, pg_locale_t locale);
 
-#endif							/* _PG_LOCALE_ */
+#endif              /* _PG_LOCALE_ */

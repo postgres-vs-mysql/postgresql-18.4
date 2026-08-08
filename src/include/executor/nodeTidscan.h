@@ -20,4 +20,4 @@ extern TidScanState *ExecInitTidScan(TidScan *node, EState *estate, int eflags);
 extern void ExecEndTidScan(TidScanState *node);
 extern void ExecReScanTidScan(TidScanState *node);
 
-#endif							/* NODETIDSCAN_H */
+#endif              /* NODETIDSCAN_H */

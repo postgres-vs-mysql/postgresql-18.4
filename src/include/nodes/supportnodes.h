@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * supportnodes.h
- *	  Definitions for planner support functions.
+ *    Definitions for planner support functions.
  *
  * This file defines the API for "planner support functions", which
  * are SQL functions (normally written in C) that can be attached to
@@ -12,7 +12,7 @@
  * stick with "planner support function".
  *
  * A support function must have the SQL signature
- *		supportfn(internal) returns internal
+ *    supportfn(internal) returns internal
  * The argument is a pointer to one of the Node types defined in this file.
  * The result is usually also a Node pointer, though its type depends on
  * which capability is being invoked.  In all cases, a NULL pointer result
@@ -35,7 +35,7 @@
 
 #include "nodes/plannodes.h"
 
-struct PlannerInfo;				/* avoid including pathnodes.h here */
+struct PlannerInfo;       /* avoid including pathnodes.h here */
 struct IndexOptInfo;
 struct SpecialJoinInfo;
 struct WindowClause;
@@ -63,10 +63,10 @@ struct WindowClause;
  */
 typedef struct SupportRequestSimplify
 {
-	NodeTag		type;
+  NodeTag   type;
 
-	struct PlannerInfo *root;	/* Planner's infrastructure */
-	FuncExpr   *fcall;			/* Function call to be simplified */
+  struct PlannerInfo *root; /* Planner's infrastructure */
+  FuncExpr   *fcall;      /* Function call to be simplified */
 } SupportRequestSimplify;
 
 /*
@@ -90,20 +90,20 @@ typedef struct SupportRequestSimplify
  */
 typedef struct SupportRequestSelectivity
 {
-	NodeTag		type;
+  NodeTag   type;
 
-	/* Input fields: */
-	struct PlannerInfo *root;	/* Planner's infrastructure */
-	Oid			funcid;			/* function we are inquiring about */
-	List	   *args;			/* pre-simplified arguments to function */
-	Oid			inputcollid;	/* function's input collation */
-	bool		is_join;		/* is this a join or restriction case? */
-	int			varRelid;		/* if restriction, RTI of target relation */
-	JoinType	jointype;		/* if join, outer join type */
-	struct SpecialJoinInfo *sjinfo; /* if outer join, info about join */
+  /* Input fields: */
+  struct PlannerInfo *root; /* Planner's infrastructure */
+  Oid     funcid;     /* function we are inquiring about */
+  List     *args;     /* pre-simplified arguments to function */
+  Oid     inputcollid;  /* function's input collation */
+  bool    is_join;    /* is this a join or restriction case? */
+  int     varRelid;   /* if restriction, RTI of target relation */
+  JoinType  jointype;   /* if join, outer join type */
+  struct SpecialJoinInfo *sjinfo; /* if outer join, info about join */
 
-	/* Output fields: */
-	Selectivity selectivity;	/* returned selectivity estimate */
+  /* Output fields: */
+  Selectivity selectivity;  /* returned selectivity estimate */
 } SupportRequestSelectivity;
 
 /*
@@ -130,16 +130,16 @@ typedef struct SupportRequestSelectivity
  */
 typedef struct SupportRequestCost
 {
-	NodeTag		type;
+  NodeTag   type;
 
-	/* Input fields: */
-	struct PlannerInfo *root;	/* Planner's infrastructure (could be NULL) */
-	Oid			funcid;			/* function we are inquiring about */
-	Node	   *node;			/* parse node invoking function, or NULL */
+  /* Input fields: */
+  struct PlannerInfo *root; /* Planner's infrastructure (could be NULL) */
+  Oid     funcid;     /* function we are inquiring about */
+  Node     *node;     /* parse node invoking function, or NULL */
 
-	/* Output fields: */
-	Cost		startup;		/* one-time cost */
-	Cost		per_tuple;		/* per-evaluation cost */
+  /* Output fields: */
+  Cost    startup;    /* one-time cost */
+  Cost    per_tuple;    /* per-evaluation cost */
 } SupportRequestCost;
 
 /*
@@ -157,15 +157,15 @@ typedef struct SupportRequestCost
  */
 typedef struct SupportRequestRows
 {
-	NodeTag		type;
+  NodeTag   type;
 
-	/* Input fields: */
-	struct PlannerInfo *root;	/* Planner's infrastructure (could be NULL) */
-	Oid			funcid;			/* function we are inquiring about */
-	Node	   *node;			/* parse node invoking function */
+  /* Input fields: */
+  struct PlannerInfo *root; /* Planner's infrastructure (could be NULL) */
+  Oid     funcid;     /* function we are inquiring about */
+  Node     *node;     /* parse node invoking function */
 
-	/* Output fields: */
-	double		rows;			/* number of rows expected to be returned */
+  /* Output fields: */
+  double    rows;     /* number of rows expected to be returned */
 } SupportRequestRows;
 
 /*
@@ -222,21 +222,21 @@ typedef struct SupportRequestRows
  */
 typedef struct SupportRequestIndexCondition
 {
-	NodeTag		type;
+  NodeTag   type;
 
-	/* Input fields: */
-	struct PlannerInfo *root;	/* Planner's infrastructure */
-	Oid			funcid;			/* function we are inquiring about */
-	Node	   *node;			/* parse node invoking function */
-	int			indexarg;		/* index of function arg matching indexcol */
-	struct IndexOptInfo *index; /* planner's info about target index */
-	int			indexcol;		/* index of target index column (0-based) */
-	Oid			opfamily;		/* index column's operator family */
-	Oid			indexcollation; /* index column's collation */
+  /* Input fields: */
+  struct PlannerInfo *root; /* Planner's infrastructure */
+  Oid     funcid;     /* function we are inquiring about */
+  Node     *node;     /* parse node invoking function */
+  int     indexarg;   /* index of function arg matching indexcol */
+  struct IndexOptInfo *index; /* planner's info about target index */
+  int     indexcol;   /* index of target index column (0-based) */
+  Oid     opfamily;   /* index column's operator family */
+  Oid     indexcollation; /* index column's collation */
 
-	/* Output fields: */
-	bool		lossy;			/* set to false if index condition is an exact
-								 * equivalent of the function call */
+  /* Output fields: */
+  bool    lossy;      /* set to false if index condition is an exact
+                 * equivalent of the function call */
 } SupportRequestIndexCondition;
 
 /* ----------
@@ -277,26 +277,26 @@ typedef struct SupportRequestIndexCondition
  * being monotonic in a single partition.
  *
  * Inputs:
- *	'window_func' is the pointer to the window function being called.
+ *  'window_func' is the pointer to the window function being called.
  *
- *	'window_clause' pointer to the WindowClause data.  Support functions can
- *	use this to check frame bounds, etc.
+ *  'window_clause' pointer to the WindowClause data.  Support functions can
+ *  use this to check frame bounds, etc.
  *
  * Outputs:
- *	'monotonic' the resulting MonotonicFunction value for the given input
- *	window function and window clause.
+ *  'monotonic' the resulting MonotonicFunction value for the given input
+ *  window function and window clause.
  * ----------
  */
 typedef struct SupportRequestWFuncMonotonic
 {
-	NodeTag		type;
+  NodeTag   type;
 
-	/* Input fields: */
-	WindowFunc *window_func;	/* Pointer to the window function data */
-	struct WindowClause *window_clause; /* Pointer to the window clause data */
+  /* Input fields: */
+  WindowFunc *window_func;  /* Pointer to the window function data */
+  struct WindowClause *window_clause; /* Pointer to the window clause data */
 
-	/* Output fields: */
-	MonotonicFunction monotonic;
+  /* Output fields: */
+  MonotonicFunction monotonic;
 } SupportRequestWFuncMonotonic;
 
 /*
@@ -332,15 +332,15 @@ typedef struct SupportRequestWFuncMonotonic
  */
 typedef struct SupportRequestOptimizeWindowClause
 {
-	NodeTag		type;
+  NodeTag   type;
 
-	/* Input fields: */
-	WindowFunc *window_func;	/* Pointer to the window function data */
-	struct WindowClause *window_clause; /* Pointer to the window clause data */
+  /* Input fields: */
+  WindowFunc *window_func;  /* Pointer to the window function data */
+  struct WindowClause *window_clause; /* Pointer to the window clause data */
 
-	/* Input/Output fields: */
-	int			frameOptions;	/* New frameOptions, or left untouched if no
-								 * optimizations are possible. */
+  /* Input/Output fields: */
+  int     frameOptions; /* New frameOptions, or left untouched if no
+                 * optimizations are possible. */
 } SupportRequestOptimizeWindowClause;
 
 /*
@@ -383,11 +383,11 @@ typedef struct SupportRequestOptimizeWindowClause
  */
 typedef struct SupportRequestModifyInPlace
 {
-	NodeTag		type;
+  NodeTag   type;
 
-	Oid			funcid;			/* PG_PROC OID of the target function */
-	List	   *args;			/* Arguments to the function */
-	int			paramid;		/* ID of Param(s) representing variable */
+  Oid     funcid;     /* PG_PROC OID of the target function */
+  List     *args;     /* Arguments to the function */
+  int     paramid;    /* ID of Param(s) representing variable */
 } SupportRequestModifyInPlace;
 
-#endif							/* SUPPORTNODES_H */
+#endif              /* SUPPORTNODES_H */

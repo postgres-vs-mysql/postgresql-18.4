@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * heap_surgery.c
- *	  Functions to perform surgery on the damaged heap table.
+ *    Functions to perform surgery on the damaged heap table.
  *
  * Copyright (c) 2020-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  contrib/pg_surgery/heap_surgery.c
+ *    contrib/pg_surgery/heap_surgery.c
  *
  *-------------------------------------------------------------------------
  */
@@ -24,15 +24,14 @@
 #include "utils/rel.h"
 
 PG_MODULE_MAGIC_EXT(
-					.name = "pg_surgery",
-					.version = PG_VERSION
+  .name = "pg_surgery",
+  .version = PG_VERSION
 );
 
 /* Options to forcefully change the state of a heap tuple. */
-typedef enum HeapTupleForceOption
-{
-	HEAP_FORCE_KILL,
-	HEAP_FORCE_FREEZE,
+typedef enum HeapTupleForceOption {
+  HEAP_FORCE_KILL,
+  HEAP_FORCE_FREEZE,
 } HeapTupleForceOption;
 
 PG_FUNCTION_INFO_V1(heap_force_kill);
@@ -40,10 +39,10 @@ PG_FUNCTION_INFO_V1(heap_force_freeze);
 
 static int32 tidcmp(const void *a, const void *b);
 static Datum heap_force_common(FunctionCallInfo fcinfo,
-							   HeapTupleForceOption heap_force_opt);
+                               HeapTupleForceOption heap_force_opt);
 static void sanity_check_tid_array(ArrayType *ta, int *ntids);
 static BlockNumber find_tids_one_page(ItemPointer tids, int ntids,
-									  OffsetNumber *next_start_ptr);
+                                      OffsetNumber *next_start_ptr);
 
 /*-------------------------------------------------------------------------
  * heap_force_kill()
@@ -57,7 +56,7 @@ static BlockNumber find_tids_one_page(ItemPointer tids, int ntids,
 Datum
 heap_force_kill(PG_FUNCTION_ARGS)
 {
-	PG_RETURN_DATUM(heap_force_common(fcinfo, HEAP_FORCE_KILL));
+  PG_RETURN_DATUM(heap_force_common(fcinfo, HEAP_FORCE_KILL));
 }
 
 /*-------------------------------------------------------------------------
@@ -72,7 +71,7 @@ heap_force_kill(PG_FUNCTION_ARGS)
 Datum
 heap_force_freeze(PG_FUNCTION_ARGS)
 {
-	PG_RETURN_DATUM(heap_force_common(fcinfo, HEAP_FORCE_FREEZE));
+  PG_RETURN_DATUM(heap_force_common(fcinfo, HEAP_FORCE_FREEZE));
 }
 
 /*-------------------------------------------------------------------------
@@ -84,265 +83,251 @@ heap_force_freeze(PG_FUNCTION_ARGS)
 static Datum
 heap_force_common(FunctionCallInfo fcinfo, HeapTupleForceOption heap_force_opt)
 {
-	Oid			relid = PG_GETARG_OID(0);
-	ArrayType  *ta = PG_GETARG_ARRAYTYPE_P_COPY(1);
-	ItemPointer tids;
-	int			ntids,
-				nblocks;
-	Relation	rel;
-	OffsetNumber curr_start_ptr,
-				next_start_ptr;
-	bool		include_this_tid[MaxHeapTuplesPerPage];
+  Oid     relid = PG_GETARG_OID(0);
+  ArrayType  *ta = PG_GETARG_ARRAYTYPE_P_COPY(1);
+  ItemPointer tids;
+  int     ntids,
+          nblocks;
+  Relation  rel;
+  OffsetNumber curr_start_ptr,
+               next_start_ptr;
+  bool    include_this_tid[MaxHeapTuplesPerPage];
 
-	if (RecoveryInProgress())
-		ereport(ERROR,
-				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-				 errmsg("recovery is in progress"),
-				 errhint("Heap surgery functions cannot be executed during recovery.")));
+  if (RecoveryInProgress())
+    ereport(ERROR,
+            (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+             errmsg("recovery is in progress"),
+             errhint("Heap surgery functions cannot be executed during recovery.")));
 
-	/* Check inputs. */
-	sanity_check_tid_array(ta, &ntids);
+  /* Check inputs. */
+  sanity_check_tid_array(ta, &ntids);
 
-	rel = relation_open(relid, RowExclusiveLock);
+  rel = relation_open(relid, RowExclusiveLock);
 
-	/*
-	 * Check target relation.
-	 */
-	if (!RELKIND_HAS_TABLE_AM(rel->rd_rel->relkind))
-		ereport(ERROR,
-				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-				 errmsg("cannot operate on relation \"%s\"",
-						RelationGetRelationName(rel)),
-				 errdetail_relkind_not_supported(rel->rd_rel->relkind)));
+  /*
+   * Check target relation.
+   */
+  if (!RELKIND_HAS_TABLE_AM(rel->rd_rel->relkind))
+    ereport(ERROR,
+            (errcode(ERRCODE_WRONG_OBJECT_TYPE),
+             errmsg("cannot operate on relation \"%s\"",
+                    RelationGetRelationName(rel)),
+             errdetail_relkind_not_supported(rel->rd_rel->relkind)));
 
-	if (rel->rd_rel->relam != HEAP_TABLE_AM_OID)
-		ereport(ERROR,
-				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("only heap AM is supported")));
+  if (rel->rd_rel->relam != HEAP_TABLE_AM_OID)
+    ereport(ERROR,
+            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+             errmsg("only heap AM is supported")));
 
-	/* Must be owner of the table or superuser. */
-	if (!object_ownercheck(RelationRelationId, RelationGetRelid(rel), GetUserId()))
-		aclcheck_error(ACLCHECK_NOT_OWNER,
-					   get_relkind_objtype(rel->rd_rel->relkind),
-					   RelationGetRelationName(rel));
+  /* Must be owner of the table or superuser. */
+  if (!object_ownercheck(RelationRelationId, RelationGetRelid(rel), GetUserId()))
+    aclcheck_error(ACLCHECK_NOT_OWNER,
+                   get_relkind_objtype(rel->rd_rel->relkind),
+                   RelationGetRelationName(rel));
 
-	tids = ((ItemPointer) ARR_DATA_PTR(ta));
+  tids = ((ItemPointer) ARR_DATA_PTR(ta));
 
-	/*
-	 * If there is more than one TID in the array, sort them so that we can
-	 * easily fetch all the TIDs belonging to one particular page from the
-	 * array.
-	 */
-	if (ntids > 1)
-		qsort(tids, ntids, sizeof(ItemPointerData), tidcmp);
+  /*
+   * If there is more than one TID in the array, sort them so that we can
+   * easily fetch all the TIDs belonging to one particular page from the
+   * array.
+   */
+  if (ntids > 1)
+    qsort(tids, ntids, sizeof(ItemPointerData), tidcmp);
 
-	curr_start_ptr = next_start_ptr = 0;
-	nblocks = RelationGetNumberOfBlocks(rel);
+  curr_start_ptr = next_start_ptr = 0;
+  nblocks = RelationGetNumberOfBlocks(rel);
 
-	/*
-	 * Loop, performing the necessary actions for each block.
-	 */
-	while (next_start_ptr != ntids)
-	{
-		Buffer		buf;
-		Buffer		vmbuf = InvalidBuffer;
-		Page		page;
-		BlockNumber blkno;
-		OffsetNumber curoff;
-		OffsetNumber maxoffset;
-		int			i;
-		bool		did_modify_page = false;
-		bool		did_modify_vm = false;
+  /*
+   * Loop, performing the necessary actions for each block.
+   */
+  while (next_start_ptr != ntids) {
+    Buffer    buf;
+    Buffer    vmbuf = InvalidBuffer;
+    Page    page;
+    BlockNumber blkno;
+    OffsetNumber curoff;
+    OffsetNumber maxoffset;
+    int     i;
+    bool    did_modify_page = false;
+    bool    did_modify_vm = false;
 
-		CHECK_FOR_INTERRUPTS();
+    CHECK_FOR_INTERRUPTS();
 
-		/*
-		 * Find all the TIDs belonging to one particular page starting from
-		 * next_start_ptr and process them one by one.
-		 */
-		blkno = find_tids_one_page(tids, ntids, &next_start_ptr);
+    /*
+     * Find all the TIDs belonging to one particular page starting from
+     * next_start_ptr and process them one by one.
+     */
+    blkno = find_tids_one_page(tids, ntids, &next_start_ptr);
 
-		/* Check whether the block number is valid. */
-		if (blkno >= nblocks)
-		{
-			/* Update the current_start_ptr before moving to the next page. */
-			curr_start_ptr = next_start_ptr;
+    /* Check whether the block number is valid. */
+    if (blkno >= nblocks) {
+      /* Update the current_start_ptr before moving to the next page. */
+      curr_start_ptr = next_start_ptr;
 
-			ereport(NOTICE,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("skipping block %u for relation \"%s\" because the block number is out of range",
-							blkno, RelationGetRelationName(rel))));
-			continue;
-		}
+      ereport(NOTICE,
+              (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+               errmsg("skipping block %u for relation \"%s\" because the block number is out of range",
+                      blkno, RelationGetRelationName(rel))));
+      continue;
+    }
 
-		buf = ReadBuffer(rel, blkno);
-		LockBufferForCleanup(buf);
+    buf = ReadBuffer(rel, blkno);
+    LockBufferForCleanup(buf);
 
-		page = BufferGetPage(buf);
+    page = BufferGetPage(buf);
 
-		maxoffset = PageGetMaxOffsetNumber(page);
+    maxoffset = PageGetMaxOffsetNumber(page);
 
-		/*
-		 * Figure out which TIDs we are going to process and which ones we are
-		 * going to skip.
-		 */
-		memset(include_this_tid, 0, sizeof(include_this_tid));
-		for (i = curr_start_ptr; i < next_start_ptr; i++)
-		{
-			OffsetNumber offno = ItemPointerGetOffsetNumberNoCheck(&tids[i]);
-			ItemId		itemid;
+    /*
+     * Figure out which TIDs we are going to process and which ones we are
+     * going to skip.
+     */
+    memset(include_this_tid, 0, sizeof(include_this_tid));
 
-			/* Check whether the offset number is valid. */
-			if (offno == InvalidOffsetNumber || offno > maxoffset)
-			{
-				ereport(NOTICE,
-						errmsg("skipping tid (%u, %u) for relation \"%s\" because the item number is out of range",
-							   blkno, offno, RelationGetRelationName(rel)));
-				continue;
-			}
+    for (i = curr_start_ptr; i < next_start_ptr; i++) {
+      OffsetNumber offno = ItemPointerGetOffsetNumberNoCheck(&tids[i]);
+      ItemId    itemid;
 
-			itemid = PageGetItemId(page, offno);
+      /* Check whether the offset number is valid. */
+      if (offno == InvalidOffsetNumber || offno > maxoffset) {
+        ereport(NOTICE,
+                errmsg("skipping tid (%u, %u) for relation \"%s\" because the item number is out of range",
+                       blkno, offno, RelationGetRelationName(rel)));
+        continue;
+      }
 
-			/* Only accept an item ID that is used. */
-			if (ItemIdIsRedirected(itemid))
-			{
-				ereport(NOTICE,
-						errmsg("skipping tid (%u, %u) for relation \"%s\" because it redirects to item %u",
-							   blkno, offno, RelationGetRelationName(rel),
-							   ItemIdGetRedirect(itemid)));
-				continue;
-			}
-			else if (ItemIdIsDead(itemid))
-			{
-				ereport(NOTICE,
-						(errmsg("skipping tid (%u, %u) for relation \"%s\" because it is marked dead",
-								blkno, offno, RelationGetRelationName(rel))));
-				continue;
-			}
-			else if (!ItemIdIsUsed(itemid))
-			{
-				ereport(NOTICE,
-						(errmsg("skipping tid (%u, %u) for relation \"%s\" because it is marked unused",
-								blkno, offno, RelationGetRelationName(rel))));
-				continue;
-			}
+      itemid = PageGetItemId(page, offno);
 
-			/* Mark it for processing. */
-			Assert(offno < MaxHeapTuplesPerPage);
-			include_this_tid[offno] = true;
-		}
+      /* Only accept an item ID that is used. */
+      if (ItemIdIsRedirected(itemid)) {
+        ereport(NOTICE,
+                errmsg("skipping tid (%u, %u) for relation \"%s\" because it redirects to item %u",
+                       blkno, offno, RelationGetRelationName(rel),
+                       ItemIdGetRedirect(itemid)));
+        continue;
+      } else if (ItemIdIsDead(itemid)) {
+        ereport(NOTICE,
+                (errmsg("skipping tid (%u, %u) for relation \"%s\" because it is marked dead",
+                        blkno, offno, RelationGetRelationName(rel))));
+        continue;
+      } else if (!ItemIdIsUsed(itemid)) {
+        ereport(NOTICE,
+                (errmsg("skipping tid (%u, %u) for relation \"%s\" because it is marked unused",
+                        blkno, offno, RelationGetRelationName(rel))));
+        continue;
+      }
 
-		/*
-		 * Before entering the critical section, pin the visibility map page
-		 * if it appears to be necessary.
-		 */
-		if (heap_force_opt == HEAP_FORCE_KILL && PageIsAllVisible(page))
-			visibilitymap_pin(rel, blkno, &vmbuf);
+      /* Mark it for processing. */
+      Assert(offno < MaxHeapTuplesPerPage);
+      include_this_tid[offno] = true;
+    }
 
-		/* No ereport(ERROR) from here until all the changes are logged. */
-		START_CRIT_SECTION();
+    /*
+     * Before entering the critical section, pin the visibility map page
+     * if it appears to be necessary.
+     */
+    if (heap_force_opt == HEAP_FORCE_KILL && PageIsAllVisible(page))
+      visibilitymap_pin(rel, blkno, &vmbuf);
 
-		for (curoff = FirstOffsetNumber; curoff <= maxoffset;
-			 curoff = OffsetNumberNext(curoff))
-		{
-			ItemId		itemid;
+    /* No ereport(ERROR) from here until all the changes are logged. */
+    START_CRIT_SECTION();
 
-			if (!include_this_tid[curoff])
-				continue;
+    for (curoff = FirstOffsetNumber; curoff <= maxoffset;
+         curoff = OffsetNumberNext(curoff)) {
+      ItemId    itemid;
 
-			itemid = PageGetItemId(page, curoff);
-			Assert(ItemIdIsNormal(itemid));
+      if (!include_this_tid[curoff])
+        continue;
 
-			did_modify_page = true;
+      itemid = PageGetItemId(page, curoff);
+      Assert(ItemIdIsNormal(itemid));
 
-			if (heap_force_opt == HEAP_FORCE_KILL)
-			{
-				ItemIdSetDead(itemid);
+      did_modify_page = true;
 
-				/*
-				 * If the page is marked all-visible, we must clear
-				 * PD_ALL_VISIBLE flag on the page header and an all-visible
-				 * bit on the visibility map corresponding to the page.
-				 */
-				if (PageIsAllVisible(page))
-				{
-					PageClearAllVisible(page);
-					visibilitymap_clear(rel, blkno, vmbuf,
-										VISIBILITYMAP_VALID_BITS);
-					did_modify_vm = true;
-				}
-			}
-			else
-			{
-				HeapTupleHeader htup;
+      if (heap_force_opt == HEAP_FORCE_KILL) {
+        ItemIdSetDead(itemid);
 
-				Assert(heap_force_opt == HEAP_FORCE_FREEZE);
+        /*
+         * If the page is marked all-visible, we must clear
+         * PD_ALL_VISIBLE flag on the page header and an all-visible
+         * bit on the visibility map corresponding to the page.
+         */
+        if (PageIsAllVisible(page)) {
+          PageClearAllVisible(page);
+          visibilitymap_clear(rel, blkno, vmbuf,
+                              VISIBILITYMAP_VALID_BITS);
+          did_modify_vm = true;
+        }
+      } else {
+        HeapTupleHeader htup;
 
-				htup = (HeapTupleHeader) PageGetItem(page, itemid);
+        Assert(heap_force_opt == HEAP_FORCE_FREEZE);
 
-				/*
-				 * Reset all visibility-related fields of the tuple. This
-				 * logic should mimic heap_execute_freeze_tuple(), but we
-				 * choose to reset xmin and ctid just to be sure that no
-				 * potentially-garbled data is left behind.
-				 */
-				ItemPointerSet(&htup->t_ctid, blkno, curoff);
-				HeapTupleHeaderSetXmin(htup, FrozenTransactionId);
-				HeapTupleHeaderSetXmax(htup, InvalidTransactionId);
-				if (htup->t_infomask & HEAP_MOVED)
-				{
-					if (htup->t_infomask & HEAP_MOVED_OFF)
-						HeapTupleHeaderSetXvac(htup, InvalidTransactionId);
-					else
-						HeapTupleHeaderSetXvac(htup, FrozenTransactionId);
-				}
+        htup = (HeapTupleHeader) PageGetItem(page, itemid);
 
-				/*
-				 * Clear all the visibility-related bits of this tuple and
-				 * mark it as frozen. Also, get rid of HOT_UPDATED and
-				 * KEYS_UPDATES bits.
-				 */
-				htup->t_infomask &= ~HEAP_XACT_MASK;
-				htup->t_infomask |= (HEAP_XMIN_FROZEN | HEAP_XMAX_INVALID);
-				htup->t_infomask2 &= ~HEAP_HOT_UPDATED;
-				htup->t_infomask2 &= ~HEAP_KEYS_UPDATED;
-			}
-		}
+        /*
+         * Reset all visibility-related fields of the tuple. This
+         * logic should mimic heap_execute_freeze_tuple(), but we
+         * choose to reset xmin and ctid just to be sure that no
+         * potentially-garbled data is left behind.
+         */
+        ItemPointerSet(&htup->t_ctid, blkno, curoff);
+        HeapTupleHeaderSetXmin(htup, FrozenTransactionId);
+        HeapTupleHeaderSetXmax(htup, InvalidTransactionId);
 
-		/*
-		 * If the page was modified, only then, we mark the buffer dirty or do
-		 * the WAL logging.
-		 */
-		if (did_modify_page)
-		{
-			/* Mark buffer dirty before we write WAL. */
-			MarkBufferDirty(buf);
+        if (htup->t_infomask & HEAP_MOVED) {
+          if (htup->t_infomask & HEAP_MOVED_OFF)
+            HeapTupleHeaderSetXvac(htup, InvalidTransactionId);
+          else
+            HeapTupleHeaderSetXvac(htup, FrozenTransactionId);
+        }
 
-			/* XLOG stuff */
-			if (RelationNeedsWAL(rel))
-				log_newpage_buffer(buf, true);
-		}
+        /*
+         * Clear all the visibility-related bits of this tuple and
+         * mark it as frozen. Also, get rid of HOT_UPDATED and
+         * KEYS_UPDATES bits.
+         */
+        htup->t_infomask &= ~HEAP_XACT_MASK;
+        htup->t_infomask |= (HEAP_XMIN_FROZEN | HEAP_XMAX_INVALID);
+        htup->t_infomask2 &= ~HEAP_HOT_UPDATED;
+        htup->t_infomask2 &= ~HEAP_KEYS_UPDATED;
+      }
+    }
 
-		/* WAL log the VM page if it was modified. */
-		if (did_modify_vm && RelationNeedsWAL(rel))
-			log_newpage_buffer(vmbuf, false);
+    /*
+     * If the page was modified, only then, we mark the buffer dirty or do
+     * the WAL logging.
+     */
+    if (did_modify_page) {
+      /* Mark buffer dirty before we write WAL. */
+      MarkBufferDirty(buf);
 
-		END_CRIT_SECTION();
+      /* XLOG stuff */
+      if (RelationNeedsWAL(rel))
+        log_newpage_buffer(buf, true);
+    }
 
-		UnlockReleaseBuffer(buf);
+    /* WAL log the VM page if it was modified. */
+    if (did_modify_vm && RelationNeedsWAL(rel))
+      log_newpage_buffer(vmbuf, false);
 
-		if (vmbuf != InvalidBuffer)
-			ReleaseBuffer(vmbuf);
+    END_CRIT_SECTION();
 
-		/* Update the current_start_ptr before moving to the next page. */
-		curr_start_ptr = next_start_ptr;
-	}
+    UnlockReleaseBuffer(buf);
 
-	relation_close(rel, RowExclusiveLock);
+    if (vmbuf != InvalidBuffer)
+      ReleaseBuffer(vmbuf);
 
-	pfree(ta);
+    /* Update the current_start_ptr before moving to the next page. */
+    curr_start_ptr = next_start_ptr;
+  }
 
-	PG_RETURN_VOID();
+  relation_close(rel, RowExclusiveLock);
+
+  pfree(ta);
+
+  PG_RETURN_VOID();
 }
 
 /*-------------------------------------------------------------------------
@@ -356,10 +341,10 @@ heap_force_common(FunctionCallInfo fcinfo, HeapTupleForceOption heap_force_opt)
 static int32
 tidcmp(const void *a, const void *b)
 {
-	ItemPointer iptr1 = ((const ItemPointer) a);
-	ItemPointer iptr2 = ((const ItemPointer) b);
+  ItemPointer iptr1 = ((const ItemPointer) a);
+  ItemPointer iptr2 = ((const ItemPointer) b);
 
-	return ItemPointerCompare(iptr1, iptr2);
+  return ItemPointerCompare(iptr1, iptr2);
 }
 
 /*-------------------------------------------------------------------------
@@ -372,17 +357,17 @@ tidcmp(const void *a, const void *b)
 static void
 sanity_check_tid_array(ArrayType *ta, int *ntids)
 {
-	if (ARR_HASNULL(ta) && array_contains_nulls(ta))
-		ereport(ERROR,
-				(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
-				 errmsg("array must not contain nulls")));
+  if (ARR_HASNULL(ta) && array_contains_nulls(ta))
+    ereport(ERROR,
+            (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+             errmsg("array must not contain nulls")));
 
-	if (ARR_NDIM(ta) > 1)
-		ereport(ERROR,
-				(errcode(ERRCODE_DATA_EXCEPTION),
-				 errmsg("argument must be empty or one-dimensional array")));
+  if (ARR_NDIM(ta) > 1)
+    ereport(ERROR,
+            (errcode(ERRCODE_DATA_EXCEPTION),
+             errmsg("argument must be empty or one-dimensional array")));
 
-	*ntids = ArrayGetNItems(ARR_NDIM(ta), ARR_DIMS(ta));
+  *ntids = ArrayGetNItems(ARR_NDIM(ta), ARR_DIMS(ta));
 }
 
 /*-------------------------------------------------------------------------
@@ -397,25 +382,24 @@ sanity_check_tid_array(ArrayType *ta, int *ntids)
 static BlockNumber
 find_tids_one_page(ItemPointer tids, int ntids, OffsetNumber *next_start_ptr)
 {
-	int			i;
-	BlockNumber prev_blkno,
-				blkno;
+  int     i;
+  BlockNumber prev_blkno,
+              blkno;
 
-	prev_blkno = blkno = InvalidBlockNumber;
+  prev_blkno = blkno = InvalidBlockNumber;
 
-	for (i = *next_start_ptr; i < ntids; i++)
-	{
-		ItemPointerData tid = tids[i];
+  for (i = *next_start_ptr; i < ntids; i++) {
+    ItemPointerData tid = tids[i];
 
-		blkno = ItemPointerGetBlockNumberNoCheck(&tid);
+    blkno = ItemPointerGetBlockNumberNoCheck(&tid);
 
-		if (i == *next_start_ptr)
-			prev_blkno = blkno;
+    if (i == *next_start_ptr)
+      prev_blkno = blkno;
 
-		if (prev_blkno != blkno)
-			break;
-	}
+    if (prev_blkno != blkno)
+      break;
+  }
 
-	*next_start_ptr = i;
-	return prev_blkno;
+  *next_start_ptr = i;
+  return prev_blkno;
 }

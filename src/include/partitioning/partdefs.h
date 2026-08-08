@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * partdefs.h
- *		Base definitions for partitioned table handling
+ *    Base definitions for partitioned table handling
  *
  * Copyright (c) 2007-2025, PostgreSQL Global Development Group
  *
@@ -23,4 +23,4 @@ typedef struct PartitionDescData *PartitionDesc;
 
 typedef struct PartitionDirectoryData *PartitionDirectory;
 
-#endif							/* PARTDEFS_H */
+#endif              /* PARTDEFS_H */

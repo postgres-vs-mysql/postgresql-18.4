@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * condition_variable.h
- *	  Condition variables
+ *    Condition variables
  *
  * A condition variable is a method of waiting until a certain condition
  * becomes true.  Conventionally, a condition variable supports three
@@ -27,19 +27,19 @@
 
 typedef struct
 {
-	slock_t		mutex;			/* spinlock protecting the wakeup list */
-	proclist_head wakeup;		/* list of wake-able processes */
+  slock_t   mutex;      /* spinlock protecting the wakeup list */
+  proclist_head wakeup;   /* list of wake-able processes */
 } ConditionVariable;
 
 /*
  * Pad a condition variable to a power-of-two size so that an array of
  * condition variables does not cross a cache line boundary.
  */
-#define CV_MINIMAL_SIZE		(sizeof(ConditionVariable) <= 16 ? 16 : 32)
+#define CV_MINIMAL_SIZE   (sizeof(ConditionVariable) <= 16 ? 16 : 32)
 typedef union ConditionVariableMinimallyPadded
 {
-	ConditionVariable cv;
-	char		pad[CV_MINIMAL_SIZE];
+  ConditionVariable cv;
+  char    pad[CV_MINIMAL_SIZE];
 } ConditionVariableMinimallyPadded;
 
 /* Initialize a condition variable. */
@@ -55,7 +55,7 @@ extern void ConditionVariableInit(ConditionVariable *cv);
  */
 extern void ConditionVariableSleep(ConditionVariable *cv, uint32 wait_event_info);
 extern bool ConditionVariableTimedSleep(ConditionVariable *cv, long timeout,
-										uint32 wait_event_info);
+                                        uint32 wait_event_info);
 extern bool ConditionVariableCancelSleep(void);
 
 /*
@@ -70,4 +70,4 @@ extern void ConditionVariablePrepareToSleep(ConditionVariable *cv);
 extern void ConditionVariableSignal(ConditionVariable *cv);
 extern void ConditionVariableBroadcast(ConditionVariable *cv);
 
-#endif							/* CONDITION_VARIABLE_H */
+#endif              /* CONDITION_VARIABLE_H */

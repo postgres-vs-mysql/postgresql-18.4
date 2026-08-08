@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * numeric.h
- *	  Definitions for the exact numeric data type of Postgres
+ *    Definitions for the exact numeric data type of Postgres
  *
  * Original coding 1998, Jan Wieck.  Heavily revised 2003, Tom Lane.
  *
@@ -29,25 +29,25 @@
  * Note that the implementation limits on the precision and display scale of a
  * numeric value are much larger --- beware of what you use these for!
  */
-#define NUMERIC_MAX_PRECISION		1000
+#define NUMERIC_MAX_PRECISION   1000
 
-#define NUMERIC_MIN_SCALE			(-1000)
-#define NUMERIC_MAX_SCALE			1000
+#define NUMERIC_MIN_SCALE     (-1000)
+#define NUMERIC_MAX_SCALE     1000
 
 /*
  * Internal limits on the scales chosen for calculation results
  */
-#define NUMERIC_MAX_DISPLAY_SCALE	NUMERIC_MAX_PRECISION
-#define NUMERIC_MIN_DISPLAY_SCALE	0
+#define NUMERIC_MAX_DISPLAY_SCALE NUMERIC_MAX_PRECISION
+#define NUMERIC_MIN_DISPLAY_SCALE 0
 
-#define NUMERIC_MAX_RESULT_SCALE	(NUMERIC_MAX_PRECISION * 2)
+#define NUMERIC_MAX_RESULT_SCALE  (NUMERIC_MAX_PRECISION * 2)
 
 /*
  * For inherently inexact calculations such as division and square root,
  * we try to get at least this many significant digits; the idea is to
  * deliver a result no worse than float8 would.
  */
-#define NUMERIC_MIN_SIG_DIGITS		16
+#define NUMERIC_MIN_SIG_DIGITS    16
 
 /* The actual contents of Numeric are private to numeric.c */
 struct NumericData;
@@ -60,24 +60,24 @@ typedef struct NumericData *Numeric;
 static inline Numeric
 DatumGetNumeric(Datum X)
 {
-	return (Numeric) PG_DETOAST_DATUM(X);
+  return (Numeric) PG_DETOAST_DATUM(X);
 }
 
 static inline Numeric
 DatumGetNumericCopy(Datum X)
 {
-	return (Numeric) PG_DETOAST_DATUM_COPY(X);
+  return (Numeric) PG_DETOAST_DATUM_COPY(X);
 }
 
 static inline Datum
 NumericGetDatum(Numeric X)
 {
-	return PointerGetDatum(X);
+  return PointerGetDatum(X);
 }
 
-#define PG_GETARG_NUMERIC(n)	  DatumGetNumeric(PG_GETARG_DATUM(n))
+#define PG_GETARG_NUMERIC(n)    DatumGetNumeric(PG_GETARG_DATUM(n))
 #define PG_GETARG_NUMERIC_COPY(n) DatumGetNumericCopy(PG_GETARG_DATUM(n))
-#define PG_RETURN_NUMERIC(x)	  return NumericGetDatum(x)
+#define PG_RETURN_NUMERIC(x)    return NumericGetDatum(x)
 
 /*
  * Utility functions in numeric.c
@@ -92,19 +92,19 @@ extern Numeric int64_to_numeric(int64 val);
 extern Numeric int64_div_fast_to_numeric(int64 val1, int log10val2);
 
 extern Numeric numeric_add_opt_error(Numeric num1, Numeric num2,
-									 bool *have_error);
+                                     bool *have_error);
 extern Numeric numeric_sub_opt_error(Numeric num1, Numeric num2,
-									 bool *have_error);
+                                     bool *have_error);
 extern Numeric numeric_mul_opt_error(Numeric num1, Numeric num2,
-									 bool *have_error);
+                                     bool *have_error);
 extern Numeric numeric_div_opt_error(Numeric num1, Numeric num2,
-									 bool *have_error);
+                                     bool *have_error);
 extern Numeric numeric_mod_opt_error(Numeric num1, Numeric num2,
-									 bool *have_error);
+                                     bool *have_error);
 extern int32 numeric_int4_opt_error(Numeric num, bool *have_error);
 extern int64 numeric_int8_opt_error(Numeric num, bool *have_error);
 
 extern Numeric random_numeric(pg_prng_state *state,
-							  Numeric rmin, Numeric rmax);
+                              Numeric rmin, Numeric rmax);
 
-#endif							/* _PG_NUMERIC_H_ */
+#endif              /* _PG_NUMERIC_H_ */

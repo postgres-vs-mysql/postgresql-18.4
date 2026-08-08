@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * partitionfuncs.c
- *	  Functions for accessing partition-related metadata
+ *    Functions for accessing partition-related metadata
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/backend/utils/adt/partitionfuncs.c
+ *    src/backend/utils/adt/partitionfuncs.c
  *
  *-------------------------------------------------------------------------
  */
@@ -33,21 +33,21 @@
 static bool
 check_rel_can_be_partition(Oid relid)
 {
-	char		relkind;
-	bool		relispartition;
+  char    relkind;
+  bool    relispartition;
 
-	/* Check if relation exists */
-	if (!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(relid)))
-		return false;
+  /* Check if relation exists */
+  if (!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(relid)))
+    return false;
 
-	relkind = get_rel_relkind(relid);
-	relispartition = get_rel_relispartition(relid);
+  relkind = get_rel_relkind(relid);
+  relispartition = get_rel_relispartition(relid);
 
-	/* Only allow relation types that can appear in partition trees. */
-	if (!relispartition && !RELKIND_HAS_PARTITIONS(relkind))
-		return false;
+  /* Only allow relation types that can appear in partition trees. */
+  if (!relispartition && !RELKIND_HAS_PARTITIONS(relkind))
+    return false;
 
-	return true;
+  return true;
 }
 
 /*
@@ -61,96 +61,96 @@ check_rel_can_be_partition(Oid relid)
 Datum
 pg_partition_tree(PG_FUNCTION_ARGS)
 {
-#define PG_PARTITION_TREE_COLS	4
-	Oid			rootrelid = PG_GETARG_OID(0);
-	FuncCallContext *funcctx;
-	List	   *partitions;
+#define PG_PARTITION_TREE_COLS  4
+  Oid     rootrelid = PG_GETARG_OID(0);
+  FuncCallContext *funcctx;
+  List     *partitions;
 
-	/* stuff done only on the first call of the function */
-	if (SRF_IS_FIRSTCALL())
-	{
-		MemoryContext oldcxt;
-		TupleDesc	tupdesc;
+  /* stuff done only on the first call of the function */
+  if (SRF_IS_FIRSTCALL()) {
+    MemoryContext oldcxt;
+    TupleDesc tupdesc;
 
-		/* create a function context for cross-call persistence */
-		funcctx = SRF_FIRSTCALL_INIT();
+    /* create a function context for cross-call persistence */
+    funcctx = SRF_FIRSTCALL_INIT();
 
-		if (!check_rel_can_be_partition(rootrelid))
-			SRF_RETURN_DONE(funcctx);
+    if (!check_rel_can_be_partition(rootrelid))
+      SRF_RETURN_DONE(funcctx);
 
-		/* switch to memory context appropriate for multiple function calls */
-		oldcxt = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+    /* switch to memory context appropriate for multiple function calls */
+    oldcxt = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
 
-		/*
-		 * Find all members of inheritance set.  We only need AccessShareLock
-		 * on the children for the partition information lookup.
-		 */
-		partitions = find_all_inheritors(rootrelid, AccessShareLock, NULL);
+    /*
+     * Find all members of inheritance set.  We only need AccessShareLock
+     * on the children for the partition information lookup.
+     */
+    partitions = find_all_inheritors(rootrelid, AccessShareLock, NULL);
 
-		if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
-			elog(ERROR, "return type must be a row type");
-		funcctx->tuple_desc = tupdesc;
+    if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+      elog(ERROR, "return type must be a row type");
 
-		/* The only state we need is the partition list */
-		funcctx->user_fctx = partitions;
+    funcctx->tuple_desc = tupdesc;
 
-		MemoryContextSwitchTo(oldcxt);
-	}
+    /* The only state we need is the partition list */
+    funcctx->user_fctx = partitions;
 
-	/* stuff done on every call of the function */
-	funcctx = SRF_PERCALL_SETUP();
-	partitions = (List *) funcctx->user_fctx;
+    MemoryContextSwitchTo(oldcxt);
+  }
 
-	if (funcctx->call_cntr < list_length(partitions))
-	{
-		Datum		result;
-		Datum		values[PG_PARTITION_TREE_COLS] = {0};
-		bool		nulls[PG_PARTITION_TREE_COLS] = {0};
-		HeapTuple	tuple;
-		Oid			parentid = InvalidOid;
-		Oid			relid = list_nth_oid(partitions, funcctx->call_cntr);
-		char		relkind = get_rel_relkind(relid);
-		int			level = 0;
-		List	   *ancestors = get_partition_ancestors(relid);
-		ListCell   *lc;
+  /* stuff done on every call of the function */
+  funcctx = SRF_PERCALL_SETUP();
+  partitions = (List *) funcctx->user_fctx;
 
-		/*
-		 * Form tuple with appropriate data.
-		 */
+  if (funcctx->call_cntr < list_length(partitions)) {
+    Datum   result;
+    Datum   values[PG_PARTITION_TREE_COLS] = {0};
+    bool    nulls[PG_PARTITION_TREE_COLS] = {0};
+    HeapTuple tuple;
+    Oid     parentid = InvalidOid;
+    Oid     relid = list_nth_oid(partitions, funcctx->call_cntr);
+    char    relkind = get_rel_relkind(relid);
+    int     level = 0;
+    List     *ancestors = get_partition_ancestors(relid);
+    ListCell   *lc;
 
-		/* relid */
-		values[0] = ObjectIdGetDatum(relid);
+    /*
+     * Form tuple with appropriate data.
+     */
 
-		/* parentid */
-		if (ancestors != NIL)
-			parentid = linitial_oid(ancestors);
-		if (OidIsValid(parentid))
-			values[1] = ObjectIdGetDatum(parentid);
-		else
-			nulls[1] = true;
+    /* relid */
+    values[0] = ObjectIdGetDatum(relid);
 
-		/* isleaf */
-		values[2] = BoolGetDatum(!RELKIND_HAS_PARTITIONS(relkind));
+    /* parentid */
+    if (ancestors != NIL)
+      parentid = linitial_oid(ancestors);
 
-		/* level */
-		if (relid != rootrelid)
-		{
-			foreach(lc, ancestors)
-			{
-				level++;
-				if (lfirst_oid(lc) == rootrelid)
-					break;
-			}
-		}
-		values[3] = Int32GetDatum(level);
+    if (OidIsValid(parentid))
+      values[1] = ObjectIdGetDatum(parentid);
+    else
+      nulls[1] = true;
 
-		tuple = heap_form_tuple(funcctx->tuple_desc, values, nulls);
-		result = HeapTupleGetDatum(tuple);
-		SRF_RETURN_NEXT(funcctx, result);
-	}
+    /* isleaf */
+    values[2] = BoolGetDatum(!RELKIND_HAS_PARTITIONS(relkind));
 
-	/* done when there are no more elements left */
-	SRF_RETURN_DONE(funcctx);
+    /* level */
+    if (relid != rootrelid) {
+      foreach(lc, ancestors) {
+        level++;
+
+        if (lfirst_oid(lc) == rootrelid)
+          break;
+      }
+    }
+
+    values[3] = Int32GetDatum(level);
+
+    tuple = heap_form_tuple(funcctx->tuple_desc, values, nulls);
+    result = HeapTupleGetDatum(tuple);
+    SRF_RETURN_NEXT(funcctx, result);
+  }
+
+  /* done when there are no more elements left */
+  SRF_RETURN_DONE(funcctx);
 }
 
 /*
@@ -163,32 +163,32 @@ pg_partition_tree(PG_FUNCTION_ARGS)
 Datum
 pg_partition_root(PG_FUNCTION_ARGS)
 {
-	Oid			relid = PG_GETARG_OID(0);
-	Oid			rootrelid;
-	List	   *ancestors;
+  Oid     relid = PG_GETARG_OID(0);
+  Oid     rootrelid;
+  List     *ancestors;
 
-	if (!check_rel_can_be_partition(relid))
-		PG_RETURN_NULL();
+  if (!check_rel_can_be_partition(relid))
+    PG_RETURN_NULL();
 
-	/* fetch the list of ancestors */
-	ancestors = get_partition_ancestors(relid);
+  /* fetch the list of ancestors */
+  ancestors = get_partition_ancestors(relid);
 
-	/*
-	 * If the input relation is already the top-most parent, just return
-	 * itself.
-	 */
-	if (ancestors == NIL)
-		PG_RETURN_OID(relid);
+  /*
+   * If the input relation is already the top-most parent, just return
+   * itself.
+   */
+  if (ancestors == NIL)
+    PG_RETURN_OID(relid);
 
-	rootrelid = llast_oid(ancestors);
-	list_free(ancestors);
+  rootrelid = llast_oid(ancestors);
+  list_free(ancestors);
 
-	/*
-	 * "rootrelid" must contain a valid OID, given that the input relation is
-	 * a valid partition tree member as checked above.
-	 */
-	Assert(OidIsValid(rootrelid));
-	PG_RETURN_OID(rootrelid);
+  /*
+   * "rootrelid" must contain a valid OID, given that the input relation is
+   * a valid partition tree member as checked above.
+   */
+  Assert(OidIsValid(rootrelid));
+  PG_RETURN_OID(rootrelid);
 }
 
 /*
@@ -200,39 +200,37 @@ pg_partition_root(PG_FUNCTION_ARGS)
 Datum
 pg_partition_ancestors(PG_FUNCTION_ARGS)
 {
-	Oid			relid = PG_GETARG_OID(0);
-	FuncCallContext *funcctx;
-	List	   *ancestors;
+  Oid     relid = PG_GETARG_OID(0);
+  FuncCallContext *funcctx;
+  List     *ancestors;
 
-	if (SRF_IS_FIRSTCALL())
-	{
-		MemoryContext oldcxt;
+  if (SRF_IS_FIRSTCALL()) {
+    MemoryContext oldcxt;
 
-		funcctx = SRF_FIRSTCALL_INIT();
+    funcctx = SRF_FIRSTCALL_INIT();
 
-		if (!check_rel_can_be_partition(relid))
-			SRF_RETURN_DONE(funcctx);
+    if (!check_rel_can_be_partition(relid))
+      SRF_RETURN_DONE(funcctx);
 
-		oldcxt = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
+    oldcxt = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
 
-		ancestors = get_partition_ancestors(relid);
-		ancestors = lcons_oid(relid, ancestors);
+    ancestors = get_partition_ancestors(relid);
+    ancestors = lcons_oid(relid, ancestors);
 
-		/* The only state we need is the ancestors list */
-		funcctx->user_fctx = ancestors;
+    /* The only state we need is the ancestors list */
+    funcctx->user_fctx = ancestors;
 
-		MemoryContextSwitchTo(oldcxt);
-	}
+    MemoryContextSwitchTo(oldcxt);
+  }
 
-	funcctx = SRF_PERCALL_SETUP();
-	ancestors = (List *) funcctx->user_fctx;
+  funcctx = SRF_PERCALL_SETUP();
+  ancestors = (List *) funcctx->user_fctx;
 
-	if (funcctx->call_cntr < list_length(ancestors))
-	{
-		Oid			resultrel = list_nth_oid(ancestors, funcctx->call_cntr);
+  if (funcctx->call_cntr < list_length(ancestors)) {
+    Oid     resultrel = list_nth_oid(ancestors, funcctx->call_cntr);
 
-		SRF_RETURN_NEXT(funcctx, ObjectIdGetDatum(resultrel));
-	}
+    SRF_RETURN_NEXT(funcctx, ObjectIdGetDatum(resultrel));
+  }
 
-	SRF_RETURN_DONE(funcctx);
+  SRF_RETURN_DONE(funcctx);
 }

@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * message.c
- *	  Generic logical messages.
+ *    Generic logical messages.
  *
  * Copyright (c) 2013-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/backend/replication/logical/message.c
+ *    src/backend/replication/logical/message.c
  *
  * NOTES
  *
@@ -41,43 +41,43 @@
  */
 XLogRecPtr
 LogLogicalMessage(const char *prefix, const char *message, size_t size,
-				  bool transactional, bool flush)
+                  bool transactional, bool flush)
 {
-	xl_logical_message xlrec;
-	XLogRecPtr	lsn;
+  xl_logical_message xlrec;
+  XLogRecPtr  lsn;
 
-	/*
-	 * Force xid to be allocated if we're emitting a transactional message.
-	 */
-	if (transactional)
-	{
-		Assert(IsTransactionState());
-		GetCurrentTransactionId();
-	}
+  /*
+   * Force xid to be allocated if we're emitting a transactional message.
+   */
+  if (transactional) {
+    Assert(IsTransactionState());
+    GetCurrentTransactionId();
+  }
 
-	xlrec.dbId = MyDatabaseId;
-	xlrec.transactional = transactional;
-	/* trailing zero is critical; see logicalmsg_desc */
-	xlrec.prefix_size = strlen(prefix) + 1;
-	xlrec.message_size = size;
+  xlrec.dbId = MyDatabaseId;
+  xlrec.transactional = transactional;
+  /* trailing zero is critical; see logicalmsg_desc */
+  xlrec.prefix_size = strlen(prefix) + 1;
+  xlrec.message_size = size;
 
-	XLogBeginInsert();
-	XLogRegisterData(&xlrec, SizeOfLogicalMessage);
-	XLogRegisterData(prefix, xlrec.prefix_size);
-	XLogRegisterData(message, size);
+  XLogBeginInsert();
+  XLogRegisterData(&xlrec, SizeOfLogicalMessage);
+  XLogRegisterData(prefix, xlrec.prefix_size);
+  XLogRegisterData(message, size);
 
-	/* allow origin filtering */
-	XLogSetRecordFlags(XLOG_INCLUDE_ORIGIN);
+  /* allow origin filtering */
+  XLogSetRecordFlags(XLOG_INCLUDE_ORIGIN);
 
-	lsn = XLogInsert(RM_LOGICALMSG_ID, XLOG_LOGICAL_MESSAGE);
+  lsn = XLogInsert(RM_LOGICALMSG_ID, XLOG_LOGICAL_MESSAGE);
 
-	/*
-	 * Make sure that the message hits disk before leaving if emitting a
-	 * non-transactional message when flush is requested.
-	 */
-	if (!transactional && flush)
-		XLogFlush(lsn);
-	return lsn;
+  /*
+   * Make sure that the message hits disk before leaving if emitting a
+   * non-transactional message when flush is requested.
+   */
+  if (!transactional && flush)
+    XLogFlush(lsn);
+
+  return lsn;
 }
 
 /*
@@ -86,10 +86,10 @@ LogLogicalMessage(const char *prefix, const char *message, size_t size,
 void
 logicalmsg_redo(XLogReaderState *record)
 {
-	uint8		info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
+  uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
-	if (info != XLOG_LOGICAL_MESSAGE)
-		elog(PANIC, "logicalmsg_redo: unknown op code %u", info);
+  if (info != XLOG_LOGICAL_MESSAGE)
+    elog(PANIC, "logicalmsg_redo: unknown op code %u", info);
 
-	/* This is only interesting for logical decoding, see decode.c. */
+  /* This is only interesting for logical decoding, see decode.c. */
 }

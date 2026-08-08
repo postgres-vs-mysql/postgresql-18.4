@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * parse_manifest.c
- *	  Parse a backup manifest in JSON format.
+ *    Parse a backup manifest in JSON format.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -19,84 +19,79 @@
 /*
  * Semantic states for JSON manifest parsing.
  */
-typedef enum
-{
-	JM_EXPECT_TOPLEVEL_START,
-	JM_EXPECT_TOPLEVEL_END,
-	JM_EXPECT_TOPLEVEL_FIELD,
-	JM_EXPECT_VERSION_VALUE,
-	JM_EXPECT_SYSTEM_IDENTIFIER_VALUE,
-	JM_EXPECT_FILES_START,
-	JM_EXPECT_FILES_NEXT,
-	JM_EXPECT_THIS_FILE_FIELD,
-	JM_EXPECT_THIS_FILE_VALUE,
-	JM_EXPECT_WAL_RANGES_START,
-	JM_EXPECT_WAL_RANGES_NEXT,
-	JM_EXPECT_THIS_WAL_RANGE_FIELD,
-	JM_EXPECT_THIS_WAL_RANGE_VALUE,
-	JM_EXPECT_MANIFEST_CHECKSUM_VALUE,
-	JM_EXPECT_EOF,
+typedef enum {
+  JM_EXPECT_TOPLEVEL_START,
+  JM_EXPECT_TOPLEVEL_END,
+  JM_EXPECT_TOPLEVEL_FIELD,
+  JM_EXPECT_VERSION_VALUE,
+  JM_EXPECT_SYSTEM_IDENTIFIER_VALUE,
+  JM_EXPECT_FILES_START,
+  JM_EXPECT_FILES_NEXT,
+  JM_EXPECT_THIS_FILE_FIELD,
+  JM_EXPECT_THIS_FILE_VALUE,
+  JM_EXPECT_WAL_RANGES_START,
+  JM_EXPECT_WAL_RANGES_NEXT,
+  JM_EXPECT_THIS_WAL_RANGE_FIELD,
+  JM_EXPECT_THIS_WAL_RANGE_VALUE,
+  JM_EXPECT_MANIFEST_CHECKSUM_VALUE,
+  JM_EXPECT_EOF,
 } JsonManifestSemanticState;
 
 /*
  * Possible fields for one file as described by the manifest.
  */
-typedef enum
-{
-	JMFF_PATH,
-	JMFF_ENCODED_PATH,
-	JMFF_SIZE,
-	JMFF_LAST_MODIFIED,
-	JMFF_CHECKSUM_ALGORITHM,
-	JMFF_CHECKSUM,
+typedef enum {
+  JMFF_PATH,
+  JMFF_ENCODED_PATH,
+  JMFF_SIZE,
+  JMFF_LAST_MODIFIED,
+  JMFF_CHECKSUM_ALGORITHM,
+  JMFF_CHECKSUM,
 } JsonManifestFileField;
 
 /*
  * Possible fields for one file as described by the manifest.
  */
-typedef enum
-{
-	JMWRF_TIMELINE,
-	JMWRF_START_LSN,
-	JMWRF_END_LSN,
+typedef enum {
+  JMWRF_TIMELINE,
+  JMWRF_START_LSN,
+  JMWRF_END_LSN,
 } JsonManifestWALRangeField;
 
 /*
  * Internal state used while decoding the JSON-format backup manifest.
  */
-typedef struct
-{
-	JsonManifestParseContext *context;
-	JsonManifestSemanticState state;
+typedef struct {
+  JsonManifestParseContext *context;
+  JsonManifestSemanticState state;
 
-	/* These fields are used for parsing objects in the list of files. */
-	JsonManifestFileField file_field;
-	char	   *pathname;
-	char	   *encoded_pathname;
-	char	   *size;
-	char	   *algorithm;
-	pg_checksum_type checksum_algorithm;
-	char	   *checksum;
+  /* These fields are used for parsing objects in the list of files. */
+  JsonManifestFileField file_field;
+  char     *pathname;
+  char     *encoded_pathname;
+  char     *size;
+  char     *algorithm;
+  pg_checksum_type checksum_algorithm;
+  char     *checksum;
 
-	/* These fields are used for parsing objects in the list of WAL ranges. */
-	JsonManifestWALRangeField wal_range_field;
-	char	   *timeline;
-	char	   *start_lsn;
-	char	   *end_lsn;
+  /* These fields are used for parsing objects in the list of WAL ranges. */
+  JsonManifestWALRangeField wal_range_field;
+  char     *timeline;
+  char     *start_lsn;
+  char     *end_lsn;
 
-	/* Miscellaneous other stuff. */
-	bool		saw_version_field;
-	char	   *manifest_version;
-	char	   *manifest_system_identifier;
-	char	   *manifest_checksum;
+  /* Miscellaneous other stuff. */
+  bool    saw_version_field;
+  char     *manifest_version;
+  char     *manifest_system_identifier;
+  char     *manifest_checksum;
 } JsonManifestParseState;
 
 /* typedef appears in parse_manifest.h */
-struct JsonManifestParseIncrementalState
-{
-	JsonLexContext lex;
-	JsonSemAction sem;
-	pg_cryptohash_ctx *manifest_ctx;
+struct JsonManifestParseIncrementalState {
+  JsonLexContext lex;
+  JsonSemAction sem;
+  pg_cryptohash_ctx *manifest_ctx;
 };
 
 static JsonParseErrorType json_manifest_object_start(void *state);
@@ -104,20 +99,20 @@ static JsonParseErrorType json_manifest_object_end(void *state);
 static JsonParseErrorType json_manifest_array_start(void *state);
 static JsonParseErrorType json_manifest_array_end(void *state);
 static JsonParseErrorType json_manifest_object_field_start(void *state, char *fname,
-														   bool isnull);
+    bool isnull);
 static JsonParseErrorType json_manifest_scalar(void *state, char *token,
-											   JsonTokenType tokentype);
+    JsonTokenType tokentype);
 static void json_manifest_finalize_version(JsonManifestParseState *parse);
 static void json_manifest_finalize_system_identifier(JsonManifestParseState *parse);
 static void json_manifest_finalize_file(JsonManifestParseState *parse);
 static void json_manifest_finalize_wal_range(JsonManifestParseState *parse);
 static void verify_manifest_checksum(JsonManifestParseState *parse,
-									 const char *buffer, size_t size,
-									 pg_cryptohash_ctx *incr_ctx);
+                                     const char *buffer, size_t size,
+                                     pg_cryptohash_ctx *incr_ctx);
 pg_noreturn static void json_manifest_parse_failure(JsonManifestParseContext *context,
-													char *msg);
+    char *msg);
 
-static int	hexdecode_char(char c);
+static int  hexdecode_char(char c);
 static bool hexdecode_string(uint8 *result, char *input, int nbytes);
 static bool parse_xlogrecptr(XLogRecPtr *result, char *input);
 
@@ -128,38 +123,41 @@ static bool parse_xlogrecptr(XLogRecPtr *result, char *input);
 JsonManifestParseIncrementalState *
 json_parse_manifest_incremental_init(JsonManifestParseContext *context)
 {
-	JsonManifestParseIncrementalState *incstate;
-	JsonManifestParseState *parse;
-	pg_cryptohash_ctx *manifest_ctx;
+  JsonManifestParseIncrementalState *incstate;
+  JsonManifestParseState *parse;
+  pg_cryptohash_ctx *manifest_ctx;
 
-	incstate = palloc(sizeof(JsonManifestParseIncrementalState));
-	parse = palloc(sizeof(JsonManifestParseState));
+  incstate = palloc(sizeof(JsonManifestParseIncrementalState));
+  parse = palloc(sizeof(JsonManifestParseState));
 
-	parse->context = context;
-	parse->state = JM_EXPECT_TOPLEVEL_START;
-	parse->saw_version_field = false;
+  parse->context = context;
+  parse->state = JM_EXPECT_TOPLEVEL_START;
+  parse->saw_version_field = false;
 
-	makeJsonLexContextIncremental(&(incstate->lex), PG_UTF8, true);
+  makeJsonLexContextIncremental(&(incstate->lex), PG_UTF8, true);
 
-	incstate->sem.semstate = parse;
-	incstate->sem.object_start = json_manifest_object_start;
-	incstate->sem.object_end = json_manifest_object_end;
-	incstate->sem.array_start = json_manifest_array_start;
-	incstate->sem.array_end = json_manifest_array_end;
-	incstate->sem.object_field_start = json_manifest_object_field_start;
-	incstate->sem.object_field_end = NULL;
-	incstate->sem.array_element_start = NULL;
-	incstate->sem.array_element_end = NULL;
-	incstate->sem.scalar = json_manifest_scalar;
+  incstate->sem.semstate = parse;
+  incstate->sem.object_start = json_manifest_object_start;
+  incstate->sem.object_end = json_manifest_object_end;
+  incstate->sem.array_start = json_manifest_array_start;
+  incstate->sem.array_end = json_manifest_array_end;
+  incstate->sem.object_field_start = json_manifest_object_field_start;
+  incstate->sem.object_field_end = NULL;
+  incstate->sem.array_element_start = NULL;
+  incstate->sem.array_element_end = NULL;
+  incstate->sem.scalar = json_manifest_scalar;
 
-	manifest_ctx = pg_cryptohash_create(PG_SHA256);
-	if (manifest_ctx == NULL)
-		context->error_cb(context, "out of memory");
-	if (pg_cryptohash_init(manifest_ctx) < 0)
-		context->error_cb(context, "could not initialize checksum of manifest");
-	incstate->manifest_ctx = manifest_ctx;
+  manifest_ctx = pg_cryptohash_create(PG_SHA256);
 
-	return incstate;
+  if (manifest_ctx == NULL)
+    context->error_cb(context, "out of memory");
+
+  if (pg_cryptohash_init(manifest_ctx) < 0)
+    context->error_cb(context, "could not initialize checksum of manifest");
+
+  incstate->manifest_ctx = manifest_ctx;
+
+  return incstate;
 }
 
 /*
@@ -168,10 +166,10 @@ json_parse_manifest_incremental_init(JsonManifestParseContext *context)
 void
 json_parse_manifest_incremental_shutdown(JsonManifestParseIncrementalState *incstate)
 {
-	pfree(incstate->sem.semstate);
-	freeJsonLexContext(&(incstate->lex));
-	/* incstate->manifest_ctx has already been freed */
-	pfree(incstate);
+  pfree(incstate->sem.semstate);
+  freeJsonLexContext(&(incstate->lex));
+  /* incstate->manifest_ctx has already been freed */
+  pfree(incstate);
 }
 
 /*
@@ -183,35 +181,32 @@ json_parse_manifest_incremental_shutdown(JsonManifestParseIncrementalState *incs
 
 void
 json_parse_manifest_incremental_chunk(JsonManifestParseIncrementalState *incstate,
-									  const char *chunk, size_t size, bool is_last)
+                                      const char *chunk, size_t size, bool is_last)
 {
-	JsonParseErrorType res,
-				expected;
-	JsonManifestParseState *parse = incstate->sem.semstate;
-	JsonManifestParseContext *context = parse->context;
+  JsonParseErrorType res,
+                     expected;
+  JsonManifestParseState *parse = incstate->sem.semstate;
+  JsonManifestParseContext *context = parse->context;
 
-	res = pg_parse_json_incremental(&(incstate->lex), &(incstate->sem),
-									chunk, size, is_last);
+  res = pg_parse_json_incremental(&(incstate->lex), &(incstate->sem),
+                                  chunk, size, is_last);
 
-	expected = is_last ? JSON_SUCCESS : JSON_INCOMPLETE;
+  expected = is_last ? JSON_SUCCESS : JSON_INCOMPLETE;
 
-	if (res != expected)
-		json_manifest_parse_failure(context,
-									json_errdetail(res, &(incstate->lex)));
+  if (res != expected)
+    json_manifest_parse_failure(context,
+                                json_errdetail(res, &(incstate->lex)));
 
-	if (is_last && parse->state != JM_EXPECT_EOF)
-		json_manifest_parse_failure(context, "manifest ended unexpectedly");
+  if (is_last && parse->state != JM_EXPECT_EOF)
+    json_manifest_parse_failure(context, "manifest ended unexpectedly");
 
-	if (!is_last)
-	{
-		if (pg_cryptohash_update(incstate->manifest_ctx,
-								 (const uint8 *) chunk, size) < 0)
-			context->error_cb(context, "could not update checksum of manifest");
-	}
-	else
-	{
-		verify_manifest_checksum(parse, chunk, size, incstate->manifest_ctx);
-	}
+  if (!is_last) {
+    if (pg_cryptohash_update(incstate->manifest_ctx,
+                             (const uint8 *) chunk, size) < 0)
+      context->error_cb(context, "could not update checksum of manifest");
+  } else {
+    verify_manifest_checksum(parse, chunk, size, incstate->manifest_ctx);
+  }
 }
 
 
@@ -225,44 +220,46 @@ json_parse_manifest_incremental_chunk(JsonManifestParseIncrementalState *incstat
  */
 void
 json_parse_manifest(JsonManifestParseContext *context, const char *buffer,
-					size_t size)
+                    size_t size)
 {
-	JsonLexContext *lex;
-	JsonParseErrorType json_error;
-	JsonSemAction sem;
-	JsonManifestParseState parse;
+  JsonLexContext *lex;
+  JsonParseErrorType json_error;
+  JsonSemAction sem;
+  JsonManifestParseState parse;
 
-	/* Set up our private parsing context. */
-	parse.context = context;
-	parse.state = JM_EXPECT_TOPLEVEL_START;
-	parse.saw_version_field = false;
+  /* Set up our private parsing context. */
+  parse.context = context;
+  parse.state = JM_EXPECT_TOPLEVEL_START;
+  parse.saw_version_field = false;
 
-	/* Create a JSON lexing context. */
-	lex = makeJsonLexContextCstringLen(NULL, buffer, size, PG_UTF8, true);
+  /* Create a JSON lexing context. */
+  lex = makeJsonLexContextCstringLen(NULL, buffer, size, PG_UTF8, true);
 
-	/* Set up semantic actions. */
-	sem.semstate = &parse;
-	sem.object_start = json_manifest_object_start;
-	sem.object_end = json_manifest_object_end;
-	sem.array_start = json_manifest_array_start;
-	sem.array_end = json_manifest_array_end;
-	sem.object_field_start = json_manifest_object_field_start;
-	sem.object_field_end = NULL;
-	sem.array_element_start = NULL;
-	sem.array_element_end = NULL;
-	sem.scalar = json_manifest_scalar;
+  /* Set up semantic actions. */
+  sem.semstate = &parse;
+  sem.object_start = json_manifest_object_start;
+  sem.object_end = json_manifest_object_end;
+  sem.array_start = json_manifest_array_start;
+  sem.array_end = json_manifest_array_end;
+  sem.object_field_start = json_manifest_object_field_start;
+  sem.object_field_end = NULL;
+  sem.array_element_start = NULL;
+  sem.array_element_end = NULL;
+  sem.scalar = json_manifest_scalar;
 
-	/* Run the actual JSON parser. */
-	json_error = pg_parse_json(lex, &sem);
-	if (json_error != JSON_SUCCESS)
-		json_manifest_parse_failure(context, json_errdetail(json_error, lex));
-	if (parse.state != JM_EXPECT_EOF)
-		json_manifest_parse_failure(context, "manifest ended unexpectedly");
+  /* Run the actual JSON parser. */
+  json_error = pg_parse_json(lex, &sem);
 
-	/* Verify the manifest checksum. */
-	verify_manifest_checksum(&parse, buffer, size, NULL);
+  if (json_error != JSON_SUCCESS)
+    json_manifest_parse_failure(context, json_errdetail(json_error, lex));
 
-	freeJsonLexContext(lex);
+  if (parse.state != JM_EXPECT_EOF)
+    json_manifest_parse_failure(context, "manifest ended unexpectedly");
+
+  /* Verify the manifest checksum. */
+  verify_manifest_checksum(&parse, buffer, size, NULL);
+
+  freeJsonLexContext(lex);
 }
 
 /*
@@ -275,34 +272,36 @@ json_parse_manifest(JsonManifestParseContext *context, const char *buffer,
 static JsonParseErrorType
 json_manifest_object_start(void *state)
 {
-	JsonManifestParseState *parse = state;
+  JsonManifestParseState *parse = state;
 
-	switch (parse->state)
-	{
-		case JM_EXPECT_TOPLEVEL_START:
-			parse->state = JM_EXPECT_TOPLEVEL_FIELD;
-			break;
-		case JM_EXPECT_FILES_NEXT:
-			parse->state = JM_EXPECT_THIS_FILE_FIELD;
-			parse->pathname = NULL;
-			parse->encoded_pathname = NULL;
-			parse->size = NULL;
-			parse->algorithm = NULL;
-			parse->checksum = NULL;
-			break;
-		case JM_EXPECT_WAL_RANGES_NEXT:
-			parse->state = JM_EXPECT_THIS_WAL_RANGE_FIELD;
-			parse->timeline = NULL;
-			parse->start_lsn = NULL;
-			parse->end_lsn = NULL;
-			break;
-		default:
-			json_manifest_parse_failure(parse->context,
-										"unexpected object start");
-			break;
-	}
+  switch (parse->state) {
+    case JM_EXPECT_TOPLEVEL_START:
+      parse->state = JM_EXPECT_TOPLEVEL_FIELD;
+      break;
 
-	return JSON_SUCCESS;
+    case JM_EXPECT_FILES_NEXT:
+      parse->state = JM_EXPECT_THIS_FILE_FIELD;
+      parse->pathname = NULL;
+      parse->encoded_pathname = NULL;
+      parse->size = NULL;
+      parse->algorithm = NULL;
+      parse->checksum = NULL;
+      break;
+
+    case JM_EXPECT_WAL_RANGES_NEXT:
+      parse->state = JM_EXPECT_THIS_WAL_RANGE_FIELD;
+      parse->timeline = NULL;
+      parse->start_lsn = NULL;
+      parse->end_lsn = NULL;
+      break;
+
+    default:
+      json_manifest_parse_failure(parse->context,
+                                  "unexpected object start");
+      break;
+  }
+
+  return JSON_SUCCESS;
 }
 
 /*
@@ -316,28 +315,30 @@ json_manifest_object_start(void *state)
 static JsonParseErrorType
 json_manifest_object_end(void *state)
 {
-	JsonManifestParseState *parse = state;
+  JsonManifestParseState *parse = state;
 
-	switch (parse->state)
-	{
-		case JM_EXPECT_TOPLEVEL_END:
-			parse->state = JM_EXPECT_EOF;
-			break;
-		case JM_EXPECT_THIS_FILE_FIELD:
-			json_manifest_finalize_file(parse);
-			parse->state = JM_EXPECT_FILES_NEXT;
-			break;
-		case JM_EXPECT_THIS_WAL_RANGE_FIELD:
-			json_manifest_finalize_wal_range(parse);
-			parse->state = JM_EXPECT_WAL_RANGES_NEXT;
-			break;
-		default:
-			json_manifest_parse_failure(parse->context,
-										"unexpected object end");
-			break;
-	}
+  switch (parse->state) {
+    case JM_EXPECT_TOPLEVEL_END:
+      parse->state = JM_EXPECT_EOF;
+      break;
 
-	return JSON_SUCCESS;
+    case JM_EXPECT_THIS_FILE_FIELD:
+      json_manifest_finalize_file(parse);
+      parse->state = JM_EXPECT_FILES_NEXT;
+      break;
+
+    case JM_EXPECT_THIS_WAL_RANGE_FIELD:
+      json_manifest_finalize_wal_range(parse);
+      parse->state = JM_EXPECT_WAL_RANGES_NEXT;
+      break;
+
+    default:
+      json_manifest_parse_failure(parse->context,
+                                  "unexpected object end");
+      break;
+  }
+
+  return JSON_SUCCESS;
 }
 
 /*
@@ -350,23 +351,24 @@ json_manifest_object_end(void *state)
 static JsonParseErrorType
 json_manifest_array_start(void *state)
 {
-	JsonManifestParseState *parse = state;
+  JsonManifestParseState *parse = state;
 
-	switch (parse->state)
-	{
-		case JM_EXPECT_FILES_START:
-			parse->state = JM_EXPECT_FILES_NEXT;
-			break;
-		case JM_EXPECT_WAL_RANGES_START:
-			parse->state = JM_EXPECT_WAL_RANGES_NEXT;
-			break;
-		default:
-			json_manifest_parse_failure(parse->context,
-										"unexpected array start");
-			break;
-	}
+  switch (parse->state) {
+    case JM_EXPECT_FILES_START:
+      parse->state = JM_EXPECT_FILES_NEXT;
+      break;
 
-	return JSON_SUCCESS;
+    case JM_EXPECT_WAL_RANGES_START:
+      parse->state = JM_EXPECT_WAL_RANGES_NEXT;
+      break;
+
+    default:
+      json_manifest_parse_failure(parse->context,
+                                  "unexpected array start");
+      break;
+  }
+
+  return JSON_SUCCESS;
 }
 
 /*
@@ -377,21 +379,21 @@ json_manifest_array_start(void *state)
 static JsonParseErrorType
 json_manifest_array_end(void *state)
 {
-	JsonManifestParseState *parse = state;
+  JsonManifestParseState *parse = state;
 
-	switch (parse->state)
-	{
-		case JM_EXPECT_FILES_NEXT:
-		case JM_EXPECT_WAL_RANGES_NEXT:
-			parse->state = JM_EXPECT_TOPLEVEL_FIELD;
-			break;
-		default:
-			json_manifest_parse_failure(parse->context,
-										"unexpected array end");
-			break;
-	}
+  switch (parse->state) {
+    case JM_EXPECT_FILES_NEXT:
+    case JM_EXPECT_WAL_RANGES_NEXT:
+      parse->state = JM_EXPECT_TOPLEVEL_FIELD;
+      break;
 
-	return JSON_SUCCESS;
+    default:
+      json_manifest_parse_failure(parse->context,
+                                  "unexpected array end");
+      break;
+  }
+
+  return JSON_SUCCESS;
 }
 
 /*
@@ -400,102 +402,101 @@ json_manifest_array_end(void *state)
 static JsonParseErrorType
 json_manifest_object_field_start(void *state, char *fname, bool isnull)
 {
-	JsonManifestParseState *parse = state;
+  JsonManifestParseState *parse = state;
 
-	switch (parse->state)
-	{
-		case JM_EXPECT_TOPLEVEL_FIELD:
+  switch (parse->state) {
+    case JM_EXPECT_TOPLEVEL_FIELD:
 
-			/*
-			 * Inside toplevel object. The version indicator should always be
-			 * the first field.
-			 */
-			if (!parse->saw_version_field)
-			{
-				if (strcmp(fname, "PostgreSQL-Backup-Manifest-Version") != 0)
-					json_manifest_parse_failure(parse->context,
-												"expected version indicator");
-				parse->state = JM_EXPECT_VERSION_VALUE;
-				parse->saw_version_field = true;
-				break;
-			}
+      /*
+       * Inside toplevel object. The version indicator should always be
+       * the first field.
+       */
+      if (!parse->saw_version_field) {
+        if (strcmp(fname, "PostgreSQL-Backup-Manifest-Version") != 0)
+          json_manifest_parse_failure(parse->context,
+                                      "expected version indicator");
 
-			/* Is this the system identifier? */
-			if (strcmp(fname, "System-Identifier") == 0)
-			{
-				parse->state = JM_EXPECT_SYSTEM_IDENTIFIER_VALUE;
-				break;
-			}
+        parse->state = JM_EXPECT_VERSION_VALUE;
+        parse->saw_version_field = true;
+        break;
+      }
 
-			/* Is this the list of files? */
-			if (strcmp(fname, "Files") == 0)
-			{
-				parse->state = JM_EXPECT_FILES_START;
-				break;
-			}
+      /* Is this the system identifier? */
+      if (strcmp(fname, "System-Identifier") == 0) {
+        parse->state = JM_EXPECT_SYSTEM_IDENTIFIER_VALUE;
+        break;
+      }
 
-			/* Is this the list of WAL ranges? */
-			if (strcmp(fname, "WAL-Ranges") == 0)
-			{
-				parse->state = JM_EXPECT_WAL_RANGES_START;
-				break;
-			}
+      /* Is this the list of files? */
+      if (strcmp(fname, "Files") == 0) {
+        parse->state = JM_EXPECT_FILES_START;
+        break;
+      }
 
-			/* Is this the manifest checksum? */
-			if (strcmp(fname, "Manifest-Checksum") == 0)
-			{
-				parse->state = JM_EXPECT_MANIFEST_CHECKSUM_VALUE;
-				break;
-			}
+      /* Is this the list of WAL ranges? */
+      if (strcmp(fname, "WAL-Ranges") == 0) {
+        parse->state = JM_EXPECT_WAL_RANGES_START;
+        break;
+      }
 
-			/* It's not a field we recognize. */
-			json_manifest_parse_failure(parse->context,
-										"unrecognized top-level field");
-			break;
+      /* Is this the manifest checksum? */
+      if (strcmp(fname, "Manifest-Checksum") == 0) {
+        parse->state = JM_EXPECT_MANIFEST_CHECKSUM_VALUE;
+        break;
+      }
 
-		case JM_EXPECT_THIS_FILE_FIELD:
-			/* Inside object for one file; which key have we got? */
-			if (strcmp(fname, "Path") == 0)
-				parse->file_field = JMFF_PATH;
-			else if (strcmp(fname, "Encoded-Path") == 0)
-				parse->file_field = JMFF_ENCODED_PATH;
-			else if (strcmp(fname, "Size") == 0)
-				parse->file_field = JMFF_SIZE;
-			else if (strcmp(fname, "Last-Modified") == 0)
-				parse->file_field = JMFF_LAST_MODIFIED;
-			else if (strcmp(fname, "Checksum-Algorithm") == 0)
-				parse->file_field = JMFF_CHECKSUM_ALGORITHM;
-			else if (strcmp(fname, "Checksum") == 0)
-				parse->file_field = JMFF_CHECKSUM;
-			else
-				json_manifest_parse_failure(parse->context,
-											"unexpected file field");
-			parse->state = JM_EXPECT_THIS_FILE_VALUE;
-			break;
+      /* It's not a field we recognize. */
+      json_manifest_parse_failure(parse->context,
+                                  "unrecognized top-level field");
+      break;
 
-		case JM_EXPECT_THIS_WAL_RANGE_FIELD:
-			/* Inside object for one file; which key have we got? */
-			if (strcmp(fname, "Timeline") == 0)
-				parse->wal_range_field = JMWRF_TIMELINE;
-			else if (strcmp(fname, "Start-LSN") == 0)
-				parse->wal_range_field = JMWRF_START_LSN;
-			else if (strcmp(fname, "End-LSN") == 0)
-				parse->wal_range_field = JMWRF_END_LSN;
-			else
-				json_manifest_parse_failure(parse->context,
-											"unexpected WAL range field");
-			parse->state = JM_EXPECT_THIS_WAL_RANGE_VALUE;
-			break;
+    case JM_EXPECT_THIS_FILE_FIELD:
 
-		default:
-			json_manifest_parse_failure(parse->context,
-										"unexpected object field");
-			break;
-	}
+      /* Inside object for one file; which key have we got? */
+      if (strcmp(fname, "Path") == 0)
+        parse->file_field = JMFF_PATH;
+      else if (strcmp(fname, "Encoded-Path") == 0)
+        parse->file_field = JMFF_ENCODED_PATH;
+      else if (strcmp(fname, "Size") == 0)
+        parse->file_field = JMFF_SIZE;
+      else if (strcmp(fname, "Last-Modified") == 0)
+        parse->file_field = JMFF_LAST_MODIFIED;
+      else if (strcmp(fname, "Checksum-Algorithm") == 0)
+        parse->file_field = JMFF_CHECKSUM_ALGORITHM;
+      else if (strcmp(fname, "Checksum") == 0)
+        parse->file_field = JMFF_CHECKSUM;
+      else
+        json_manifest_parse_failure(parse->context,
+                                    "unexpected file field");
 
-	pfree(fname);
+      parse->state = JM_EXPECT_THIS_FILE_VALUE;
+      break;
 
-	return JSON_SUCCESS;
+    case JM_EXPECT_THIS_WAL_RANGE_FIELD:
+
+      /* Inside object for one file; which key have we got? */
+      if (strcmp(fname, "Timeline") == 0)
+        parse->wal_range_field = JMWRF_TIMELINE;
+      else if (strcmp(fname, "Start-LSN") == 0)
+        parse->wal_range_field = JMWRF_START_LSN;
+      else if (strcmp(fname, "End-LSN") == 0)
+        parse->wal_range_field = JMWRF_END_LSN;
+      else
+        json_manifest_parse_failure(parse->context,
+                                    "unexpected WAL range field");
+
+      parse->state = JM_EXPECT_THIS_WAL_RANGE_VALUE;
+      break;
+
+    default:
+      json_manifest_parse_failure(parse->context,
+                                  "unexpected object field");
+      break;
+  }
+
+  pfree(fname);
+
+  return JSON_SUCCESS;
 }
 
 /*
@@ -516,74 +517,80 @@ json_manifest_object_field_start(void *state, char *fname, bool isnull)
 static JsonParseErrorType
 json_manifest_scalar(void *state, char *token, JsonTokenType tokentype)
 {
-	JsonManifestParseState *parse = state;
+  JsonManifestParseState *parse = state;
 
-	switch (parse->state)
-	{
-		case JM_EXPECT_VERSION_VALUE:
-			parse->manifest_version = token;
-			json_manifest_finalize_version(parse);
-			parse->state = JM_EXPECT_TOPLEVEL_FIELD;
-			break;
+  switch (parse->state) {
+    case JM_EXPECT_VERSION_VALUE:
+      parse->manifest_version = token;
+      json_manifest_finalize_version(parse);
+      parse->state = JM_EXPECT_TOPLEVEL_FIELD;
+      break;
 
-		case JM_EXPECT_SYSTEM_IDENTIFIER_VALUE:
-			parse->manifest_system_identifier = token;
-			json_manifest_finalize_system_identifier(parse);
-			parse->state = JM_EXPECT_TOPLEVEL_FIELD;
-			break;
+    case JM_EXPECT_SYSTEM_IDENTIFIER_VALUE:
+      parse->manifest_system_identifier = token;
+      json_manifest_finalize_system_identifier(parse);
+      parse->state = JM_EXPECT_TOPLEVEL_FIELD;
+      break;
 
-		case JM_EXPECT_THIS_FILE_VALUE:
-			switch (parse->file_field)
-			{
-				case JMFF_PATH:
-					parse->pathname = token;
-					break;
-				case JMFF_ENCODED_PATH:
-					parse->encoded_pathname = token;
-					break;
-				case JMFF_SIZE:
-					parse->size = token;
-					break;
-				case JMFF_LAST_MODIFIED:
-					pfree(token);	/* unused */
-					break;
-				case JMFF_CHECKSUM_ALGORITHM:
-					parse->algorithm = token;
-					break;
-				case JMFF_CHECKSUM:
-					parse->checksum = token;
-					break;
-			}
-			parse->state = JM_EXPECT_THIS_FILE_FIELD;
-			break;
+    case JM_EXPECT_THIS_FILE_VALUE:
+      switch (parse->file_field) {
+        case JMFF_PATH:
+          parse->pathname = token;
+          break;
 
-		case JM_EXPECT_THIS_WAL_RANGE_VALUE:
-			switch (parse->wal_range_field)
-			{
-				case JMWRF_TIMELINE:
-					parse->timeline = token;
-					break;
-				case JMWRF_START_LSN:
-					parse->start_lsn = token;
-					break;
-				case JMWRF_END_LSN:
-					parse->end_lsn = token;
-					break;
-			}
-			parse->state = JM_EXPECT_THIS_WAL_RANGE_FIELD;
-			break;
+        case JMFF_ENCODED_PATH:
+          parse->encoded_pathname = token;
+          break;
 
-		case JM_EXPECT_MANIFEST_CHECKSUM_VALUE:
-			parse->state = JM_EXPECT_TOPLEVEL_END;
-			parse->manifest_checksum = token;
-			break;
+        case JMFF_SIZE:
+          parse->size = token;
+          break;
 
-		default:
-			json_manifest_parse_failure(parse->context, "unexpected scalar");
-			break;
-	}
+        case JMFF_LAST_MODIFIED:
+          pfree(token); /* unused */
+          break;
 
-	return JSON_SUCCESS;
+        case JMFF_CHECKSUM_ALGORITHM:
+          parse->algorithm = token;
+          break;
+
+        case JMFF_CHECKSUM:
+          parse->checksum = token;
+          break;
+      }
+
+      parse->state = JM_EXPECT_THIS_FILE_FIELD;
+      break;
+
+    case JM_EXPECT_THIS_WAL_RANGE_VALUE:
+      switch (parse->wal_range_field) {
+        case JMWRF_TIMELINE:
+          parse->timeline = token;
+          break;
+
+        case JMWRF_START_LSN:
+          parse->start_lsn = token;
+          break;
+
+        case JMWRF_END_LSN:
+          parse->end_lsn = token;
+          break;
+      }
+
+      parse->state = JM_EXPECT_THIS_WAL_RANGE_FIELD;
+      break;
+
+    case JM_EXPECT_MANIFEST_CHECKSUM_VALUE:
+      parse->state = JM_EXPECT_TOPLEVEL_END;
+      parse->manifest_checksum = token;
+      break;
+
+    default:
+      json_manifest_parse_failure(parse->context, "unexpected scalar");
+      break;
+  }
+
+  return JSON_SUCCESS;
 }
 
 /*
@@ -595,24 +602,25 @@ json_manifest_scalar(void *state, char *token, JsonTokenType tokentype)
 static void
 json_manifest_finalize_version(JsonManifestParseState *parse)
 {
-	JsonManifestParseContext *context = parse->context;
-	int			version;
-	char	   *ep;
+  JsonManifestParseContext *context = parse->context;
+  int     version;
+  char     *ep;
 
-	Assert(parse->saw_version_field);
+  Assert(parse->saw_version_field);
 
-	/* Parse version. */
-	version = strtoi64(parse->manifest_version, &ep, 10);
-	if (*ep)
-		json_manifest_parse_failure(parse->context,
-									"manifest version not an integer");
+  /* Parse version. */
+  version = strtoi64(parse->manifest_version, &ep, 10);
 
-	if (version != 1 && version != 2)
-		json_manifest_parse_failure(parse->context,
-									"unexpected manifest version");
+  if (*ep)
+    json_manifest_parse_failure(parse->context,
+                                "manifest version not an integer");
 
-	/* Invoke the callback for version */
-	context->version_cb(context, version);
+  if (version != 1 && version != 2)
+    json_manifest_parse_failure(parse->context,
+                                "unexpected manifest version");
+
+  /* Invoke the callback for version */
+  context->version_cb(context, version);
 }
 
 /*
@@ -623,20 +631,21 @@ json_manifest_finalize_version(JsonManifestParseState *parse)
 static void
 json_manifest_finalize_system_identifier(JsonManifestParseState *parse)
 {
-	JsonManifestParseContext *context = parse->context;
-	uint64		system_identifier;
-	char	   *ep;
+  JsonManifestParseContext *context = parse->context;
+  uint64    system_identifier;
+  char     *ep;
 
-	Assert(parse->manifest_system_identifier != NULL);
+  Assert(parse->manifest_system_identifier != NULL);
 
-	/* Parse system identifier. */
-	system_identifier = strtou64(parse->manifest_system_identifier, &ep, 10);
-	if (*ep)
-		json_manifest_parse_failure(parse->context,
-									"system identifier in manifest not an integer");
+  /* Parse system identifier. */
+  system_identifier = strtou64(parse->manifest_system_identifier, &ep, 10);
 
-	/* Invoke the callback for system identifier */
-	context->system_identifier_cb(context, system_identifier);
+  if (*ep)
+    json_manifest_parse_failure(parse->context,
+                                "system identifier in manifest not an integer");
+
+  /* Invoke the callback for system identifier */
+  context->system_identifier_cb(context, system_identifier);
 }
 
 /*
@@ -648,97 +657,100 @@ json_manifest_finalize_system_identifier(JsonManifestParseState *parse)
 static void
 json_manifest_finalize_file(JsonManifestParseState *parse)
 {
-	JsonManifestParseContext *context = parse->context;
-	uint64		size;
-	char	   *ep;
-	int			checksum_string_length;
-	pg_checksum_type checksum_type;
-	int			checksum_length;
-	uint8	   *checksum_payload;
+  JsonManifestParseContext *context = parse->context;
+  uint64    size;
+  char     *ep;
+  int     checksum_string_length;
+  pg_checksum_type checksum_type;
+  int     checksum_length;
+  uint8    *checksum_payload;
 
-	/* Pathname and size are required. */
-	if (parse->pathname == NULL && parse->encoded_pathname == NULL)
-		json_manifest_parse_failure(parse->context, "missing path name");
-	if (parse->pathname != NULL && parse->encoded_pathname != NULL)
-		json_manifest_parse_failure(parse->context,
-									"both path name and encoded path name");
-	if (parse->size == NULL)
-		json_manifest_parse_failure(parse->context, "missing size");
-	if (parse->algorithm == NULL && parse->checksum != NULL)
-		json_manifest_parse_failure(parse->context,
-									"checksum without algorithm");
+  /* Pathname and size are required. */
+  if (parse->pathname == NULL && parse->encoded_pathname == NULL)
+    json_manifest_parse_failure(parse->context, "missing path name");
 
-	/* Decode encoded pathname, if that's what we have. */
-	if (parse->encoded_pathname != NULL)
-	{
-		int			encoded_length = strlen(parse->encoded_pathname);
-		int			raw_length = encoded_length / 2;
+  if (parse->pathname != NULL && parse->encoded_pathname != NULL)
+    json_manifest_parse_failure(parse->context,
+                                "both path name and encoded path name");
 
-		parse->pathname = palloc(raw_length + 1);
-		if (encoded_length % 2 != 0 ||
-			!hexdecode_string((uint8 *) parse->pathname,
-							  parse->encoded_pathname,
-							  raw_length))
-			json_manifest_parse_failure(parse->context,
-										"could not decode file name");
-		parse->pathname[raw_length] = '\0';
-		pfree(parse->encoded_pathname);
-		parse->encoded_pathname = NULL;
-	}
+  if (parse->size == NULL)
+    json_manifest_parse_failure(parse->context, "missing size");
 
-	/* Parse size. */
-	size = strtou64(parse->size, &ep, 10);
-	if (*ep)
-		json_manifest_parse_failure(parse->context,
-									"file size is not an integer");
+  if (parse->algorithm == NULL && parse->checksum != NULL)
+    json_manifest_parse_failure(parse->context,
+                                "checksum without algorithm");
 
-	/* Parse the checksum algorithm, if it's present. */
-	if (parse->algorithm == NULL)
-		checksum_type = CHECKSUM_TYPE_NONE;
-	else if (!pg_checksum_parse_type(parse->algorithm, &checksum_type))
-		context->error_cb(context, "unrecognized checksum algorithm: \"%s\"",
-						  parse->algorithm);
+  /* Decode encoded pathname, if that's what we have. */
+  if (parse->encoded_pathname != NULL) {
+    int     encoded_length = strlen(parse->encoded_pathname);
+    int     raw_length = encoded_length / 2;
 
-	/* Parse the checksum payload, if it's present. */
-	checksum_string_length = parse->checksum == NULL ? 0
-		: strlen(parse->checksum);
-	if (checksum_string_length == 0)
-	{
-		checksum_length = 0;
-		checksum_payload = NULL;
-	}
-	else
-	{
-		checksum_length = checksum_string_length / 2;
-		checksum_payload = palloc(checksum_length);
-		if (checksum_string_length % 2 != 0 ||
-			!hexdecode_string(checksum_payload, parse->checksum,
-							  checksum_length))
-			context->error_cb(context,
-							  "invalid checksum for file \"%s\": \"%s\"",
-							  parse->pathname, parse->checksum);
-	}
+    parse->pathname = palloc(raw_length + 1);
 
-	/* Invoke the callback with the details we've gathered. */
-	context->per_file_cb(context, parse->pathname, size,
-						 checksum_type, checksum_length, checksum_payload);
+    if (encoded_length % 2 != 0 ||
+        !hexdecode_string((uint8 *) parse->pathname,
+                          parse->encoded_pathname,
+                          raw_length))
+      json_manifest_parse_failure(parse->context,
+                                  "could not decode file name");
 
-	/* Free memory we no longer need. */
-	if (parse->size != NULL)
-	{
-		pfree(parse->size);
-		parse->size = NULL;
-	}
-	if (parse->algorithm != NULL)
-	{
-		pfree(parse->algorithm);
-		parse->algorithm = NULL;
-	}
-	if (parse->checksum != NULL)
-	{
-		pfree(parse->checksum);
-		parse->checksum = NULL;
-	}
+    parse->pathname[raw_length] = '\0';
+    pfree(parse->encoded_pathname);
+    parse->encoded_pathname = NULL;
+  }
+
+  /* Parse size. */
+  size = strtou64(parse->size, &ep, 10);
+
+  if (*ep)
+    json_manifest_parse_failure(parse->context,
+                                "file size is not an integer");
+
+  /* Parse the checksum algorithm, if it's present. */
+  if (parse->algorithm == NULL)
+    checksum_type = CHECKSUM_TYPE_NONE;
+  else if (!pg_checksum_parse_type(parse->algorithm, &checksum_type))
+    context->error_cb(context, "unrecognized checksum algorithm: \"%s\"",
+                      parse->algorithm);
+
+  /* Parse the checksum payload, if it's present. */
+  checksum_string_length = parse->checksum == NULL ? 0
+                           : strlen(parse->checksum);
+
+  if (checksum_string_length == 0) {
+    checksum_length = 0;
+    checksum_payload = NULL;
+  } else {
+    checksum_length = checksum_string_length / 2;
+    checksum_payload = palloc(checksum_length);
+
+    if (checksum_string_length % 2 != 0 ||
+        !hexdecode_string(checksum_payload, parse->checksum,
+                          checksum_length))
+      context->error_cb(context,
+                        "invalid checksum for file \"%s\": \"%s\"",
+                        parse->pathname, parse->checksum);
+  }
+
+  /* Invoke the callback with the details we've gathered. */
+  context->per_file_cb(context, parse->pathname, size,
+                       checksum_type, checksum_length, checksum_payload);
+
+  /* Free memory we no longer need. */
+  if (parse->size != NULL) {
+    pfree(parse->size);
+    parse->size = NULL;
+  }
+
+  if (parse->algorithm != NULL) {
+    pfree(parse->algorithm);
+    parse->algorithm = NULL;
+  }
+
+  if (parse->checksum != NULL) {
+    pfree(parse->checksum);
+    parse->checksum = NULL;
+  }
 }
 
 /*
@@ -750,51 +762,55 @@ json_manifest_finalize_file(JsonManifestParseState *parse)
 static void
 json_manifest_finalize_wal_range(JsonManifestParseState *parse)
 {
-	JsonManifestParseContext *context = parse->context;
-	TimeLineID	tli;
-	XLogRecPtr	start_lsn,
-				end_lsn;
-	char	   *ep;
+  JsonManifestParseContext *context = parse->context;
+  TimeLineID  tli;
+  XLogRecPtr  start_lsn,
+              end_lsn;
+  char     *ep;
 
-	/* Make sure all fields are present. */
-	if (parse->timeline == NULL)
-		json_manifest_parse_failure(parse->context, "missing timeline");
-	if (parse->start_lsn == NULL)
-		json_manifest_parse_failure(parse->context, "missing start LSN");
-	if (parse->end_lsn == NULL)
-		json_manifest_parse_failure(parse->context, "missing end LSN");
+  /* Make sure all fields are present. */
+  if (parse->timeline == NULL)
+    json_manifest_parse_failure(parse->context, "missing timeline");
 
-	/* Parse timeline. */
-	tli = strtoul(parse->timeline, &ep, 10);
-	if (*ep)
-		json_manifest_parse_failure(parse->context,
-									"timeline is not an integer");
-	if (!parse_xlogrecptr(&start_lsn, parse->start_lsn))
-		json_manifest_parse_failure(parse->context,
-									"could not parse start LSN");
-	if (!parse_xlogrecptr(&end_lsn, parse->end_lsn))
-		json_manifest_parse_failure(parse->context,
-									"could not parse end LSN");
+  if (parse->start_lsn == NULL)
+    json_manifest_parse_failure(parse->context, "missing start LSN");
 
-	/* Invoke the callback with the details we've gathered. */
-	context->per_wal_range_cb(context, tli, start_lsn, end_lsn);
+  if (parse->end_lsn == NULL)
+    json_manifest_parse_failure(parse->context, "missing end LSN");
 
-	/* Free memory we no longer need. */
-	if (parse->timeline != NULL)
-	{
-		pfree(parse->timeline);
-		parse->timeline = NULL;
-	}
-	if (parse->start_lsn != NULL)
-	{
-		pfree(parse->start_lsn);
-		parse->start_lsn = NULL;
-	}
-	if (parse->end_lsn != NULL)
-	{
-		pfree(parse->end_lsn);
-		parse->end_lsn = NULL;
-	}
+  /* Parse timeline. */
+  tli = strtoul(parse->timeline, &ep, 10);
+
+  if (*ep)
+    json_manifest_parse_failure(parse->context,
+                                "timeline is not an integer");
+
+  if (!parse_xlogrecptr(&start_lsn, parse->start_lsn))
+    json_manifest_parse_failure(parse->context,
+                                "could not parse start LSN");
+
+  if (!parse_xlogrecptr(&end_lsn, parse->end_lsn))
+    json_manifest_parse_failure(parse->context,
+                                "could not parse end LSN");
+
+  /* Invoke the callback with the details we've gathered. */
+  context->per_wal_range_cb(context, tli, start_lsn, end_lsn);
+
+  /* Free memory we no longer need. */
+  if (parse->timeline != NULL) {
+    pfree(parse->timeline);
+    parse->timeline = NULL;
+  }
+
+  if (parse->start_lsn != NULL) {
+    pfree(parse->start_lsn);
+    parse->start_lsn = NULL;
+  }
+
+  if (parse->end_lsn != NULL) {
+    pfree(parse->end_lsn);
+    parse->end_lsn = NULL;
+  }
 }
 
 /*
@@ -810,71 +826,74 @@ json_manifest_finalize_wal_range(JsonManifestParseState *parse)
  */
 static void
 verify_manifest_checksum(JsonManifestParseState *parse, const char *buffer,
-						 size_t size, pg_cryptohash_ctx *incr_ctx)
+                         size_t size, pg_cryptohash_ctx *incr_ctx)
 {
-	JsonManifestParseContext *context = parse->context;
-	size_t		i;
-	size_t		number_of_newlines = 0;
-	size_t		ultimate_newline = 0;
-	size_t		penultimate_newline = 0;
-	pg_cryptohash_ctx *manifest_ctx;
-	uint8		manifest_checksum_actual[PG_SHA256_DIGEST_LENGTH];
-	uint8		manifest_checksum_expected[PG_SHA256_DIGEST_LENGTH];
+  JsonManifestParseContext *context = parse->context;
+  size_t    i;
+  size_t    number_of_newlines = 0;
+  size_t    ultimate_newline = 0;
+  size_t    penultimate_newline = 0;
+  pg_cryptohash_ctx *manifest_ctx;
+  uint8   manifest_checksum_actual[PG_SHA256_DIGEST_LENGTH];
+  uint8   manifest_checksum_expected[PG_SHA256_DIGEST_LENGTH];
 
-	/* Find the last two newlines in the file. */
-	for (i = 0; i < size; ++i)
-	{
-		if (buffer[i] == '\n')
-		{
-			++number_of_newlines;
-			penultimate_newline = ultimate_newline;
-			ultimate_newline = i;
-		}
-	}
+  /* Find the last two newlines in the file. */
+  for (i = 0; i < size; ++i) {
+    if (buffer[i] == '\n') {
+      ++number_of_newlines;
+      penultimate_newline = ultimate_newline;
+      ultimate_newline = i;
+    }
+  }
 
-	/*
-	 * Make sure that the last newline is right at the end, and that there are
-	 * at least two lines total. We need this to be true in order for the
-	 * following code, which computes the manifest checksum, to work properly.
-	 */
-	if (number_of_newlines < 2)
-		json_manifest_parse_failure(parse->context,
-									"expected at least 2 lines");
-	if (ultimate_newline != size - 1)
-		json_manifest_parse_failure(parse->context,
-									"last line not newline-terminated");
+  /*
+   * Make sure that the last newline is right at the end, and that there are
+   * at least two lines total. We need this to be true in order for the
+   * following code, which computes the manifest checksum, to work properly.
+   */
+  if (number_of_newlines < 2)
+    json_manifest_parse_failure(parse->context,
+                                "expected at least 2 lines");
 
-	/* Checksum the rest. */
-	if (incr_ctx == NULL)
-	{
-		manifest_ctx = pg_cryptohash_create(PG_SHA256);
-		if (manifest_ctx == NULL)
-			context->error_cb(context, "out of memory");
-		if (pg_cryptohash_init(manifest_ctx) < 0)
-			context->error_cb(context, "could not initialize checksum of manifest");
-	}
-	else
-	{
-		manifest_ctx = incr_ctx;
-	}
-	if (pg_cryptohash_update(manifest_ctx, (const uint8 *) buffer, penultimate_newline + 1) < 0)
-		context->error_cb(context, "could not update checksum of manifest");
-	if (pg_cryptohash_final(manifest_ctx, manifest_checksum_actual,
-							sizeof(manifest_checksum_actual)) < 0)
-		context->error_cb(context, "could not finalize checksum of manifest");
+  if (ultimate_newline != size - 1)
+    json_manifest_parse_failure(parse->context,
+                                "last line not newline-terminated");
 
-	/* Now verify it. */
-	if (parse->manifest_checksum == NULL)
-		context->error_cb(parse->context, "manifest has no checksum");
-	if (strlen(parse->manifest_checksum) != PG_SHA256_DIGEST_LENGTH * 2 ||
-		!hexdecode_string(manifest_checksum_expected, parse->manifest_checksum,
-						  PG_SHA256_DIGEST_LENGTH))
-		context->error_cb(context, "invalid manifest checksum: \"%s\"",
-						  parse->manifest_checksum);
-	if (memcmp(manifest_checksum_actual, manifest_checksum_expected,
-			   PG_SHA256_DIGEST_LENGTH) != 0)
-		context->error_cb(context, "manifest checksum mismatch");
-	pg_cryptohash_free(manifest_ctx);
+  /* Checksum the rest. */
+  if (incr_ctx == NULL) {
+    manifest_ctx = pg_cryptohash_create(PG_SHA256);
+
+    if (manifest_ctx == NULL)
+      context->error_cb(context, "out of memory");
+
+    if (pg_cryptohash_init(manifest_ctx) < 0)
+      context->error_cb(context, "could not initialize checksum of manifest");
+  } else {
+    manifest_ctx = incr_ctx;
+  }
+
+  if (pg_cryptohash_update(manifest_ctx, (const uint8 *) buffer, penultimate_newline + 1) < 0)
+    context->error_cb(context, "could not update checksum of manifest");
+
+  if (pg_cryptohash_final(manifest_ctx, manifest_checksum_actual,
+                          sizeof(manifest_checksum_actual)) < 0)
+    context->error_cb(context, "could not finalize checksum of manifest");
+
+  /* Now verify it. */
+  if (parse->manifest_checksum == NULL)
+    context->error_cb(parse->context, "manifest has no checksum");
+
+  if (strlen(parse->manifest_checksum) != PG_SHA256_DIGEST_LENGTH * 2 ||
+      !hexdecode_string(manifest_checksum_expected, parse->manifest_checksum,
+                        PG_SHA256_DIGEST_LENGTH))
+    context->error_cb(context, "invalid manifest checksum: \"%s\"",
+                      parse->manifest_checksum);
+
+  if (memcmp(manifest_checksum_actual, manifest_checksum_expected,
+             PG_SHA256_DIGEST_LENGTH) != 0)
+    context->error_cb(context, "manifest checksum mismatch");
+
+  pg_cryptohash_free(manifest_ctx);
 }
 
 /*
@@ -888,8 +907,8 @@ verify_manifest_checksum(JsonManifestParseState *parse, const char *buffer,
 static void
 json_manifest_parse_failure(JsonManifestParseContext *context, char *msg)
 {
-	context->error_cb(context, "could not parse backup manifest: %s", msg);
-	pg_unreachable();
+  context->error_cb(context, "could not parse backup manifest: %s", msg);
+  pg_unreachable();
 }
 
 /*
@@ -900,14 +919,16 @@ json_manifest_parse_failure(JsonManifestParseContext *context, char *msg)
 static int
 hexdecode_char(char c)
 {
-	if (c >= '0' && c <= '9')
-		return c - '0';
-	if (c >= 'a' && c <= 'f')
-		return c - 'a' + 10;
-	if (c >= 'A' && c <= 'F')
-		return c - 'A' + 10;
+  if (c >= '0' && c <= '9')
+    return c - '0';
 
-	return -1;
+  if (c >= 'a' && c <= 'f')
+    return c - 'a' + 10;
+
+  if (c >= 'A' && c <= 'F')
+    return c - 'A' + 10;
+
+  return -1;
 }
 
 /*
@@ -918,19 +939,19 @@ hexdecode_char(char c)
 static bool
 hexdecode_string(uint8 *result, char *input, int nbytes)
 {
-	int			i;
+  int     i;
 
-	for (i = 0; i < nbytes; ++i)
-	{
-		int			n1 = hexdecode_char(input[i * 2]);
-		int			n2 = hexdecode_char(input[i * 2 + 1]);
+  for (i = 0; i < nbytes; ++i) {
+    int     n1 = hexdecode_char(input[i * 2]);
+    int     n2 = hexdecode_char(input[i * 2 + 1]);
 
-		if (n1 < 0 || n2 < 0)
-			return false;
-		result[i] = n1 * 16 + n2;
-	}
+    if (n1 < 0 || n2 < 0)
+      return false;
 
-	return true;
+    result[i] = n1 * 16 + n2;
+  }
+
+  return true;
 }
 
 /*
@@ -939,11 +960,12 @@ hexdecode_string(uint8 *result, char *input, int nbytes)
 static bool
 parse_xlogrecptr(XLogRecPtr *result, char *input)
 {
-	uint32		hi;
-	uint32		lo;
+  uint32    hi;
+  uint32    lo;
 
-	if (sscanf(input, "%X/%X", &hi, &lo) != 2)
-		return false;
-	*result = ((uint64) hi) << 32 | lo;
-	return true;
+  if (sscanf(input, "%X/%X", &hi, &lo) != 2)
+    return false;
+
+  *result = ((uint64) hi) << 32 | lo;
+  return true;
 }

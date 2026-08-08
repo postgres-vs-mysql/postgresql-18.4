@@ -1,6 +1,6 @@
 /*-------------------------------------------------------------------------
  * jit.h
- *	  Provider independent JIT infrastructure.
+ *    Provider independent JIT infrastructure.
  *
  * Copyright (c) 2016-2025, PostgreSQL Global Development Group
  *
@@ -20,29 +20,29 @@
 #define PGJIT_PERFORM  (1 << 0)
 #define PGJIT_OPT3     (1 << 1)
 #define PGJIT_INLINE   (1 << 2)
-#define PGJIT_EXPR	   (1 << 3)
+#define PGJIT_EXPR     (1 << 3)
 #define PGJIT_DEFORM   (1 << 4)
 
 
 typedef struct JitInstrumentation
 {
-	/* number of emitted functions */
-	size_t		created_functions;
+  /* number of emitted functions */
+  size_t    created_functions;
 
-	/* accumulated time to generate code */
-	instr_time	generation_counter;
+  /* accumulated time to generate code */
+  instr_time  generation_counter;
 
-	/* accumulated time to deform tuples, included into generation_counter */
-	instr_time	deform_counter;
+  /* accumulated time to deform tuples, included into generation_counter */
+  instr_time  deform_counter;
 
-	/* accumulated time for inlining */
-	instr_time	inlining_counter;
+  /* accumulated time for inlining */
+  instr_time  inlining_counter;
 
-	/* accumulated time for optimization */
-	instr_time	optimization_counter;
+  /* accumulated time for optimization */
+  instr_time  optimization_counter;
 
-	/* accumulated time for code emission */
-	instr_time	emission_counter;
+  /* accumulated time for code emission */
+  instr_time  emission_counter;
 } JitInstrumentation;
 
 /*
@@ -50,16 +50,16 @@ typedef struct JitInstrumentation
  */
 typedef struct SharedJitInstrumentation
 {
-	int			num_workers;
-	JitInstrumentation jit_instr[FLEXIBLE_ARRAY_MEMBER];
+  int     num_workers;
+  JitInstrumentation jit_instr[FLEXIBLE_ARRAY_MEMBER];
 } SharedJitInstrumentation;
 
 typedef struct JitContext
 {
-	/* see PGJIT_* above */
-	int			flags;
+  /* see PGJIT_* above */
+  int     flags;
 
-	JitInstrumentation instr;
+  JitInstrumentation instr;
 } JitContext;
 
 typedef struct JitProviderCallbacks JitProviderCallbacks;
@@ -73,9 +73,9 @@ typedef bool (*JitProviderCompileExprCB) (struct ExprState *state);
 
 struct JitProviderCallbacks
 {
-	JitProviderResetAfterErrorCB reset_after_error;
-	JitProviderReleaseContextCB release_context;
-	JitProviderCompileExprCB compile_expr;
+  JitProviderResetAfterErrorCB reset_after_error;
+  JitProviderReleaseContextCB release_context;
+  JitProviderCompileExprCB compile_expr;
 };
 
 
@@ -103,4 +103,4 @@ extern bool jit_compile_expr(struct ExprState *state);
 extern void InstrJitAgg(JitInstrumentation *dst, JitInstrumentation *add);
 
 
-#endif							/* JIT_H */
+#endif              /* JIT_H */

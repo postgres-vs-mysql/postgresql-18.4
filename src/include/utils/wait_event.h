@@ -1,6 +1,6 @@
 /*-------------------------------------------------------------------------
  * wait_event.h
- *	  Definitions related to wait event reporting
+ *    Definitions related to wait event reporting
  *
  * Copyright (c) 2001-2025, PostgreSQL Global Development Group
  *
@@ -49,44 +49,44 @@ extern char **GetWaitEventCustomNames(uint32 classId, int *nwaitevents);
 /* ----------
  * pgstat_report_wait_start() -
  *
- *	Called from places where server process needs to wait.  This is called
- *	to report wait event information.  The wait information is stored
- *	as 4-bytes where first byte represents the wait event class (type of
- *	wait, for different types of wait, refer WaitClass) and the next
- *	3-bytes represent the actual wait event.  Currently 2-bytes are used
- *	for wait event which is sufficient for current usage, 1-byte is
- *	reserved for future usage.
+ *  Called from places where server process needs to wait.  This is called
+ *  to report wait event information.  The wait information is stored
+ *  as 4-bytes where first byte represents the wait event class (type of
+ *  wait, for different types of wait, refer WaitClass) and the next
+ *  3-bytes represent the actual wait event.  Currently 2-bytes are used
+ *  for wait event which is sufficient for current usage, 1-byte is
+ *  reserved for future usage.
  *
- *	Historically we used to make this reporting conditional on
- *	pgstat_track_activities, but the check for that seems to add more cost
- *	than it saves.
+ *  Historically we used to make this reporting conditional on
+ *  pgstat_track_activities, but the check for that seems to add more cost
+ *  than it saves.
  *
- *	my_wait_event_info initially points to local memory, making it safe to
- *	call this before MyProc has been initialized.
+ *  my_wait_event_info initially points to local memory, making it safe to
+ *  call this before MyProc has been initialized.
  * ----------
  */
 static inline void
 pgstat_report_wait_start(uint32 wait_event_info)
 {
-	/*
-	 * Since this is a four-byte field which is always read and written as
-	 * four-bytes, updates are atomic.
-	 */
-	*(volatile uint32 *) my_wait_event_info = wait_event_info;
+  /*
+   * Since this is a four-byte field which is always read and written as
+   * four-bytes, updates are atomic.
+   */
+  *(volatile uint32 *) my_wait_event_info = wait_event_info;
 }
 
 /* ----------
  * pgstat_report_wait_end() -
  *
- *	Called to report end of a wait.
+ *  Called to report end of a wait.
  * ----------
  */
 static inline void
 pgstat_report_wait_end(void)
 {
-	/* see pgstat_report_wait_start() */
-	*(volatile uint32 *) my_wait_event_info = 0;
+  /* see pgstat_report_wait_start() */
+  *(volatile uint32 *) my_wait_event_info = 0;
 }
 
 
-#endif							/* WAIT_EVENT_H */
+#endif              /* WAIT_EVENT_H */

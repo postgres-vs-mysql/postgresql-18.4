@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_description.h
- *	  definition of the "description" system catalog (pg_description)
+ *    definition of the "description" system catalog (pg_description)
  *
  * Because the contents of this table are taken from the *.dat files
  * of other catalogs, there is no pg_description.dat file. The initial
@@ -29,8 +29,8 @@
  * src/include/catalog/pg_description.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -38,27 +38,28 @@
 #define PG_DESCRIPTION_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_description_d.h"	/* IWYU pragma: export */
+#include "catalog/pg_description_d.h" /* IWYU pragma: export */
 
 /* ----------------
- *		pg_description definition.  cpp turns this into
- *		typedef struct FormData_pg_description
+ *    pg_description definition.  cpp turns this into
+ *    typedef struct FormData_pg_description
  * ----------------
  */
-CATALOG(pg_description,2609,DescriptionRelationId)
+CATALOG(pg_description, 2609, DescriptionRelationId)
 {
-	Oid			objoid;			/* OID of object itself */
-	Oid			classoid;		/* OID of table containing object */
-	int32		objsubid;		/* column number, or 0 if not used */
+  Oid     objoid;     /* OID of object itself */
+  Oid     classoid;   /* OID of table containing object */
+  int32   objsubid;   /* column number, or 0 if not used */
 
-#ifdef CATALOG_VARLEN			/* variable-length fields start here */
-	text		description BKI_FORCE_NOT_NULL; /* description of object */
+#ifdef CATALOG_VARLEN     /* variable-length fields start here */
+  text    description BKI_FORCE_NOT_NULL; /* description of object */
 #endif
-} FormData_pg_description;
+}
+FormData_pg_description;
 
 /* ----------------
- *		Form_pg_description corresponds to a pointer to a tuple with
- *		the format of pg_description relation.
+ *    Form_pg_description corresponds to a pointer to a tuple with
+ *    the format of pg_description relation.
  * ----------------
  */
 typedef FormData_pg_description * Form_pg_description;
@@ -70,4 +71,4 @@ DECLARE_UNIQUE_INDEX_PKEY(pg_description_o_c_o_index, 2675, DescriptionObjIndexI
 /* We do not use BKI_LOOKUP here because it causes problems for genbki.pl */
 DECLARE_FOREIGN_KEY((classoid), pg_class, (oid));
 
-#endif							/* PG_DESCRIPTION_H */
+#endif              /* PG_DESCRIPTION_H */

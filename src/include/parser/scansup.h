@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * scansup.h
- *	  scanner support routines used by the core lexer
+ *    scanner support routines used by the core lexer
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -15,13 +15,13 @@
 #define SCANSUP_H
 
 extern char *downcase_truncate_identifier(const char *ident, int len,
-										  bool warn);
+    bool warn);
 
 extern char *downcase_identifier(const char *ident, int len,
-								 bool warn, bool truncate);
+                                 bool warn, bool truncate);
 
 extern void truncate_identifier(char *ident, int len, bool warn);
 
 extern bool scanner_isspace(char ch);
 
-#endif							/* SCANSUP_H */
+#endif              /* SCANSUP_H */

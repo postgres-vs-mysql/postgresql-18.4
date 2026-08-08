@@ -18,8 +18,8 @@
  */
 typedef struct pg_prng_state
 {
-	uint64		s0,
-				s1;
+  uint64    s0,
+            s1;
 } pg_prng_state;
 
 /*
@@ -44,8 +44,8 @@ extern bool pg_prng_seed_check(pg_prng_state *state);
  * pg_strong_random.c and thence OpenSSL.
  */
 #define pg_prng_strong_seed(state) \
-	(pg_strong_random(state, sizeof(pg_prng_state)) ? \
-	 pg_prng_seed_check(state) : false)
+  (pg_strong_random(state, sizeof(pg_prng_state)) ? \
+   pg_prng_seed_check(state) : false)
 
 extern uint64 pg_prng_uint64(pg_prng_state *state);
 extern uint64 pg_prng_uint64_range(pg_prng_state *state, uint64 rmin, uint64 rmax);
@@ -59,4 +59,4 @@ extern double pg_prng_double(pg_prng_state *state);
 extern double pg_prng_double_normal(pg_prng_state *state);
 extern bool pg_prng_bool(pg_prng_state *state);
 
-#endif							/* PG_PRNG_H */
+#endif              /* PG_PRNG_H */

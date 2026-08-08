@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * createas.h
- *	  prototypes for createas.c.
+ *    prototypes for createas.c.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -22,13 +22,13 @@
 
 
 extern ObjectAddress ExecCreateTableAs(ParseState *pstate, CreateTableAsStmt *stmt,
-									   ParamListInfo params, QueryEnvironment *queryEnv,
-									   QueryCompletion *qc);
+                                       ParamListInfo params, QueryEnvironment *queryEnv,
+                                       QueryCompletion *qc);
 
-extern int	GetIntoRelEFlags(IntoClause *intoClause);
+extern int  GetIntoRelEFlags(IntoClause *intoClause);
 
 extern DestReceiver *CreateIntoRelDestReceiver(IntoClause *intoClause);
 
 extern bool CreateTableAsRelExists(CreateTableAsStmt *ctas);
 
-#endif							/* CREATEAS_H */
+#endif              /* CREATEAS_H */

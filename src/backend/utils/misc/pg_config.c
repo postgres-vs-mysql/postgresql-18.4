@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * pg_config.c
- *		Expose same output as pg_config except as an SRF
+ *    Expose same output as pg_config except as an SRF
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/utils/misc/pg_config.c
+ *    src/backend/utils/misc/pg_config.c
  *
  *-------------------------------------------------------------------------
  */
@@ -22,28 +22,28 @@
 Datum
 pg_config(PG_FUNCTION_ARGS)
 {
-	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
-	ConfigData *configdata;
-	size_t		configdata_len;
-	int			i = 0;
+  ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+  ConfigData *configdata;
+  size_t    configdata_len;
+  int     i = 0;
 
-	/* initialize our tuplestore */
-	InitMaterializedSRF(fcinfo, 0);
+  /* initialize our tuplestore */
+  InitMaterializedSRF(fcinfo, 0);
 
-	configdata = get_configdata(my_exec_path, &configdata_len);
-	for (i = 0; i < configdata_len; i++)
-	{
-		Datum		values[2];
-		bool		nulls[2];
+  configdata = get_configdata(my_exec_path, &configdata_len);
 
-		memset(values, 0, sizeof(values));
-		memset(nulls, 0, sizeof(nulls));
+  for (i = 0; i < configdata_len; i++) {
+    Datum   values[2];
+    bool    nulls[2];
 
-		values[0] = CStringGetTextDatum(configdata[i].name);
-		values[1] = CStringGetTextDatum(configdata[i].setting);
+    memset(values, 0, sizeof(values));
+    memset(nulls, 0, sizeof(nulls));
 
-		tuplestore_putvalues(rsinfo->setResult, rsinfo->setDesc, values, nulls);
-	}
+    values[0] = CStringGetTextDatum(configdata[i].name);
+    values[1] = CStringGetTextDatum(configdata[i].setting);
 
-	return (Datum) 0;
+    tuplestore_putvalues(rsinfo->setResult, rsinfo->setDesc, values, nulls);
+  }
+
+  return (Datum) 0;
 }

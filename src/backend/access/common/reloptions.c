@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * reloptions.c
- *	  Core support for relation options (pg_class.reloptions)
+ *    Core support for relation options (pg_class.reloptions)
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/backend/access/common/reloptions.c
+ *    src/backend/access/common/reloptions.c
  *
  *-------------------------------------------------------------------------
  */
@@ -91,486 +91,478 @@
  * value has no effect until the next VACUUM, so no need for stronger lock.
  */
 
-static relopt_bool boolRelOpts[] =
-{
-	{
-		{
-			"autosummarize",
-			"Enables automatic summarization on this BRIN index",
-			RELOPT_KIND_BRIN,
-			AccessExclusiveLock
-		},
-		false
-	},
-	{
-		{
-			"autovacuum_enabled",
-			"Enables autovacuum in this relation",
-			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
-			ShareUpdateExclusiveLock
-		},
-		true
-	},
-	{
-		{
-			"user_catalog_table",
-			"Declare a table as an additional catalog table, e.g. for the purpose of logical replication",
-			RELOPT_KIND_HEAP,
-			AccessExclusiveLock
-		},
-		false
-	},
-	{
-		{
-			"fastupdate",
-			"Enables \"fast update\" feature for this GIN index",
-			RELOPT_KIND_GIN,
-			AccessExclusiveLock
-		},
-		true
-	},
-	{
-		{
-			"security_barrier",
-			"View acts as a row security barrier",
-			RELOPT_KIND_VIEW,
-			AccessExclusiveLock
-		},
-		false
-	},
-	{
-		{
-			"security_invoker",
-			"Privileges on underlying relations are checked as the invoking user, not the view owner",
-			RELOPT_KIND_VIEW,
-			AccessExclusiveLock
-		},
-		false
-	},
-	{
-		{
-			"vacuum_truncate",
-			"Enables vacuum to truncate empty pages at the end of this table",
-			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
-			ShareUpdateExclusiveLock
-		},
-		true
-	},
-	{
-		{
-			"deduplicate_items",
-			"Enables \"deduplicate items\" feature for this btree index",
-			RELOPT_KIND_BTREE,
-			ShareUpdateExclusiveLock	/* since it applies only to later
-										 * inserts */
-		},
-		true
-	},
-	/* list terminator */
-	{{NULL}}
+static relopt_bool boolRelOpts[] = {
+  {
+    {
+      "autosummarize",
+      "Enables automatic summarization on this BRIN index",
+      RELOPT_KIND_BRIN,
+      AccessExclusiveLock
+    },
+    false
+  },
+  {
+    {
+      "autovacuum_enabled",
+      "Enables autovacuum in this relation",
+      RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+      ShareUpdateExclusiveLock
+    },
+    true
+  },
+  {
+    {
+      "user_catalog_table",
+      "Declare a table as an additional catalog table, e.g. for the purpose of logical replication",
+      RELOPT_KIND_HEAP,
+      AccessExclusiveLock
+    },
+    false
+  },
+  {
+    {
+      "fastupdate",
+      "Enables \"fast update\" feature for this GIN index",
+      RELOPT_KIND_GIN,
+      AccessExclusiveLock
+    },
+    true
+  },
+  {
+    {
+      "security_barrier",
+      "View acts as a row security barrier",
+      RELOPT_KIND_VIEW,
+      AccessExclusiveLock
+    },
+    false
+  },
+  {
+    {
+      "security_invoker",
+      "Privileges on underlying relations are checked as the invoking user, not the view owner",
+      RELOPT_KIND_VIEW,
+      AccessExclusiveLock
+    },
+    false
+  },
+  {
+    {
+      "vacuum_truncate",
+      "Enables vacuum to truncate empty pages at the end of this table",
+      RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+      ShareUpdateExclusiveLock
+    },
+    true
+  },
+  {
+    {
+      "deduplicate_items",
+      "Enables \"deduplicate items\" feature for this btree index",
+      RELOPT_KIND_BTREE,
+      ShareUpdateExclusiveLock  /* since it applies only to later
+                     * inserts */
+    },
+    true
+  },
+  /* list terminator */
+  {{NULL}}
 };
 
-static relopt_int intRelOpts[] =
-{
-	{
-		{
-			"fillfactor",
-			"Packs table pages only to this percentage",
-			RELOPT_KIND_HEAP,
-			ShareUpdateExclusiveLock	/* since it applies only to later
-										 * inserts */
-		},
-		HEAP_DEFAULT_FILLFACTOR, HEAP_MIN_FILLFACTOR, 100
-	},
-	{
-		{
-			"fillfactor",
-			"Packs btree index pages only to this percentage",
-			RELOPT_KIND_BTREE,
-			ShareUpdateExclusiveLock	/* since it applies only to later
-										 * inserts */
-		},
-		BTREE_DEFAULT_FILLFACTOR, BTREE_MIN_FILLFACTOR, 100
-	},
-	{
-		{
-			"fillfactor",
-			"Packs hash index pages only to this percentage",
-			RELOPT_KIND_HASH,
-			ShareUpdateExclusiveLock	/* since it applies only to later
-										 * inserts */
-		},
-		HASH_DEFAULT_FILLFACTOR, HASH_MIN_FILLFACTOR, 100
-	},
-	{
-		{
-			"fillfactor",
-			"Packs gist index pages only to this percentage",
-			RELOPT_KIND_GIST,
-			ShareUpdateExclusiveLock	/* since it applies only to later
-										 * inserts */
-		},
-		GIST_DEFAULT_FILLFACTOR, GIST_MIN_FILLFACTOR, 100
-	},
-	{
-		{
-			"fillfactor",
-			"Packs spgist index pages only to this percentage",
-			RELOPT_KIND_SPGIST,
-			ShareUpdateExclusiveLock	/* since it applies only to later
-										 * inserts */
-		},
-		SPGIST_DEFAULT_FILLFACTOR, SPGIST_MIN_FILLFACTOR, 100
-	},
-	{
-		{
-			"autovacuum_vacuum_threshold",
-			"Minimum number of tuple updates or deletes prior to vacuum",
-			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
-			ShareUpdateExclusiveLock
-		},
-		-1, 0, INT_MAX
-	},
-	{
-		{
-			"autovacuum_vacuum_max_threshold",
-			"Maximum number of tuple updates or deletes prior to vacuum",
-			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
-			ShareUpdateExclusiveLock
-		},
-		-2, -1, INT_MAX
-	},
-	{
-		{
-			"autovacuum_vacuum_insert_threshold",
-			"Minimum number of tuple inserts prior to vacuum, or -1 to disable insert vacuums",
-			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
-			ShareUpdateExclusiveLock
-		},
-		-2, -1, INT_MAX
-	},
-	{
-		{
-			"autovacuum_analyze_threshold",
-			"Minimum number of tuple inserts, updates or deletes prior to analyze",
-			RELOPT_KIND_HEAP,
-			ShareUpdateExclusiveLock
-		},
-		-1, 0, INT_MAX
-	},
-	{
-		{
-			"autovacuum_vacuum_cost_limit",
-			"Vacuum cost amount available before napping, for autovacuum",
-			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
-			ShareUpdateExclusiveLock
-		},
-		-1, 1, 10000
-	},
-	{
-		{
-			"autovacuum_freeze_min_age",
-			"Minimum age at which VACUUM should freeze a table row, for autovacuum",
-			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
-			ShareUpdateExclusiveLock
-		},
-		-1, 0, 1000000000
-	},
-	{
-		{
-			"autovacuum_multixact_freeze_min_age",
-			"Minimum multixact age at which VACUUM should freeze a row multixact's, for autovacuum",
-			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
-			ShareUpdateExclusiveLock
-		},
-		-1, 0, 1000000000
-	},
-	{
-		{
-			"autovacuum_freeze_max_age",
-			"Age at which to autovacuum a table to prevent transaction ID wraparound",
-			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
-			ShareUpdateExclusiveLock
-		},
-		-1, 100000, 2000000000
-	},
-	{
-		{
-			"autovacuum_multixact_freeze_max_age",
-			"Multixact age at which to autovacuum a table to prevent multixact wraparound",
-			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
-			ShareUpdateExclusiveLock
-		},
-		-1, 10000, 2000000000
-	},
-	{
-		{
-			"autovacuum_freeze_table_age",
-			"Age at which VACUUM should perform a full table sweep to freeze row versions",
-			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
-			ShareUpdateExclusiveLock
-		}, -1, 0, 2000000000
-	},
-	{
-		{
-			"autovacuum_multixact_freeze_table_age",
-			"Age of multixact at which VACUUM should perform a full table sweep to freeze row versions",
-			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
-			ShareUpdateExclusiveLock
-		}, -1, 0, 2000000000
-	},
-	{
-		{
-			"log_autovacuum_min_duration",
-			"Sets the minimum execution time above which autovacuum actions will be logged",
-			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
-			ShareUpdateExclusiveLock
-		},
-		-1, -1, INT_MAX
-	},
-	{
-		{
-			"toast_tuple_target",
-			"Sets the target tuple length at which external columns will be toasted",
-			RELOPT_KIND_HEAP,
-			ShareUpdateExclusiveLock
-		},
-		TOAST_TUPLE_TARGET, 128, TOAST_TUPLE_TARGET_MAIN
-	},
-	{
-		{
-			"pages_per_range",
-			"Number of pages that each page range covers in a BRIN index",
-			RELOPT_KIND_BRIN,
-			AccessExclusiveLock
-		}, 128, 1, 131072
-	},
-	{
-		{
-			"gin_pending_list_limit",
-			"Maximum size of the pending list for this GIN index, in kilobytes.",
-			RELOPT_KIND_GIN,
-			AccessExclusiveLock
-		},
-		-1, 64, MAX_KILOBYTES
-	},
-	{
-		{
-			"effective_io_concurrency",
-			"Number of simultaneous requests that can be handled efficiently by the disk subsystem.",
-			RELOPT_KIND_TABLESPACE,
-			ShareUpdateExclusiveLock
-		},
-		-1, 0, MAX_IO_CONCURRENCY
-	},
-	{
-		{
-			"maintenance_io_concurrency",
-			"Number of simultaneous requests that can be handled efficiently by the disk subsystem for maintenance work.",
-			RELOPT_KIND_TABLESPACE,
-			ShareUpdateExclusiveLock
-		},
-		-1, 0, MAX_IO_CONCURRENCY
-	},
-	{
-		{
-			"parallel_workers",
-			"Number of parallel processes that can be used per executor node for this relation.",
-			RELOPT_KIND_HEAP,
-			ShareUpdateExclusiveLock
-		},
-		-1, 0, 1024
-	},
+static relopt_int intRelOpts[] = {
+  {
+    {
+      "fillfactor",
+      "Packs table pages only to this percentage",
+      RELOPT_KIND_HEAP,
+      ShareUpdateExclusiveLock  /* since it applies only to later
+                     * inserts */
+    },
+    HEAP_DEFAULT_FILLFACTOR, HEAP_MIN_FILLFACTOR, 100
+  },
+  {
+    {
+      "fillfactor",
+      "Packs btree index pages only to this percentage",
+      RELOPT_KIND_BTREE,
+      ShareUpdateExclusiveLock  /* since it applies only to later
+                     * inserts */
+    },
+    BTREE_DEFAULT_FILLFACTOR, BTREE_MIN_FILLFACTOR, 100
+  },
+  {
+    {
+      "fillfactor",
+      "Packs hash index pages only to this percentage",
+      RELOPT_KIND_HASH,
+      ShareUpdateExclusiveLock  /* since it applies only to later
+                     * inserts */
+    },
+    HASH_DEFAULT_FILLFACTOR, HASH_MIN_FILLFACTOR, 100
+  },
+  {
+    {
+      "fillfactor",
+      "Packs gist index pages only to this percentage",
+      RELOPT_KIND_GIST,
+      ShareUpdateExclusiveLock  /* since it applies only to later
+                     * inserts */
+    },
+    GIST_DEFAULT_FILLFACTOR, GIST_MIN_FILLFACTOR, 100
+  },
+  {
+    {
+      "fillfactor",
+      "Packs spgist index pages only to this percentage",
+      RELOPT_KIND_SPGIST,
+      ShareUpdateExclusiveLock  /* since it applies only to later
+                     * inserts */
+    },
+    SPGIST_DEFAULT_FILLFACTOR, SPGIST_MIN_FILLFACTOR, 100
+  },
+  {
+    {
+      "autovacuum_vacuum_threshold",
+      "Minimum number of tuple updates or deletes prior to vacuum",
+      RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+      ShareUpdateExclusiveLock
+    },
+    -1, 0, INT_MAX
+  },
+  {
+    {
+      "autovacuum_vacuum_max_threshold",
+      "Maximum number of tuple updates or deletes prior to vacuum",
+      RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+      ShareUpdateExclusiveLock
+    },
+    -2, -1, INT_MAX
+  },
+  {
+    {
+      "autovacuum_vacuum_insert_threshold",
+      "Minimum number of tuple inserts prior to vacuum, or -1 to disable insert vacuums",
+      RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+      ShareUpdateExclusiveLock
+    },
+    -2, -1, INT_MAX
+  },
+  {
+    {
+      "autovacuum_analyze_threshold",
+      "Minimum number of tuple inserts, updates or deletes prior to analyze",
+      RELOPT_KIND_HEAP,
+      ShareUpdateExclusiveLock
+    },
+    -1, 0, INT_MAX
+  },
+  {
+    {
+      "autovacuum_vacuum_cost_limit",
+      "Vacuum cost amount available before napping, for autovacuum",
+      RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+      ShareUpdateExclusiveLock
+    },
+    -1, 1, 10000
+  },
+  {
+    {
+      "autovacuum_freeze_min_age",
+      "Minimum age at which VACUUM should freeze a table row, for autovacuum",
+      RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+      ShareUpdateExclusiveLock
+    },
+    -1, 0, 1000000000
+  },
+  {
+    {
+      "autovacuum_multixact_freeze_min_age",
+      "Minimum multixact age at which VACUUM should freeze a row multixact's, for autovacuum",
+      RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+      ShareUpdateExclusiveLock
+    },
+    -1, 0, 1000000000
+  },
+  {
+    {
+      "autovacuum_freeze_max_age",
+      "Age at which to autovacuum a table to prevent transaction ID wraparound",
+      RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+      ShareUpdateExclusiveLock
+    },
+    -1, 100000, 2000000000
+  },
+  {
+    {
+      "autovacuum_multixact_freeze_max_age",
+      "Multixact age at which to autovacuum a table to prevent multixact wraparound",
+      RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+      ShareUpdateExclusiveLock
+    },
+    -1, 10000, 2000000000
+  },
+  {
+    {
+      "autovacuum_freeze_table_age",
+      "Age at which VACUUM should perform a full table sweep to freeze row versions",
+      RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+      ShareUpdateExclusiveLock
+    }, -1, 0, 2000000000
+  },
+  {
+    {
+      "autovacuum_multixact_freeze_table_age",
+      "Age of multixact at which VACUUM should perform a full table sweep to freeze row versions",
+      RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+      ShareUpdateExclusiveLock
+    }, -1, 0, 2000000000
+  },
+  {
+    {
+      "log_autovacuum_min_duration",
+      "Sets the minimum execution time above which autovacuum actions will be logged",
+      RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+      ShareUpdateExclusiveLock
+    },
+    -1, -1, INT_MAX
+  },
+  {
+    {
+      "toast_tuple_target",
+      "Sets the target tuple length at which external columns will be toasted",
+      RELOPT_KIND_HEAP,
+      ShareUpdateExclusiveLock
+    },
+    TOAST_TUPLE_TARGET, 128, TOAST_TUPLE_TARGET_MAIN
+  },
+  {
+    {
+      "pages_per_range",
+      "Number of pages that each page range covers in a BRIN index",
+      RELOPT_KIND_BRIN,
+      AccessExclusiveLock
+    }, 128, 1, 131072
+  },
+  {
+    {
+      "gin_pending_list_limit",
+      "Maximum size of the pending list for this GIN index, in kilobytes.",
+      RELOPT_KIND_GIN,
+      AccessExclusiveLock
+    },
+    -1, 64, MAX_KILOBYTES
+  },
+  {
+    {
+      "effective_io_concurrency",
+      "Number of simultaneous requests that can be handled efficiently by the disk subsystem.",
+      RELOPT_KIND_TABLESPACE,
+      ShareUpdateExclusiveLock
+    },
+    -1, 0, MAX_IO_CONCURRENCY
+  },
+  {
+    {
+      "maintenance_io_concurrency",
+      "Number of simultaneous requests that can be handled efficiently by the disk subsystem for maintenance work.",
+      RELOPT_KIND_TABLESPACE,
+      ShareUpdateExclusiveLock
+    },
+    -1, 0, MAX_IO_CONCURRENCY
+  },
+  {
+    {
+      "parallel_workers",
+      "Number of parallel processes that can be used per executor node for this relation.",
+      RELOPT_KIND_HEAP,
+      ShareUpdateExclusiveLock
+    },
+    -1, 0, 1024
+  },
 
-	/* list terminator */
-	{{NULL}}
+  /* list terminator */
+  {{NULL}}
 };
 
-static relopt_real realRelOpts[] =
-{
-	{
-		{
-			"autovacuum_vacuum_cost_delay",
-			"Vacuum cost delay in milliseconds, for autovacuum",
-			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
-			ShareUpdateExclusiveLock
-		},
-		-1, 0.0, 100.0
-	},
-	{
-		{
-			"autovacuum_vacuum_scale_factor",
-			"Number of tuple updates or deletes prior to vacuum as a fraction of reltuples",
-			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
-			ShareUpdateExclusiveLock
-		},
-		-1, 0.0, 100.0
-	},
-	{
-		{
-			"autovacuum_vacuum_insert_scale_factor",
-			"Number of tuple inserts prior to vacuum as a fraction of reltuples",
-			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
-			ShareUpdateExclusiveLock
-		},
-		-1, 0.0, 100.0
-	},
-	{
-		{
-			"autovacuum_analyze_scale_factor",
-			"Number of tuple inserts, updates or deletes prior to analyze as a fraction of reltuples",
-			RELOPT_KIND_HEAP,
-			ShareUpdateExclusiveLock
-		},
-		-1, 0.0, 100.0
-	},
-	{
-		{
-			"vacuum_max_eager_freeze_failure_rate",
-			"Fraction of pages in a relation vacuum can scan and fail to freeze before disabling eager scanning.",
-			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
-			ShareUpdateExclusiveLock
-		},
-		-1, 0.0, 1.0
-	},
+static relopt_real realRelOpts[] = {
+  {
+    {
+      "autovacuum_vacuum_cost_delay",
+      "Vacuum cost delay in milliseconds, for autovacuum",
+      RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+      ShareUpdateExclusiveLock
+    },
+    -1, 0.0, 100.0
+  },
+  {
+    {
+      "autovacuum_vacuum_scale_factor",
+      "Number of tuple updates or deletes prior to vacuum as a fraction of reltuples",
+      RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+      ShareUpdateExclusiveLock
+    },
+    -1, 0.0, 100.0
+  },
+  {
+    {
+      "autovacuum_vacuum_insert_scale_factor",
+      "Number of tuple inserts prior to vacuum as a fraction of reltuples",
+      RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+      ShareUpdateExclusiveLock
+    },
+    -1, 0.0, 100.0
+  },
+  {
+    {
+      "autovacuum_analyze_scale_factor",
+      "Number of tuple inserts, updates or deletes prior to analyze as a fraction of reltuples",
+      RELOPT_KIND_HEAP,
+      ShareUpdateExclusiveLock
+    },
+    -1, 0.0, 100.0
+  },
+  {
+    {
+      "vacuum_max_eager_freeze_failure_rate",
+      "Fraction of pages in a relation vacuum can scan and fail to freeze before disabling eager scanning.",
+      RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+      ShareUpdateExclusiveLock
+    },
+    -1, 0.0, 1.0
+  },
 
-	{
-		{
-			"seq_page_cost",
-			"Sets the planner's estimate of the cost of a sequentially fetched disk page.",
-			RELOPT_KIND_TABLESPACE,
-			ShareUpdateExclusiveLock
-		},
-		-1, 0.0, DBL_MAX
-	},
-	{
-		{
-			"random_page_cost",
-			"Sets the planner's estimate of the cost of a nonsequentially fetched disk page.",
-			RELOPT_KIND_TABLESPACE,
-			ShareUpdateExclusiveLock
-		},
-		-1, 0.0, DBL_MAX
-	},
-	{
-		{
-			"n_distinct",
-			"Sets the planner's estimate of the number of distinct values appearing in a column (excluding child relations).",
-			RELOPT_KIND_ATTRIBUTE,
-			ShareUpdateExclusiveLock
-		},
-		0, -1.0, DBL_MAX
-	},
-	{
-		{
-			"n_distinct_inherited",
-			"Sets the planner's estimate of the number of distinct values appearing in a column (including child relations).",
-			RELOPT_KIND_ATTRIBUTE,
-			ShareUpdateExclusiveLock
-		},
-		0, -1.0, DBL_MAX
-	},
-	{
-		{
-			"vacuum_cleanup_index_scale_factor",
-			"Deprecated B-Tree parameter.",
-			RELOPT_KIND_BTREE,
-			ShareUpdateExclusiveLock
-		},
-		-1, 0.0, 1e10
-	},
-	/* list terminator */
-	{{NULL}}
+  {
+    {
+      "seq_page_cost",
+      "Sets the planner's estimate of the cost of a sequentially fetched disk page.",
+      RELOPT_KIND_TABLESPACE,
+      ShareUpdateExclusiveLock
+    },
+    -1, 0.0, DBL_MAX
+  },
+  {
+    {
+      "random_page_cost",
+      "Sets the planner's estimate of the cost of a nonsequentially fetched disk page.",
+      RELOPT_KIND_TABLESPACE,
+      ShareUpdateExclusiveLock
+    },
+    -1, 0.0, DBL_MAX
+  },
+  {
+    {
+      "n_distinct",
+      "Sets the planner's estimate of the number of distinct values appearing in a column (excluding child relations).",
+      RELOPT_KIND_ATTRIBUTE,
+      ShareUpdateExclusiveLock
+    },
+    0, -1.0, DBL_MAX
+  },
+  {
+    {
+      "n_distinct_inherited",
+      "Sets the planner's estimate of the number of distinct values appearing in a column (including child relations).",
+      RELOPT_KIND_ATTRIBUTE,
+      ShareUpdateExclusiveLock
+    },
+    0, -1.0, DBL_MAX
+  },
+  {
+    {
+      "vacuum_cleanup_index_scale_factor",
+      "Deprecated B-Tree parameter.",
+      RELOPT_KIND_BTREE,
+      ShareUpdateExclusiveLock
+    },
+    -1, 0.0, 1e10
+  },
+  /* list terminator */
+  {{NULL}}
 };
 
 /* values from StdRdOptIndexCleanup */
-static relopt_enum_elt_def StdRdOptIndexCleanupValues[] =
-{
-	{"auto", STDRD_OPTION_VACUUM_INDEX_CLEANUP_AUTO},
-	{"on", STDRD_OPTION_VACUUM_INDEX_CLEANUP_ON},
-	{"off", STDRD_OPTION_VACUUM_INDEX_CLEANUP_OFF},
-	{"true", STDRD_OPTION_VACUUM_INDEX_CLEANUP_ON},
-	{"false", STDRD_OPTION_VACUUM_INDEX_CLEANUP_OFF},
-	{"yes", STDRD_OPTION_VACUUM_INDEX_CLEANUP_ON},
-	{"no", STDRD_OPTION_VACUUM_INDEX_CLEANUP_OFF},
-	{"1", STDRD_OPTION_VACUUM_INDEX_CLEANUP_ON},
-	{"0", STDRD_OPTION_VACUUM_INDEX_CLEANUP_OFF},
-	{(const char *) NULL}		/* list terminator */
+static relopt_enum_elt_def StdRdOptIndexCleanupValues[] = {
+  {"auto", STDRD_OPTION_VACUUM_INDEX_CLEANUP_AUTO},
+  {"on", STDRD_OPTION_VACUUM_INDEX_CLEANUP_ON},
+  {"off", STDRD_OPTION_VACUUM_INDEX_CLEANUP_OFF},
+  {"true", STDRD_OPTION_VACUUM_INDEX_CLEANUP_ON},
+  {"false", STDRD_OPTION_VACUUM_INDEX_CLEANUP_OFF},
+  {"yes", STDRD_OPTION_VACUUM_INDEX_CLEANUP_ON},
+  {"no", STDRD_OPTION_VACUUM_INDEX_CLEANUP_OFF},
+  {"1", STDRD_OPTION_VACUUM_INDEX_CLEANUP_ON},
+  {"0", STDRD_OPTION_VACUUM_INDEX_CLEANUP_OFF},
+  {(const char *) NULL}   /* list terminator */
 };
 
 /* values from GistOptBufferingMode */
-static relopt_enum_elt_def gistBufferingOptValues[] =
-{
-	{"auto", GIST_OPTION_BUFFERING_AUTO},
-	{"on", GIST_OPTION_BUFFERING_ON},
-	{"off", GIST_OPTION_BUFFERING_OFF},
-	{(const char *) NULL}		/* list terminator */
+static relopt_enum_elt_def gistBufferingOptValues[] = {
+  {"auto", GIST_OPTION_BUFFERING_AUTO},
+  {"on", GIST_OPTION_BUFFERING_ON},
+  {"off", GIST_OPTION_BUFFERING_OFF},
+  {(const char *) NULL}   /* list terminator */
 };
 
 /* values from ViewOptCheckOption */
-static relopt_enum_elt_def viewCheckOptValues[] =
-{
-	/* no value for NOT_SET */
-	{"local", VIEW_OPTION_CHECK_OPTION_LOCAL},
-	{"cascaded", VIEW_OPTION_CHECK_OPTION_CASCADED},
-	{(const char *) NULL}		/* list terminator */
+static relopt_enum_elt_def viewCheckOptValues[] = {
+  /* no value for NOT_SET */
+  {"local", VIEW_OPTION_CHECK_OPTION_LOCAL},
+  {"cascaded", VIEW_OPTION_CHECK_OPTION_CASCADED},
+  {(const char *) NULL}   /* list terminator */
 };
 
-static relopt_enum enumRelOpts[] =
-{
-	{
-		{
-			"vacuum_index_cleanup",
-			"Controls index vacuuming and index cleanup",
-			RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
-			ShareUpdateExclusiveLock
-		},
-		StdRdOptIndexCleanupValues,
-		STDRD_OPTION_VACUUM_INDEX_CLEANUP_AUTO,
-		gettext_noop("Valid values are \"on\", \"off\", and \"auto\".")
-	},
-	{
-		{
-			"buffering",
-			"Enables buffering build for this GiST index",
-			RELOPT_KIND_GIST,
-			AccessExclusiveLock
-		},
-		gistBufferingOptValues,
-		GIST_OPTION_BUFFERING_AUTO,
-		gettext_noop("Valid values are \"on\", \"off\", and \"auto\".")
-	},
-	{
-		{
-			"check_option",
-			"View has WITH CHECK OPTION defined (local or cascaded).",
-			RELOPT_KIND_VIEW,
-			AccessExclusiveLock
-		},
-		viewCheckOptValues,
-		VIEW_OPTION_CHECK_OPTION_NOT_SET,
-		gettext_noop("Valid values are \"local\" and \"cascaded\".")
-	},
-	/* list terminator */
-	{{NULL}}
+static relopt_enum enumRelOpts[] = {
+  {
+    {
+      "vacuum_index_cleanup",
+      "Controls index vacuuming and index cleanup",
+      RELOPT_KIND_HEAP | RELOPT_KIND_TOAST,
+      ShareUpdateExclusiveLock
+    },
+    StdRdOptIndexCleanupValues,
+    STDRD_OPTION_VACUUM_INDEX_CLEANUP_AUTO,
+    gettext_noop("Valid values are \"on\", \"off\", and \"auto\".")
+  },
+  {
+    {
+      "buffering",
+      "Enables buffering build for this GiST index",
+      RELOPT_KIND_GIST,
+      AccessExclusiveLock
+    },
+    gistBufferingOptValues,
+    GIST_OPTION_BUFFERING_AUTO,
+    gettext_noop("Valid values are \"on\", \"off\", and \"auto\".")
+  },
+  {
+    {
+      "check_option",
+      "View has WITH CHECK OPTION defined (local or cascaded).",
+      RELOPT_KIND_VIEW,
+      AccessExclusiveLock
+    },
+    viewCheckOptValues,
+    VIEW_OPTION_CHECK_OPTION_NOT_SET,
+    gettext_noop("Valid values are \"local\" and \"cascaded\".")
+  },
+  /* list terminator */
+  {{NULL}}
 };
 
-static relopt_string stringRelOpts[] =
-{
-	/* list terminator */
-	{{NULL}}
+static relopt_string stringRelOpts[] = {
+  /* list terminator */
+  {{NULL}}
 };
 
 static relopt_gen **relOpts = NULL;
 static bits32 last_assigned_kind = RELOPT_KIND_LAST_DEFAULT;
 
-static int	num_custom_options = 0;
+static int  num_custom_options = 0;
 static relopt_gen **custom_options = NULL;
 static bool need_initialization = true;
 
 static void initialize_reloptions(void);
 static void parse_one_reloption(relopt_value *option, char *text_str,
-								int text_len, bool validate);
+                                int text_len, bool validate);
 
 /*
  * Get the length of a string reloption (either default or the user-defined
@@ -578,444 +570,446 @@ static void parse_one_reloption(relopt_value *option, char *text_str,
  * relation options.
  */
 #define GET_STRING_RELOPTION_LEN(option) \
-	((option).isset ? strlen((option).values.string_val) : \
-	 ((relopt_string *) (option).gen)->default_len)
+  ((option).isset ? strlen((option).values.string_val) : \
+   ((relopt_string *) (option).gen)->default_len)
 
 /*
  * initialize_reloptions
- *		initialization routine, must be called before parsing
+ *    initialization routine, must be called before parsing
  *
  * Initialize the relOpts array and fill each variable's type and name length.
  */
 static void
 initialize_reloptions(void)
 {
-	int			i;
-	int			j;
+  int     i;
+  int     j;
 
-	j = 0;
-	for (i = 0; boolRelOpts[i].gen.name; i++)
-	{
-		Assert(DoLockModesConflict(boolRelOpts[i].gen.lockmode,
-								   boolRelOpts[i].gen.lockmode));
-		j++;
-	}
-	for (i = 0; intRelOpts[i].gen.name; i++)
-	{
-		Assert(DoLockModesConflict(intRelOpts[i].gen.lockmode,
-								   intRelOpts[i].gen.lockmode));
-		j++;
-	}
-	for (i = 0; realRelOpts[i].gen.name; i++)
-	{
-		Assert(DoLockModesConflict(realRelOpts[i].gen.lockmode,
-								   realRelOpts[i].gen.lockmode));
-		j++;
-	}
-	for (i = 0; enumRelOpts[i].gen.name; i++)
-	{
-		Assert(DoLockModesConflict(enumRelOpts[i].gen.lockmode,
-								   enumRelOpts[i].gen.lockmode));
-		j++;
-	}
-	for (i = 0; stringRelOpts[i].gen.name; i++)
-	{
-		Assert(DoLockModesConflict(stringRelOpts[i].gen.lockmode,
-								   stringRelOpts[i].gen.lockmode));
-		j++;
-	}
-	j += num_custom_options;
+  j = 0;
 
-	if (relOpts)
-		pfree(relOpts);
-	relOpts = MemoryContextAlloc(TopMemoryContext,
-								 (j + 1) * sizeof(relopt_gen *));
+  for (i = 0; boolRelOpts[i].gen.name; i++) {
+    Assert(DoLockModesConflict(boolRelOpts[i].gen.lockmode,
+                               boolRelOpts[i].gen.lockmode));
+    j++;
+  }
 
-	j = 0;
-	for (i = 0; boolRelOpts[i].gen.name; i++)
-	{
-		relOpts[j] = &boolRelOpts[i].gen;
-		relOpts[j]->type = RELOPT_TYPE_BOOL;
-		relOpts[j]->namelen = strlen(relOpts[j]->name);
-		j++;
-	}
+  for (i = 0; intRelOpts[i].gen.name; i++) {
+    Assert(DoLockModesConflict(intRelOpts[i].gen.lockmode,
+                               intRelOpts[i].gen.lockmode));
+    j++;
+  }
 
-	for (i = 0; intRelOpts[i].gen.name; i++)
-	{
-		relOpts[j] = &intRelOpts[i].gen;
-		relOpts[j]->type = RELOPT_TYPE_INT;
-		relOpts[j]->namelen = strlen(relOpts[j]->name);
-		j++;
-	}
+  for (i = 0; realRelOpts[i].gen.name; i++) {
+    Assert(DoLockModesConflict(realRelOpts[i].gen.lockmode,
+                               realRelOpts[i].gen.lockmode));
+    j++;
+  }
 
-	for (i = 0; realRelOpts[i].gen.name; i++)
-	{
-		relOpts[j] = &realRelOpts[i].gen;
-		relOpts[j]->type = RELOPT_TYPE_REAL;
-		relOpts[j]->namelen = strlen(relOpts[j]->name);
-		j++;
-	}
+  for (i = 0; enumRelOpts[i].gen.name; i++) {
+    Assert(DoLockModesConflict(enumRelOpts[i].gen.lockmode,
+                               enumRelOpts[i].gen.lockmode));
+    j++;
+  }
 
-	for (i = 0; enumRelOpts[i].gen.name; i++)
-	{
-		relOpts[j] = &enumRelOpts[i].gen;
-		relOpts[j]->type = RELOPT_TYPE_ENUM;
-		relOpts[j]->namelen = strlen(relOpts[j]->name);
-		j++;
-	}
+  for (i = 0; stringRelOpts[i].gen.name; i++) {
+    Assert(DoLockModesConflict(stringRelOpts[i].gen.lockmode,
+                               stringRelOpts[i].gen.lockmode));
+    j++;
+  }
 
-	for (i = 0; stringRelOpts[i].gen.name; i++)
-	{
-		relOpts[j] = &stringRelOpts[i].gen;
-		relOpts[j]->type = RELOPT_TYPE_STRING;
-		relOpts[j]->namelen = strlen(relOpts[j]->name);
-		j++;
-	}
+  j += num_custom_options;
 
-	for (i = 0; i < num_custom_options; i++)
-	{
-		relOpts[j] = custom_options[i];
-		j++;
-	}
+  if (relOpts)
+    pfree(relOpts);
 
-	/* add a list terminator */
-	relOpts[j] = NULL;
+  relOpts = MemoryContextAlloc(TopMemoryContext,
+                               (j + 1) * sizeof(relopt_gen *));
 
-	/* flag the work is complete */
-	need_initialization = false;
+  j = 0;
+
+  for (i = 0; boolRelOpts[i].gen.name; i++) {
+    relOpts[j] = &boolRelOpts[i].gen;
+    relOpts[j]->type = RELOPT_TYPE_BOOL;
+    relOpts[j]->namelen = strlen(relOpts[j]->name);
+    j++;
+  }
+
+  for (i = 0; intRelOpts[i].gen.name; i++) {
+    relOpts[j] = &intRelOpts[i].gen;
+    relOpts[j]->type = RELOPT_TYPE_INT;
+    relOpts[j]->namelen = strlen(relOpts[j]->name);
+    j++;
+  }
+
+  for (i = 0; realRelOpts[i].gen.name; i++) {
+    relOpts[j] = &realRelOpts[i].gen;
+    relOpts[j]->type = RELOPT_TYPE_REAL;
+    relOpts[j]->namelen = strlen(relOpts[j]->name);
+    j++;
+  }
+
+  for (i = 0; enumRelOpts[i].gen.name; i++) {
+    relOpts[j] = &enumRelOpts[i].gen;
+    relOpts[j]->type = RELOPT_TYPE_ENUM;
+    relOpts[j]->namelen = strlen(relOpts[j]->name);
+    j++;
+  }
+
+  for (i = 0; stringRelOpts[i].gen.name; i++) {
+    relOpts[j] = &stringRelOpts[i].gen;
+    relOpts[j]->type = RELOPT_TYPE_STRING;
+    relOpts[j]->namelen = strlen(relOpts[j]->name);
+    j++;
+  }
+
+  for (i = 0; i < num_custom_options; i++) {
+    relOpts[j] = custom_options[i];
+    j++;
+  }
+
+  /* add a list terminator */
+  relOpts[j] = NULL;
+
+  /* flag the work is complete */
+  need_initialization = false;
 }
 
 /*
  * add_reloption_kind
- *		Create a new relopt_kind value, to be used in custom reloptions by
- *		user-defined AMs.
+ *    Create a new relopt_kind value, to be used in custom reloptions by
+ *    user-defined AMs.
  */
 relopt_kind
 add_reloption_kind(void)
 {
-	/* don't hand out the last bit so that the enum's behavior is portable */
-	if (last_assigned_kind >= RELOPT_KIND_MAX)
-		ereport(ERROR,
-				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-				 errmsg("user-defined relation parameter types limit exceeded")));
-	last_assigned_kind <<= 1;
-	return (relopt_kind) last_assigned_kind;
+  /* don't hand out the last bit so that the enum's behavior is portable */
+  if (last_assigned_kind >= RELOPT_KIND_MAX)
+    ereport(ERROR,
+            (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+             errmsg("user-defined relation parameter types limit exceeded")));
+
+  last_assigned_kind <<= 1;
+  return (relopt_kind) last_assigned_kind;
 }
 
 /*
  * add_reloption
- *		Add an already-created custom reloption to the list, and recompute the
- *		main parser table.
+ *    Add an already-created custom reloption to the list, and recompute the
+ *    main parser table.
  */
 static void
 add_reloption(relopt_gen *newoption)
 {
-	static int	max_custom_options = 0;
+  static int  max_custom_options = 0;
 
-	if (num_custom_options >= max_custom_options)
-	{
-		MemoryContext oldcxt;
+  if (num_custom_options >= max_custom_options) {
+    MemoryContext oldcxt;
 
-		oldcxt = MemoryContextSwitchTo(TopMemoryContext);
+    oldcxt = MemoryContextSwitchTo(TopMemoryContext);
 
-		if (max_custom_options == 0)
-		{
-			max_custom_options = 8;
-			custom_options = palloc(max_custom_options * sizeof(relopt_gen *));
-		}
-		else
-		{
-			max_custom_options *= 2;
-			custom_options = repalloc(custom_options,
-									  max_custom_options * sizeof(relopt_gen *));
-		}
-		MemoryContextSwitchTo(oldcxt);
-	}
-	custom_options[num_custom_options++] = newoption;
+    if (max_custom_options == 0) {
+      max_custom_options = 8;
+      custom_options = palloc(max_custom_options * sizeof(relopt_gen *));
+    } else {
+      max_custom_options *= 2;
+      custom_options = repalloc(custom_options,
+                                max_custom_options * sizeof(relopt_gen *));
+    }
 
-	need_initialization = true;
+    MemoryContextSwitchTo(oldcxt);
+  }
+
+  custom_options[num_custom_options++] = newoption;
+
+  need_initialization = true;
 }
 
 /*
  * init_local_reloptions
- *		Initialize local reloptions that will parsed into bytea structure of
- * 		'relopt_struct_size'.
+ *    Initialize local reloptions that will parsed into bytea structure of
+ *    'relopt_struct_size'.
  */
 void
 init_local_reloptions(local_relopts *relopts, Size relopt_struct_size)
 {
-	relopts->options = NIL;
-	relopts->validators = NIL;
-	relopts->relopt_struct_size = relopt_struct_size;
+  relopts->options = NIL;
+  relopts->validators = NIL;
+  relopts->relopt_struct_size = relopt_struct_size;
 }
 
 /*
  * register_reloptions_validator
- *		Register custom validation callback that will be called at the end of
- *		build_local_reloptions().
+ *    Register custom validation callback that will be called at the end of
+ *    build_local_reloptions().
  */
 void
 register_reloptions_validator(local_relopts *relopts, relopts_validator validator)
 {
-	relopts->validators = lappend(relopts->validators, validator);
+  relopts->validators = lappend(relopts->validators, validator);
 }
 
 /*
  * add_local_reloption
- *		Add an already-created custom reloption to the local list.
+ *    Add an already-created custom reloption to the local list.
  */
 static void
 add_local_reloption(local_relopts *relopts, relopt_gen *newoption, int offset)
 {
-	local_relopt *opt = palloc(sizeof(*opt));
+  local_relopt *opt = palloc(sizeof(*opt));
 
-	Assert(offset < relopts->relopt_struct_size);
+  Assert(offset < relopts->relopt_struct_size);
 
-	opt->option = newoption;
-	opt->offset = offset;
+  opt->option = newoption;
+  opt->offset = offset;
 
-	relopts->options = lappend(relopts->options, opt);
+  relopts->options = lappend(relopts->options, opt);
 }
 
 /*
  * allocate_reloption
- *		Allocate a new reloption and initialize the type-agnostic fields
- *		(for types other than string)
+ *    Allocate a new reloption and initialize the type-agnostic fields
+ *    (for types other than string)
  */
 static relopt_gen *
 allocate_reloption(bits32 kinds, int type, const char *name, const char *desc,
-				   LOCKMODE lockmode)
+                   LOCKMODE lockmode)
 {
-	MemoryContext oldcxt;
-	size_t		size;
-	relopt_gen *newoption;
+  MemoryContext oldcxt;
+  size_t    size;
+  relopt_gen *newoption;
 
-	if (kinds != RELOPT_KIND_LOCAL)
-		oldcxt = MemoryContextSwitchTo(TopMemoryContext);
-	else
-		oldcxt = NULL;
+  if (kinds != RELOPT_KIND_LOCAL)
+    oldcxt = MemoryContextSwitchTo(TopMemoryContext);
+  else
+    oldcxt = NULL;
 
-	switch (type)
-	{
-		case RELOPT_TYPE_BOOL:
-			size = sizeof(relopt_bool);
-			break;
-		case RELOPT_TYPE_INT:
-			size = sizeof(relopt_int);
-			break;
-		case RELOPT_TYPE_REAL:
-			size = sizeof(relopt_real);
-			break;
-		case RELOPT_TYPE_ENUM:
-			size = sizeof(relopt_enum);
-			break;
-		case RELOPT_TYPE_STRING:
-			size = sizeof(relopt_string);
-			break;
-		default:
-			elog(ERROR, "unsupported reloption type %d", type);
-			return NULL;		/* keep compiler quiet */
-	}
+  switch (type) {
+    case RELOPT_TYPE_BOOL:
+      size = sizeof(relopt_bool);
+      break;
 
-	newoption = palloc(size);
+    case RELOPT_TYPE_INT:
+      size = sizeof(relopt_int);
+      break;
 
-	newoption->name = pstrdup(name);
-	if (desc)
-		newoption->desc = pstrdup(desc);
-	else
-		newoption->desc = NULL;
-	newoption->kinds = kinds;
-	newoption->namelen = strlen(name);
-	newoption->type = type;
-	newoption->lockmode = lockmode;
+    case RELOPT_TYPE_REAL:
+      size = sizeof(relopt_real);
+      break;
 
-	if (oldcxt != NULL)
-		MemoryContextSwitchTo(oldcxt);
+    case RELOPT_TYPE_ENUM:
+      size = sizeof(relopt_enum);
+      break;
 
-	return newoption;
+    case RELOPT_TYPE_STRING:
+      size = sizeof(relopt_string);
+      break;
+
+    default:
+      elog(ERROR, "unsupported reloption type %d", type);
+      return NULL;    /* keep compiler quiet */
+  }
+
+  newoption = palloc(size);
+
+  newoption->name = pstrdup(name);
+
+  if (desc)
+    newoption->desc = pstrdup(desc);
+  else
+    newoption->desc = NULL;
+
+  newoption->kinds = kinds;
+  newoption->namelen = strlen(name);
+  newoption->type = type;
+  newoption->lockmode = lockmode;
+
+  if (oldcxt != NULL)
+    MemoryContextSwitchTo(oldcxt);
+
+  return newoption;
 }
 
 /*
  * init_bool_reloption
- *		Allocate and initialize a new boolean reloption
+ *    Allocate and initialize a new boolean reloption
  */
 static relopt_bool *
 init_bool_reloption(bits32 kinds, const char *name, const char *desc,
-					bool default_val, LOCKMODE lockmode)
+                    bool default_val, LOCKMODE lockmode)
 {
-	relopt_bool *newoption;
+  relopt_bool *newoption;
 
-	newoption = (relopt_bool *) allocate_reloption(kinds, RELOPT_TYPE_BOOL,
-												   name, desc, lockmode);
-	newoption->default_val = default_val;
+  newoption = (relopt_bool *) allocate_reloption(kinds, RELOPT_TYPE_BOOL,
+              name, desc, lockmode);
+  newoption->default_val = default_val;
 
-	return newoption;
+  return newoption;
 }
 
 /*
  * add_bool_reloption
- *		Add a new boolean reloption
+ *    Add a new boolean reloption
  */
 void
 add_bool_reloption(bits32 kinds, const char *name, const char *desc,
-				   bool default_val, LOCKMODE lockmode)
+                   bool default_val, LOCKMODE lockmode)
 {
-	relopt_bool *newoption = init_bool_reloption(kinds, name, desc,
-												 default_val, lockmode);
+  relopt_bool *newoption = init_bool_reloption(kinds, name, desc,
+                           default_val, lockmode);
 
-	add_reloption((relopt_gen *) newoption);
+  add_reloption((relopt_gen *) newoption);
 }
 
 /*
  * add_local_bool_reloption
- *		Add a new boolean local reloption
+ *    Add a new boolean local reloption
  *
  * 'offset' is offset of bool-typed field.
  */
 void
 add_local_bool_reloption(local_relopts *relopts, const char *name,
-						 const char *desc, bool default_val, int offset)
+                         const char *desc, bool default_val, int offset)
 {
-	relopt_bool *newoption = init_bool_reloption(RELOPT_KIND_LOCAL,
-												 name, desc,
-												 default_val, 0);
+  relopt_bool *newoption = init_bool_reloption(RELOPT_KIND_LOCAL,
+                           name, desc,
+                           default_val, 0);
 
-	add_local_reloption(relopts, (relopt_gen *) newoption, offset);
+  add_local_reloption(relopts, (relopt_gen *) newoption, offset);
 }
 
 
 /*
  * init_real_reloption
- *		Allocate and initialize a new integer reloption
+ *    Allocate and initialize a new integer reloption
  */
 static relopt_int *
 init_int_reloption(bits32 kinds, const char *name, const char *desc,
-				   int default_val, int min_val, int max_val,
-				   LOCKMODE lockmode)
+                   int default_val, int min_val, int max_val,
+                   LOCKMODE lockmode)
 {
-	relopt_int *newoption;
+  relopt_int *newoption;
 
-	newoption = (relopt_int *) allocate_reloption(kinds, RELOPT_TYPE_INT,
-												  name, desc, lockmode);
-	newoption->default_val = default_val;
-	newoption->min = min_val;
-	newoption->max = max_val;
+  newoption = (relopt_int *) allocate_reloption(kinds, RELOPT_TYPE_INT,
+              name, desc, lockmode);
+  newoption->default_val = default_val;
+  newoption->min = min_val;
+  newoption->max = max_val;
 
-	return newoption;
+  return newoption;
 }
 
 /*
  * add_int_reloption
- *		Add a new integer reloption
+ *    Add a new integer reloption
  */
 void
 add_int_reloption(bits32 kinds, const char *name, const char *desc, int default_val,
-				  int min_val, int max_val, LOCKMODE lockmode)
+                  int min_val, int max_val, LOCKMODE lockmode)
 {
-	relopt_int *newoption = init_int_reloption(kinds, name, desc,
-											   default_val, min_val,
-											   max_val, lockmode);
+  relopt_int *newoption = init_int_reloption(kinds, name, desc,
+                          default_val, min_val,
+                          max_val, lockmode);
 
-	add_reloption((relopt_gen *) newoption);
+  add_reloption((relopt_gen *) newoption);
 }
 
 /*
  * add_local_int_reloption
- *		Add a new local integer reloption
+ *    Add a new local integer reloption
  *
  * 'offset' is offset of int-typed field.
  */
 void
 add_local_int_reloption(local_relopts *relopts, const char *name,
-						const char *desc, int default_val, int min_val,
-						int max_val, int offset)
+                        const char *desc, int default_val, int min_val,
+                        int max_val, int offset)
 {
-	relopt_int *newoption = init_int_reloption(RELOPT_KIND_LOCAL,
-											   name, desc, default_val,
-											   min_val, max_val, 0);
+  relopt_int *newoption = init_int_reloption(RELOPT_KIND_LOCAL,
+                          name, desc, default_val,
+                          min_val, max_val, 0);
 
-	add_local_reloption(relopts, (relopt_gen *) newoption, offset);
+  add_local_reloption(relopts, (relopt_gen *) newoption, offset);
 }
 
 /*
  * init_real_reloption
- *		Allocate and initialize a new real reloption
+ *    Allocate and initialize a new real reloption
  */
 static relopt_real *
 init_real_reloption(bits32 kinds, const char *name, const char *desc,
-					double default_val, double min_val, double max_val,
-					LOCKMODE lockmode)
+                    double default_val, double min_val, double max_val,
+                    LOCKMODE lockmode)
 {
-	relopt_real *newoption;
+  relopt_real *newoption;
 
-	newoption = (relopt_real *) allocate_reloption(kinds, RELOPT_TYPE_REAL,
-												   name, desc, lockmode);
-	newoption->default_val = default_val;
-	newoption->min = min_val;
-	newoption->max = max_val;
+  newoption = (relopt_real *) allocate_reloption(kinds, RELOPT_TYPE_REAL,
+              name, desc, lockmode);
+  newoption->default_val = default_val;
+  newoption->min = min_val;
+  newoption->max = max_val;
 
-	return newoption;
+  return newoption;
 }
 
 /*
  * add_real_reloption
- *		Add a new float reloption
+ *    Add a new float reloption
  */
 void
 add_real_reloption(bits32 kinds, const char *name, const char *desc,
-				   double default_val, double min_val, double max_val,
-				   LOCKMODE lockmode)
+                   double default_val, double min_val, double max_val,
+                   LOCKMODE lockmode)
 {
-	relopt_real *newoption = init_real_reloption(kinds, name, desc,
-												 default_val, min_val,
-												 max_val, lockmode);
+  relopt_real *newoption = init_real_reloption(kinds, name, desc,
+                           default_val, min_val,
+                           max_val, lockmode);
 
-	add_reloption((relopt_gen *) newoption);
+  add_reloption((relopt_gen *) newoption);
 }
 
 /*
  * add_local_real_reloption
- *		Add a new local float reloption
+ *    Add a new local float reloption
  *
  * 'offset' is offset of double-typed field.
  */
 void
 add_local_real_reloption(local_relopts *relopts, const char *name,
-						 const char *desc, double default_val,
-						 double min_val, double max_val, int offset)
+                         const char *desc, double default_val,
+                         double min_val, double max_val, int offset)
 {
-	relopt_real *newoption = init_real_reloption(RELOPT_KIND_LOCAL,
-												 name, desc,
-												 default_val, min_val,
-												 max_val, 0);
+  relopt_real *newoption = init_real_reloption(RELOPT_KIND_LOCAL,
+                           name, desc,
+                           default_val, min_val,
+                           max_val, 0);
 
-	add_local_reloption(relopts, (relopt_gen *) newoption, offset);
+  add_local_reloption(relopts, (relopt_gen *) newoption, offset);
 }
 
 /*
  * init_enum_reloption
- *		Allocate and initialize a new enum reloption
+ *    Allocate and initialize a new enum reloption
  */
 static relopt_enum *
 init_enum_reloption(bits32 kinds, const char *name, const char *desc,
-					relopt_enum_elt_def *members, int default_val,
-					const char *detailmsg, LOCKMODE lockmode)
+                    relopt_enum_elt_def *members, int default_val,
+                    const char *detailmsg, LOCKMODE lockmode)
 {
-	relopt_enum *newoption;
+  relopt_enum *newoption;
 
-	newoption = (relopt_enum *) allocate_reloption(kinds, RELOPT_TYPE_ENUM,
-												   name, desc, lockmode);
-	newoption->members = members;
-	newoption->default_val = default_val;
-	newoption->detailmsg = detailmsg;
+  newoption = (relopt_enum *) allocate_reloption(kinds, RELOPT_TYPE_ENUM,
+              name, desc, lockmode);
+  newoption->members = members;
+  newoption->default_val = default_val;
+  newoption->detailmsg = detailmsg;
 
-	return newoption;
+  return newoption;
 }
 
 
 /*
  * add_enum_reloption
- *		Add a new enum reloption
+ *    Add a new enum reloption
  *
  * The members array must have a terminating NULL entry.
  *
@@ -1027,78 +1021,77 @@ init_enum_reloption(bits32 kinds, const char *name, const char *desc,
  */
 void
 add_enum_reloption(bits32 kinds, const char *name, const char *desc,
-				   relopt_enum_elt_def *members, int default_val,
-				   const char *detailmsg, LOCKMODE lockmode)
+                   relopt_enum_elt_def *members, int default_val,
+                   const char *detailmsg, LOCKMODE lockmode)
 {
-	relopt_enum *newoption = init_enum_reloption(kinds, name, desc,
-												 members, default_val,
-												 detailmsg, lockmode);
+  relopt_enum *newoption = init_enum_reloption(kinds, name, desc,
+                           members, default_val,
+                           detailmsg, lockmode);
 
-	add_reloption((relopt_gen *) newoption);
+  add_reloption((relopt_gen *) newoption);
 }
 
 /*
  * add_local_enum_reloption
- *		Add a new local enum reloption
+ *    Add a new local enum reloption
  *
  * 'offset' is offset of int-typed field.
  */
 void
 add_local_enum_reloption(local_relopts *relopts, const char *name,
-						 const char *desc, relopt_enum_elt_def *members,
-						 int default_val, const char *detailmsg, int offset)
+                         const char *desc, relopt_enum_elt_def *members,
+                         int default_val, const char *detailmsg, int offset)
 {
-	relopt_enum *newoption = init_enum_reloption(RELOPT_KIND_LOCAL,
-												 name, desc,
-												 members, default_val,
-												 detailmsg, 0);
+  relopt_enum *newoption = init_enum_reloption(RELOPT_KIND_LOCAL,
+                           name, desc,
+                           members, default_val,
+                           detailmsg, 0);
 
-	add_local_reloption(relopts, (relopt_gen *) newoption, offset);
+  add_local_reloption(relopts, (relopt_gen *) newoption, offset);
 }
 
 /*
  * init_string_reloption
- *		Allocate and initialize a new string reloption
+ *    Allocate and initialize a new string reloption
  */
 static relopt_string *
 init_string_reloption(bits32 kinds, const char *name, const char *desc,
-					  const char *default_val,
-					  validate_string_relopt validator,
-					  fill_string_relopt filler,
-					  LOCKMODE lockmode)
+                      const char *default_val,
+                      validate_string_relopt validator,
+                      fill_string_relopt filler,
+                      LOCKMODE lockmode)
 {
-	relopt_string *newoption;
+  relopt_string *newoption;
 
-	/* make sure the validator/default combination is sane */
-	if (validator)
-		(validator) (default_val);
+  /* make sure the validator/default combination is sane */
+  if (validator)
+    (validator) (default_val);
 
-	newoption = (relopt_string *) allocate_reloption(kinds, RELOPT_TYPE_STRING,
-													 name, desc, lockmode);
-	newoption->validate_cb = validator;
-	newoption->fill_cb = filler;
-	if (default_val)
-	{
-		if (kinds == RELOPT_KIND_LOCAL)
-			newoption->default_val = strdup(default_val);
-		else
-			newoption->default_val = MemoryContextStrdup(TopMemoryContext, default_val);
-		newoption->default_len = strlen(default_val);
-		newoption->default_isnull = false;
-	}
-	else
-	{
-		newoption->default_val = "";
-		newoption->default_len = 0;
-		newoption->default_isnull = true;
-	}
+  newoption = (relopt_string *) allocate_reloption(kinds, RELOPT_TYPE_STRING,
+              name, desc, lockmode);
+  newoption->validate_cb = validator;
+  newoption->fill_cb = filler;
 
-	return newoption;
+  if (default_val) {
+    if (kinds == RELOPT_KIND_LOCAL)
+      newoption->default_val = strdup(default_val);
+    else
+      newoption->default_val = MemoryContextStrdup(TopMemoryContext, default_val);
+
+    newoption->default_len = strlen(default_val);
+    newoption->default_isnull = false;
+  } else {
+    newoption->default_val = "";
+    newoption->default_len = 0;
+    newoption->default_isnull = true;
+  }
+
+  return newoption;
 }
 
 /*
  * add_string_reloption
- *		Add a new string reloption
+ *    Add a new string reloption
  *
  * "validator" is an optional function pointer that can be used to test the
  * validity of the values.  It must elog(ERROR) when the argument string is
@@ -1107,37 +1100,37 @@ init_string_reloption(bits32 kinds, const char *name, const char *desc,
  */
 void
 add_string_reloption(bits32 kinds, const char *name, const char *desc,
-					 const char *default_val, validate_string_relopt validator,
-					 LOCKMODE lockmode)
+                     const char *default_val, validate_string_relopt validator,
+                     LOCKMODE lockmode)
 {
-	relopt_string *newoption = init_string_reloption(kinds, name, desc,
-													 default_val,
-													 validator, NULL,
-													 lockmode);
+  relopt_string *newoption = init_string_reloption(kinds, name, desc,
+                             default_val,
+                             validator, NULL,
+                             lockmode);
 
-	add_reloption((relopt_gen *) newoption);
+  add_reloption((relopt_gen *) newoption);
 }
 
 /*
  * add_local_string_reloption
- *		Add a new local string reloption
+ *    Add a new local string reloption
  *
  * 'offset' is offset of int-typed field that will store offset of string value
  * in the resulting bytea structure.
  */
 void
 add_local_string_reloption(local_relopts *relopts, const char *name,
-						   const char *desc, const char *default_val,
-						   validate_string_relopt validator,
-						   fill_string_relopt filler, int offset)
+                           const char *desc, const char *default_val,
+                           validate_string_relopt validator,
+                           fill_string_relopt filler, int offset)
 {
-	relopt_string *newoption = init_string_reloption(RELOPT_KIND_LOCAL,
-													 name, desc,
-													 default_val,
-													 validator, filler,
-													 0);
+  relopt_string *newoption = init_string_reloption(RELOPT_KIND_LOCAL,
+                             name, desc,
+                             default_val,
+                             validator, filler,
+                             0);
 
-	add_local_reloption(relopts, (relopt_gen *) newoption, offset);
+  add_local_reloption(relopts, (relopt_gen *) newoption, offset);
 }
 
 /*
@@ -1165,181 +1158,168 @@ add_local_string_reloption(local_relopts *relopts, const char *name,
  */
 Datum
 transformRelOptions(Datum oldOptions, List *defList, const char *namspace,
-					const char *const validnsps[], bool acceptOidsOff, bool isReset)
+                    const char *const validnsps[], bool acceptOidsOff, bool isReset)
 {
-	Datum		result;
-	ArrayBuildState *astate;
-	ListCell   *cell;
+  Datum   result;
+  ArrayBuildState *astate;
+  ListCell   *cell;
 
-	/* no change if empty list */
-	if (defList == NIL)
-		return oldOptions;
+  /* no change if empty list */
+  if (defList == NIL)
+    return oldOptions;
 
-	/* We build new array using accumArrayResult */
-	astate = NULL;
+  /* We build new array using accumArrayResult */
+  astate = NULL;
 
-	/* Copy any oldOptions that aren't to be replaced */
-	if (PointerIsValid(DatumGetPointer(oldOptions)))
-	{
-		ArrayType  *array = DatumGetArrayTypeP(oldOptions);
-		Datum	   *oldoptions;
-		int			noldoptions;
-		int			i;
+  /* Copy any oldOptions that aren't to be replaced */
+  if (PointerIsValid(DatumGetPointer(oldOptions))) {
+    ArrayType  *array = DatumGetArrayTypeP(oldOptions);
+    Datum    *oldoptions;
+    int     noldoptions;
+    int     i;
 
-		deconstruct_array_builtin(array, TEXTOID, &oldoptions, NULL, &noldoptions);
+    deconstruct_array_builtin(array, TEXTOID, &oldoptions, NULL, &noldoptions);
 
-		for (i = 0; i < noldoptions; i++)
-		{
-			char	   *text_str = VARDATA(oldoptions[i]);
-			int			text_len = VARSIZE(oldoptions[i]) - VARHDRSZ;
+    for (i = 0; i < noldoptions; i++) {
+      char     *text_str = VARDATA(oldoptions[i]);
+      int     text_len = VARSIZE(oldoptions[i]) - VARHDRSZ;
 
-			/* Search for a match in defList */
-			foreach(cell, defList)
-			{
-				DefElem    *def = (DefElem *) lfirst(cell);
-				int			kw_len;
+      /* Search for a match in defList */
+      foreach(cell, defList) {
+        DefElem    *def = (DefElem *) lfirst(cell);
+        int     kw_len;
 
-				/* ignore if not in the same namespace */
-				if (namspace == NULL)
-				{
-					if (def->defnamespace != NULL)
-						continue;
-				}
-				else if (def->defnamespace == NULL)
-					continue;
-				else if (strcmp(def->defnamespace, namspace) != 0)
-					continue;
+        /* ignore if not in the same namespace */
+        if (namspace == NULL) {
+          if (def->defnamespace != NULL)
+            continue;
+        } else if (def->defnamespace == NULL)
+          continue;
+        else if (strcmp(def->defnamespace, namspace) != 0)
+          continue;
 
-				kw_len = strlen(def->defname);
-				if (text_len > kw_len && text_str[kw_len] == '=' &&
-					strncmp(text_str, def->defname, kw_len) == 0)
-					break;
-			}
-			if (!cell)
-			{
-				/* No match, so keep old option */
-				astate = accumArrayResult(astate, oldoptions[i],
-										  false, TEXTOID,
-										  CurrentMemoryContext);
-			}
-		}
-	}
+        kw_len = strlen(def->defname);
 
-	/*
-	 * If CREATE/SET, add new options to array; if RESET, just check that the
-	 * user didn't say RESET (option=val).  (Must do this because the grammar
-	 * doesn't enforce it.)
-	 */
-	foreach(cell, defList)
-	{
-		DefElem    *def = (DefElem *) lfirst(cell);
+        if (text_len > kw_len && text_str[kw_len] == '=' &&
+            strncmp(text_str, def->defname, kw_len) == 0)
+          break;
+      }
 
-		if (isReset)
-		{
-			if (def->arg != NULL)
-				ereport(ERROR,
-						(errcode(ERRCODE_SYNTAX_ERROR),
-						 errmsg("RESET must not include values for parameters")));
-		}
-		else
-		{
-			const char *name;
-			const char *value;
-			text	   *t;
-			Size		len;
+      if (!cell) {
+        /* No match, so keep old option */
+        astate = accumArrayResult(astate, oldoptions[i],
+                                  false, TEXTOID,
+                                  CurrentMemoryContext);
+      }
+    }
+  }
 
-			/*
-			 * Error out if the namespace is not valid.  A NULL namespace is
-			 * always valid.
-			 */
-			if (def->defnamespace != NULL)
-			{
-				bool		valid = false;
-				int			i;
+  /*
+   * If CREATE/SET, add new options to array; if RESET, just check that the
+   * user didn't say RESET (option=val).  (Must do this because the grammar
+   * doesn't enforce it.)
+   */
+  foreach(cell, defList) {
+    DefElem    *def = (DefElem *) lfirst(cell);
 
-				if (validnsps)
-				{
-					for (i = 0; validnsps[i]; i++)
-					{
-						if (strcmp(def->defnamespace, validnsps[i]) == 0)
-						{
-							valid = true;
-							break;
-						}
-					}
-				}
+    if (isReset) {
+      if (def->arg != NULL)
+        ereport(ERROR,
+                (errcode(ERRCODE_SYNTAX_ERROR),
+                 errmsg("RESET must not include values for parameters")));
+    } else {
+      const char *name;
+      const char *value;
+      text     *t;
+      Size    len;
 
-				if (!valid)
-					ereport(ERROR,
-							(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-							 errmsg("unrecognized parameter namespace \"%s\"",
-									def->defnamespace)));
-			}
+      /*
+       * Error out if the namespace is not valid.  A NULL namespace is
+       * always valid.
+       */
+      if (def->defnamespace != NULL) {
+        bool    valid = false;
+        int     i;
 
-			/* ignore if not in the same namespace */
-			if (namspace == NULL)
-			{
-				if (def->defnamespace != NULL)
-					continue;
-			}
-			else if (def->defnamespace == NULL)
-				continue;
-			else if (strcmp(def->defnamespace, namspace) != 0)
-				continue;
+        if (validnsps) {
+          for (i = 0; validnsps[i]; i++) {
+            if (strcmp(def->defnamespace, validnsps[i]) == 0) {
+              valid = true;
+              break;
+            }
+          }
+        }
 
-			/*
-			 * Flatten the DefElem into a text string like "name=arg". If we
-			 * have just "name", assume "name=true" is meant.  Note: the
-			 * namespace is not output.
-			 */
-			name = def->defname;
-			if (def->arg != NULL)
-				value = defGetString(def);
-			else
-				value = "true";
+        if (!valid)
+          ereport(ERROR,
+                  (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                   errmsg("unrecognized parameter namespace \"%s\"",
+                          def->defnamespace)));
+      }
 
-			/* Insist that name not contain "=", else "a=b=c" is ambiguous */
-			if (strchr(name, '=') != NULL)
-				ereport(ERROR,
-						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-						 errmsg("invalid option name \"%s\": must not contain \"=\"",
-								name)));
+      /* ignore if not in the same namespace */
+      if (namspace == NULL) {
+        if (def->defnamespace != NULL)
+          continue;
+      } else if (def->defnamespace == NULL)
+        continue;
+      else if (strcmp(def->defnamespace, namspace) != 0)
+        continue;
 
-			/*
-			 * This is not a great place for this test, but there's no other
-			 * convenient place to filter the option out. As WITH (oids =
-			 * false) will be removed someday, this seems like an acceptable
-			 * amount of ugly.
-			 */
-			if (acceptOidsOff && def->defnamespace == NULL &&
-				strcmp(name, "oids") == 0)
-			{
-				if (defGetBoolean(def))
-					ereport(ERROR,
-							(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-							 errmsg("tables declared WITH OIDS are not supported")));
-				/* skip over option, reloptions machinery doesn't know it */
-				continue;
-			}
+      /*
+       * Flatten the DefElem into a text string like "name=arg". If we
+       * have just "name", assume "name=true" is meant.  Note: the
+       * namespace is not output.
+       */
+      name = def->defname;
 
-			len = VARHDRSZ + strlen(name) + 1 + strlen(value);
-			/* +1 leaves room for sprintf's trailing null */
-			t = (text *) palloc(len + 1);
-			SET_VARSIZE(t, len);
-			sprintf(VARDATA(t), "%s=%s", name, value);
+      if (def->arg != NULL)
+        value = defGetString(def);
+      else
+        value = "true";
 
-			astate = accumArrayResult(astate, PointerGetDatum(t),
-									  false, TEXTOID,
-									  CurrentMemoryContext);
-		}
-	}
+      /* Insist that name not contain "=", else "a=b=c" is ambiguous */
+      if (strchr(name, '=') != NULL)
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("invalid option name \"%s\": must not contain \"=\"",
+                        name)));
 
-	if (astate)
-		result = makeArrayResult(astate, CurrentMemoryContext);
-	else
-		result = (Datum) 0;
+      /*
+       * This is not a great place for this test, but there's no other
+       * convenient place to filter the option out. As WITH (oids =
+       * false) will be removed someday, this seems like an acceptable
+       * amount of ugly.
+       */
+      if (acceptOidsOff && def->defnamespace == NULL &&
+          strcmp(name, "oids") == 0) {
+        if (defGetBoolean(def))
+          ereport(ERROR,
+                  (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+                   errmsg("tables declared WITH OIDS are not supported")));
 
-	return result;
+        /* skip over option, reloptions machinery doesn't know it */
+        continue;
+      }
+
+      len = VARHDRSZ + strlen(name) + 1 + strlen(value);
+      /* +1 leaves room for sprintf's trailing null */
+      t = (text *) palloc(len + 1);
+      SET_VARSIZE(t, len);
+      sprintf(VARDATA(t), "%s=%s", name, value);
+
+      astate = accumArrayResult(astate, PointerGetDatum(t),
+                                false, TEXTOID,
+                                CurrentMemoryContext);
+    }
+  }
+
+  if (astate)
+    result = makeArrayResult(astate, CurrentMemoryContext);
+  else
+    result = (Datum) 0;
+
+  return result;
 }
 
 
@@ -1350,37 +1330,37 @@ transformRelOptions(Datum oldOptions, List *defList, const char *namspace,
 List *
 untransformRelOptions(Datum options)
 {
-	List	   *result = NIL;
-	ArrayType  *array;
-	Datum	   *optiondatums;
-	int			noptions;
-	int			i;
+  List     *result = NIL;
+  ArrayType  *array;
+  Datum    *optiondatums;
+  int     noptions;
+  int     i;
 
-	/* Nothing to do if no options */
-	if (!PointerIsValid(DatumGetPointer(options)))
-		return result;
+  /* Nothing to do if no options */
+  if (!PointerIsValid(DatumGetPointer(options)))
+    return result;
 
-	array = DatumGetArrayTypeP(options);
+  array = DatumGetArrayTypeP(options);
 
-	deconstruct_array_builtin(array, TEXTOID, &optiondatums, NULL, &noptions);
+  deconstruct_array_builtin(array, TEXTOID, &optiondatums, NULL, &noptions);
 
-	for (i = 0; i < noptions; i++)
-	{
-		char	   *s;
-		char	   *p;
-		Node	   *val = NULL;
+  for (i = 0; i < noptions; i++) {
+    char     *s;
+    char     *p;
+    Node     *val = NULL;
 
-		s = TextDatumGetCString(optiondatums[i]);
-		p = strchr(s, '=');
-		if (p)
-		{
-			*p++ = '\0';
-			val = (Node *) makeString(p);
-		}
-		result = lappend(result, makeDefElem(s, val, -1));
-	}
+    s = TextDatumGetCString(optiondatums[i]);
+    p = strchr(s, '=');
 
-	return result;
+    if (p) {
+      *p++ = '\0';
+      val = (Node *) makeString(p);
+    }
+
+    result = lappend(result, makeDefElem(s, val, -1));
+  }
+
+  return result;
 }
 
 /*
@@ -1397,103 +1377,106 @@ untransformRelOptions(Datum options)
  */
 bytea *
 extractRelOptions(HeapTuple tuple, TupleDesc tupdesc,
-				  amoptions_function amoptions)
+                  amoptions_function amoptions)
 {
-	bytea	   *options;
-	bool		isnull;
-	Datum		datum;
-	Form_pg_class classForm;
+  bytea    *options;
+  bool    isnull;
+  Datum   datum;
+  Form_pg_class classForm;
 
-	datum = fastgetattr(tuple,
-						Anum_pg_class_reloptions,
-						tupdesc,
-						&isnull);
-	if (isnull)
-		return NULL;
+  datum = fastgetattr(tuple,
+                      Anum_pg_class_reloptions,
+                      tupdesc,
+                      &isnull);
 
-	classForm = (Form_pg_class) GETSTRUCT(tuple);
+  if (isnull)
+    return NULL;
 
-	/* Parse into appropriate format; don't error out here */
-	switch (classForm->relkind)
-	{
-		case RELKIND_RELATION:
-		case RELKIND_TOASTVALUE:
-		case RELKIND_MATVIEW:
-			options = heap_reloptions(classForm->relkind, datum, false);
-			break;
-		case RELKIND_PARTITIONED_TABLE:
-			options = partitioned_table_reloptions(datum, false);
-			break;
-		case RELKIND_VIEW:
-			options = view_reloptions(datum, false);
-			break;
-		case RELKIND_INDEX:
-		case RELKIND_PARTITIONED_INDEX:
-			options = index_reloptions(amoptions, datum, false);
-			break;
-		case RELKIND_FOREIGN_TABLE:
-			options = NULL;
-			break;
-		default:
-			Assert(false);		/* can't get here */
-			options = NULL;		/* keep compiler quiet */
-			break;
-	}
+  classForm = (Form_pg_class) GETSTRUCT(tuple);
 
-	return options;
+  /* Parse into appropriate format; don't error out here */
+  switch (classForm->relkind) {
+    case RELKIND_RELATION:
+    case RELKIND_TOASTVALUE:
+    case RELKIND_MATVIEW:
+      options = heap_reloptions(classForm->relkind, datum, false);
+      break;
+
+    case RELKIND_PARTITIONED_TABLE:
+      options = partitioned_table_reloptions(datum, false);
+      break;
+
+    case RELKIND_VIEW:
+      options = view_reloptions(datum, false);
+      break;
+
+    case RELKIND_INDEX:
+    case RELKIND_PARTITIONED_INDEX:
+      options = index_reloptions(amoptions, datum, false);
+      break;
+
+    case RELKIND_FOREIGN_TABLE:
+      options = NULL;
+      break;
+
+    default:
+      Assert(false);    /* can't get here */
+      options = NULL;   /* keep compiler quiet */
+      break;
+  }
+
+  return options;
 }
 
 static void
 parseRelOptionsInternal(Datum options, bool validate,
-						relopt_value *reloptions, int numoptions)
+                        relopt_value *reloptions, int numoptions)
 {
-	ArrayType  *array = DatumGetArrayTypeP(options);
-	Datum	   *optiondatums;
-	int			noptions;
-	int			i;
+  ArrayType  *array = DatumGetArrayTypeP(options);
+  Datum    *optiondatums;
+  int     noptions;
+  int     i;
 
-	deconstruct_array_builtin(array, TEXTOID, &optiondatums, NULL, &noptions);
+  deconstruct_array_builtin(array, TEXTOID, &optiondatums, NULL, &noptions);
 
-	for (i = 0; i < noptions; i++)
-	{
-		char	   *text_str = VARDATA(optiondatums[i]);
-		int			text_len = VARSIZE(optiondatums[i]) - VARHDRSZ;
-		int			j;
+  for (i = 0; i < noptions; i++) {
+    char     *text_str = VARDATA(optiondatums[i]);
+    int     text_len = VARSIZE(optiondatums[i]) - VARHDRSZ;
+    int     j;
 
-		/* Search for a match in reloptions */
-		for (j = 0; j < numoptions; j++)
-		{
-			int			kw_len = reloptions[j].gen->namelen;
+    /* Search for a match in reloptions */
+    for (j = 0; j < numoptions; j++) {
+      int     kw_len = reloptions[j].gen->namelen;
 
-			if (text_len > kw_len && text_str[kw_len] == '=' &&
-				strncmp(text_str, reloptions[j].gen->name, kw_len) == 0)
-			{
-				parse_one_reloption(&reloptions[j], text_str, text_len,
-									validate);
-				break;
-			}
-		}
+      if (text_len > kw_len && text_str[kw_len] == '=' &&
+          strncmp(text_str, reloptions[j].gen->name, kw_len) == 0) {
+        parse_one_reloption(&reloptions[j], text_str, text_len,
+                            validate);
+        break;
+      }
+    }
 
-		if (j >= numoptions && validate)
-		{
-			char	   *s;
-			char	   *p;
+    if (j >= numoptions && validate) {
+      char     *s;
+      char     *p;
 
-			s = TextDatumGetCString(optiondatums[i]);
-			p = strchr(s, '=');
-			if (p)
-				*p = '\0';
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("unrecognized parameter \"%s\"", s)));
-		}
-	}
+      s = TextDatumGetCString(optiondatums[i]);
+      p = strchr(s, '=');
 
-	/* It's worth avoiding memory leaks in this function */
-	pfree(optiondatums);
+      if (p)
+        *p = '\0';
 
-	if (((void *) array) != DatumGetPointer(options))
-		pfree(array);
+      ereport(ERROR,
+              (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+               errmsg("unrecognized parameter \"%s\"", s)));
+    }
+  }
+
+  /* It's worth avoiding memory leaks in this function */
+  pfree(optiondatums);
+
+  if (((void *) array) != DatumGetPointer(options))
+    pfree(array);
 }
 
 /*
@@ -1517,68 +1500,64 @@ parseRelOptionsInternal(Datum options, bool validate,
  */
 static relopt_value *
 parseRelOptions(Datum options, bool validate, relopt_kind kind,
-				int *numrelopts)
+                int *numrelopts)
 {
-	relopt_value *reloptions = NULL;
-	int			numoptions = 0;
-	int			i;
-	int			j;
+  relopt_value *reloptions = NULL;
+  int     numoptions = 0;
+  int     i;
+  int     j;
 
-	if (need_initialization)
-		initialize_reloptions();
+  if (need_initialization)
+    initialize_reloptions();
 
-	/* Build a list of expected options, based on kind */
+  /* Build a list of expected options, based on kind */
 
-	for (i = 0; relOpts[i]; i++)
-		if (relOpts[i]->kinds & kind)
-			numoptions++;
+  for (i = 0; relOpts[i]; i++)
+    if (relOpts[i]->kinds & kind)
+      numoptions++;
 
-	if (numoptions > 0)
-	{
-		reloptions = palloc(numoptions * sizeof(relopt_value));
+  if (numoptions > 0) {
+    reloptions = palloc(numoptions * sizeof(relopt_value));
 
-		for (i = 0, j = 0; relOpts[i]; i++)
-		{
-			if (relOpts[i]->kinds & kind)
-			{
-				reloptions[j].gen = relOpts[i];
-				reloptions[j].isset = false;
-				j++;
-			}
-		}
-	}
+    for (i = 0, j = 0; relOpts[i]; i++) {
+      if (relOpts[i]->kinds & kind) {
+        reloptions[j].gen = relOpts[i];
+        reloptions[j].isset = false;
+        j++;
+      }
+    }
+  }
 
-	/* Done if no options */
-	if (PointerIsValid(DatumGetPointer(options)))
-		parseRelOptionsInternal(options, validate, reloptions, numoptions);
+  /* Done if no options */
+  if (PointerIsValid(DatumGetPointer(options)))
+    parseRelOptionsInternal(options, validate, reloptions, numoptions);
 
-	*numrelopts = numoptions;
-	return reloptions;
+  *numrelopts = numoptions;
+  return reloptions;
 }
 
 /* Parse local unregistered options. */
 static relopt_value *
 parseLocalRelOptions(local_relopts *relopts, Datum options, bool validate)
 {
-	int			nopts = list_length(relopts->options);
-	relopt_value *values = palloc(sizeof(*values) * nopts);
-	ListCell   *lc;
-	int			i = 0;
+  int     nopts = list_length(relopts->options);
+  relopt_value *values = palloc(sizeof(*values) * nopts);
+  ListCell   *lc;
+  int     i = 0;
 
-	foreach(lc, relopts->options)
-	{
-		local_relopt *opt = lfirst(lc);
+  foreach(lc, relopts->options) {
+    local_relopt *opt = lfirst(lc);
 
-		values[i].gen = opt->option;
-		values[i].isset = false;
+    values[i].gen = opt->option;
+    values[i].isset = false;
 
-		i++;
-	}
+    i++;
+  }
 
-	if (options != (Datum) 0)
-		parseRelOptionsInternal(options, validate, values, nopts);
+  if (options != (Datum) 0)
+    parseRelOptionsInternal(options, validate, values, nopts);
 
-	return values;
+  return values;
 }
 
 /*
@@ -1587,128 +1566,135 @@ parseLocalRelOptions(local_relopts *relopts, Datum options, bool validate)
  */
 static void
 parse_one_reloption(relopt_value *option, char *text_str, int text_len,
-					bool validate)
+                    bool validate)
 {
-	char	   *value;
-	int			value_len;
-	bool		parsed;
-	bool		nofree = false;
+  char     *value;
+  int     value_len;
+  bool    parsed;
+  bool    nofree = false;
 
-	if (option->isset && validate)
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("parameter \"%s\" specified more than once",
-						option->gen->name)));
+  if (option->isset && validate)
+    ereport(ERROR,
+            (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+             errmsg("parameter \"%s\" specified more than once",
+                    option->gen->name)));
 
-	value_len = text_len - option->gen->namelen - 1;
-	value = (char *) palloc(value_len + 1);
-	memcpy(value, text_str + option->gen->namelen + 1, value_len);
-	value[value_len] = '\0';
+  value_len = text_len - option->gen->namelen - 1;
+  value = (char *) palloc(value_len + 1);
+  memcpy(value, text_str + option->gen->namelen + 1, value_len);
+  value[value_len] = '\0';
 
-	switch (option->gen->type)
-	{
-		case RELOPT_TYPE_BOOL:
-			{
-				parsed = parse_bool(value, &option->values.bool_val);
-				if (validate && !parsed)
-					ereport(ERROR,
-							(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-							 errmsg("invalid value for boolean option \"%s\": %s",
-									option->gen->name, value)));
-			}
-			break;
-		case RELOPT_TYPE_INT:
-			{
-				relopt_int *optint = (relopt_int *) option->gen;
+  switch (option->gen->type) {
+    case RELOPT_TYPE_BOOL: {
+      parsed = parse_bool(value, &option->values.bool_val);
 
-				parsed = parse_int(value, &option->values.int_val, 0, NULL);
-				if (validate && !parsed)
-					ereport(ERROR,
-							(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-							 errmsg("invalid value for integer option \"%s\": %s",
-									option->gen->name, value)));
-				if (validate && (option->values.int_val < optint->min ||
-								 option->values.int_val > optint->max))
-					ereport(ERROR,
-							(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-							 errmsg("value %s out of bounds for option \"%s\"",
-									value, option->gen->name),
-							 errdetail("Valid values are between \"%d\" and \"%d\".",
-									   optint->min, optint->max)));
-			}
-			break;
-		case RELOPT_TYPE_REAL:
-			{
-				relopt_real *optreal = (relopt_real *) option->gen;
+      if (validate && !parsed)
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("invalid value for boolean option \"%s\": %s",
+                        option->gen->name, value)));
+    }
+    break;
 
-				parsed = parse_real(value, &option->values.real_val, 0, NULL);
-				if (validate && !parsed)
-					ereport(ERROR,
-							(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-							 errmsg("invalid value for floating point option \"%s\": %s",
-									option->gen->name, value)));
-				if (validate && (option->values.real_val < optreal->min ||
-								 option->values.real_val > optreal->max))
-					ereport(ERROR,
-							(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-							 errmsg("value %s out of bounds for option \"%s\"",
-									value, option->gen->name),
-							 errdetail("Valid values are between \"%f\" and \"%f\".",
-									   optreal->min, optreal->max)));
-			}
-			break;
-		case RELOPT_TYPE_ENUM:
-			{
-				relopt_enum *optenum = (relopt_enum *) option->gen;
-				relopt_enum_elt_def *elt;
+    case RELOPT_TYPE_INT: {
+      relopt_int *optint = (relopt_int *) option->gen;
 
-				parsed = false;
-				for (elt = optenum->members; elt->string_val; elt++)
-				{
-					if (pg_strcasecmp(value, elt->string_val) == 0)
-					{
-						option->values.enum_val = elt->symbol_val;
-						parsed = true;
-						break;
-					}
-				}
-				if (validate && !parsed)
-					ereport(ERROR,
-							(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-							 errmsg("invalid value for enum option \"%s\": %s",
-									option->gen->name, value),
-							 optenum->detailmsg ?
-							 errdetail_internal("%s", _(optenum->detailmsg)) : 0));
+      parsed = parse_int(value, &option->values.int_val, 0, NULL);
 
-				/*
-				 * If value is not among the allowed string values, but we are
-				 * not asked to validate, just use the default numeric value.
-				 */
-				if (!parsed)
-					option->values.enum_val = optenum->default_val;
-			}
-			break;
-		case RELOPT_TYPE_STRING:
-			{
-				relopt_string *optstring = (relopt_string *) option->gen;
+      if (validate && !parsed)
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("invalid value for integer option \"%s\": %s",
+                        option->gen->name, value)));
 
-				option->values.string_val = value;
-				nofree = true;
-				if (validate && optstring->validate_cb)
-					(optstring->validate_cb) (value);
-				parsed = true;
-			}
-			break;
-		default:
-			elog(ERROR, "unsupported reloption type %d", option->gen->type);
-			parsed = true;		/* quiet compiler */
-			break;
-	}
+      if (validate && (option->values.int_val < optint->min ||
+                       option->values.int_val > optint->max))
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("value %s out of bounds for option \"%s\"",
+                        value, option->gen->name),
+                 errdetail("Valid values are between \"%d\" and \"%d\".",
+                           optint->min, optint->max)));
+    }
+    break;
 
-	if (parsed)
-		option->isset = true;
-	if (!nofree)
-		pfree(value);
+    case RELOPT_TYPE_REAL: {
+      relopt_real *optreal = (relopt_real *) option->gen;
+
+      parsed = parse_real(value, &option->values.real_val, 0, NULL);
+
+      if (validate && !parsed)
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("invalid value for floating point option \"%s\": %s",
+                        option->gen->name, value)));
+
+      if (validate && (option->values.real_val < optreal->min ||
+                       option->values.real_val > optreal->max))
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("value %s out of bounds for option \"%s\"",
+                        value, option->gen->name),
+                 errdetail("Valid values are between \"%f\" and \"%f\".",
+                           optreal->min, optreal->max)));
+    }
+    break;
+
+    case RELOPT_TYPE_ENUM: {
+      relopt_enum *optenum = (relopt_enum *) option->gen;
+      relopt_enum_elt_def *elt;
+
+      parsed = false;
+
+      for (elt = optenum->members; elt->string_val; elt++) {
+        if (pg_strcasecmp(value, elt->string_val) == 0) {
+          option->values.enum_val = elt->symbol_val;
+          parsed = true;
+          break;
+        }
+      }
+
+      if (validate && !parsed)
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("invalid value for enum option \"%s\": %s",
+                        option->gen->name, value),
+                 optenum->detailmsg ?
+                 errdetail_internal("%s", _(optenum->detailmsg)) : 0));
+
+      /*
+       * If value is not among the allowed string values, but we are
+       * not asked to validate, just use the default numeric value.
+       */
+      if (!parsed)
+        option->values.enum_val = optenum->default_val;
+    }
+    break;
+
+    case RELOPT_TYPE_STRING: {
+      relopt_string *optstring = (relopt_string *) option->gen;
+
+      option->values.string_val = value;
+      nofree = true;
+
+      if (validate && optstring->validate_cb)
+        (optstring->validate_cb) (value);
+
+      parsed = true;
+    }
+    break;
+
+    default:
+      elog(ERROR, "unsupported reloption type %d", option->gen->type);
+      parsed = true;    /* quiet compiler */
+      break;
+  }
+
+  if (parsed)
+    option->isset = true;
+
+  if (!nofree)
+    pfree(value);
 }
 
 /*
@@ -1721,30 +1707,26 @@ parse_one_reloption(relopt_value *option, char *text_str, int text_len,
 static void *
 allocateReloptStruct(Size base, relopt_value *options, int numoptions)
 {
-	Size		size = base;
-	int			i;
+  Size    size = base;
+  int     i;
 
-	for (i = 0; i < numoptions; i++)
-	{
-		relopt_value *optval = &options[i];
+  for (i = 0; i < numoptions; i++) {
+    relopt_value *optval = &options[i];
 
-		if (optval->gen->type == RELOPT_TYPE_STRING)
-		{
-			relopt_string *optstr = (relopt_string *) optval->gen;
+    if (optval->gen->type == RELOPT_TYPE_STRING) {
+      relopt_string *optstr = (relopt_string *) optval->gen;
 
-			if (optstr->fill_cb)
-			{
-				const char *val = optval->isset ? optval->values.string_val :
-					optstr->default_isnull ? NULL : optstr->default_val;
+      if (optstr->fill_cb) {
+        const char *val = optval->isset ? optval->values.string_val :
+                          optstr->default_isnull ? NULL : optstr->default_val;
 
-				size += optstr->fill_cb(val, NULL);
-			}
-			else
-				size += GET_STRING_RELOPTION_LEN(*optval) + 1;
-		}
-	}
+        size += optstr->fill_cb(val, NULL);
+      } else
+        size += GET_STRING_RELOPTION_LEN(*optval) + 1;
+    }
+  }
 
-	return palloc0(size);
+  return palloc0(size);
 }
 
 /*
@@ -1760,105 +1742,105 @@ allocateReloptStruct(Size base, relopt_value *options, int numoptions)
  */
 static void
 fillRelOptions(void *rdopts, Size basesize,
-			   relopt_value *options, int numoptions,
-			   bool validate,
-			   const relopt_parse_elt *elems, int numelems)
+               relopt_value *options, int numoptions,
+               bool validate,
+               const relopt_parse_elt *elems, int numelems)
 {
-	int			i;
-	int			offset = basesize;
+  int     i;
+  int     offset = basesize;
 
-	for (i = 0; i < numoptions; i++)
-	{
-		int			j;
-		bool		found = false;
+  for (i = 0; i < numoptions; i++) {
+    int     j;
+    bool    found = false;
 
-		for (j = 0; j < numelems; j++)
-		{
-			if (strcmp(options[i].gen->name, elems[j].optname) == 0)
-			{
-				relopt_string *optstring;
-				char	   *itempos = ((char *) rdopts) + elems[j].offset;
-				char	   *string_val;
+    for (j = 0; j < numelems; j++) {
+      if (strcmp(options[i].gen->name, elems[j].optname) == 0) {
+        relopt_string *optstring;
+        char     *itempos = ((char *) rdopts) + elems[j].offset;
+        char     *string_val;
 
-				/*
-				 * If isset_offset is provided, store whether the reloption is
-				 * set there.
-				 */
-				if (elems[j].isset_offset > 0)
-				{
-					char	   *setpos = ((char *) rdopts) + elems[j].isset_offset;
+        /*
+         * If isset_offset is provided, store whether the reloption is
+         * set there.
+         */
+        if (elems[j].isset_offset > 0) {
+          char     *setpos = ((char *) rdopts) + elems[j].isset_offset;
 
-					*(bool *) setpos = options[i].isset;
-				}
+          *(bool *) setpos = options[i].isset;
+        }
 
-				switch (options[i].gen->type)
-				{
-					case RELOPT_TYPE_BOOL:
-						*(bool *) itempos = options[i].isset ?
-							options[i].values.bool_val :
-							((relopt_bool *) options[i].gen)->default_val;
-						break;
-					case RELOPT_TYPE_INT:
-						*(int *) itempos = options[i].isset ?
-							options[i].values.int_val :
-							((relopt_int *) options[i].gen)->default_val;
-						break;
-					case RELOPT_TYPE_REAL:
-						*(double *) itempos = options[i].isset ?
-							options[i].values.real_val :
-							((relopt_real *) options[i].gen)->default_val;
-						break;
-					case RELOPT_TYPE_ENUM:
-						*(int *) itempos = options[i].isset ?
-							options[i].values.enum_val :
-							((relopt_enum *) options[i].gen)->default_val;
-						break;
-					case RELOPT_TYPE_STRING:
-						optstring = (relopt_string *) options[i].gen;
-						if (options[i].isset)
-							string_val = options[i].values.string_val;
-						else if (!optstring->default_isnull)
-							string_val = optstring->default_val;
-						else
-							string_val = NULL;
+        switch (options[i].gen->type) {
+          case RELOPT_TYPE_BOOL:
+            *(bool *) itempos = options[i].isset ?
+                                options[i].values.bool_val :
+                                ((relopt_bool *) options[i].gen)->default_val;
+            break;
 
-						if (optstring->fill_cb)
-						{
-							Size		size =
-								optstring->fill_cb(string_val,
-												   (char *) rdopts + offset);
+          case RELOPT_TYPE_INT:
+            *(int *) itempos = options[i].isset ?
+                               options[i].values.int_val :
+                               ((relopt_int *) options[i].gen)->default_val;
+            break;
 
-							if (size)
-							{
-								*(int *) itempos = offset;
-								offset += size;
-							}
-							else
-								*(int *) itempos = 0;
-						}
-						else if (string_val == NULL)
-							*(int *) itempos = 0;
-						else
-						{
-							strcpy((char *) rdopts + offset, string_val);
-							*(int *) itempos = offset;
-							offset += strlen(string_val) + 1;
-						}
-						break;
-					default:
-						elog(ERROR, "unsupported reloption type %d",
-							 options[i].gen->type);
-						break;
-				}
-				found = true;
-				break;
-			}
-		}
-		if (validate && !found)
-			elog(ERROR, "reloption \"%s\" not found in parse table",
-				 options[i].gen->name);
-	}
-	SET_VARSIZE(rdopts, offset);
+          case RELOPT_TYPE_REAL:
+            *(double *) itempos = options[i].isset ?
+                                  options[i].values.real_val :
+                                  ((relopt_real *) options[i].gen)->default_val;
+            break;
+
+          case RELOPT_TYPE_ENUM:
+            *(int *) itempos = options[i].isset ?
+                               options[i].values.enum_val :
+                               ((relopt_enum *) options[i].gen)->default_val;
+            break;
+
+          case RELOPT_TYPE_STRING:
+            optstring = (relopt_string *) options[i].gen;
+
+            if (options[i].isset)
+              string_val = options[i].values.string_val;
+            else if (!optstring->default_isnull)
+              string_val = optstring->default_val;
+            else
+              string_val = NULL;
+
+            if (optstring->fill_cb) {
+              Size    size =
+                optstring->fill_cb(string_val,
+                                   (char *) rdopts + offset);
+
+              if (size) {
+                *(int *) itempos = offset;
+                offset += size;
+              } else
+                *(int *) itempos = 0;
+            } else if (string_val == NULL)
+              *(int *) itempos = 0;
+            else {
+              strcpy((char *) rdopts + offset, string_val);
+              *(int *) itempos = offset;
+              offset += strlen(string_val) + 1;
+            }
+
+            break;
+
+          default:
+            elog(ERROR, "unsupported reloption type %d",
+                 options[i].gen->type);
+            break;
+        }
+
+        found = true;
+        break;
+      }
+    }
+
+    if (validate && !found)
+      elog(ERROR, "reloption \"%s\" not found in parse table",
+           options[i].gen->name);
+  }
+
+  SET_VARSIZE(rdopts, offset);
 }
 
 
@@ -1868,59 +1850,105 @@ fillRelOptions(void *rdopts, Size basesize,
 bytea *
 default_reloptions(Datum reloptions, bool validate, relopt_kind kind)
 {
-	static const relopt_parse_elt tab[] = {
-		{"fillfactor", RELOPT_TYPE_INT, offsetof(StdRdOptions, fillfactor)},
-		{"autovacuum_enabled", RELOPT_TYPE_BOOL,
-		offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, enabled)},
-		{"autovacuum_vacuum_threshold", RELOPT_TYPE_INT,
-		offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, vacuum_threshold)},
-		{"autovacuum_vacuum_max_threshold", RELOPT_TYPE_INT,
-		offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, vacuum_max_threshold)},
-		{"autovacuum_vacuum_insert_threshold", RELOPT_TYPE_INT,
-		offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, vacuum_ins_threshold)},
-		{"autovacuum_analyze_threshold", RELOPT_TYPE_INT,
-		offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, analyze_threshold)},
-		{"autovacuum_vacuum_cost_limit", RELOPT_TYPE_INT,
-		offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, vacuum_cost_limit)},
-		{"autovacuum_freeze_min_age", RELOPT_TYPE_INT,
-		offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, freeze_min_age)},
-		{"autovacuum_freeze_max_age", RELOPT_TYPE_INT,
-		offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, freeze_max_age)},
-		{"autovacuum_freeze_table_age", RELOPT_TYPE_INT,
-		offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, freeze_table_age)},
-		{"autovacuum_multixact_freeze_min_age", RELOPT_TYPE_INT,
-		offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, multixact_freeze_min_age)},
-		{"autovacuum_multixact_freeze_max_age", RELOPT_TYPE_INT,
-		offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, multixact_freeze_max_age)},
-		{"autovacuum_multixact_freeze_table_age", RELOPT_TYPE_INT,
-		offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, multixact_freeze_table_age)},
-		{"log_autovacuum_min_duration", RELOPT_TYPE_INT,
-		offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, log_min_duration)},
-		{"toast_tuple_target", RELOPT_TYPE_INT,
-		offsetof(StdRdOptions, toast_tuple_target)},
-		{"autovacuum_vacuum_cost_delay", RELOPT_TYPE_REAL,
-		offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, vacuum_cost_delay)},
-		{"autovacuum_vacuum_scale_factor", RELOPT_TYPE_REAL,
-		offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, vacuum_scale_factor)},
-		{"autovacuum_vacuum_insert_scale_factor", RELOPT_TYPE_REAL,
-		offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, vacuum_ins_scale_factor)},
-		{"autovacuum_analyze_scale_factor", RELOPT_TYPE_REAL,
-		offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, analyze_scale_factor)},
-		{"user_catalog_table", RELOPT_TYPE_BOOL,
-		offsetof(StdRdOptions, user_catalog_table)},
-		{"parallel_workers", RELOPT_TYPE_INT,
-		offsetof(StdRdOptions, parallel_workers)},
-		{"vacuum_index_cleanup", RELOPT_TYPE_ENUM,
-		offsetof(StdRdOptions, vacuum_index_cleanup)},
-		{"vacuum_truncate", RELOPT_TYPE_BOOL,
-		offsetof(StdRdOptions, vacuum_truncate), offsetof(StdRdOptions, vacuum_truncate_set)},
-		{"vacuum_max_eager_freeze_failure_rate", RELOPT_TYPE_REAL,
-		offsetof(StdRdOptions, vacuum_max_eager_freeze_failure_rate)}
-	};
+  static const relopt_parse_elt tab[] = {
+    {"fillfactor", RELOPT_TYPE_INT, offsetof(StdRdOptions, fillfactor)},
+    {
+      "autovacuum_enabled", RELOPT_TYPE_BOOL,
+      offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, enabled)
+    },
+    {
+      "autovacuum_vacuum_threshold", RELOPT_TYPE_INT,
+      offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, vacuum_threshold)
+    },
+    {
+      "autovacuum_vacuum_max_threshold", RELOPT_TYPE_INT,
+      offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, vacuum_max_threshold)
+    },
+    {
+      "autovacuum_vacuum_insert_threshold", RELOPT_TYPE_INT,
+      offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, vacuum_ins_threshold)
+    },
+    {
+      "autovacuum_analyze_threshold", RELOPT_TYPE_INT,
+      offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, analyze_threshold)
+    },
+    {
+      "autovacuum_vacuum_cost_limit", RELOPT_TYPE_INT,
+      offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, vacuum_cost_limit)
+    },
+    {
+      "autovacuum_freeze_min_age", RELOPT_TYPE_INT,
+      offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, freeze_min_age)
+    },
+    {
+      "autovacuum_freeze_max_age", RELOPT_TYPE_INT,
+      offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, freeze_max_age)
+    },
+    {
+      "autovacuum_freeze_table_age", RELOPT_TYPE_INT,
+      offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, freeze_table_age)
+    },
+    {
+      "autovacuum_multixact_freeze_min_age", RELOPT_TYPE_INT,
+      offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, multixact_freeze_min_age)
+    },
+    {
+      "autovacuum_multixact_freeze_max_age", RELOPT_TYPE_INT,
+      offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, multixact_freeze_max_age)
+    },
+    {
+      "autovacuum_multixact_freeze_table_age", RELOPT_TYPE_INT,
+      offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, multixact_freeze_table_age)
+    },
+    {
+      "log_autovacuum_min_duration", RELOPT_TYPE_INT,
+      offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, log_min_duration)
+    },
+    {
+      "toast_tuple_target", RELOPT_TYPE_INT,
+      offsetof(StdRdOptions, toast_tuple_target)
+    },
+    {
+      "autovacuum_vacuum_cost_delay", RELOPT_TYPE_REAL,
+      offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, vacuum_cost_delay)
+    },
+    {
+      "autovacuum_vacuum_scale_factor", RELOPT_TYPE_REAL,
+      offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, vacuum_scale_factor)
+    },
+    {
+      "autovacuum_vacuum_insert_scale_factor", RELOPT_TYPE_REAL,
+      offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, vacuum_ins_scale_factor)
+    },
+    {
+      "autovacuum_analyze_scale_factor", RELOPT_TYPE_REAL,
+      offsetof(StdRdOptions, autovacuum) + offsetof(AutoVacOpts, analyze_scale_factor)
+    },
+    {
+      "user_catalog_table", RELOPT_TYPE_BOOL,
+      offsetof(StdRdOptions, user_catalog_table)
+    },
+    {
+      "parallel_workers", RELOPT_TYPE_INT,
+      offsetof(StdRdOptions, parallel_workers)
+    },
+    {
+      "vacuum_index_cleanup", RELOPT_TYPE_ENUM,
+      offsetof(StdRdOptions, vacuum_index_cleanup)
+    },
+    {
+      "vacuum_truncate", RELOPT_TYPE_BOOL,
+      offsetof(StdRdOptions, vacuum_truncate), offsetof(StdRdOptions, vacuum_truncate_set)
+    },
+    {
+      "vacuum_max_eager_freeze_failure_rate", RELOPT_TYPE_REAL,
+      offsetof(StdRdOptions, vacuum_max_eager_freeze_failure_rate)
+    }
+  };
 
-	return (bytea *) build_reloptions(reloptions, validate, kind,
-									  sizeof(StdRdOptions),
-									  tab, lengthof(tab));
+  return (bytea *) build_reloptions(reloptions, validate, kind,
+                                    sizeof(StdRdOptions),
+                                    tab, lengthof(tab));
 }
 
 /*
@@ -1941,34 +1969,33 @@ default_reloptions(Datum reloptions, bool validate, relopt_kind kind)
  */
 void *
 build_reloptions(Datum reloptions, bool validate,
-				 relopt_kind kind,
-				 Size relopt_struct_size,
-				 const relopt_parse_elt *relopt_elems,
-				 int num_relopt_elems)
+                 relopt_kind kind,
+                 Size relopt_struct_size,
+                 const relopt_parse_elt *relopt_elems,
+                 int num_relopt_elems)
 {
-	int			numoptions;
-	relopt_value *options;
-	void	   *rdopts;
+  int     numoptions;
+  relopt_value *options;
+  void     *rdopts;
 
-	/* parse options specific to given relation option kind */
-	options = parseRelOptions(reloptions, validate, kind, &numoptions);
-	Assert(numoptions <= num_relopt_elems);
+  /* parse options specific to given relation option kind */
+  options = parseRelOptions(reloptions, validate, kind, &numoptions);
+  Assert(numoptions <= num_relopt_elems);
 
-	/* if none set, we're done */
-	if (numoptions == 0)
-	{
-		Assert(options == NULL);
-		return NULL;
-	}
+  /* if none set, we're done */
+  if (numoptions == 0) {
+    Assert(options == NULL);
+    return NULL;
+  }
 
-	/* allocate and fill the structure */
-	rdopts = allocateReloptStruct(relopt_struct_size, options, numoptions);
-	fillRelOptions(rdopts, relopt_struct_size, options, numoptions,
-				   validate, relopt_elems, num_relopt_elems);
+  /* allocate and fill the structure */
+  rdopts = allocateReloptStruct(relopt_struct_size, options, numoptions);
+  fillRelOptions(rdopts, relopt_struct_size, options, numoptions,
+                 validate, relopt_elems, num_relopt_elems);
 
-	pfree(options);
+  pfree(options);
 
-	return rdopts;
+  return rdopts;
 }
 
 /*
@@ -1979,38 +2006,37 @@ build_reloptions(Datum reloptions, bool validate,
 void *
 build_local_reloptions(local_relopts *relopts, Datum options, bool validate)
 {
-	int			noptions = list_length(relopts->options);
-	relopt_parse_elt *elems = palloc(sizeof(*elems) * noptions);
-	relopt_value *vals;
-	void	   *opts;
-	int			i = 0;
-	ListCell   *lc;
+  int     noptions = list_length(relopts->options);
+  relopt_parse_elt *elems = palloc(sizeof(*elems) * noptions);
+  relopt_value *vals;
+  void     *opts;
+  int     i = 0;
+  ListCell   *lc;
 
-	foreach(lc, relopts->options)
-	{
-		local_relopt *opt = lfirst(lc);
+  foreach(lc, relopts->options) {
+    local_relopt *opt = lfirst(lc);
 
-		elems[i].optname = opt->option->name;
-		elems[i].opttype = opt->option->type;
-		elems[i].offset = opt->offset;
-		elems[i].isset_offset = 0;	/* not supported for local relopts yet */
+    elems[i].optname = opt->option->name;
+    elems[i].opttype = opt->option->type;
+    elems[i].offset = opt->offset;
+    elems[i].isset_offset = 0;  /* not supported for local relopts yet */
 
-		i++;
-	}
+    i++;
+  }
 
-	vals = parseLocalRelOptions(relopts, options, validate);
-	opts = allocateReloptStruct(relopts->relopt_struct_size, vals, noptions);
-	fillRelOptions(opts, relopts->relopt_struct_size, vals, noptions, validate,
-				   elems, noptions);
+  vals = parseLocalRelOptions(relopts, options, validate);
+  opts = allocateReloptStruct(relopts->relopt_struct_size, vals, noptions);
+  fillRelOptions(opts, relopts->relopt_struct_size, vals, noptions, validate,
+                 elems, noptions);
 
-	if (validate)
-		foreach(lc, relopts->validators)
-			((relopts_validator) lfirst(lc)) (opts, vals, noptions);
+  if (validate)
+    foreach(lc, relopts->validators)
+      ((relopts_validator) lfirst(lc)) (opts, vals, noptions);
 
-	if (elems)
-		pfree(elems);
+  if (elems)
+    pfree(elems);
 
-	return opts;
+  return opts;
 }
 
 /*
@@ -2019,12 +2045,13 @@ build_local_reloptions(local_relopts *relopts, Datum options, bool validate)
 bytea *
 partitioned_table_reloptions(Datum reloptions, bool validate)
 {
-	if (validate && reloptions)
-		ereport(ERROR,
-				errcode(ERRCODE_WRONG_OBJECT_TYPE),
-				errmsg("cannot specify storage parameters for a partitioned table"),
-				errhint("Specify storage parameters for its leaf partitions instead."));
-	return NULL;
+  if (validate && reloptions)
+    ereport(ERROR,
+            errcode(ERRCODE_WRONG_OBJECT_TYPE),
+            errmsg("cannot specify storage parameters for a partitioned table"),
+            errhint("Specify storage parameters for its leaf partitions instead."));
+
+  return NULL;
 }
 
 /*
@@ -2033,19 +2060,25 @@ partitioned_table_reloptions(Datum reloptions, bool validate)
 bytea *
 view_reloptions(Datum reloptions, bool validate)
 {
-	static const relopt_parse_elt tab[] = {
-		{"security_barrier", RELOPT_TYPE_BOOL,
-		offsetof(ViewOptions, security_barrier)},
-		{"security_invoker", RELOPT_TYPE_BOOL,
-		offsetof(ViewOptions, security_invoker)},
-		{"check_option", RELOPT_TYPE_ENUM,
-		offsetof(ViewOptions, check_option)}
-	};
+  static const relopt_parse_elt tab[] = {
+    {
+      "security_barrier", RELOPT_TYPE_BOOL,
+      offsetof(ViewOptions, security_barrier)
+    },
+    {
+      "security_invoker", RELOPT_TYPE_BOOL,
+      offsetof(ViewOptions, security_invoker)
+    },
+    {
+      "check_option", RELOPT_TYPE_ENUM,
+      offsetof(ViewOptions, check_option)
+    }
+  };
 
-	return (bytea *) build_reloptions(reloptions, validate,
-									  RELOPT_KIND_VIEW,
-									  sizeof(ViewOptions),
-									  tab, lengthof(tab));
+  return (bytea *) build_reloptions(reloptions, validate,
+                                    RELOPT_KIND_VIEW,
+                                    sizeof(ViewOptions),
+                                    tab, lengthof(tab));
 }
 
 /*
@@ -2054,48 +2087,50 @@ view_reloptions(Datum reloptions, bool validate)
 bytea *
 heap_reloptions(char relkind, Datum reloptions, bool validate)
 {
-	StdRdOptions *rdopts;
+  StdRdOptions *rdopts;
 
-	switch (relkind)
-	{
-		case RELKIND_TOASTVALUE:
-			rdopts = (StdRdOptions *)
-				default_reloptions(reloptions, validate, RELOPT_KIND_TOAST);
-			if (rdopts != NULL)
-			{
-				/* adjust default-only parameters for TOAST relations */
-				rdopts->fillfactor = 100;
-				rdopts->autovacuum.analyze_threshold = -1;
-				rdopts->autovacuum.analyze_scale_factor = -1;
-			}
-			return (bytea *) rdopts;
-		case RELKIND_RELATION:
-		case RELKIND_MATVIEW:
-			return default_reloptions(reloptions, validate, RELOPT_KIND_HEAP);
-		default:
-			/* other relkinds are not supported */
-			return NULL;
-	}
+  switch (relkind) {
+    case RELKIND_TOASTVALUE:
+      rdopts = (StdRdOptions *)
+               default_reloptions(reloptions, validate, RELOPT_KIND_TOAST);
+
+      if (rdopts != NULL) {
+        /* adjust default-only parameters for TOAST relations */
+        rdopts->fillfactor = 100;
+        rdopts->autovacuum.analyze_threshold = -1;
+        rdopts->autovacuum.analyze_scale_factor = -1;
+      }
+
+      return (bytea *) rdopts;
+
+    case RELKIND_RELATION:
+    case RELKIND_MATVIEW:
+      return default_reloptions(reloptions, validate, RELOPT_KIND_HEAP);
+
+    default:
+      /* other relkinds are not supported */
+      return NULL;
+  }
 }
 
 
 /*
  * Parse options for indexes.
  *
- *	amoptions	index AM's option parser function
- *	reloptions	options as text[] datum
- *	validate	error flag
+ *  amoptions index AM's option parser function
+ *  reloptions  options as text[] datum
+ *  validate  error flag
  */
 bytea *
 index_reloptions(amoptions_function amoptions, Datum reloptions, bool validate)
 {
-	Assert(amoptions != NULL);
+  Assert(amoptions != NULL);
 
-	/* Assume function is strict */
-	if (!PointerIsValid(DatumGetPointer(reloptions)))
-		return NULL;
+  /* Assume function is strict */
+  if (!PointerIsValid(DatumGetPointer(reloptions)))
+    return NULL;
 
-	return amoptions(reloptions, validate);
+  return amoptions(reloptions, validate);
 }
 
 /*
@@ -2104,15 +2139,15 @@ index_reloptions(amoptions_function amoptions, Datum reloptions, bool validate)
 bytea *
 attribute_reloptions(Datum reloptions, bool validate)
 {
-	static const relopt_parse_elt tab[] = {
-		{"n_distinct", RELOPT_TYPE_REAL, offsetof(AttributeOpts, n_distinct)},
-		{"n_distinct_inherited", RELOPT_TYPE_REAL, offsetof(AttributeOpts, n_distinct_inherited)}
-	};
+  static const relopt_parse_elt tab[] = {
+    {"n_distinct", RELOPT_TYPE_REAL, offsetof(AttributeOpts, n_distinct)},
+    {"n_distinct_inherited", RELOPT_TYPE_REAL, offsetof(AttributeOpts, n_distinct_inherited)}
+  };
 
-	return (bytea *) build_reloptions(reloptions, validate,
-									  RELOPT_KIND_ATTRIBUTE,
-									  sizeof(AttributeOpts),
-									  tab, lengthof(tab));
+  return (bytea *) build_reloptions(reloptions, validate,
+                                    RELOPT_KIND_ATTRIBUTE,
+                                    sizeof(AttributeOpts),
+                                    tab, lengthof(tab));
 }
 
 /*
@@ -2121,17 +2156,17 @@ attribute_reloptions(Datum reloptions, bool validate)
 bytea *
 tablespace_reloptions(Datum reloptions, bool validate)
 {
-	static const relopt_parse_elt tab[] = {
-		{"random_page_cost", RELOPT_TYPE_REAL, offsetof(TableSpaceOpts, random_page_cost)},
-		{"seq_page_cost", RELOPT_TYPE_REAL, offsetof(TableSpaceOpts, seq_page_cost)},
-		{"effective_io_concurrency", RELOPT_TYPE_INT, offsetof(TableSpaceOpts, effective_io_concurrency)},
-		{"maintenance_io_concurrency", RELOPT_TYPE_INT, offsetof(TableSpaceOpts, maintenance_io_concurrency)}
-	};
+  static const relopt_parse_elt tab[] = {
+    {"random_page_cost", RELOPT_TYPE_REAL, offsetof(TableSpaceOpts, random_page_cost)},
+    {"seq_page_cost", RELOPT_TYPE_REAL, offsetof(TableSpaceOpts, seq_page_cost)},
+    {"effective_io_concurrency", RELOPT_TYPE_INT, offsetof(TableSpaceOpts, effective_io_concurrency)},
+    {"maintenance_io_concurrency", RELOPT_TYPE_INT, offsetof(TableSpaceOpts, maintenance_io_concurrency)}
+  };
 
-	return (bytea *) build_reloptions(reloptions, validate,
-									  RELOPT_KIND_TABLESPACE,
-									  sizeof(TableSpaceOpts),
-									  tab, lengthof(tab));
+  return (bytea *) build_reloptions(reloptions, validate,
+                                    RELOPT_KIND_TABLESPACE,
+                                    sizeof(TableSpaceOpts),
+                                    tab, lengthof(tab));
 }
 
 /*
@@ -2143,31 +2178,28 @@ tablespace_reloptions(Datum reloptions, bool validate)
 LOCKMODE
 AlterTableGetRelOptionsLockLevel(List *defList)
 {
-	LOCKMODE	lockmode = NoLock;
-	ListCell   *cell;
+  LOCKMODE  lockmode = NoLock;
+  ListCell   *cell;
 
-	if (defList == NIL)
-		return AccessExclusiveLock;
+  if (defList == NIL)
+    return AccessExclusiveLock;
 
-	if (need_initialization)
-		initialize_reloptions();
+  if (need_initialization)
+    initialize_reloptions();
 
-	foreach(cell, defList)
-	{
-		DefElem    *def = (DefElem *) lfirst(cell);
-		int			i;
+  foreach(cell, defList) {
+    DefElem    *def = (DefElem *) lfirst(cell);
+    int     i;
 
-		for (i = 0; relOpts[i]; i++)
-		{
-			if (strncmp(relOpts[i]->name,
-						def->defname,
-						relOpts[i]->namelen + 1) == 0)
-			{
-				if (lockmode < relOpts[i]->lockmode)
-					lockmode = relOpts[i]->lockmode;
-			}
-		}
-	}
+    for (i = 0; relOpts[i]; i++) {
+      if (strncmp(relOpts[i]->name,
+                  def->defname,
+                  relOpts[i]->namelen + 1) == 0) {
+        if (lockmode < relOpts[i]->lockmode)
+          lockmode = relOpts[i]->lockmode;
+      }
+    }
+  }
 
-	return lockmode;
+  return lockmode;
 }

@@ -19,4 +19,4 @@ pg_noreturn extern void IoWorkerMain(const void *startup_data, size_t startup_da
 
 extern PGDLLIMPORT int io_workers;
 
-#endif							/* IO_WORKER_H */
+#endif              /* IO_WORKER_H */

@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * skipsupport.c
- *	  Support routines for B-Tree skip scan.
+ *    Support routines for B-Tree skip scan.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/utils/adt/skipsupport.c
+ *    src/backend/utils/adt/skipsupport.c
  *
  *-------------------------------------------------------------------------
  */
@@ -29,33 +29,33 @@
 SkipSupport
 PrepareSkipSupportFromOpclass(Oid opfamily, Oid opcintype, bool reverse)
 {
-	Oid			skipSupportFunction;
-	SkipSupport sksup;
+  Oid     skipSupportFunction;
+  SkipSupport sksup;
 
-	/* Look for a skip support function */
-	skipSupportFunction = get_opfamily_proc(opfamily, opcintype, opcintype,
-											BTSKIPSUPPORT_PROC);
-	if (!OidIsValid(skipSupportFunction))
-		return NULL;
+  /* Look for a skip support function */
+  skipSupportFunction = get_opfamily_proc(opfamily, opcintype, opcintype,
+                                          BTSKIPSUPPORT_PROC);
 
-	sksup = palloc(sizeof(SkipSupportData));
-	OidFunctionCall1(skipSupportFunction, PointerGetDatum(sksup));
+  if (!OidIsValid(skipSupportFunction))
+    return NULL;
 
-	if (reverse)
-	{
-		/*
-		 * DESC/reverse case: swap low_elem with high_elem, and swap decrement
-		 * with increment
-		 */
-		Datum		low_elem = sksup->low_elem;
-		SkipSupportIncDec decrement = sksup->decrement;
+  sksup = palloc(sizeof(SkipSupportData));
+  OidFunctionCall1(skipSupportFunction, PointerGetDatum(sksup));
 
-		sksup->low_elem = sksup->high_elem;
-		sksup->decrement = sksup->increment;
+  if (reverse) {
+    /*
+     * DESC/reverse case: swap low_elem with high_elem, and swap decrement
+     * with increment
+     */
+    Datum   low_elem = sksup->low_elem;
+    SkipSupportIncDec decrement = sksup->decrement;
 
-		sksup->high_elem = low_elem;
-		sksup->increment = decrement;
-	}
+    sksup->low_elem = sksup->high_elem;
+    sksup->decrement = sksup->increment;
 
-	return sksup;
+    sksup->high_elem = low_elem;
+    sksup->increment = decrement;
+  }
+
+  return sksup;
 }

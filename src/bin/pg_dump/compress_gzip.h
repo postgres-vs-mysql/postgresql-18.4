@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * compress_gzip.h
- *	 GZIP interface to compress_io.c routines
+ *   GZIP interface to compress_io.c routines
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	   src/bin/pg_dump/compress_gzip.h
+ *     src/bin/pg_dump/compress_gzip.h
  *
  *-------------------------------------------------------------------------
  */
@@ -17,8 +17,8 @@
 #include "compress_io.h"
 
 extern void InitCompressorGzip(CompressorState *cs,
-							   const pg_compress_specification compression_spec);
+                               const pg_compress_specification compression_spec);
 extern void InitCompressFileHandleGzip(CompressFileHandle *CFH,
-									   const pg_compress_specification compression_spec);
+                                       const pg_compress_specification compression_spec);
 
-#endif							/* _COMPRESS_GZIP_H_ */
+#endif              /* _COMPRESS_GZIP_H_ */

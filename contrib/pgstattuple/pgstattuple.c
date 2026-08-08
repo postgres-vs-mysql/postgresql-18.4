@@ -1,7 +1,7 @@
 /*
  * contrib/pgstattuple/pgstattuple.c
  *
- * Copyright (c) 2001,2002	Tatsuo Ishii
+ * Copyright (c) 2001,2002  Tatsuo Ishii
  *
  * Permission to use, copy, modify, and distribute this software and
  * its documentation for any purpose, without fee, and without a
@@ -39,8 +39,8 @@
 #include "utils/varlena.h"
 
 PG_MODULE_MAGIC_EXT(
-					.name = "pgstattuple",
-					.version = PG_VERSION
+  .name = "pgstattuple",
+  .version = PG_VERSION
 );
 
 PG_FUNCTION_INFO_V1(pgstattuple);
@@ -54,36 +54,35 @@ PG_FUNCTION_INFO_V1(pgstattuplebyid_v1_5);
  * tuple_percent, dead_tuple_percent and free_percent are computable,
  * so not defined here.
  */
-typedef struct pgstattuple_type
-{
-	uint64		table_len;
-	uint64		tuple_count;
-	uint64		tuple_len;
-	uint64		dead_tuple_count;
-	uint64		dead_tuple_len;
-	uint64		free_space;		/* free/reusable space in bytes */
+typedef struct pgstattuple_type {
+  uint64    table_len;
+  uint64    tuple_count;
+  uint64    tuple_len;
+  uint64    dead_tuple_count;
+  uint64    dead_tuple_len;
+  uint64    free_space;   /* free/reusable space in bytes */
 } pgstattuple_type;
 
 typedef void (*pgstat_page) (pgstattuple_type *, Relation, BlockNumber,
-							 BufferAccessStrategy);
+                             BufferAccessStrategy);
 
 static Datum build_pgstattuple_type(pgstattuple_type *stat,
-									FunctionCallInfo fcinfo);
+                                    FunctionCallInfo fcinfo);
 static Datum pgstat_relation(Relation rel, FunctionCallInfo fcinfo);
 static Datum pgstat_heap(Relation rel, FunctionCallInfo fcinfo);
 static void pgstat_btree_page(pgstattuple_type *stat,
-							  Relation rel, BlockNumber blkno,
-							  BufferAccessStrategy bstrategy);
+                              Relation rel, BlockNumber blkno,
+                              BufferAccessStrategy bstrategy);
 static void pgstat_hash_page(pgstattuple_type *stat,
-							 Relation rel, BlockNumber blkno,
-							 BufferAccessStrategy bstrategy);
+                             Relation rel, BlockNumber blkno,
+                             BufferAccessStrategy bstrategy);
 static void pgstat_gist_page(pgstattuple_type *stat,
-							 Relation rel, BlockNumber blkno,
-							 BufferAccessStrategy bstrategy);
+                             Relation rel, BlockNumber blkno,
+                             BufferAccessStrategy bstrategy);
 static Datum pgstat_index(Relation rel, BlockNumber start,
-						  pgstat_page pagefn, FunctionCallInfo fcinfo);
+                          pgstat_page pagefn, FunctionCallInfo fcinfo);
 static void pgstat_index_page(pgstattuple_type *stat, Page page,
-							  OffsetNumber minoff, OffsetNumber maxoff);
+                              OffsetNumber minoff, OffsetNumber maxoff);
 
 /*
  * build_pgstattuple_type -- build a pgstattuple_type tuple
@@ -91,65 +90,63 @@ static void pgstat_index_page(pgstattuple_type *stat, Page page,
 static Datum
 build_pgstattuple_type(pgstattuple_type *stat, FunctionCallInfo fcinfo)
 {
-#define NCOLUMNS	9
-#define NCHARS		314
+#define NCOLUMNS  9
+#define NCHARS    314
 
-	HeapTuple	tuple;
-	char	   *values[NCOLUMNS];
-	char		values_buf[NCOLUMNS][NCHARS];
-	int			i;
-	double		tuple_percent;
-	double		dead_tuple_percent;
-	double		free_percent;	/* free/reusable space in % */
-	TupleDesc	tupdesc;
-	AttInMetadata *attinmeta;
+  HeapTuple tuple;
+  char     *values[NCOLUMNS];
+  char    values_buf[NCOLUMNS][NCHARS];
+  int     i;
+  double    tuple_percent;
+  double    dead_tuple_percent;
+  double    free_percent; /* free/reusable space in % */
+  TupleDesc tupdesc;
+  AttInMetadata *attinmeta;
 
-	/* Build a tuple descriptor for our result type */
-	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
-		elog(ERROR, "return type must be a row type");
+  /* Build a tuple descriptor for our result type */
+  if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+    elog(ERROR, "return type must be a row type");
 
-	/*
-	 * Generate attribute metadata needed later to produce tuples from raw C
-	 * strings
-	 */
-	attinmeta = TupleDescGetAttInMetadata(tupdesc);
+  /*
+   * Generate attribute metadata needed later to produce tuples from raw C
+   * strings
+   */
+  attinmeta = TupleDescGetAttInMetadata(tupdesc);
 
-	if (stat->table_len == 0)
-	{
-		tuple_percent = 0.0;
-		dead_tuple_percent = 0.0;
-		free_percent = 0.0;
-	}
-	else
-	{
-		tuple_percent = 100.0 * stat->tuple_len / stat->table_len;
-		dead_tuple_percent = 100.0 * stat->dead_tuple_len / stat->table_len;
-		free_percent = 100.0 * stat->free_space / stat->table_len;
-	}
+  if (stat->table_len == 0) {
+    tuple_percent = 0.0;
+    dead_tuple_percent = 0.0;
+    free_percent = 0.0;
+  } else {
+    tuple_percent = 100.0 * stat->tuple_len / stat->table_len;
+    dead_tuple_percent = 100.0 * stat->dead_tuple_len / stat->table_len;
+    free_percent = 100.0 * stat->free_space / stat->table_len;
+  }
 
-	/*
-	 * Prepare a values array for constructing the tuple. This should be an
-	 * array of C strings which will be processed later by the appropriate
-	 * "in" functions.
-	 */
-	for (i = 0; i < NCOLUMNS; i++)
-		values[i] = values_buf[i];
-	i = 0;
-	snprintf(values[i++], NCHARS, INT64_FORMAT, stat->table_len);
-	snprintf(values[i++], NCHARS, INT64_FORMAT, stat->tuple_count);
-	snprintf(values[i++], NCHARS, INT64_FORMAT, stat->tuple_len);
-	snprintf(values[i++], NCHARS, "%.2f", tuple_percent);
-	snprintf(values[i++], NCHARS, INT64_FORMAT, stat->dead_tuple_count);
-	snprintf(values[i++], NCHARS, INT64_FORMAT, stat->dead_tuple_len);
-	snprintf(values[i++], NCHARS, "%.2f", dead_tuple_percent);
-	snprintf(values[i++], NCHARS, INT64_FORMAT, stat->free_space);
-	snprintf(values[i++], NCHARS, "%.2f", free_percent);
+  /*
+   * Prepare a values array for constructing the tuple. This should be an
+   * array of C strings which will be processed later by the appropriate
+   * "in" functions.
+   */
+  for (i = 0; i < NCOLUMNS; i++)
+    values[i] = values_buf[i];
 
-	/* build a tuple */
-	tuple = BuildTupleFromCStrings(attinmeta, values);
+  i = 0;
+  snprintf(values[i++], NCHARS, INT64_FORMAT, stat->table_len);
+  snprintf(values[i++], NCHARS, INT64_FORMAT, stat->tuple_count);
+  snprintf(values[i++], NCHARS, INT64_FORMAT, stat->tuple_len);
+  snprintf(values[i++], NCHARS, "%.2f", tuple_percent);
+  snprintf(values[i++], NCHARS, INT64_FORMAT, stat->dead_tuple_count);
+  snprintf(values[i++], NCHARS, INT64_FORMAT, stat->dead_tuple_len);
+  snprintf(values[i++], NCHARS, "%.2f", dead_tuple_percent);
+  snprintf(values[i++], NCHARS, INT64_FORMAT, stat->free_space);
+  snprintf(values[i++], NCHARS, "%.2f", free_percent);
 
-	/* make the tuple into a datum */
-	return HeapTupleGetDatum(tuple);
+  /* build a tuple */
+  tuple = BuildTupleFromCStrings(attinmeta, values);
+
+  /* make the tuple into a datum */
+  return HeapTupleGetDatum(tuple);
 }
 
 /* ----------
@@ -168,20 +165,20 @@ build_pgstattuple_type(pgstattuple_type *stat, FunctionCallInfo fcinfo)
 Datum
 pgstattuple(PG_FUNCTION_ARGS)
 {
-	text	   *relname = PG_GETARG_TEXT_PP(0);
-	RangeVar   *relrv;
-	Relation	rel;
+  text     *relname = PG_GETARG_TEXT_PP(0);
+  RangeVar   *relrv;
+  Relation  rel;
 
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to use pgstattuple functions")));
+  if (!superuser())
+    ereport(ERROR,
+            (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+             errmsg("must be superuser to use pgstattuple functions")));
 
-	/* open relation */
-	relrv = makeRangeVarFromNameList(textToQualifiedNameList(relname));
-	rel = relation_openrv(relrv, AccessShareLock);
+  /* open relation */
+  relrv = makeRangeVarFromNameList(textToQualifiedNameList(relname));
+  rel = relation_openrv(relrv, AccessShareLock);
 
-	PG_RETURN_DATUM(pgstat_relation(rel, fcinfo));
+  PG_RETURN_DATUM(pgstat_relation(rel, fcinfo));
 }
 
 /*
@@ -194,46 +191,46 @@ pgstattuple(PG_FUNCTION_ARGS)
 Datum
 pgstattuple_v1_5(PG_FUNCTION_ARGS)
 {
-	text	   *relname = PG_GETARG_TEXT_PP(0);
-	RangeVar   *relrv;
-	Relation	rel;
+  text     *relname = PG_GETARG_TEXT_PP(0);
+  RangeVar   *relrv;
+  Relation  rel;
 
-	/* open relation */
-	relrv = makeRangeVarFromNameList(textToQualifiedNameList(relname));
-	rel = relation_openrv(relrv, AccessShareLock);
+  /* open relation */
+  relrv = makeRangeVarFromNameList(textToQualifiedNameList(relname));
+  rel = relation_openrv(relrv, AccessShareLock);
 
-	PG_RETURN_DATUM(pgstat_relation(rel, fcinfo));
+  PG_RETURN_DATUM(pgstat_relation(rel, fcinfo));
 }
 
 /* Must keep superuser() check, see above. */
 Datum
 pgstattuplebyid(PG_FUNCTION_ARGS)
 {
-	Oid			relid = PG_GETARG_OID(0);
-	Relation	rel;
+  Oid     relid = PG_GETARG_OID(0);
+  Relation  rel;
 
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to use pgstattuple functions")));
+  if (!superuser())
+    ereport(ERROR,
+            (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+             errmsg("must be superuser to use pgstattuple functions")));
 
-	/* open relation */
-	rel = relation_open(relid, AccessShareLock);
+  /* open relation */
+  rel = relation_open(relid, AccessShareLock);
 
-	PG_RETURN_DATUM(pgstat_relation(rel, fcinfo));
+  PG_RETURN_DATUM(pgstat_relation(rel, fcinfo));
 }
 
 /* Remove superuser() check for 1.5 version, see above */
 Datum
 pgstattuplebyid_v1_5(PG_FUNCTION_ARGS)
 {
-	Oid			relid = PG_GETARG_OID(0);
-	Relation	rel;
+  Oid     relid = PG_GETARG_OID(0);
+  Relation  rel;
 
-	/* open relation */
-	rel = relation_open(relid, AccessShareLock);
+  /* open relation */
+  rel = relation_open(relid, AccessShareLock);
 
-	PG_RETURN_DATUM(pgstat_relation(rel, fcinfo));
+  PG_RETURN_DATUM(pgstat_relation(rel, fcinfo));
 }
 
 /*
@@ -242,71 +239,72 @@ pgstattuplebyid_v1_5(PG_FUNCTION_ARGS)
 static Datum
 pgstat_relation(Relation rel, FunctionCallInfo fcinfo)
 {
-	const char *err;
+  const char *err;
 
-	/*
-	 * Reject attempts to read non-local temporary relations; we would be
-	 * likely to get wrong data since we have no visibility into the owning
-	 * session's local buffers.
-	 */
-	if (RELATION_IS_OTHER_TEMP(rel))
-		ereport(ERROR,
-				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("cannot access temporary tables of other sessions")));
+  /*
+   * Reject attempts to read non-local temporary relations; we would be
+   * likely to get wrong data since we have no visibility into the owning
+   * session's local buffers.
+   */
+  if (RELATION_IS_OTHER_TEMP(rel))
+    ereport(ERROR,
+            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+             errmsg("cannot access temporary tables of other sessions")));
 
-	if (RELKIND_HAS_TABLE_AM(rel->rd_rel->relkind) ||
-		rel->rd_rel->relkind == RELKIND_SEQUENCE)
-	{
-		return pgstat_heap(rel, fcinfo);
-	}
-	else if (rel->rd_rel->relkind == RELKIND_INDEX)
-	{
-		/* see pgstatindex_impl */
-		if (!rel->rd_index->indisvalid)
-			ereport(ERROR,
-					(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-					 errmsg("index \"%s\" is not valid",
-							RelationGetRelationName(rel))));
+  if (RELKIND_HAS_TABLE_AM(rel->rd_rel->relkind) ||
+      rel->rd_rel->relkind == RELKIND_SEQUENCE) {
+    return pgstat_heap(rel, fcinfo);
+  } else if (rel->rd_rel->relkind == RELKIND_INDEX) {
+    /* see pgstatindex_impl */
+    if (!rel->rd_index->indisvalid)
+      ereport(ERROR,
+              (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+               errmsg("index \"%s\" is not valid",
+                      RelationGetRelationName(rel))));
 
-		switch (rel->rd_rel->relam)
-		{
-			case BTREE_AM_OID:
-				return pgstat_index(rel, BTREE_METAPAGE + 1,
-									pgstat_btree_page, fcinfo);
-			case HASH_AM_OID:
-				return pgstat_index(rel, HASH_METAPAGE + 1,
-									pgstat_hash_page, fcinfo);
-			case GIST_AM_OID:
-				return pgstat_index(rel, GIST_ROOT_BLKNO + 1,
-									pgstat_gist_page, fcinfo);
-			case GIN_AM_OID:
-				err = "gin index";
-				break;
-			case SPGIST_AM_OID:
-				err = "spgist index";
-				break;
-			case BRIN_AM_OID:
-				err = "brin index";
-				break;
-			default:
-				err = "unknown index";
-				break;
-		}
-		ereport(ERROR,
-				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("index \"%s\" (%s) is not supported",
-						RelationGetRelationName(rel), err)));
-	}
-	else
-	{
-		ereport(ERROR,
-				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("cannot get tuple-level statistics for relation \"%s\"",
-						RelationGetRelationName(rel)),
-				 errdetail_relkind_not_supported(rel->rd_rel->relkind)));
-	}
+    switch (rel->rd_rel->relam) {
+      case BTREE_AM_OID:
+        return pgstat_index(rel, BTREE_METAPAGE + 1,
+                            pgstat_btree_page, fcinfo);
 
-	return 0;					/* should not happen */
+      case HASH_AM_OID:
+        return pgstat_index(rel, HASH_METAPAGE + 1,
+                            pgstat_hash_page, fcinfo);
+
+      case GIST_AM_OID:
+        return pgstat_index(rel, GIST_ROOT_BLKNO + 1,
+                            pgstat_gist_page, fcinfo);
+
+      case GIN_AM_OID:
+        err = "gin index";
+        break;
+
+      case SPGIST_AM_OID:
+        err = "spgist index";
+        break;
+
+      case BRIN_AM_OID:
+        err = "brin index";
+        break;
+
+      default:
+        err = "unknown index";
+        break;
+    }
+
+    ereport(ERROR,
+            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+             errmsg("index \"%s\" (%s) is not supported",
+                    RelationGetRelationName(rel), err)));
+  } else {
+    ereport(ERROR,
+            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+             errmsg("cannot get tuple-level statistics for relation \"%s\"",
+                    RelationGetRelationName(rel)),
+             errdetail_relkind_not_supported(rel->rd_rel->relkind)));
+  }
+
+  return 0;         /* should not happen */
 }
 
 /*
@@ -315,93 +313,87 @@ pgstat_relation(Relation rel, FunctionCallInfo fcinfo)
 static Datum
 pgstat_heap(Relation rel, FunctionCallInfo fcinfo)
 {
-	TableScanDesc scan;
-	HeapScanDesc hscan;
-	HeapTuple	tuple;
-	BlockNumber nblocks;
-	BlockNumber block = 0;		/* next block to count free space in */
-	BlockNumber tupblock;
-	Buffer		buffer;
-	pgstattuple_type stat = {0};
-	SnapshotData SnapshotDirty;
+  TableScanDesc scan;
+  HeapScanDesc hscan;
+  HeapTuple tuple;
+  BlockNumber nblocks;
+  BlockNumber block = 0;    /* next block to count free space in */
+  BlockNumber tupblock;
+  Buffer    buffer;
+  pgstattuple_type stat = {0};
+  SnapshotData SnapshotDirty;
 
-	/*
-	 * Sequences always use heap AM, but they don't show that in the catalogs.
-	 */
-	if (rel->rd_rel->relkind != RELKIND_SEQUENCE &&
-		rel->rd_rel->relam != HEAP_TABLE_AM_OID)
-		ereport(ERROR,
-				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("only heap AM is supported")));
+  /*
+   * Sequences always use heap AM, but they don't show that in the catalogs.
+   */
+  if (rel->rd_rel->relkind != RELKIND_SEQUENCE &&
+      rel->rd_rel->relam != HEAP_TABLE_AM_OID)
+    ereport(ERROR,
+            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+             errmsg("only heap AM is supported")));
 
-	/* Disable syncscan because we assume we scan from block zero upwards */
-	scan = table_beginscan_strat(rel, SnapshotAny, 0, NULL, true, false);
-	hscan = (HeapScanDesc) scan;
+  /* Disable syncscan because we assume we scan from block zero upwards */
+  scan = table_beginscan_strat(rel, SnapshotAny, 0, NULL, true, false);
+  hscan = (HeapScanDesc) scan;
 
-	InitDirtySnapshot(SnapshotDirty);
+  InitDirtySnapshot(SnapshotDirty);
 
-	nblocks = hscan->rs_nblocks;	/* # blocks to be scanned */
+  nblocks = hscan->rs_nblocks;  /* # blocks to be scanned */
 
-	/* scan the relation */
-	while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
-	{
-		CHECK_FOR_INTERRUPTS();
+  /* scan the relation */
+  while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL) {
+    CHECK_FOR_INTERRUPTS();
 
-		/* must hold a buffer lock to call HeapTupleSatisfiesVisibility */
-		LockBuffer(hscan->rs_cbuf, BUFFER_LOCK_SHARE);
+    /* must hold a buffer lock to call HeapTupleSatisfiesVisibility */
+    LockBuffer(hscan->rs_cbuf, BUFFER_LOCK_SHARE);
 
-		if (HeapTupleSatisfiesVisibility(tuple, &SnapshotDirty, hscan->rs_cbuf))
-		{
-			stat.tuple_len += tuple->t_len;
-			stat.tuple_count++;
-		}
-		else
-		{
-			stat.dead_tuple_len += tuple->t_len;
-			stat.dead_tuple_count++;
-		}
+    if (HeapTupleSatisfiesVisibility(tuple, &SnapshotDirty, hscan->rs_cbuf)) {
+      stat.tuple_len += tuple->t_len;
+      stat.tuple_count++;
+    } else {
+      stat.dead_tuple_len += tuple->t_len;
+      stat.dead_tuple_count++;
+    }
 
-		LockBuffer(hscan->rs_cbuf, BUFFER_LOCK_UNLOCK);
+    LockBuffer(hscan->rs_cbuf, BUFFER_LOCK_UNLOCK);
 
-		/*
-		 * To avoid physically reading the table twice, try to do the
-		 * free-space scan in parallel with the heap scan.  However,
-		 * heap_getnext may find no tuples on a given page, so we cannot
-		 * simply examine the pages returned by the heap scan.
-		 */
-		tupblock = ItemPointerGetBlockNumber(&tuple->t_self);
+    /*
+     * To avoid physically reading the table twice, try to do the
+     * free-space scan in parallel with the heap scan.  However,
+     * heap_getnext may find no tuples on a given page, so we cannot
+     * simply examine the pages returned by the heap scan.
+     */
+    tupblock = ItemPointerGetBlockNumber(&tuple->t_self);
 
-		while (block <= tupblock)
-		{
-			CHECK_FOR_INTERRUPTS();
+    while (block <= tupblock) {
+      CHECK_FOR_INTERRUPTS();
 
-			buffer = ReadBufferExtended(rel, MAIN_FORKNUM, block,
-										RBM_NORMAL, hscan->rs_strategy);
-			LockBuffer(buffer, BUFFER_LOCK_SHARE);
-			stat.free_space += PageGetExactFreeSpace((Page) BufferGetPage(buffer));
-			UnlockReleaseBuffer(buffer);
-			block++;
-		}
-	}
+      buffer = ReadBufferExtended(rel, MAIN_FORKNUM, block,
+                                  RBM_NORMAL, hscan->rs_strategy);
+      LockBuffer(buffer, BUFFER_LOCK_SHARE);
+      stat.free_space += PageGetExactFreeSpace((Page) BufferGetPage(buffer));
+      UnlockReleaseBuffer(buffer);
+      block++;
+    }
+  }
 
-	while (block < nblocks)
-	{
-		CHECK_FOR_INTERRUPTS();
+  while (block < nblocks) {
+    CHECK_FOR_INTERRUPTS();
 
-		buffer = ReadBufferExtended(rel, MAIN_FORKNUM, block,
-									RBM_NORMAL, hscan->rs_strategy);
-		LockBuffer(buffer, BUFFER_LOCK_SHARE);
-		stat.free_space += PageGetExactFreeSpace((Page) BufferGetPage(buffer));
-		UnlockReleaseBuffer(buffer);
-		block++;
-	}
+    buffer = ReadBufferExtended(rel, MAIN_FORKNUM, block,
+                                RBM_NORMAL, hscan->rs_strategy);
+    LockBuffer(buffer, BUFFER_LOCK_SHARE);
+    stat.free_space += PageGetExactFreeSpace((Page) BufferGetPage(buffer));
+    UnlockReleaseBuffer(buffer);
+    block++;
+  }
 
-	table_endscan(scan);
-	relation_close(rel, AccessShareLock);
+  table_endscan(scan);
+  relation_close(rel, AccessShareLock);
 
-	stat.table_len = (uint64) nblocks * BLCKSZ;
+  stat.table_len = (uint64) nblocks * BLCKSZ;
 
-	return build_pgstattuple_type(&stat, fcinfo);
+  return build_pgstattuple_type(&stat, fcinfo);
 }
 
 /*
@@ -409,43 +401,36 @@ pgstat_heap(Relation rel, FunctionCallInfo fcinfo)
  */
 static void
 pgstat_btree_page(pgstattuple_type *stat, Relation rel, BlockNumber blkno,
-				  BufferAccessStrategy bstrategy)
+                  BufferAccessStrategy bstrategy)
 {
-	Buffer		buf;
-	Page		page;
+  Buffer    buf;
+  Page    page;
 
-	buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL, bstrategy);
-	LockBuffer(buf, BT_READ);
-	page = BufferGetPage(buf);
+  buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL, bstrategy);
+  LockBuffer(buf, BT_READ);
+  page = BufferGetPage(buf);
 
-	/* Page is valid, see what to do with it */
-	if (PageIsNew(page))
-	{
-		/* fully empty page */
-		stat->free_space += BLCKSZ;
-	}
-	else if (PageGetSpecialSize(page) == MAXALIGN(sizeof(BTPageOpaqueData)))
-	{
-		BTPageOpaque opaque;
+  /* Page is valid, see what to do with it */
+  if (PageIsNew(page)) {
+    /* fully empty page */
+    stat->free_space += BLCKSZ;
+  } else if (PageGetSpecialSize(page) == MAXALIGN(sizeof(BTPageOpaqueData))) {
+    BTPageOpaque opaque;
 
-		opaque = BTPageGetOpaque(page);
-		if (P_IGNORE(opaque))
-		{
-			/* deleted or half-dead page */
-			stat->free_space += BLCKSZ;
-		}
-		else if (P_ISLEAF(opaque))
-		{
-			pgstat_index_page(stat, page, P_FIRSTDATAKEY(opaque),
-							  PageGetMaxOffsetNumber(page));
-		}
-		else
-		{
-			/* internal page */
-		}
-	}
+    opaque = BTPageGetOpaque(page);
 
-	_bt_relbuf(rel, buf);
+    if (P_IGNORE(opaque)) {
+      /* deleted or half-dead page */
+      stat->free_space += BLCKSZ;
+    } else if (P_ISLEAF(opaque)) {
+      pgstat_index_page(stat, page, P_FIRSTDATAKEY(opaque),
+                        PageGetMaxOffsetNumber(page));
+    } else {
+      /* internal page */
+    }
+  }
+
+  _bt_relbuf(rel, buf);
 }
 
 /*
@@ -453,47 +438,44 @@ pgstat_btree_page(pgstattuple_type *stat, Relation rel, BlockNumber blkno,
  */
 static void
 pgstat_hash_page(pgstattuple_type *stat, Relation rel, BlockNumber blkno,
-				 BufferAccessStrategy bstrategy)
+                 BufferAccessStrategy bstrategy)
 {
-	Buffer		buf;
-	Page		page;
+  Buffer    buf;
+  Page    page;
 
-	buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL, bstrategy);
-	LockBuffer(buf, HASH_READ);
-	page = BufferGetPage(buf);
+  buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL, bstrategy);
+  LockBuffer(buf, HASH_READ);
+  page = BufferGetPage(buf);
 
-	if (PageIsNew(page))
-	{
-		/* fully empty page */
-		stat->free_space += BLCKSZ;
-	}
-	else if (PageGetSpecialSize(page) == MAXALIGN(sizeof(HashPageOpaqueData)))
-	{
-		HashPageOpaque opaque;
+  if (PageIsNew(page)) {
+    /* fully empty page */
+    stat->free_space += BLCKSZ;
+  } else if (PageGetSpecialSize(page) == MAXALIGN(sizeof(HashPageOpaqueData))) {
+    HashPageOpaque opaque;
 
-		opaque = HashPageGetOpaque(page);
-		switch (opaque->hasho_flag & LH_PAGE_TYPE)
-		{
-			case LH_UNUSED_PAGE:
-				stat->free_space += BLCKSZ;
-				break;
-			case LH_BUCKET_PAGE:
-			case LH_OVERFLOW_PAGE:
-				pgstat_index_page(stat, page, FirstOffsetNumber,
-								  PageGetMaxOffsetNumber(page));
-				break;
-			case LH_BITMAP_PAGE:
-			case LH_META_PAGE:
-			default:
-				break;
-		}
-	}
-	else
-	{
-		/* maybe corrupted */
-	}
+    opaque = HashPageGetOpaque(page);
 
-	_hash_relbuf(rel, buf);
+    switch (opaque->hasho_flag & LH_PAGE_TYPE) {
+      case LH_UNUSED_PAGE:
+        stat->free_space += BLCKSZ;
+        break;
+
+      case LH_BUCKET_PAGE:
+      case LH_OVERFLOW_PAGE:
+        pgstat_index_page(stat, page, FirstOffsetNumber,
+                          PageGetMaxOffsetNumber(page));
+        break;
+
+      case LH_BITMAP_PAGE:
+      case LH_META_PAGE:
+      default:
+        break;
+    }
+  } else {
+    /* maybe corrupted */
+  }
+
+  _hash_relbuf(rel, buf);
 }
 
 /*
@@ -501,33 +483,28 @@ pgstat_hash_page(pgstattuple_type *stat, Relation rel, BlockNumber blkno,
  */
 static void
 pgstat_gist_page(pgstattuple_type *stat, Relation rel, BlockNumber blkno,
-				 BufferAccessStrategy bstrategy)
+                 BufferAccessStrategy bstrategy)
 {
-	Buffer		buf;
-	Page		page;
+  Buffer    buf;
+  Page    page;
 
-	buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL, bstrategy);
-	LockBuffer(buf, GIST_SHARE);
-	page = BufferGetPage(buf);
-	if (PageIsNew(page))
-	{
-		/* fully empty page */
-		stat->free_space += BLCKSZ;
-	}
-	else if (PageGetSpecialSize(page) == MAXALIGN(sizeof(GISTPageOpaqueData)))
-	{
-		if (GistPageIsLeaf(page))
-		{
-			pgstat_index_page(stat, page, FirstOffsetNumber,
-							  PageGetMaxOffsetNumber(page));
-		}
-		else
-		{
-			/* root or node */
-		}
-	}
+  buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL, bstrategy);
+  LockBuffer(buf, GIST_SHARE);
+  page = BufferGetPage(buf);
 
-	UnlockReleaseBuffer(buf);
+  if (PageIsNew(page)) {
+    /* fully empty page */
+    stat->free_space += BLCKSZ;
+  } else if (PageGetSpecialSize(page) == MAXALIGN(sizeof(GISTPageOpaqueData))) {
+    if (GistPageIsLeaf(page)) {
+      pgstat_index_page(stat, page, FirstOffsetNumber,
+                        PageGetMaxOffsetNumber(page));
+    } else {
+      /* root or node */
+    }
+  }
+
+  UnlockReleaseBuffer(buf);
 }
 
 /*
@@ -535,43 +512,41 @@ pgstat_gist_page(pgstattuple_type *stat, Relation rel, BlockNumber blkno,
  */
 static Datum
 pgstat_index(Relation rel, BlockNumber start, pgstat_page pagefn,
-			 FunctionCallInfo fcinfo)
+             FunctionCallInfo fcinfo)
 {
-	BlockNumber nblocks;
-	BlockNumber blkno;
-	BufferAccessStrategy bstrategy;
-	pgstattuple_type stat = {0};
+  BlockNumber nblocks;
+  BlockNumber blkno;
+  BufferAccessStrategy bstrategy;
+  pgstattuple_type stat = {0};
 
-	/* prepare access strategy for this index */
-	bstrategy = GetAccessStrategy(BAS_BULKREAD);
+  /* prepare access strategy for this index */
+  bstrategy = GetAccessStrategy(BAS_BULKREAD);
 
-	blkno = start;
-	for (;;)
-	{
-		/* Get the current relation length */
-		LockRelationForExtension(rel, ExclusiveLock);
-		nblocks = RelationGetNumberOfBlocks(rel);
-		UnlockRelationForExtension(rel, ExclusiveLock);
+  blkno = start;
 
-		/* Quit if we've scanned the whole relation */
-		if (blkno >= nblocks)
-		{
-			stat.table_len = (uint64) nblocks * BLCKSZ;
+  for (;;) {
+    /* Get the current relation length */
+    LockRelationForExtension(rel, ExclusiveLock);
+    nblocks = RelationGetNumberOfBlocks(rel);
+    UnlockRelationForExtension(rel, ExclusiveLock);
 
-			break;
-		}
+    /* Quit if we've scanned the whole relation */
+    if (blkno >= nblocks) {
+      stat.table_len = (uint64) nblocks * BLCKSZ;
 
-		for (; blkno < nblocks; blkno++)
-		{
-			CHECK_FOR_INTERRUPTS();
+      break;
+    }
 
-			pagefn(&stat, rel, blkno, bstrategy);
-		}
-	}
+    for (; blkno < nblocks; blkno++) {
+      CHECK_FOR_INTERRUPTS();
 
-	relation_close(rel, AccessShareLock);
+      pagefn(&stat, rel, blkno, bstrategy);
+    }
+  }
 
-	return build_pgstattuple_type(&stat, fcinfo);
+  relation_close(rel, AccessShareLock);
+
+  return build_pgstattuple_type(&stat, fcinfo);
 }
 
 /*
@@ -579,25 +554,21 @@ pgstat_index(Relation rel, BlockNumber start, pgstat_page pagefn,
  */
 static void
 pgstat_index_page(pgstattuple_type *stat, Page page,
-				  OffsetNumber minoff, OffsetNumber maxoff)
+                  OffsetNumber minoff, OffsetNumber maxoff)
 {
-	OffsetNumber i;
+  OffsetNumber i;
 
-	stat->free_space += PageGetExactFreeSpace(page);
+  stat->free_space += PageGetExactFreeSpace(page);
 
-	for (i = minoff; i <= maxoff; i = OffsetNumberNext(i))
-	{
-		ItemId		itemid = PageGetItemId(page, i);
+  for (i = minoff; i <= maxoff; i = OffsetNumberNext(i)) {
+    ItemId    itemid = PageGetItemId(page, i);
 
-		if (ItemIdIsDead(itemid))
-		{
-			stat->dead_tuple_count++;
-			stat->dead_tuple_len += ItemIdGetLength(itemid);
-		}
-		else
-		{
-			stat->tuple_count++;
-			stat->tuple_len += ItemIdGetLength(itemid);
-		}
-	}
+    if (ItemIdIsDead(itemid)) {
+      stat->dead_tuple_count++;
+      stat->dead_tuple_len += ItemIdGetLength(itemid);
+    } else {
+      stat->tuple_count++;
+      stat->tuple_len += ItemIdGetLength(itemid);
+    }
+  }
 }

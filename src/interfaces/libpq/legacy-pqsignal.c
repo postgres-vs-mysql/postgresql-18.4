@@ -1,15 +1,15 @@
 /*-------------------------------------------------------------------------
  *
  * legacy-pqsignal.c
- *	  reliable BSD-style signal(2) routine stolen from RWW who stole it
- *	  from Stevens...
+ *    reliable BSD-style signal(2) routine stolen from RWW who stole it
+ *    from Stevens...
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/interfaces/libpq/legacy-pqsignal.c
+ *    src/interfaces/libpq/legacy-pqsignal.c
  *
  *-------------------------------------------------------------------------
  */
@@ -42,22 +42,28 @@ pqsigfunc
 pqsignal(int signo, pqsigfunc func)
 {
 #ifndef WIN32
-	struct sigaction act,
-				oact;
+  struct sigaction act,
+           oact;
 
-	act.sa_handler = func;
-	sigemptyset(&act.sa_mask);
-	act.sa_flags = 0;
-	if (signo != SIGALRM)
-		act.sa_flags |= SA_RESTART;
+  act.sa_handler = func;
+  sigemptyset(&act.sa_mask);
+  act.sa_flags = 0;
+
+  if (signo != SIGALRM)
+    act.sa_flags |= SA_RESTART;
+
 #ifdef SA_NOCLDSTOP
-	if (signo == SIGCHLD)
-		act.sa_flags |= SA_NOCLDSTOP;
+
+  if (signo == SIGCHLD)
+    act.sa_flags |= SA_NOCLDSTOP;
+
 #endif
-	if (sigaction(signo, &act, &oact) < 0)
-		return SIG_ERR;
-	return oact.sa_handler;
-#else							/* WIN32 */
-	return signal(signo, func);
+
+  if (sigaction(signo, &act, &oact) < 0)
+    return SIG_ERR;
+
+  return oact.sa_handler;
+#else             /* WIN32 */
+  return signal(signo, func);
 #endif
 }

@@ -1,6 +1,6 @@
 /*-------------------------------------------------------------------------
  * conflict.h
- *	   Exports for conflicts logging.
+ *     Exports for conflicts logging.
  *
  * Copyright (c) 2024-2025, PostgreSQL Global Development Group
  *
@@ -30,32 +30,32 @@ struct TupleTableSlot;
  */
 typedef enum
 {
-	/* The row to be inserted violates unique constraint */
-	CT_INSERT_EXISTS,
+  /* The row to be inserted violates unique constraint */
+  CT_INSERT_EXISTS,
 
-	/* The row to be updated was modified by a different origin */
-	CT_UPDATE_ORIGIN_DIFFERS,
+  /* The row to be updated was modified by a different origin */
+  CT_UPDATE_ORIGIN_DIFFERS,
 
-	/* The updated row value violates unique constraint */
-	CT_UPDATE_EXISTS,
+  /* The updated row value violates unique constraint */
+  CT_UPDATE_EXISTS,
 
-	/* The row to be updated is missing */
-	CT_UPDATE_MISSING,
+  /* The row to be updated is missing */
+  CT_UPDATE_MISSING,
 
-	/* The row to be deleted was modified by a different origin */
-	CT_DELETE_ORIGIN_DIFFERS,
+  /* The row to be deleted was modified by a different origin */
+  CT_DELETE_ORIGIN_DIFFERS,
 
-	/* The row to be deleted is missing */
-	CT_DELETE_MISSING,
+  /* The row to be deleted is missing */
+  CT_DELETE_MISSING,
 
-	/* The row to be inserted/updated violates multiple unique constraint */
-	CT_MULTIPLE_UNIQUE_CONFLICTS,
+  /* The row to be inserted/updated violates multiple unique constraint */
+  CT_MULTIPLE_UNIQUE_CONFLICTS,
 
-	/*
-	 * Other conflicts, such as exclusion constraint violations, involve more
-	 * complex rules than simple equality checks. These conflicts are left for
-	 * future improvements.
-	 */
+  /*
+   * Other conflicts, such as exclusion constraint violations, involve more
+   * complex rules than simple equality checks. These conflicts are left for
+   * future improvements.
+   */
 } ConflictType;
 
 #define CONFLICT_NUM_TYPES (CT_MULTIPLE_UNIQUE_CONFLICTS + 1)
@@ -65,26 +65,26 @@ typedef enum
  */
 typedef struct ConflictTupleInfo
 {
-	struct TupleTableSlot *slot;	/* tuple slot holding the conflicting
-									 * local tuple */
-	Oid			indexoid;		/* OID of the index where the conflict
-								 * occurred */
-	TransactionId xmin;			/* transaction ID of the modification causing
-								 * the conflict */
-	RepOriginId origin;			/* origin identifier of the modification */
-	TimestampTz ts;				/* timestamp of when the modification on the
-								 * conflicting local row occurred */
+  struct TupleTableSlot *slot;  /* tuple slot holding the conflicting
+                   * local tuple */
+  Oid     indexoid;   /* OID of the index where the conflict
+                 * occurred */
+  TransactionId xmin;     /* transaction ID of the modification causing
+                 * the conflict */
+  RepOriginId origin;     /* origin identifier of the modification */
+  TimestampTz ts;       /* timestamp of when the modification on the
+                 * conflicting local row occurred */
 } ConflictTupleInfo;
 
 extern bool GetTupleTransactionInfo(struct TupleTableSlot *localslot,
-									TransactionId *xmin,
-									RepOriginId *localorigin,
-									TimestampTz *localts);
+                                    TransactionId *xmin,
+                                    RepOriginId *localorigin,
+                                    TimestampTz *localts);
 extern void ReportApplyConflict(struct EState *estate, struct ResultRelInfo *relinfo,
-								int elevel, ConflictType type,
-								struct TupleTableSlot *searchslot,
-								struct TupleTableSlot *remoteslot,
-								List *conflicttuples);
+                                int elevel, ConflictType type,
+                                struct TupleTableSlot *searchslot,
+                                struct TupleTableSlot *remoteslot,
+                                List *conflicttuples);
 extern void InitConflictIndexes(struct ResultRelInfo *relInfo);
 
 #endif

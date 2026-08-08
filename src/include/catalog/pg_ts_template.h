@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_ts_template.h
- *	  definition of the "text search template" system catalog (pg_ts_template)
+ *    definition of the "text search template" system catalog (pg_ts_template)
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -10,8 +10,8 @@
  * src/include/catalog/pg_ts_template.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -19,29 +19,30 @@
 #define PG_TS_TEMPLATE_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_ts_template_d.h"	/* IWYU pragma: export */
+#include "catalog/pg_ts_template_d.h" /* IWYU pragma: export */
 
 /* ----------------
- *		pg_ts_template definition.  cpp turns this into
- *		typedef struct FormData_pg_ts_template
+ *    pg_ts_template definition.  cpp turns this into
+ *    typedef struct FormData_pg_ts_template
  * ----------------
  */
-CATALOG(pg_ts_template,3764,TSTemplateRelationId)
+CATALOG(pg_ts_template, 3764, TSTemplateRelationId)
 {
-	Oid			oid;			/* oid */
+  Oid     oid;      /* oid */
 
-	/* template name */
-	NameData	tmplname;
+  /* template name */
+  NameData  tmplname;
 
-	/* name space */
-	Oid			tmplnamespace BKI_DEFAULT(pg_catalog) BKI_LOOKUP(pg_namespace);
+  /* name space */
+  Oid     tmplnamespace BKI_DEFAULT(pg_catalog) BKI_LOOKUP(pg_namespace);
 
-	/* initialization method of dict (may be 0) */
-	regproc		tmplinit BKI_LOOKUP_OPT(pg_proc);
+  /* initialization method of dict (may be 0) */
+  regproc   tmplinit BKI_LOOKUP_OPT(pg_proc);
 
-	/* base method of dictionary */
-	regproc		tmpllexize BKI_LOOKUP(pg_proc);
-} FormData_pg_ts_template;
+  /* base method of dictionary */
+  regproc   tmpllexize BKI_LOOKUP(pg_proc);
+}
+FormData_pg_ts_template;
 
 typedef FormData_pg_ts_template *Form_pg_ts_template;
 
@@ -51,4 +52,4 @@ DECLARE_UNIQUE_INDEX_PKEY(pg_ts_template_oid_index, 3767, TSTemplateOidIndexId, 
 MAKE_SYSCACHE(TSTEMPLATENAMENSP, pg_ts_template_tmplname_index, 2);
 MAKE_SYSCACHE(TSTEMPLATEOID, pg_ts_template_oid_index, 2);
 
-#endif							/* PG_TS_TEMPLATE_H */
+#endif              /* PG_TS_TEMPLATE_H */

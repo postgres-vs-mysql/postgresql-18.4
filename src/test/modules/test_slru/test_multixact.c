@@ -1,13 +1,13 @@
 /*--------------------------------------------------------------------------
  *
  * test_multixact.c
- *		Support code for multixact testing
+ *    Support code for multixact testing
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *		src/test/modules/test_slru/test_multixact.c
+ *    src/test/modules/test_slru/test_multixact.c
  *
  * -------------------------------------------------------------------------
  */
@@ -27,12 +27,12 @@ PG_FUNCTION_INFO_V1(test_read_multixact);
 Datum
 test_create_multixact(PG_FUNCTION_ARGS)
 {
-	MultiXactId id;
+  MultiXactId id;
 
-	MultiXactIdSetOldestMember();
-	id = MultiXactIdCreate(GetCurrentTransactionId(), MultiXactStatusUpdate,
-						   GetCurrentTransactionId(), MultiXactStatusForShare);
-	PG_RETURN_TRANSACTIONID(id);
+  MultiXactIdSetOldestMember();
+  id = MultiXactIdCreate(GetCurrentTransactionId(), MultiXactStatusUpdate,
+                         GetCurrentTransactionId(), MultiXactStatusForShare);
+  PG_RETURN_TRANSACTIONID(id);
 }
 
 /*
@@ -41,14 +41,14 @@ test_create_multixact(PG_FUNCTION_ARGS)
 Datum
 test_read_multixact(PG_FUNCTION_ARGS)
 {
-	MultiXactId id = PG_GETARG_TRANSACTIONID(0);
-	MultiXactMember *members;
+  MultiXactId id = PG_GETARG_TRANSACTIONID(0);
+  MultiXactMember *members;
 
-	/* discard caches */
-	AtEOXact_MultiXact();
+  /* discard caches */
+  AtEOXact_MultiXact();
 
-	if (GetMultiXactIdMembers(id, &members, false, false) == -1)
-		elog(ERROR, "MultiXactId not found");
+  if (GetMultiXactIdMembers(id, &members, false, false) == -1)
+    elog(ERROR, "MultiXactId not found");
 
-	PG_RETURN_VOID();
+  PG_RETURN_VOID();
 }

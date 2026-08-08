@@ -1,6 +1,6 @@
 /*
  * brin_inclusion.c
- *		Implementation of inclusion opclasses for BRIN
+ *    Implementation of inclusion opclasses for BRIN
  *
  * This module provides framework BRIN support functions for the "inclusion"
  * operator classes.  A few SQL-level support functions are also required for
@@ -20,7 +20,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/access/brin/brin_inclusion.c
+ *    src/backend/access/brin/brin_inclusion.c
  */
 #include "postgres.h"
 
@@ -43,48 +43,47 @@
  * Procedure numbers must not use values reserved for BRIN itself; see
  * brin_internal.h.
  */
-#define		INCLUSION_MAX_PROCNUMS	4	/* maximum support procs we need */
-#define		PROCNUM_MERGE			11	/* required */
-#define		PROCNUM_MERGEABLE		12	/* optional */
-#define		PROCNUM_CONTAINS		13	/* optional */
-#define		PROCNUM_EMPTY			14	/* optional */
+#define   INCLUSION_MAX_PROCNUMS  4 /* maximum support procs we need */
+#define   PROCNUM_MERGE     11  /* required */
+#define   PROCNUM_MERGEABLE   12  /* optional */
+#define   PROCNUM_CONTAINS    13  /* optional */
+#define   PROCNUM_EMPTY     14  /* optional */
 
 
 /*
  * Subtract this from procnum to obtain index in InclusionOpaque arrays
  * (Must be equal to minimum of private procnums).
  */
-#define		PROCNUM_BASE			11
+#define   PROCNUM_BASE      11
 
 /*-
  * The values stored in the bv_values arrays correspond to:
  *
  * INCLUSION_UNION
- *		the union of the values in the block range
+ *    the union of the values in the block range
  * INCLUSION_UNMERGEABLE
- *		whether the values in the block range cannot be merged
- *		(e.g. an IPv6 address amidst IPv4 addresses)
+ *    whether the values in the block range cannot be merged
+ *    (e.g. an IPv6 address amidst IPv4 addresses)
  * INCLUSION_CONTAINS_EMPTY
- *		whether an empty value is present in any tuple
- *		in the block range
+ *    whether an empty value is present in any tuple
+ *    in the block range
  */
-#define INCLUSION_UNION				0
-#define INCLUSION_UNMERGEABLE		1
-#define INCLUSION_CONTAINS_EMPTY	2
+#define INCLUSION_UNION       0
+#define INCLUSION_UNMERGEABLE   1
+#define INCLUSION_CONTAINS_EMPTY  2
 
 
-typedef struct InclusionOpaque
-{
-	FmgrInfo	extra_procinfos[INCLUSION_MAX_PROCNUMS];
-	bool		extra_proc_missing[INCLUSION_MAX_PROCNUMS];
-	Oid			cached_subtype;
-	FmgrInfo	strategy_procinfos[RTMaxStrategyNumber];
+typedef struct InclusionOpaque {
+  FmgrInfo  extra_procinfos[INCLUSION_MAX_PROCNUMS];
+  bool    extra_proc_missing[INCLUSION_MAX_PROCNUMS];
+  Oid     cached_subtype;
+  FmgrInfo  strategy_procinfos[RTMaxStrategyNumber];
 } InclusionOpaque;
 
 static FmgrInfo *inclusion_get_procinfo(BrinDesc *bdesc, uint16 attno,
-										uint16 procnum, bool missing_ok);
+                                        uint16 procnum, bool missing_ok);
 static FmgrInfo *inclusion_get_strategy_procinfo(BrinDesc *bdesc, uint16 attno,
-												 Oid subtype, uint16 strategynum);
+    Oid subtype, uint16 strategynum);
 
 
 /*
@@ -93,36 +92,36 @@ static FmgrInfo *inclusion_get_strategy_procinfo(BrinDesc *bdesc, uint16 attno,
 Datum
 brin_inclusion_opcinfo(PG_FUNCTION_ARGS)
 {
-	Oid			typoid = PG_GETARG_OID(0);
-	BrinOpcInfo *result;
-	TypeCacheEntry *bool_typcache = lookup_type_cache(BOOLOID, 0);
+  Oid     typoid = PG_GETARG_OID(0);
+  BrinOpcInfo *result;
+  TypeCacheEntry *bool_typcache = lookup_type_cache(BOOLOID, 0);
 
-	/*
-	 * All members of opaque are initialized lazily; both procinfo arrays
-	 * start out as non-initialized by having fn_oid be InvalidOid, and
-	 * "missing" to false, by zeroing here.  strategy_procinfos elements can
-	 * be invalidated when cached_subtype changes by zeroing fn_oid.
-	 * extra_procinfo entries are never invalidated, but if a lookup fails
-	 * (which is expected), extra_proc_missing is set to true, indicating not
-	 * to look it up again.
-	 */
-	result = palloc0(MAXALIGN(SizeofBrinOpcInfo(3)) + sizeof(InclusionOpaque));
-	result->oi_nstored = 3;
-	result->oi_regular_nulls = true;
-	result->oi_opaque = (InclusionOpaque *)
-		MAXALIGN((char *) result + SizeofBrinOpcInfo(3));
+  /*
+   * All members of opaque are initialized lazily; both procinfo arrays
+   * start out as non-initialized by having fn_oid be InvalidOid, and
+   * "missing" to false, by zeroing here.  strategy_procinfos elements can
+   * be invalidated when cached_subtype changes by zeroing fn_oid.
+   * extra_procinfo entries are never invalidated, but if a lookup fails
+   * (which is expected), extra_proc_missing is set to true, indicating not
+   * to look it up again.
+   */
+  result = palloc0(MAXALIGN(SizeofBrinOpcInfo(3)) + sizeof(InclusionOpaque));
+  result->oi_nstored = 3;
+  result->oi_regular_nulls = true;
+  result->oi_opaque = (InclusionOpaque *)
+                      MAXALIGN((char *) result + SizeofBrinOpcInfo(3));
 
-	/* the union */
-	result->oi_typcache[INCLUSION_UNION] =
-		lookup_type_cache(typoid, 0);
+  /* the union */
+  result->oi_typcache[INCLUSION_UNION] =
+    lookup_type_cache(typoid, 0);
 
-	/* includes elements that are not mergeable */
-	result->oi_typcache[INCLUSION_UNMERGEABLE] = bool_typcache;
+  /* includes elements that are not mergeable */
+  result->oi_typcache[INCLUSION_UNMERGEABLE] = bool_typcache;
 
-	/* includes the empty element */
-	result->oi_typcache[INCLUSION_CONTAINS_EMPTY] = bool_typcache;
+  /* includes the empty element */
+  result->oi_typcache[INCLUSION_CONTAINS_EMPTY] = bool_typcache;
 
-	PG_RETURN_POINTER(result);
+  PG_RETURN_POINTER(result);
 }
 
 /*
@@ -137,104 +136,104 @@ brin_inclusion_opcinfo(PG_FUNCTION_ARGS)
 Datum
 brin_inclusion_add_value(PG_FUNCTION_ARGS)
 {
-	BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
-	BrinValues *column = (BrinValues *) PG_GETARG_POINTER(1);
-	Datum		newval = PG_GETARG_DATUM(2);
-	bool		isnull PG_USED_FOR_ASSERTS_ONLY = PG_GETARG_BOOL(3);
-	Oid			colloid = PG_GET_COLLATION();
-	FmgrInfo   *finfo;
-	Datum		result;
-	bool		new = false;
-	AttrNumber	attno;
-	CompactAttribute *attr;
+  BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
+  BrinValues *column = (BrinValues *) PG_GETARG_POINTER(1);
+  Datum   newval = PG_GETARG_DATUM(2);
+  bool    isnull PG_USED_FOR_ASSERTS_ONLY = PG_GETARG_BOOL(3);
+  Oid     colloid = PG_GET_COLLATION();
+  FmgrInfo   *finfo;
+  Datum   result;
+  bool    new = false;
+  AttrNumber  attno;
+  CompactAttribute *attr;
 
-	Assert(!isnull);
+  Assert(!isnull);
 
-	attno = column->bv_attno;
-	attr = TupleDescCompactAttr(bdesc->bd_tupdesc, attno - 1);
+  attno = column->bv_attno;
+  attr = TupleDescCompactAttr(bdesc->bd_tupdesc, attno - 1);
 
-	/*
-	 * If the recorded value is null, copy the new value (which we know to be
-	 * not null), and we're almost done.
-	 */
-	if (column->bv_allnulls)
-	{
-		column->bv_values[INCLUSION_UNION] =
-			datumCopy(newval, attr->attbyval, attr->attlen);
-		column->bv_values[INCLUSION_UNMERGEABLE] = BoolGetDatum(false);
-		column->bv_values[INCLUSION_CONTAINS_EMPTY] = BoolGetDatum(false);
-		column->bv_allnulls = false;
-		new = true;
-	}
+  /*
+   * If the recorded value is null, copy the new value (which we know to be
+   * not null), and we're almost done.
+   */
+  if (column->bv_allnulls) {
+    column->bv_values[INCLUSION_UNION] =
+      datumCopy(newval, attr->attbyval, attr->attlen);
+    column->bv_values[INCLUSION_UNMERGEABLE] = BoolGetDatum(false);
+    column->bv_values[INCLUSION_CONTAINS_EMPTY] = BoolGetDatum(false);
+    column->bv_allnulls = false;
+    new = true;
+  }
 
-	/*
-	 * No need for further processing if the block range is marked as
-	 * containing unmergeable values.
-	 */
-	if (DatumGetBool(column->bv_values[INCLUSION_UNMERGEABLE]))
-		PG_RETURN_BOOL(false);
+  /*
+   * No need for further processing if the block range is marked as
+   * containing unmergeable values.
+   */
+  if (DatumGetBool(column->bv_values[INCLUSION_UNMERGEABLE]))
+    PG_RETURN_BOOL(false);
 
-	/*
-	 * If the opclass supports the concept of empty values, test the passed
-	 * new value for emptiness; if it returns true, we need to set the
-	 * "contains empty" flag in the element (unless already set).
-	 */
-	finfo = inclusion_get_procinfo(bdesc, attno, PROCNUM_EMPTY, true);
-	if (finfo != NULL && DatumGetBool(FunctionCall1Coll(finfo, colloid, newval)))
-	{
-		if (!DatumGetBool(column->bv_values[INCLUSION_CONTAINS_EMPTY]))
-		{
-			column->bv_values[INCLUSION_CONTAINS_EMPTY] = BoolGetDatum(true);
-			PG_RETURN_BOOL(true);
-		}
+  /*
+   * If the opclass supports the concept of empty values, test the passed
+   * new value for emptiness; if it returns true, we need to set the
+   * "contains empty" flag in the element (unless already set).
+   */
+  finfo = inclusion_get_procinfo(bdesc, attno, PROCNUM_EMPTY, true);
 
-		PG_RETURN_BOOL(false);
-	}
+  if (finfo != NULL && DatumGetBool(FunctionCall1Coll(finfo, colloid, newval))) {
+    if (!DatumGetBool(column->bv_values[INCLUSION_CONTAINS_EMPTY])) {
+      column->bv_values[INCLUSION_CONTAINS_EMPTY] = BoolGetDatum(true);
+      PG_RETURN_BOOL(true);
+    }
 
-	if (new)
-		PG_RETURN_BOOL(true);
+    PG_RETURN_BOOL(false);
+  }
 
-	/* Check if the new value is already contained. */
-	finfo = inclusion_get_procinfo(bdesc, attno, PROCNUM_CONTAINS, true);
-	if (finfo != NULL &&
-		DatumGetBool(FunctionCall2Coll(finfo, colloid,
-									   column->bv_values[INCLUSION_UNION],
-									   newval)))
-		PG_RETURN_BOOL(false);
+  if (new)
+    PG_RETURN_BOOL(true);
 
-	/*
-	 * Check if the new value is mergeable to the existing union.  If it is
-	 * not, mark the value as containing unmergeable elements and get out.
-	 *
-	 * Note: at this point we could remove the value from the union, since
-	 * it's not going to be used any longer.  However, the BRIN framework
-	 * doesn't allow for the value not being present.  Improve someday.
-	 */
-	finfo = inclusion_get_procinfo(bdesc, attno, PROCNUM_MERGEABLE, true);
-	if (finfo != NULL &&
-		!DatumGetBool(FunctionCall2Coll(finfo, colloid,
-										column->bv_values[INCLUSION_UNION],
-										newval)))
-	{
-		column->bv_values[INCLUSION_UNMERGEABLE] = BoolGetDatum(true);
-		PG_RETURN_BOOL(true);
-	}
+  /* Check if the new value is already contained. */
+  finfo = inclusion_get_procinfo(bdesc, attno, PROCNUM_CONTAINS, true);
 
-	/* Finally, merge the new value to the existing union. */
-	finfo = inclusion_get_procinfo(bdesc, attno, PROCNUM_MERGE, false);
-	result = FunctionCall2Coll(finfo, colloid,
-							   column->bv_values[INCLUSION_UNION], newval);
-	if (!attr->attbyval &&
-		DatumGetPointer(result) != DatumGetPointer(column->bv_values[INCLUSION_UNION]))
-	{
-		pfree(DatumGetPointer(column->bv_values[INCLUSION_UNION]));
+  if (finfo != NULL &&
+      DatumGetBool(FunctionCall2Coll(finfo, colloid,
+                                     column->bv_values[INCLUSION_UNION],
+                                     newval)))
+    PG_RETURN_BOOL(false);
 
-		if (result == newval)
-			result = datumCopy(result, attr->attbyval, attr->attlen);
-	}
-	column->bv_values[INCLUSION_UNION] = result;
+  /*
+   * Check if the new value is mergeable to the existing union.  If it is
+   * not, mark the value as containing unmergeable elements and get out.
+   *
+   * Note: at this point we could remove the value from the union, since
+   * it's not going to be used any longer.  However, the BRIN framework
+   * doesn't allow for the value not being present.  Improve someday.
+   */
+  finfo = inclusion_get_procinfo(bdesc, attno, PROCNUM_MERGEABLE, true);
 
-	PG_RETURN_BOOL(true);
+  if (finfo != NULL &&
+      !DatumGetBool(FunctionCall2Coll(finfo, colloid,
+                                      column->bv_values[INCLUSION_UNION],
+                                      newval))) {
+    column->bv_values[INCLUSION_UNMERGEABLE] = BoolGetDatum(true);
+    PG_RETURN_BOOL(true);
+  }
+
+  /* Finally, merge the new value to the existing union. */
+  finfo = inclusion_get_procinfo(bdesc, attno, PROCNUM_MERGE, false);
+  result = FunctionCall2Coll(finfo, colloid,
+                             column->bv_values[INCLUSION_UNION], newval);
+
+  if (!attr->attbyval &&
+      DatumGetPointer(result) != DatumGetPointer(column->bv_values[INCLUSION_UNION])) {
+    pfree(DatumGetPointer(column->bv_values[INCLUSION_UNION]));
+
+    if (result == newval)
+      result = datumCopy(result, attr->attbyval, attr->attlen);
+  }
+
+  column->bv_values[INCLUSION_UNION] = result;
+
+  PG_RETURN_BOOL(true);
 }
 
 /*
@@ -249,219 +248,224 @@ brin_inclusion_add_value(PG_FUNCTION_ARGS)
 Datum
 brin_inclusion_consistent(PG_FUNCTION_ARGS)
 {
-	BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
-	BrinValues *column = (BrinValues *) PG_GETARG_POINTER(1);
-	ScanKey		key = (ScanKey) PG_GETARG_POINTER(2);
-	Oid			colloid = PG_GET_COLLATION(),
-				subtype;
-	Datum		unionval;
-	AttrNumber	attno;
-	Datum		query;
-	FmgrInfo   *finfo;
-	Datum		result;
+  BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
+  BrinValues *column = (BrinValues *) PG_GETARG_POINTER(1);
+  ScanKey   key = (ScanKey) PG_GETARG_POINTER(2);
+  Oid     colloid = PG_GET_COLLATION(),
+          subtype;
+  Datum   unionval;
+  AttrNumber  attno;
+  Datum   query;
+  FmgrInfo   *finfo;
+  Datum   result;
 
-	/* This opclass uses the old signature with only three arguments. */
-	Assert(PG_NARGS() == 3);
+  /* This opclass uses the old signature with only three arguments. */
+  Assert(PG_NARGS() == 3);
 
-	/* Should not be dealing with all-NULL ranges. */
-	Assert(!column->bv_allnulls);
+  /* Should not be dealing with all-NULL ranges. */
+  Assert(!column->bv_allnulls);
 
-	/* It has to be checked, if it contains elements that are not mergeable. */
-	if (DatumGetBool(column->bv_values[INCLUSION_UNMERGEABLE]))
-		PG_RETURN_BOOL(true);
+  /* It has to be checked, if it contains elements that are not mergeable. */
+  if (DatumGetBool(column->bv_values[INCLUSION_UNMERGEABLE]))
+    PG_RETURN_BOOL(true);
 
-	attno = key->sk_attno;
-	subtype = key->sk_subtype;
-	query = key->sk_argument;
-	unionval = column->bv_values[INCLUSION_UNION];
-	switch (key->sk_strategy)
-	{
-			/*
-			 * Placement strategies
-			 *
-			 * These are implemented by logically negating the result of the
-			 * converse placement operator; for this to work, the converse
-			 * operator must be part of the opclass.  An error will be thrown
-			 * by inclusion_get_strategy_procinfo() if the required strategy
-			 * is not part of the opclass.
-			 *
-			 * These all return false if either argument is empty, so there is
-			 * no need to check for empty elements.
-			 */
+  attno = key->sk_attno;
+  subtype = key->sk_subtype;
+  query = key->sk_argument;
+  unionval = column->bv_values[INCLUSION_UNION];
 
-		case RTLeftStrategyNumber:
-			finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
-													RTOverRightStrategyNumber);
-			result = FunctionCall2Coll(finfo, colloid, unionval, query);
-			PG_RETURN_BOOL(!DatumGetBool(result));
+  switch (key->sk_strategy) {
+    /*
+     * Placement strategies
+     *
+     * These are implemented by logically negating the result of the
+     * converse placement operator; for this to work, the converse
+     * operator must be part of the opclass.  An error will be thrown
+     * by inclusion_get_strategy_procinfo() if the required strategy
+     * is not part of the opclass.
+     *
+     * These all return false if either argument is empty, so there is
+     * no need to check for empty elements.
+     */
 
-		case RTOverLeftStrategyNumber:
-			finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
-													RTRightStrategyNumber);
-			result = FunctionCall2Coll(finfo, colloid, unionval, query);
-			PG_RETURN_BOOL(!DatumGetBool(result));
+    case RTLeftStrategyNumber:
+      finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
+                                              RTOverRightStrategyNumber);
+      result = FunctionCall2Coll(finfo, colloid, unionval, query);
+      PG_RETURN_BOOL(!DatumGetBool(result));
 
-		case RTOverRightStrategyNumber:
-			finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
-													RTLeftStrategyNumber);
-			result = FunctionCall2Coll(finfo, colloid, unionval, query);
-			PG_RETURN_BOOL(!DatumGetBool(result));
+    case RTOverLeftStrategyNumber:
+      finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
+                                              RTRightStrategyNumber);
+      result = FunctionCall2Coll(finfo, colloid, unionval, query);
+      PG_RETURN_BOOL(!DatumGetBool(result));
 
-		case RTRightStrategyNumber:
-			finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
-													RTOverLeftStrategyNumber);
-			result = FunctionCall2Coll(finfo, colloid, unionval, query);
-			PG_RETURN_BOOL(!DatumGetBool(result));
+    case RTOverRightStrategyNumber:
+      finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
+                                              RTLeftStrategyNumber);
+      result = FunctionCall2Coll(finfo, colloid, unionval, query);
+      PG_RETURN_BOOL(!DatumGetBool(result));
 
-		case RTBelowStrategyNumber:
-			finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
-													RTOverAboveStrategyNumber);
-			result = FunctionCall2Coll(finfo, colloid, unionval, query);
-			PG_RETURN_BOOL(!DatumGetBool(result));
+    case RTRightStrategyNumber:
+      finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
+                                              RTOverLeftStrategyNumber);
+      result = FunctionCall2Coll(finfo, colloid, unionval, query);
+      PG_RETURN_BOOL(!DatumGetBool(result));
 
-		case RTOverBelowStrategyNumber:
-			finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
-													RTAboveStrategyNumber);
-			result = FunctionCall2Coll(finfo, colloid, unionval, query);
-			PG_RETURN_BOOL(!DatumGetBool(result));
+    case RTBelowStrategyNumber:
+      finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
+                                              RTOverAboveStrategyNumber);
+      result = FunctionCall2Coll(finfo, colloid, unionval, query);
+      PG_RETURN_BOOL(!DatumGetBool(result));
 
-		case RTOverAboveStrategyNumber:
-			finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
-													RTBelowStrategyNumber);
-			result = FunctionCall2Coll(finfo, colloid, unionval, query);
-			PG_RETURN_BOOL(!DatumGetBool(result));
+    case RTOverBelowStrategyNumber:
+      finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
+                                              RTAboveStrategyNumber);
+      result = FunctionCall2Coll(finfo, colloid, unionval, query);
+      PG_RETURN_BOOL(!DatumGetBool(result));
 
-		case RTAboveStrategyNumber:
-			finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
-													RTOverBelowStrategyNumber);
-			result = FunctionCall2Coll(finfo, colloid, unionval, query);
-			PG_RETURN_BOOL(!DatumGetBool(result));
+    case RTOverAboveStrategyNumber:
+      finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
+                                              RTBelowStrategyNumber);
+      result = FunctionCall2Coll(finfo, colloid, unionval, query);
+      PG_RETURN_BOOL(!DatumGetBool(result));
 
-			/*
-			 * Overlap and contains strategies
-			 *
-			 * These strategies are simple enough that we can simply call the
-			 * operator and return its result.  Empty elements don't change
-			 * the result.
-			 */
+    case RTAboveStrategyNumber:
+      finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
+                                              RTOverBelowStrategyNumber);
+      result = FunctionCall2Coll(finfo, colloid, unionval, query);
+      PG_RETURN_BOOL(!DatumGetBool(result));
 
-		case RTOverlapStrategyNumber:
-		case RTContainsStrategyNumber:
-		case RTContainsElemStrategyNumber:
-		case RTSubStrategyNumber:
-		case RTSubEqualStrategyNumber:
-			finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
-													key->sk_strategy);
-			result = FunctionCall2Coll(finfo, colloid, unionval, query);
-			PG_RETURN_DATUM(result);
+    /*
+     * Overlap and contains strategies
+     *
+     * These strategies are simple enough that we can simply call the
+     * operator and return its result.  Empty elements don't change
+     * the result.
+     */
 
-			/*
-			 * Contained by strategies
-			 *
-			 * We cannot just call the original operator for the contained by
-			 * strategies because some elements can be contained even though
-			 * the union is not; instead we use the overlap operator.
-			 *
-			 * We check for empty elements separately as they are not merged
-			 * to the union but contained by everything.
-			 */
+    case RTOverlapStrategyNumber:
+    case RTContainsStrategyNumber:
+    case RTContainsElemStrategyNumber:
+    case RTSubStrategyNumber:
+    case RTSubEqualStrategyNumber:
+      finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
+                                              key->sk_strategy);
+      result = FunctionCall2Coll(finfo, colloid, unionval, query);
+      PG_RETURN_DATUM(result);
 
-		case RTContainedByStrategyNumber:
-		case RTSuperStrategyNumber:
-		case RTSuperEqualStrategyNumber:
-			finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
-													RTOverlapStrategyNumber);
-			result = FunctionCall2Coll(finfo, colloid, unionval, query);
-			if (DatumGetBool(result))
-				PG_RETURN_BOOL(true);
+    /*
+     * Contained by strategies
+     *
+     * We cannot just call the original operator for the contained by
+     * strategies because some elements can be contained even though
+     * the union is not; instead we use the overlap operator.
+     *
+     * We check for empty elements separately as they are not merged
+     * to the union but contained by everything.
+     */
 
-			PG_RETURN_DATUM(column->bv_values[INCLUSION_CONTAINS_EMPTY]);
+    case RTContainedByStrategyNumber:
+    case RTSuperStrategyNumber:
+    case RTSuperEqualStrategyNumber:
+      finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
+                                              RTOverlapStrategyNumber);
+      result = FunctionCall2Coll(finfo, colloid, unionval, query);
 
-			/*
-			 * Adjacent strategy
-			 *
-			 * We test for overlap first but to be safe we need to call the
-			 * actual adjacent operator also.
-			 *
-			 * An empty element cannot be adjacent to any other, so there is
-			 * no need to check for it.
-			 */
+      if (DatumGetBool(result))
+        PG_RETURN_BOOL(true);
 
-		case RTAdjacentStrategyNumber:
-			finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
-													RTOverlapStrategyNumber);
-			result = FunctionCall2Coll(finfo, colloid, unionval, query);
-			if (DatumGetBool(result))
-				PG_RETURN_BOOL(true);
+      PG_RETURN_DATUM(column->bv_values[INCLUSION_CONTAINS_EMPTY]);
 
-			finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
-													RTAdjacentStrategyNumber);
-			result = FunctionCall2Coll(finfo, colloid, unionval, query);
-			PG_RETURN_DATUM(result);
+    /*
+     * Adjacent strategy
+     *
+     * We test for overlap first but to be safe we need to call the
+     * actual adjacent operator also.
+     *
+     * An empty element cannot be adjacent to any other, so there is
+     * no need to check for it.
+     */
 
-			/*
-			 * Basic comparison strategies
-			 *
-			 * It is straightforward to support the equality strategies with
-			 * the contains operator.  Generally, inequality strategies do not
-			 * make much sense for the types which will be used with the
-			 * inclusion BRIN family of opclasses, but it is possible to
-			 * implement them with logical negation of the left-of and
-			 * right-of operators.
-			 *
-			 * NB: These strategies cannot be used with geometric datatypes
-			 * that use comparison of areas!  The only exception is the "same"
-			 * strategy.
-			 *
-			 * Empty elements are considered to be less than the others.  We
-			 * cannot use the empty support function to check the query is an
-			 * empty element, because the query can be another data type than
-			 * the empty support function argument.  So we will return true,
-			 * if there is a possibility that empty elements will change the
-			 * result.
-			 */
+    case RTAdjacentStrategyNumber:
+      finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
+                                              RTOverlapStrategyNumber);
+      result = FunctionCall2Coll(finfo, colloid, unionval, query);
 
-		case RTLessStrategyNumber:
-		case RTLessEqualStrategyNumber:
-			finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
-													RTRightStrategyNumber);
-			result = FunctionCall2Coll(finfo, colloid, unionval, query);
-			if (!DatumGetBool(result))
-				PG_RETURN_BOOL(true);
+      if (DatumGetBool(result))
+        PG_RETURN_BOOL(true);
 
-			PG_RETURN_DATUM(column->bv_values[INCLUSION_CONTAINS_EMPTY]);
+      finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
+                                              RTAdjacentStrategyNumber);
+      result = FunctionCall2Coll(finfo, colloid, unionval, query);
+      PG_RETURN_DATUM(result);
 
-		case RTSameStrategyNumber:
-		case RTEqualStrategyNumber:
-			finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
-													RTContainsStrategyNumber);
-			result = FunctionCall2Coll(finfo, colloid, unionval, query);
-			if (DatumGetBool(result))
-				PG_RETURN_BOOL(true);
+    /*
+     * Basic comparison strategies
+     *
+     * It is straightforward to support the equality strategies with
+     * the contains operator.  Generally, inequality strategies do not
+     * make much sense for the types which will be used with the
+     * inclusion BRIN family of opclasses, but it is possible to
+     * implement them with logical negation of the left-of and
+     * right-of operators.
+     *
+     * NB: These strategies cannot be used with geometric datatypes
+     * that use comparison of areas!  The only exception is the "same"
+     * strategy.
+     *
+     * Empty elements are considered to be less than the others.  We
+     * cannot use the empty support function to check the query is an
+     * empty element, because the query can be another data type than
+     * the empty support function argument.  So we will return true,
+     * if there is a possibility that empty elements will change the
+     * result.
+     */
 
-			PG_RETURN_DATUM(column->bv_values[INCLUSION_CONTAINS_EMPTY]);
+    case RTLessStrategyNumber:
+    case RTLessEqualStrategyNumber:
+      finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
+                                              RTRightStrategyNumber);
+      result = FunctionCall2Coll(finfo, colloid, unionval, query);
 
-		case RTGreaterEqualStrategyNumber:
-			finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
-													RTLeftStrategyNumber);
-			result = FunctionCall2Coll(finfo, colloid, unionval, query);
-			if (!DatumGetBool(result))
-				PG_RETURN_BOOL(true);
+      if (!DatumGetBool(result))
+        PG_RETURN_BOOL(true);
 
-			PG_RETURN_DATUM(column->bv_values[INCLUSION_CONTAINS_EMPTY]);
+      PG_RETURN_DATUM(column->bv_values[INCLUSION_CONTAINS_EMPTY]);
 
-		case RTGreaterStrategyNumber:
-			/* no need to check for empty elements */
-			finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
-													RTLeftStrategyNumber);
-			result = FunctionCall2Coll(finfo, colloid, unionval, query);
-			PG_RETURN_BOOL(!DatumGetBool(result));
+    case RTSameStrategyNumber:
+    case RTEqualStrategyNumber:
+      finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
+                                              RTContainsStrategyNumber);
+      result = FunctionCall2Coll(finfo, colloid, unionval, query);
 
-		default:
-			/* shouldn't happen */
-			elog(ERROR, "invalid strategy number %d", key->sk_strategy);
-			PG_RETURN_BOOL(false);
-	}
+      if (DatumGetBool(result))
+        PG_RETURN_BOOL(true);
+
+      PG_RETURN_DATUM(column->bv_values[INCLUSION_CONTAINS_EMPTY]);
+
+    case RTGreaterEqualStrategyNumber:
+      finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
+                                              RTLeftStrategyNumber);
+      result = FunctionCall2Coll(finfo, colloid, unionval, query);
+
+      if (!DatumGetBool(result))
+        PG_RETURN_BOOL(true);
+
+      PG_RETURN_DATUM(column->bv_values[INCLUSION_CONTAINS_EMPTY]);
+
+    case RTGreaterStrategyNumber:
+      /* no need to check for empty elements */
+      finfo = inclusion_get_strategy_procinfo(bdesc, attno, subtype,
+                                              RTLeftStrategyNumber);
+      result = FunctionCall2Coll(finfo, colloid, unionval, query);
+      PG_RETURN_BOOL(!DatumGetBool(result));
+
+    default:
+      /* shouldn't happen */
+      elog(ERROR, "invalid strategy number %d", key->sk_strategy);
+      PG_RETURN_BOOL(false);
+  }
 }
 
 /*
@@ -473,64 +477,64 @@ brin_inclusion_consistent(PG_FUNCTION_ARGS)
 Datum
 brin_inclusion_union(PG_FUNCTION_ARGS)
 {
-	BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
-	BrinValues *col_a = (BrinValues *) PG_GETARG_POINTER(1);
-	BrinValues *col_b = (BrinValues *) PG_GETARG_POINTER(2);
-	Oid			colloid = PG_GET_COLLATION();
-	AttrNumber	attno;
-	CompactAttribute *attr;
-	FmgrInfo   *finfo;
-	Datum		result;
+  BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
+  BrinValues *col_a = (BrinValues *) PG_GETARG_POINTER(1);
+  BrinValues *col_b = (BrinValues *) PG_GETARG_POINTER(2);
+  Oid     colloid = PG_GET_COLLATION();
+  AttrNumber  attno;
+  CompactAttribute *attr;
+  FmgrInfo   *finfo;
+  Datum   result;
 
-	Assert(col_a->bv_attno == col_b->bv_attno);
-	Assert(!col_a->bv_allnulls && !col_b->bv_allnulls);
+  Assert(col_a->bv_attno == col_b->bv_attno);
+  Assert(!col_a->bv_allnulls && !col_b->bv_allnulls);
 
-	attno = col_a->bv_attno;
-	attr = TupleDescCompactAttr(bdesc->bd_tupdesc, attno - 1);
+  attno = col_a->bv_attno;
+  attr = TupleDescCompactAttr(bdesc->bd_tupdesc, attno - 1);
 
-	/* If B includes empty elements, mark A similarly, if needed. */
-	if (!DatumGetBool(col_a->bv_values[INCLUSION_CONTAINS_EMPTY]) &&
-		DatumGetBool(col_b->bv_values[INCLUSION_CONTAINS_EMPTY]))
-		col_a->bv_values[INCLUSION_CONTAINS_EMPTY] = BoolGetDatum(true);
+  /* If B includes empty elements, mark A similarly, if needed. */
+  if (!DatumGetBool(col_a->bv_values[INCLUSION_CONTAINS_EMPTY]) &&
+      DatumGetBool(col_b->bv_values[INCLUSION_CONTAINS_EMPTY]))
+    col_a->bv_values[INCLUSION_CONTAINS_EMPTY] = BoolGetDatum(true);
 
-	/* Check if A includes elements that are not mergeable. */
-	if (DatumGetBool(col_a->bv_values[INCLUSION_UNMERGEABLE]))
-		PG_RETURN_VOID();
+  /* Check if A includes elements that are not mergeable. */
+  if (DatumGetBool(col_a->bv_values[INCLUSION_UNMERGEABLE]))
+    PG_RETURN_VOID();
 
-	/* If B includes elements that are not mergeable, mark A similarly. */
-	if (DatumGetBool(col_b->bv_values[INCLUSION_UNMERGEABLE]))
-	{
-		col_a->bv_values[INCLUSION_UNMERGEABLE] = BoolGetDatum(true);
-		PG_RETURN_VOID();
-	}
+  /* If B includes elements that are not mergeable, mark A similarly. */
+  if (DatumGetBool(col_b->bv_values[INCLUSION_UNMERGEABLE])) {
+    col_a->bv_values[INCLUSION_UNMERGEABLE] = BoolGetDatum(true);
+    PG_RETURN_VOID();
+  }
 
-	/* Check if A and B are mergeable; if not, mark A unmergeable. */
-	finfo = inclusion_get_procinfo(bdesc, attno, PROCNUM_MERGEABLE, true);
-	if (finfo != NULL &&
-		!DatumGetBool(FunctionCall2Coll(finfo, colloid,
-										col_a->bv_values[INCLUSION_UNION],
-										col_b->bv_values[INCLUSION_UNION])))
-	{
-		col_a->bv_values[INCLUSION_UNMERGEABLE] = BoolGetDatum(true);
-		PG_RETURN_VOID();
-	}
+  /* Check if A and B are mergeable; if not, mark A unmergeable. */
+  finfo = inclusion_get_procinfo(bdesc, attno, PROCNUM_MERGEABLE, true);
 
-	/* Finally, merge B to A. */
-	finfo = inclusion_get_procinfo(bdesc, attno, PROCNUM_MERGE, false);
-	result = FunctionCall2Coll(finfo, colloid,
-							   col_a->bv_values[INCLUSION_UNION],
-							   col_b->bv_values[INCLUSION_UNION]);
-	if (!attr->attbyval &&
-		DatumGetPointer(result) != DatumGetPointer(col_a->bv_values[INCLUSION_UNION]))
-	{
-		pfree(DatumGetPointer(col_a->bv_values[INCLUSION_UNION]));
+  if (finfo != NULL &&
+      !DatumGetBool(FunctionCall2Coll(finfo, colloid,
+                                      col_a->bv_values[INCLUSION_UNION],
+                                      col_b->bv_values[INCLUSION_UNION]))) {
+    col_a->bv_values[INCLUSION_UNMERGEABLE] = BoolGetDatum(true);
+    PG_RETURN_VOID();
+  }
 
-		if (result == col_b->bv_values[INCLUSION_UNION])
-			result = datumCopy(result, attr->attbyval, attr->attlen);
-	}
-	col_a->bv_values[INCLUSION_UNION] = result;
+  /* Finally, merge B to A. */
+  finfo = inclusion_get_procinfo(bdesc, attno, PROCNUM_MERGE, false);
+  result = FunctionCall2Coll(finfo, colloid,
+                             col_a->bv_values[INCLUSION_UNION],
+                             col_b->bv_values[INCLUSION_UNION]);
 
-	PG_RETURN_VOID();
+  if (!attr->attbyval &&
+      DatumGetPointer(result) != DatumGetPointer(col_a->bv_values[INCLUSION_UNION])) {
+    pfree(DatumGetPointer(col_a->bv_values[INCLUSION_UNION]));
+
+    if (result == col_b->bv_values[INCLUSION_UNION])
+      result = datumCopy(result, attr->attbyval, attr->attlen);
+  }
+
+  col_a->bv_values[INCLUSION_UNION] = result;
+
+  PG_RETURN_VOID();
 }
 
 /*
@@ -542,46 +546,44 @@ brin_inclusion_union(PG_FUNCTION_ARGS)
  */
 static FmgrInfo *
 inclusion_get_procinfo(BrinDesc *bdesc, uint16 attno, uint16 procnum,
-					   bool missing_ok)
+                       bool missing_ok)
 {
-	InclusionOpaque *opaque;
-	uint16		basenum = procnum - PROCNUM_BASE;
+  InclusionOpaque *opaque;
+  uint16    basenum = procnum - PROCNUM_BASE;
 
-	/*
-	 * We cache these in the opaque struct, to avoid repetitive syscache
-	 * lookups.
-	 */
-	opaque = (InclusionOpaque *) bdesc->bd_info[attno - 1]->oi_opaque;
+  /*
+   * We cache these in the opaque struct, to avoid repetitive syscache
+   * lookups.
+   */
+  opaque = (InclusionOpaque *) bdesc->bd_info[attno - 1]->oi_opaque;
 
-	/*
-	 * If we already searched for this proc and didn't find it, don't bother
-	 * searching again.
-	 */
-	if (opaque->extra_proc_missing[basenum])
-		return NULL;
+  /*
+   * If we already searched for this proc and didn't find it, don't bother
+   * searching again.
+   */
+  if (opaque->extra_proc_missing[basenum])
+    return NULL;
 
-	if (opaque->extra_procinfos[basenum].fn_oid == InvalidOid)
-	{
-		if (RegProcedureIsValid(index_getprocid(bdesc->bd_index, attno,
-												procnum)))
-			fmgr_info_copy(&opaque->extra_procinfos[basenum],
-						   index_getprocinfo(bdesc->bd_index, attno, procnum),
-						   bdesc->bd_context);
-		else
-		{
-			if (!missing_ok)
-				ereport(ERROR,
-						errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-						errmsg_internal("invalid opclass definition"),
-						errdetail_internal("The operator class is missing support function %d for column %d.",
-										   procnum, attno));
+  if (opaque->extra_procinfos[basenum].fn_oid == InvalidOid) {
+    if (RegProcedureIsValid(index_getprocid(bdesc->bd_index, attno,
+                                            procnum)))
+      fmgr_info_copy(&opaque->extra_procinfos[basenum],
+                     index_getprocinfo(bdesc->bd_index, attno, procnum),
+                     bdesc->bd_context);
+    else {
+      if (!missing_ok)
+        ereport(ERROR,
+                errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+                errmsg_internal("invalid opclass definition"),
+                errdetail_internal("The operator class is missing support function %d for column %d.",
+                                   procnum, attno));
 
-			opaque->extra_proc_missing[basenum] = true;
-			return NULL;
-		}
-	}
+      opaque->extra_proc_missing[basenum] = true;
+      return NULL;
+    }
+  }
 
-	return &opaque->extra_procinfos[basenum];
+  return &opaque->extra_procinfos[basenum];
 }
 
 /*
@@ -606,56 +608,55 @@ inclusion_get_procinfo(BrinDesc *bdesc, uint16 attno, uint16 procnum,
  */
 static FmgrInfo *
 inclusion_get_strategy_procinfo(BrinDesc *bdesc, uint16 attno, Oid subtype,
-								uint16 strategynum)
+                                uint16 strategynum)
 {
-	InclusionOpaque *opaque;
+  InclusionOpaque *opaque;
 
-	Assert(strategynum >= 1 &&
-		   strategynum <= RTMaxStrategyNumber);
+  Assert(strategynum >= 1 &&
+         strategynum <= RTMaxStrategyNumber);
 
-	opaque = (InclusionOpaque *) bdesc->bd_info[attno - 1]->oi_opaque;
+  opaque = (InclusionOpaque *) bdesc->bd_info[attno - 1]->oi_opaque;
 
-	/*
-	 * We cache the procedures for the last sub-type in the opaque struct, to
-	 * avoid repetitive syscache lookups.  If the sub-type is changed,
-	 * invalidate all the cached entries.
-	 */
-	if (opaque->cached_subtype != subtype)
-	{
-		uint16		i;
+  /*
+   * We cache the procedures for the last sub-type in the opaque struct, to
+   * avoid repetitive syscache lookups.  If the sub-type is changed,
+   * invalidate all the cached entries.
+   */
+  if (opaque->cached_subtype != subtype) {
+    uint16    i;
 
-		for (i = 1; i <= RTMaxStrategyNumber; i++)
-			opaque->strategy_procinfos[i - 1].fn_oid = InvalidOid;
-		opaque->cached_subtype = subtype;
-	}
+    for (i = 1; i <= RTMaxStrategyNumber; i++)
+      opaque->strategy_procinfos[i - 1].fn_oid = InvalidOid;
 
-	if (opaque->strategy_procinfos[strategynum - 1].fn_oid == InvalidOid)
-	{
-		Form_pg_attribute attr;
-		HeapTuple	tuple;
-		Oid			opfamily,
-					oprid;
+    opaque->cached_subtype = subtype;
+  }
 
-		opfamily = bdesc->bd_index->rd_opfamily[attno - 1];
-		attr = TupleDescAttr(bdesc->bd_tupdesc, attno - 1);
-		tuple = SearchSysCache4(AMOPSTRATEGY, ObjectIdGetDatum(opfamily),
-								ObjectIdGetDatum(attr->atttypid),
-								ObjectIdGetDatum(subtype),
-								Int16GetDatum(strategynum));
+  if (opaque->strategy_procinfos[strategynum - 1].fn_oid == InvalidOid) {
+    Form_pg_attribute attr;
+    HeapTuple tuple;
+    Oid     opfamily,
+            oprid;
 
-		if (!HeapTupleIsValid(tuple))
-			elog(ERROR, "missing operator %d(%u,%u) in opfamily %u",
-				 strategynum, attr->atttypid, subtype, opfamily);
+    opfamily = bdesc->bd_index->rd_opfamily[attno - 1];
+    attr = TupleDescAttr(bdesc->bd_tupdesc, attno - 1);
+    tuple = SearchSysCache4(AMOPSTRATEGY, ObjectIdGetDatum(opfamily),
+                            ObjectIdGetDatum(attr->atttypid),
+                            ObjectIdGetDatum(subtype),
+                            Int16GetDatum(strategynum));
 
-		oprid = DatumGetObjectId(SysCacheGetAttrNotNull(AMOPSTRATEGY, tuple,
-														Anum_pg_amop_amopopr));
-		ReleaseSysCache(tuple);
-		Assert(RegProcedureIsValid(oprid));
+    if (!HeapTupleIsValid(tuple))
+      elog(ERROR, "missing operator %d(%u,%u) in opfamily %u",
+           strategynum, attr->atttypid, subtype, opfamily);
 
-		fmgr_info_cxt(get_opcode(oprid),
-					  &opaque->strategy_procinfos[strategynum - 1],
-					  bdesc->bd_context);
-	}
+    oprid = DatumGetObjectId(SysCacheGetAttrNotNull(AMOPSTRATEGY, tuple,
+                             Anum_pg_amop_amopopr));
+    ReleaseSysCache(tuple);
+    Assert(RegProcedureIsValid(oprid));
 
-	return &opaque->strategy_procinfos[strategynum - 1];
+    fmgr_info_cxt(get_opcode(oprid),
+                  &opaque->strategy_procinfos[strategynum - 1],
+                  bdesc->bd_context);
+  }
+
+  return &opaque->strategy_procinfos[strategynum - 1];
 }

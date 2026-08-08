@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pqformat.h
- *		Definitions for formatting and parsing frontend/backend messages
+ *    Definitions for formatting and parsing frontend/backend messages
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -45,11 +45,11 @@ extern void pq_sendfloat8(StringInfo buf, float8 f);
 static inline void
 pq_writeint8(StringInfoData *pg_restrict buf, uint8 i)
 {
-	uint8		ni = i;
+  uint8   ni = i;
 
-	Assert(buf->len + (int) sizeof(uint8) <= buf->maxlen);
-	memcpy((char *pg_restrict) (buf->data + buf->len), &ni, sizeof(uint8));
-	buf->len += sizeof(uint8);
+  Assert(buf->len + (int) sizeof(uint8) <= buf->maxlen);
+  memcpy((char *pg_restrict) (buf->data + buf->len), &ni, sizeof(uint8));
+  buf->len += sizeof(uint8);
 }
 
 /*
@@ -59,11 +59,11 @@ pq_writeint8(StringInfoData *pg_restrict buf, uint8 i)
 static inline void
 pq_writeint16(StringInfoData *pg_restrict buf, uint16 i)
 {
-	uint16		ni = pg_hton16(i);
+  uint16    ni = pg_hton16(i);
 
-	Assert(buf->len + (int) sizeof(uint16) <= buf->maxlen);
-	memcpy((char *pg_restrict) (buf->data + buf->len), &ni, sizeof(uint16));
-	buf->len += sizeof(uint16);
+  Assert(buf->len + (int) sizeof(uint16) <= buf->maxlen);
+  memcpy((char *pg_restrict) (buf->data + buf->len), &ni, sizeof(uint16));
+  buf->len += sizeof(uint16);
 }
 
 /*
@@ -73,11 +73,11 @@ pq_writeint16(StringInfoData *pg_restrict buf, uint16 i)
 static inline void
 pq_writeint32(StringInfoData *pg_restrict buf, uint32 i)
 {
-	uint32		ni = pg_hton32(i);
+  uint32    ni = pg_hton32(i);
 
-	Assert(buf->len + (int) sizeof(uint32) <= buf->maxlen);
-	memcpy((char *pg_restrict) (buf->data + buf->len), &ni, sizeof(uint32));
-	buf->len += sizeof(uint32);
+  Assert(buf->len + (int) sizeof(uint32) <= buf->maxlen);
+  memcpy((char *pg_restrict) (buf->data + buf->len), &ni, sizeof(uint32));
+  buf->len += sizeof(uint32);
 }
 
 /*
@@ -87,11 +87,11 @@ pq_writeint32(StringInfoData *pg_restrict buf, uint32 i)
 static inline void
 pq_writeint64(StringInfoData *pg_restrict buf, uint64 i)
 {
-	uint64		ni = pg_hton64(i);
+  uint64    ni = pg_hton64(i);
 
-	Assert(buf->len + (int) sizeof(uint64) <= buf->maxlen);
-	memcpy((char *pg_restrict) (buf->data + buf->len), &ni, sizeof(uint64));
-	buf->len += sizeof(uint64);
+  Assert(buf->len + (int) sizeof(uint64) <= buf->maxlen);
+  memcpy((char *pg_restrict) (buf->data + buf->len), &ni, sizeof(uint64));
+  buf->len += sizeof(uint64);
 }
 
 /*
@@ -107,59 +107,60 @@ pq_writeint64(StringInfoData *pg_restrict buf, uint64 i)
 static inline void
 pq_writestring(StringInfoData *pg_restrict buf, const char *pg_restrict str)
 {
-	int			slen = strlen(str);
-	char	   *p;
+  int     slen = strlen(str);
+  char     *p;
 
-	p = pg_server_to_client(str, slen);
-	if (p != str)				/* actual conversion has been done? */
-		slen = strlen(p);
+  p = pg_server_to_client(str, slen);
 
-	Assert(buf->len + slen + 1 <= buf->maxlen);
+  if (p != str)       /* actual conversion has been done? */
+    slen = strlen(p);
 
-	memcpy(((char *pg_restrict) buf->data + buf->len), p, slen + 1);
-	buf->len += slen + 1;
+  Assert(buf->len + slen + 1 <= buf->maxlen);
 
-	if (p != str)
-		pfree(p);
+  memcpy(((char *pg_restrict) buf->data + buf->len), p, slen + 1);
+  buf->len += slen + 1;
+
+  if (p != str)
+    pfree(p);
 }
 
 /* append a binary [u]int8 to a StringInfo buffer */
 static inline void
 pq_sendint8(StringInfo buf, uint8 i)
 {
-	enlargeStringInfo(buf, sizeof(uint8));
-	pq_writeint8(buf, i);
+  enlargeStringInfo(buf, sizeof(uint8));
+  pq_writeint8(buf, i);
 }
 
 /* append a binary [u]int16 to a StringInfo buffer */
 static inline void
 pq_sendint16(StringInfo buf, uint16 i)
 {
-	enlargeStringInfo(buf, sizeof(uint16));
-	pq_writeint16(buf, i);
+  enlargeStringInfo(buf, sizeof(uint16));
+  pq_writeint16(buf, i);
 }
 
 /* append a binary [u]int32 to a StringInfo buffer */
 static inline void
 pq_sendint32(StringInfo buf, uint32 i)
 {
-	enlargeStringInfo(buf, sizeof(uint32));
-	pq_writeint32(buf, i);
+  enlargeStringInfo(buf, sizeof(uint32));
+  pq_writeint32(buf, i);
 }
 
 /* append a binary [u]int64 to a StringInfo buffer */
 static inline void
 pq_sendint64(StringInfo buf, uint64 i)
 {
-	enlargeStringInfo(buf, sizeof(uint64));
-	pq_writeint64(buf, i);
+  enlargeStringInfo(buf, sizeof(uint64));
+  pq_writeint64(buf, i);
 }
 
 /* append a binary byte to a StringInfo buffer */
 static inline void
 pq_sendbyte(StringInfo buf, uint8 byt)
 {
-	pq_sendint8(buf, byt);
+  pq_sendint8(buf, byt);
 }
 
 /*
@@ -170,21 +171,24 @@ pq_sendbyte(StringInfo buf, uint8 byt)
 static inline void
 pq_sendint(StringInfo buf, uint32 i, int b)
 {
-	switch (b)
-	{
-		case 1:
-			pq_sendint8(buf, (uint8) i);
-			break;
-		case 2:
-			pq_sendint16(buf, (uint16) i);
-			break;
-		case 4:
-			pq_sendint32(buf, (uint32) i);
-			break;
-		default:
-			elog(ERROR, "unsupported integer size %d", b);
-			break;
-	}
+  switch (b)
+  {
+    case 1:
+      pq_sendint8(buf, (uint8) i);
+      break;
+
+    case 2:
+      pq_sendint16(buf, (uint16) i);
+      break;
+
+    case 4:
+      pq_sendint32(buf, (uint32) i);
+      break;
+
+    default:
+      elog(ERROR, "unsupported integer size %d", b);
+      break;
+  }
 }
 
 
@@ -194,7 +198,7 @@ extern bytea *pq_endtypsend(StringInfo buf);
 extern void pq_puttextmessage(char msgtype, const char *str);
 extern void pq_putemptymessage(char msgtype);
 
-extern int	pq_getmsgbyte(StringInfo msg);
+extern int  pq_getmsgbyte(StringInfo msg);
 extern unsigned int pq_getmsgint(StringInfo msg, int b);
 extern int64 pq_getmsgint64(StringInfo msg);
 extern float4 pq_getmsgfloat4(StringInfo msg);
@@ -206,4 +210,4 @@ extern const char *pq_getmsgstring(StringInfo msg);
 extern const char *pq_getmsgrawstring(StringInfo msg);
 extern void pq_getmsgend(StringInfo msg);
 
-#endif							/* PQFORMAT_H */
+#endif              /* PQFORMAT_H */

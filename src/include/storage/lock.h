@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * lock.h
- *	  POSTGRES low-level lock mechanism
+ *    POSTGRES low-level lock mechanism
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -38,7 +38,7 @@ extern PGDLLIMPORT bool Trace_locks;
 extern PGDLLIMPORT bool Trace_userlocks;
 extern PGDLLIMPORT int Trace_lock_table;
 extern PGDLLIMPORT bool Debug_deadlocks;
-#endif							/* LOCK_DEBUG */
+#endif              /* LOCK_DEBUG */
 
 
 /*
@@ -59,28 +59,28 @@ extern PGDLLIMPORT bool Debug_deadlocks;
  */
 typedef struct
 {
-	ProcNumber	procNumber;		/* proc number of the PGPROC */
-	LocalTransactionId localTransactionId;	/* lxid from PGPROC */
+  ProcNumber  procNumber;   /* proc number of the PGPROC */
+  LocalTransactionId localTransactionId;  /* lxid from PGPROC */
 } VirtualTransactionId;
 
-#define InvalidLocalTransactionId		0
+#define InvalidLocalTransactionId   0
 #define LocalTransactionIdIsValid(lxid) ((lxid) != InvalidLocalTransactionId)
 #define VirtualTransactionIdIsValid(vxid) \
-	(LocalTransactionIdIsValid((vxid).localTransactionId))
+  (LocalTransactionIdIsValid((vxid).localTransactionId))
 #define VirtualTransactionIdIsRecoveredPreparedXact(vxid) \
-	((vxid).procNumber == INVALID_PROC_NUMBER)
+  ((vxid).procNumber == INVALID_PROC_NUMBER)
 #define VirtualTransactionIdEquals(vxid1, vxid2) \
-	((vxid1).procNumber == (vxid2).procNumber && \
-	 (vxid1).localTransactionId == (vxid2).localTransactionId)
+  ((vxid1).procNumber == (vxid2).procNumber && \
+   (vxid1).localTransactionId == (vxid2).localTransactionId)
 #define SetInvalidVirtualTransactionId(vxid) \
-	((vxid).procNumber = INVALID_PROC_NUMBER, \
-	 (vxid).localTransactionId = InvalidLocalTransactionId)
+  ((vxid).procNumber = INVALID_PROC_NUMBER, \
+   (vxid).localTransactionId = InvalidLocalTransactionId)
 #define GET_VXID_FROM_PGPROC(vxid_dst, proc) \
-	((vxid_dst).procNumber = (proc).vxid.procNumber, \
-		 (vxid_dst).localTransactionId = (proc).vxid.lxid)
+  ((vxid_dst).procNumber = (proc).vxid.procNumber, \
+     (vxid_dst).localTransactionId = (proc).vxid.lxid)
 
 /* MAX_LOCKMODES cannot be larger than the # of bits in LOCKMASK */
-#define MAX_LOCKMODES		10
+#define MAX_LOCKMODES   10
 
 #define LOCKBIT_ON(lockmode) (1 << (lockmode))
 #define LOCKBIT_OFF(lockmode) (~(1 << (lockmode)))
@@ -93,12 +93,12 @@ typedef struct
  * All of this data is constant and is kept in const tables.
  *
  * numLockModes -- number of lock modes (READ,WRITE,etc) that
- *		are defined in this lock method.  Must be less than MAX_LOCKMODES.
+ *    are defined in this lock method.  Must be less than MAX_LOCKMODES.
  *
  * conflictTab -- this is an array of bitmasks showing lock
- *		mode conflicts.  conflictTab[i] is a mask with the j-th bit
- *		turned on if lock modes i and j conflict.  Lock modes are
- *		numbered 1..numLockModes; conflictTab[0] is unused.
+ *    mode conflicts.  conflictTab[i] is a mask with the j-th bit
+ *    turned on if lock modes i and j conflict.  Lock modes are
+ *    numbered 1..numLockModes; conflictTab[0] is unused.
  *
  * lockModeNames -- ID strings for debug printouts.
  *
@@ -108,10 +108,10 @@ typedef struct
  */
 typedef struct LockMethodData
 {
-	int			numLockModes;
-	const LOCKMASK *conflictTab;
-	const char *const *lockModeNames;
-	const bool *trace_flag;
+  int     numLockModes;
+  const LOCKMASK *conflictTab;
+  const char *const *lockModeNames;
+  const bool *trace_flag;
 } LockMethodData;
 
 typedef const LockMethodData *LockMethod;
@@ -123,8 +123,8 @@ typedef const LockMethodData *LockMethod;
 typedef uint16 LOCKMETHODID;
 
 /* These identify the known lock methods */
-#define DEFAULT_LOCKMETHOD	1
-#define USER_LOCKMETHOD		2
+#define DEFAULT_LOCKMETHOD  1
+#define USER_LOCKMETHOD   2
 
 /*
  * LOCKTAG is the key information needed to look up a LOCK item in the
@@ -135,22 +135,22 @@ typedef uint16 LOCKMETHODID;
  */
 typedef enum LockTagType
 {
-	LOCKTAG_RELATION,			/* whole relation */
-	LOCKTAG_RELATION_EXTEND,	/* the right to extend a relation */
-	LOCKTAG_DATABASE_FROZEN_IDS,	/* pg_database.datfrozenxid */
-	LOCKTAG_PAGE,				/* one page of a relation */
-	LOCKTAG_TUPLE,				/* one physical tuple */
-	LOCKTAG_TRANSACTION,		/* transaction (for waiting for xact done) */
-	LOCKTAG_VIRTUALTRANSACTION, /* virtual transaction (ditto) */
-	LOCKTAG_SPECULATIVE_TOKEN,	/* speculative insertion Xid and token */
-	LOCKTAG_OBJECT,				/* non-relation database object */
-	LOCKTAG_USERLOCK,			/* reserved for old contrib/userlock code */
-	LOCKTAG_ADVISORY,			/* advisory user locks */
-	LOCKTAG_APPLY_TRANSACTION,	/* transaction being applied on a logical
-								 * replication subscriber */
+  LOCKTAG_RELATION,     /* whole relation */
+  LOCKTAG_RELATION_EXTEND,  /* the right to extend a relation */
+  LOCKTAG_DATABASE_FROZEN_IDS,  /* pg_database.datfrozenxid */
+  LOCKTAG_PAGE,       /* one page of a relation */
+  LOCKTAG_TUPLE,        /* one physical tuple */
+  LOCKTAG_TRANSACTION,    /* transaction (for waiting for xact done) */
+  LOCKTAG_VIRTUALTRANSACTION, /* virtual transaction (ditto) */
+  LOCKTAG_SPECULATIVE_TOKEN,  /* speculative insertion Xid and token */
+  LOCKTAG_OBJECT,       /* non-relation database object */
+  LOCKTAG_USERLOCK,     /* reserved for old contrib/userlock code */
+  LOCKTAG_ADVISORY,     /* advisory user locks */
+  LOCKTAG_APPLY_TRANSACTION,  /* transaction being applied on a logical
+                 * replication subscriber */
 } LockTagType;
 
-#define LOCKTAG_LAST_TYPE	LOCKTAG_APPLY_TRANSACTION
+#define LOCKTAG_LAST_TYPE LOCKTAG_APPLY_TRANSACTION
 
 extern PGDLLIMPORT const char *const LockTagTypeNames[];
 
@@ -164,12 +164,12 @@ extern PGDLLIMPORT const char *const LockTagTypeNames[];
  */
 typedef struct LOCKTAG
 {
-	uint32		locktag_field1; /* a 32-bit ID field */
-	uint32		locktag_field2; /* a 32-bit ID field */
-	uint32		locktag_field3; /* a 32-bit ID field */
-	uint16		locktag_field4; /* a 16-bit ID field */
-	uint8		locktag_type;	/* see enum LockTagType */
-	uint8		locktag_lockmethodid;	/* lockmethod indicator */
+  uint32    locktag_field1; /* a 32-bit ID field */
+  uint32    locktag_field2; /* a 32-bit ID field */
+  uint32    locktag_field3; /* a 32-bit ID field */
+  uint16    locktag_field4; /* a 16-bit ID field */
+  uint8   locktag_type; /* see enum LockTagType */
+  uint8   locktag_lockmethodid; /* lockmethod indicator */
 } LOCKTAG;
 
 /*
@@ -180,78 +180,78 @@ typedef struct LOCKTAG
 
 /* ID info for a relation is DB OID + REL OID; DB OID = 0 if shared */
 #define SET_LOCKTAG_RELATION(locktag,dboid,reloid) \
-	((locktag).locktag_field1 = (dboid), \
-	 (locktag).locktag_field2 = (reloid), \
-	 (locktag).locktag_field3 = 0, \
-	 (locktag).locktag_field4 = 0, \
-	 (locktag).locktag_type = LOCKTAG_RELATION, \
-	 (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
+  ((locktag).locktag_field1 = (dboid), \
+   (locktag).locktag_field2 = (reloid), \
+   (locktag).locktag_field3 = 0, \
+   (locktag).locktag_field4 = 0, \
+   (locktag).locktag_type = LOCKTAG_RELATION, \
+   (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
 
 /* same ID info as RELATION */
 #define SET_LOCKTAG_RELATION_EXTEND(locktag,dboid,reloid) \
-	((locktag).locktag_field1 = (dboid), \
-	 (locktag).locktag_field2 = (reloid), \
-	 (locktag).locktag_field3 = 0, \
-	 (locktag).locktag_field4 = 0, \
-	 (locktag).locktag_type = LOCKTAG_RELATION_EXTEND, \
-	 (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
+  ((locktag).locktag_field1 = (dboid), \
+   (locktag).locktag_field2 = (reloid), \
+   (locktag).locktag_field3 = 0, \
+   (locktag).locktag_field4 = 0, \
+   (locktag).locktag_type = LOCKTAG_RELATION_EXTEND, \
+   (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
 
 /* ID info for frozen IDs is DB OID */
 #define SET_LOCKTAG_DATABASE_FROZEN_IDS(locktag,dboid) \
-	((locktag).locktag_field1 = (dboid), \
-	 (locktag).locktag_field2 = 0, \
-	 (locktag).locktag_field3 = 0, \
-	 (locktag).locktag_field4 = 0, \
-	 (locktag).locktag_type = LOCKTAG_DATABASE_FROZEN_IDS, \
-	 (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
+  ((locktag).locktag_field1 = (dboid), \
+   (locktag).locktag_field2 = 0, \
+   (locktag).locktag_field3 = 0, \
+   (locktag).locktag_field4 = 0, \
+   (locktag).locktag_type = LOCKTAG_DATABASE_FROZEN_IDS, \
+   (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
 
 /* ID info for a page is RELATION info + BlockNumber */
 #define SET_LOCKTAG_PAGE(locktag,dboid,reloid,blocknum) \
-	((locktag).locktag_field1 = (dboid), \
-	 (locktag).locktag_field2 = (reloid), \
-	 (locktag).locktag_field3 = (blocknum), \
-	 (locktag).locktag_field4 = 0, \
-	 (locktag).locktag_type = LOCKTAG_PAGE, \
-	 (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
+  ((locktag).locktag_field1 = (dboid), \
+   (locktag).locktag_field2 = (reloid), \
+   (locktag).locktag_field3 = (blocknum), \
+   (locktag).locktag_field4 = 0, \
+   (locktag).locktag_type = LOCKTAG_PAGE, \
+   (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
 
 /* ID info for a tuple is PAGE info + OffsetNumber */
 #define SET_LOCKTAG_TUPLE(locktag,dboid,reloid,blocknum,offnum) \
-	((locktag).locktag_field1 = (dboid), \
-	 (locktag).locktag_field2 = (reloid), \
-	 (locktag).locktag_field3 = (blocknum), \
-	 (locktag).locktag_field4 = (offnum), \
-	 (locktag).locktag_type = LOCKTAG_TUPLE, \
-	 (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
+  ((locktag).locktag_field1 = (dboid), \
+   (locktag).locktag_field2 = (reloid), \
+   (locktag).locktag_field3 = (blocknum), \
+   (locktag).locktag_field4 = (offnum), \
+   (locktag).locktag_type = LOCKTAG_TUPLE, \
+   (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
 
 /* ID info for a transaction is its TransactionId */
 #define SET_LOCKTAG_TRANSACTION(locktag,xid) \
-	((locktag).locktag_field1 = (xid), \
-	 (locktag).locktag_field2 = 0, \
-	 (locktag).locktag_field3 = 0, \
-	 (locktag).locktag_field4 = 0, \
-	 (locktag).locktag_type = LOCKTAG_TRANSACTION, \
-	 (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
+  ((locktag).locktag_field1 = (xid), \
+   (locktag).locktag_field2 = 0, \
+   (locktag).locktag_field3 = 0, \
+   (locktag).locktag_field4 = 0, \
+   (locktag).locktag_type = LOCKTAG_TRANSACTION, \
+   (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
 
 /* ID info for a virtual transaction is its VirtualTransactionId */
 #define SET_LOCKTAG_VIRTUALTRANSACTION(locktag,vxid) \
-	((locktag).locktag_field1 = (vxid).procNumber, \
-	 (locktag).locktag_field2 = (vxid).localTransactionId, \
-	 (locktag).locktag_field3 = 0, \
-	 (locktag).locktag_field4 = 0, \
-	 (locktag).locktag_type = LOCKTAG_VIRTUALTRANSACTION, \
-	 (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
+  ((locktag).locktag_field1 = (vxid).procNumber, \
+   (locktag).locktag_field2 = (vxid).localTransactionId, \
+   (locktag).locktag_field3 = 0, \
+   (locktag).locktag_field4 = 0, \
+   (locktag).locktag_type = LOCKTAG_VIRTUALTRANSACTION, \
+   (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
 
 /*
  * ID info for a speculative insert is TRANSACTION info +
  * its speculative insert counter.
  */
 #define SET_LOCKTAG_SPECULATIVE_INSERTION(locktag,xid,token) \
-	((locktag).locktag_field1 = (xid), \
-	 (locktag).locktag_field2 = (token),		\
-	 (locktag).locktag_field3 = 0, \
-	 (locktag).locktag_field4 = 0, \
-	 (locktag).locktag_type = LOCKTAG_SPECULATIVE_TOKEN, \
-	 (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
+  ((locktag).locktag_field1 = (xid), \
+   (locktag).locktag_field2 = (token),    \
+   (locktag).locktag_field3 = 0, \
+   (locktag).locktag_field4 = 0, \
+   (locktag).locktag_type = LOCKTAG_SPECULATIVE_TOKEN, \
+   (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
 
 /*
  * ID info for an object is DB OID + CLASS OID + OBJECT OID + SUBID
@@ -261,32 +261,32 @@ typedef struct LOCKTAG
  * Also, we use DB OID = 0 for shared objects such as tablespaces.
  */
 #define SET_LOCKTAG_OBJECT(locktag,dboid,classoid,objoid,objsubid) \
-	((locktag).locktag_field1 = (dboid), \
-	 (locktag).locktag_field2 = (classoid), \
-	 (locktag).locktag_field3 = (objoid), \
-	 (locktag).locktag_field4 = (objsubid), \
-	 (locktag).locktag_type = LOCKTAG_OBJECT, \
-	 (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
+  ((locktag).locktag_field1 = (dboid), \
+   (locktag).locktag_field2 = (classoid), \
+   (locktag).locktag_field3 = (objoid), \
+   (locktag).locktag_field4 = (objsubid), \
+   (locktag).locktag_type = LOCKTAG_OBJECT, \
+   (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
 
 #define SET_LOCKTAG_ADVISORY(locktag,id1,id2,id3,id4) \
-	((locktag).locktag_field1 = (id1), \
-	 (locktag).locktag_field2 = (id2), \
-	 (locktag).locktag_field3 = (id3), \
-	 (locktag).locktag_field4 = (id4), \
-	 (locktag).locktag_type = LOCKTAG_ADVISORY, \
-	 (locktag).locktag_lockmethodid = USER_LOCKMETHOD)
+  ((locktag).locktag_field1 = (id1), \
+   (locktag).locktag_field2 = (id2), \
+   (locktag).locktag_field3 = (id3), \
+   (locktag).locktag_field4 = (id4), \
+   (locktag).locktag_type = LOCKTAG_ADVISORY, \
+   (locktag).locktag_lockmethodid = USER_LOCKMETHOD)
 
 /*
  * ID info for a remote transaction on a logical replication subscriber is: DB
  * OID + SUBSCRIPTION OID + TRANSACTION ID + OBJID
  */
 #define SET_LOCKTAG_APPLY_TRANSACTION(locktag,dboid,suboid,xid,objid) \
-	((locktag).locktag_field1 = (dboid), \
-	 (locktag).locktag_field2 = (suboid), \
-	 (locktag).locktag_field3 = (xid), \
-	 (locktag).locktag_field4 = (objid), \
-	 (locktag).locktag_type = LOCKTAG_APPLY_TRANSACTION, \
-	 (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
+  ((locktag).locktag_field1 = (dboid), \
+   (locktag).locktag_field2 = (suboid), \
+   (locktag).locktag_field3 = (xid), \
+   (locktag).locktag_field4 = (objid), \
+   (locktag).locktag_type = LOCKTAG_APPLY_TRANSACTION, \
+   (locktag).locktag_lockmethodid = DEFAULT_LOCKMETHOD)
 
 /*
  * Per-locked-object lock information:
@@ -297,7 +297,7 @@ typedef struct LOCKTAG
  * procLocks -- list of PROCLOCK objects for this lock.
  * waitProcs -- queue of processes waiting for this lock.
  * requested -- count of each lock type currently requested on the lock
- *		(includes requests already granted!!).
+ *    (includes requests already granted!!).
  * nRequested -- total requested locks of all types.
  * granted -- count of each lock type currently granted on the lock.
  * nGranted -- total granted locks of all types.
@@ -308,18 +308,18 @@ typedef struct LOCKTAG
  */
 typedef struct LOCK
 {
-	/* hash key */
-	LOCKTAG		tag;			/* unique identifier of lockable object */
+  /* hash key */
+  LOCKTAG   tag;      /* unique identifier of lockable object */
 
-	/* data */
-	LOCKMASK	grantMask;		/* bitmask for lock types already granted */
-	LOCKMASK	waitMask;		/* bitmask for lock types awaited */
-	dlist_head	procLocks;		/* list of PROCLOCK objects assoc. with lock */
-	dclist_head waitProcs;		/* list of PGPROC objects waiting on lock */
-	int			requested[MAX_LOCKMODES];	/* counts of requested locks */
-	int			nRequested;		/* total of requested[] array */
-	int			granted[MAX_LOCKMODES]; /* counts of granted locks */
-	int			nGranted;		/* total of granted[] array */
+  /* data */
+  LOCKMASK  grantMask;    /* bitmask for lock types already granted */
+  LOCKMASK  waitMask;   /* bitmask for lock types awaited */
+  dlist_head  procLocks;    /* list of PROCLOCK objects assoc. with lock */
+  dclist_head waitProcs;    /* list of PGPROC objects waiting on lock */
+  int     requested[MAX_LOCKMODES]; /* counts of requested locks */
+  int     nRequested;   /* total of requested[] array */
+  int     granted[MAX_LOCKMODES]; /* counts of granted locks */
+  int     nGranted;   /* total of granted[] array */
 } LOCK;
 
 #define LOCK_LOCKMETHOD(lock) ((LOCKMETHODID) (lock).tag.locktag_lockmethodid)
@@ -362,26 +362,26 @@ typedef struct LOCK
  */
 typedef struct PROCLOCKTAG
 {
-	/* NB: we assume this struct contains no padding! */
-	LOCK	   *myLock;			/* link to per-lockable-object information */
-	PGPROC	   *myProc;			/* link to PGPROC of owning backend */
+  /* NB: we assume this struct contains no padding! */
+  LOCK     *myLock;     /* link to per-lockable-object information */
+  PGPROC     *myProc;     /* link to PGPROC of owning backend */
 } PROCLOCKTAG;
 
 typedef struct PROCLOCK
 {
-	/* tag */
-	PROCLOCKTAG tag;			/* unique identifier of proclock object */
+  /* tag */
+  PROCLOCKTAG tag;      /* unique identifier of proclock object */
 
-	/* data */
-	PGPROC	   *groupLeader;	/* proc's lock group leader, or proc itself */
-	LOCKMASK	holdMask;		/* bitmask for lock types currently held */
-	LOCKMASK	releaseMask;	/* bitmask for lock types to be released */
-	dlist_node	lockLink;		/* list link in LOCK's list of proclocks */
-	dlist_node	procLink;		/* list link in PGPROC's list of proclocks */
+  /* data */
+  PGPROC     *groupLeader;  /* proc's lock group leader, or proc itself */
+  LOCKMASK  holdMask;   /* bitmask for lock types currently held */
+  LOCKMASK  releaseMask;  /* bitmask for lock types to be released */
+  dlist_node  lockLink;   /* list link in LOCK's list of proclocks */
+  dlist_node  procLink;   /* list link in PGPROC's list of proclocks */
 } PROCLOCK;
 
 #define PROCLOCK_LOCKMETHOD(proclock) \
-	LOCK_LOCKMETHOD(*((proclock).tag.myLock))
+  LOCK_LOCKMETHOD(*((proclock).tag.myLock))
 
 /*
  * Each backend also maintains a local hash table with information about each
@@ -408,37 +408,37 @@ typedef struct PROCLOCK
  */
 typedef struct LOCALLOCKTAG
 {
-	LOCKTAG		lock;			/* identifies the lockable object */
-	LOCKMODE	mode;			/* lock mode for this table entry */
+  LOCKTAG   lock;     /* identifies the lockable object */
+  LOCKMODE  mode;     /* lock mode for this table entry */
 } LOCALLOCKTAG;
 
 typedef struct LOCALLOCKOWNER
 {
-	/*
-	 * Note: if owner is NULL then the lock is held on behalf of the session;
-	 * otherwise it is held on behalf of my current transaction.
-	 *
-	 * Must use a forward struct reference to avoid circularity.
-	 */
-	struct ResourceOwnerData *owner;
-	int64		nLocks;			/* # of times held by this owner */
+  /*
+   * Note: if owner is NULL then the lock is held on behalf of the session;
+   * otherwise it is held on behalf of my current transaction.
+   *
+   * Must use a forward struct reference to avoid circularity.
+   */
+  struct ResourceOwnerData *owner;
+  int64   nLocks;     /* # of times held by this owner */
 } LOCALLOCKOWNER;
 
 typedef struct LOCALLOCK
 {
-	/* tag */
-	LOCALLOCKTAG tag;			/* unique identifier of locallock entry */
+  /* tag */
+  LOCALLOCKTAG tag;     /* unique identifier of locallock entry */
 
-	/* data */
-	uint32		hashcode;		/* copy of LOCKTAG's hash value */
-	LOCK	   *lock;			/* associated LOCK object, if any */
-	PROCLOCK   *proclock;		/* associated PROCLOCK object, if any */
-	int64		nLocks;			/* total number of times lock is held */
-	int			numLockOwners;	/* # of relevant ResourceOwners */
-	int			maxLockOwners;	/* allocated size of array */
-	LOCALLOCKOWNER *lockOwners; /* dynamically resizable array */
-	bool		holdsStrongLockCount;	/* bumped FastPathStrongRelationLocks */
-	bool		lockCleared;	/* we read all sinval msgs for lock */
+  /* data */
+  uint32    hashcode;   /* copy of LOCKTAG's hash value */
+  LOCK     *lock;     /* associated LOCK object, if any */
+  PROCLOCK   *proclock;   /* associated PROCLOCK object, if any */
+  int64   nLocks;     /* total number of times lock is held */
+  int     numLockOwners;  /* # of relevant ResourceOwners */
+  int     maxLockOwners;  /* allocated size of array */
+  LOCALLOCKOWNER *lockOwners; /* dynamically resizable array */
+  bool    holdsStrongLockCount; /* bumped FastPathStrongRelationLocks */
+  bool    lockCleared;  /* we read all sinval msgs for lock */
 } LOCALLOCK;
 
 #define LOCALLOCK_LOCKMETHOD(llock) ((llock).tag.lock.locktag_lockmethodid)
@@ -452,68 +452,68 @@ typedef struct LOCALLOCK
 
 typedef struct LockInstanceData
 {
-	LOCKTAG		locktag;		/* tag for locked object */
-	LOCKMASK	holdMask;		/* locks held by this PGPROC */
-	LOCKMODE	waitLockMode;	/* lock awaited by this PGPROC, if any */
-	VirtualTransactionId vxid;	/* virtual transaction ID of this PGPROC */
-	TimestampTz waitStart;		/* time at which this PGPROC started waiting
-								 * for lock */
-	int			pid;			/* pid of this PGPROC */
-	int			leaderPid;		/* pid of group leader; = pid if no group */
-	bool		fastpath;		/* taken via fastpath? */
+  LOCKTAG   locktag;    /* tag for locked object */
+  LOCKMASK  holdMask;   /* locks held by this PGPROC */
+  LOCKMODE  waitLockMode; /* lock awaited by this PGPROC, if any */
+  VirtualTransactionId vxid;  /* virtual transaction ID of this PGPROC */
+  TimestampTz waitStart;    /* time at which this PGPROC started waiting
+                 * for lock */
+  int     pid;      /* pid of this PGPROC */
+  int     leaderPid;    /* pid of group leader; = pid if no group */
+  bool    fastpath;   /* taken via fastpath? */
 } LockInstanceData;
 
 typedef struct LockData
 {
-	int			nelements;		/* The length of the array */
-	LockInstanceData *locks;	/* Array of per-PROCLOCK information */
+  int     nelements;    /* The length of the array */
+  LockInstanceData *locks;  /* Array of per-PROCLOCK information */
 } LockData;
 
 typedef struct BlockedProcData
 {
-	int			pid;			/* pid of a blocked PGPROC */
-	/* Per-PROCLOCK information about PROCLOCKs of the lock the pid awaits */
-	/* (these fields refer to indexes in BlockedProcsData.locks[]) */
-	int			first_lock;		/* index of first relevant LockInstanceData */
-	int			num_locks;		/* number of relevant LockInstanceDatas */
-	/* PIDs of PGPROCs that are ahead of "pid" in the lock's wait queue */
-	/* (these fields refer to indexes in BlockedProcsData.waiter_pids[]) */
-	int			first_waiter;	/* index of first preceding waiter */
-	int			num_waiters;	/* number of preceding waiters */
+  int     pid;      /* pid of a blocked PGPROC */
+  /* Per-PROCLOCK information about PROCLOCKs of the lock the pid awaits */
+  /* (these fields refer to indexes in BlockedProcsData.locks[]) */
+  int     first_lock;   /* index of first relevant LockInstanceData */
+  int     num_locks;    /* number of relevant LockInstanceDatas */
+  /* PIDs of PGPROCs that are ahead of "pid" in the lock's wait queue */
+  /* (these fields refer to indexes in BlockedProcsData.waiter_pids[]) */
+  int     first_waiter; /* index of first preceding waiter */
+  int     num_waiters;  /* number of preceding waiters */
 } BlockedProcData;
 
 typedef struct BlockedProcsData
 {
-	BlockedProcData *procs;		/* Array of per-blocked-proc information */
-	LockInstanceData *locks;	/* Array of per-PROCLOCK information */
-	int		   *waiter_pids;	/* Array of PIDs of other blocked PGPROCs */
-	int			nprocs;			/* # of valid entries in procs[] array */
-	int			maxprocs;		/* Allocated length of procs[] array */
-	int			nlocks;			/* # of valid entries in locks[] array */
-	int			maxlocks;		/* Allocated length of locks[] array */
-	int			npids;			/* # of valid entries in waiter_pids[] array */
-	int			maxpids;		/* Allocated length of waiter_pids[] array */
+  BlockedProcData *procs;   /* Array of per-blocked-proc information */
+  LockInstanceData *locks;  /* Array of per-PROCLOCK information */
+  int      *waiter_pids;  /* Array of PIDs of other blocked PGPROCs */
+  int     nprocs;     /* # of valid entries in procs[] array */
+  int     maxprocs;   /* Allocated length of procs[] array */
+  int     nlocks;     /* # of valid entries in locks[] array */
+  int     maxlocks;   /* Allocated length of locks[] array */
+  int     npids;      /* # of valid entries in waiter_pids[] array */
+  int     maxpids;    /* Allocated length of waiter_pids[] array */
 } BlockedProcsData;
 
 
 /* Result codes for LockAcquire() */
 typedef enum
 {
-	LOCKACQUIRE_NOT_AVAIL,		/* lock not available, and dontWait=true */
-	LOCKACQUIRE_OK,				/* lock successfully acquired */
-	LOCKACQUIRE_ALREADY_HELD,	/* incremented count for lock already held */
-	LOCKACQUIRE_ALREADY_CLEAR,	/* incremented count for lock already clear */
+  LOCKACQUIRE_NOT_AVAIL,    /* lock not available, and dontWait=true */
+  LOCKACQUIRE_OK,       /* lock successfully acquired */
+  LOCKACQUIRE_ALREADY_HELD, /* incremented count for lock already held */
+  LOCKACQUIRE_ALREADY_CLEAR,  /* incremented count for lock already clear */
 } LockAcquireResult;
 
 /* Deadlock states identified by DeadLockCheck() */
 typedef enum
 {
-	DS_NOT_YET_CHECKED,			/* no deadlock check has run yet */
-	DS_NO_DEADLOCK,				/* no deadlock detected */
-	DS_SOFT_DEADLOCK,			/* deadlock avoided by queue rearrangement */
-	DS_HARD_DEADLOCK,			/* deadlock, no way out but ERROR */
-	DS_BLOCKED_BY_AUTOVACUUM,	/* no deadlock; queue blocked by autovacuum
-								 * worker */
+  DS_NOT_YET_CHECKED,     /* no deadlock check has run yet */
+  DS_NO_DEADLOCK,       /* no deadlock detected */
+  DS_SOFT_DEADLOCK,     /* deadlock avoided by queue rearrangement */
+  DS_HARD_DEADLOCK,     /* deadlock, no way out but ERROR */
+  DS_BLOCKED_BY_AUTOVACUUM, /* no deadlock; queue blocked by autovacuum
+                 * worker */
 } DeadLockState;
 
 /*
@@ -523,12 +523,12 @@ typedef enum
  * NB: NUM_LOCK_PARTITIONS must be a power of 2!
  */
 #define LockHashPartition(hashcode) \
-	((hashcode) % NUM_LOCK_PARTITIONS)
+  ((hashcode) % NUM_LOCK_PARTITIONS)
 #define LockHashPartitionLock(hashcode) \
-	(&MainLWLockArray[LOCK_MANAGER_LWLOCK_OFFSET + \
-		LockHashPartition(hashcode)].lock)
+  (&MainLWLockArray[LOCK_MANAGER_LWLOCK_OFFSET + \
+    LockHashPartition(hashcode)].lock)
 #define LockHashPartitionLockByIndex(i) \
-	(&MainLWLockArray[LOCK_MANAGER_LWLOCK_OFFSET + (i)].lock)
+  (&MainLWLockArray[LOCK_MANAGER_LWLOCK_OFFSET + (i)].lock)
 
 /*
  * The deadlock detector needs to be able to access lockGroupLeader and
@@ -540,7 +540,7 @@ typedef enum
  * used for a given lock group is determined by the group leader's pgprocno.
  */
 #define LockHashPartitionLockByProc(leader_pgproc) \
-	LockHashPartitionLock(GetNumberFromPGProc(leader_pgproc))
+  LockHashPartitionLock(GetNumberFromPGProc(leader_pgproc))
 
 /*
  * function prototypes
@@ -553,38 +553,38 @@ extern LockMethod GetLockTagsMethodTable(const LOCKTAG *locktag);
 extern uint32 LockTagHashCode(const LOCKTAG *locktag);
 extern bool DoLockModesConflict(LOCKMODE mode1, LOCKMODE mode2);
 extern LockAcquireResult LockAcquire(const LOCKTAG *locktag,
-									 LOCKMODE lockmode,
-									 bool sessionLock,
-									 bool dontWait);
+                                     LOCKMODE lockmode,
+                                     bool sessionLock,
+                                     bool dontWait);
 extern LockAcquireResult LockAcquireExtended(const LOCKTAG *locktag,
-											 LOCKMODE lockmode,
-											 bool sessionLock,
-											 bool dontWait,
-											 bool reportMemoryError,
-											 LOCALLOCK **locallockp,
-											 bool logLockFailure);
+    LOCKMODE lockmode,
+    bool sessionLock,
+    bool dontWait,
+    bool reportMemoryError,
+    LOCALLOCK **locallockp,
+    bool logLockFailure);
 extern void AbortStrongLockAcquire(void);
 extern void MarkLockClear(LOCALLOCK *locallock);
 extern bool LockRelease(const LOCKTAG *locktag,
-						LOCKMODE lockmode, bool sessionLock);
+                        LOCKMODE lockmode, bool sessionLock);
 extern void LockReleaseAll(LOCKMETHODID lockmethodid, bool allLocks);
 extern void LockReleaseSession(LOCKMETHODID lockmethodid);
 extern void LockReleaseCurrentOwner(LOCALLOCK **locallocks, int nlocks);
 extern void LockReassignCurrentOwner(LOCALLOCK **locallocks, int nlocks);
 extern bool LockHeldByMe(const LOCKTAG *locktag,
-						 LOCKMODE lockmode, bool orstronger);
+                         LOCKMODE lockmode, bool orstronger);
 #ifdef USE_ASSERT_CHECKING
 extern HTAB *GetLockMethodLocalHash(void);
 #endif
 extern bool LockHasWaiters(const LOCKTAG *locktag,
-						   LOCKMODE lockmode, bool sessionLock);
+                           LOCKMODE lockmode, bool sessionLock);
 extern VirtualTransactionId *GetLockConflicts(const LOCKTAG *locktag,
-											  LOCKMODE lockmode, int *countp);
+    LOCKMODE lockmode, int *countp);
 extern void AtPrepare_Locks(void);
 extern void PostPrepare_Locks(TransactionId xid);
 extern bool LockCheckConflicts(LockMethod lockMethodTable,
-							   LOCKMODE lockmode,
-							   LOCK *lock, PROCLOCK *proclock);
+                               LOCKMODE lockmode,
+                               LOCK *lock, PROCLOCK *proclock);
 extern void GrantLock(LOCK *lock, PROCLOCK *proclock, LOCKMODE lockmode);
 extern void GrantAwaitedLock(void);
 extern LOCALLOCK *GetAwaitedLock(void);
@@ -598,24 +598,24 @@ extern xl_standby_lock *GetRunningTransactionLocks(int *nlocks);
 extern const char *GetLockmodeName(LOCKMETHODID lockmethodid, LOCKMODE mode);
 
 extern void lock_twophase_recover(TransactionId xid, uint16 info,
-								  void *recdata, uint32 len);
+                                  void *recdata, uint32 len);
 extern void lock_twophase_postcommit(TransactionId xid, uint16 info,
-									 void *recdata, uint32 len);
+                                     void *recdata, uint32 len);
 extern void lock_twophase_postabort(TransactionId xid, uint16 info,
-									void *recdata, uint32 len);
+                                    void *recdata, uint32 len);
 extern void lock_twophase_standby_recover(TransactionId xid, uint16 info,
-										  void *recdata, uint32 len);
+    void *recdata, uint32 len);
 
 extern DeadLockState DeadLockCheck(PGPROC *proc);
 extern PGPROC *GetBlockingAutoVacuumPgproc(void);
 pg_noreturn extern void DeadLockReport(void);
 extern void RememberSimpleDeadLock(PGPROC *proc1,
-								   LOCKMODE lockmode,
-								   LOCK *lock,
-								   PGPROC *proc2);
+                                   LOCKMODE lockmode,
+                                   LOCK *lock,
+                                   PGPROC *proc2);
 extern void InitDeadLockChecking(void);
 
-extern int	LockWaiterCount(const LOCKTAG *locktag);
+extern int  LockWaiterCount(const LOCKTAG *locktag);
 
 #ifdef LOCK_DEBUG
 extern void DumpLocks(PGPROC *proc);
@@ -627,4 +627,4 @@ extern void VirtualXactLockTableInsert(VirtualTransactionId vxid);
 extern void VirtualXactLockTableCleanup(void);
 extern bool VirtualXactLock(VirtualTransactionId vxid, bool wait);
 
-#endif							/* LOCK_H_ */
+#endif              /* LOCK_H_ */

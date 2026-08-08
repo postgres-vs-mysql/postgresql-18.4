@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * pqsignal.c
- *	  Backend signal(2) support (see also src/port/pqsignal.c)
+ *    Backend signal(2) support (see also src/port/pqsignal.c)
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/backend/libpq/pqsignal.c
+ *    src/backend/libpq/pqsignal.c
  *
  * ------------------------------------------------------------------------
  */
@@ -19,9 +19,9 @@
 
 
 /* Global variables */
-sigset_t	UnBlockSig,
-			BlockSig,
-			StartupBlockSig;
+sigset_t  UnBlockSig,
+          BlockSig,
+          StartupBlockSig;
 
 
 /*
@@ -40,60 +40,60 @@ sigset_t	UnBlockSig,
 void
 pqinitmask(void)
 {
-	sigemptyset(&UnBlockSig);
+  sigemptyset(&UnBlockSig);
 
-	/* Note: InitializeWaitEventSupport() modifies UnBlockSig. */
+  /* Note: InitializeWaitEventSupport() modifies UnBlockSig. */
 
-	/* First set all signals, then clear some. */
-	sigfillset(&BlockSig);
-	sigfillset(&StartupBlockSig);
+  /* First set all signals, then clear some. */
+  sigfillset(&BlockSig);
+  sigfillset(&StartupBlockSig);
 
-	/*
-	 * Unmark those signals that should never be blocked. Some of these signal
-	 * names don't exist on all platforms.  Most do, but might as well ifdef
-	 * them all for consistency...
-	 */
+  /*
+   * Unmark those signals that should never be blocked. Some of these signal
+   * names don't exist on all platforms.  Most do, but might as well ifdef
+   * them all for consistency...
+   */
 #ifdef SIGTRAP
-	sigdelset(&BlockSig, SIGTRAP);
-	sigdelset(&StartupBlockSig, SIGTRAP);
+  sigdelset(&BlockSig, SIGTRAP);
+  sigdelset(&StartupBlockSig, SIGTRAP);
 #endif
 #ifdef SIGABRT
-	sigdelset(&BlockSig, SIGABRT);
-	sigdelset(&StartupBlockSig, SIGABRT);
+  sigdelset(&BlockSig, SIGABRT);
+  sigdelset(&StartupBlockSig, SIGABRT);
 #endif
 #ifdef SIGILL
-	sigdelset(&BlockSig, SIGILL);
-	sigdelset(&StartupBlockSig, SIGILL);
+  sigdelset(&BlockSig, SIGILL);
+  sigdelset(&StartupBlockSig, SIGILL);
 #endif
 #ifdef SIGFPE
-	sigdelset(&BlockSig, SIGFPE);
-	sigdelset(&StartupBlockSig, SIGFPE);
+  sigdelset(&BlockSig, SIGFPE);
+  sigdelset(&StartupBlockSig, SIGFPE);
 #endif
 #ifdef SIGSEGV
-	sigdelset(&BlockSig, SIGSEGV);
-	sigdelset(&StartupBlockSig, SIGSEGV);
+  sigdelset(&BlockSig, SIGSEGV);
+  sigdelset(&StartupBlockSig, SIGSEGV);
 #endif
 #ifdef SIGBUS
-	sigdelset(&BlockSig, SIGBUS);
-	sigdelset(&StartupBlockSig, SIGBUS);
+  sigdelset(&BlockSig, SIGBUS);
+  sigdelset(&StartupBlockSig, SIGBUS);
 #endif
 #ifdef SIGSYS
-	sigdelset(&BlockSig, SIGSYS);
-	sigdelset(&StartupBlockSig, SIGSYS);
+  sigdelset(&BlockSig, SIGSYS);
+  sigdelset(&StartupBlockSig, SIGSYS);
 #endif
 #ifdef SIGCONT
-	sigdelset(&BlockSig, SIGCONT);
-	sigdelset(&StartupBlockSig, SIGCONT);
+  sigdelset(&BlockSig, SIGCONT);
+  sigdelset(&StartupBlockSig, SIGCONT);
 #endif
 
-/* Signals unique to startup */
+  /* Signals unique to startup */
 #ifdef SIGQUIT
-	sigdelset(&StartupBlockSig, SIGQUIT);
+  sigdelset(&StartupBlockSig, SIGQUIT);
 #endif
 #ifdef SIGTERM
-	sigdelset(&StartupBlockSig, SIGTERM);
+  sigdelset(&StartupBlockSig, SIGTERM);
 #endif
 #ifdef SIGALRM
-	sigdelset(&StartupBlockSig, SIGALRM);
+  sigdelset(&StartupBlockSig, SIGALRM);
 #endif
 }

@@ -92,10 +92,10 @@
 
 typedef struct fasthash_state
 {
-	/* staging area for chunks of input */
-	uint64		accum;
+  /* staging area for chunks of input */
+  uint64    accum;
 
-	uint64		hash;
+  uint64    hash;
 } fasthash_state;
 
 #define FH_SIZEOF_ACCUM sizeof(uint64)
@@ -109,105 +109,125 @@ typedef struct fasthash_state
 static inline void
 fasthash_init(fasthash_state *hs, uint64 seed)
 {
-	memset(hs, 0, sizeof(fasthash_state));
-	hs->hash = seed ^ 0x880355f21e6d1965;
+  memset(hs, 0, sizeof(fasthash_state));
+  hs->hash = seed ^ 0x880355f21e6d1965;
 }
 
 /* both the finalizer and part of the combining step */
 static inline uint64
 fasthash_mix(uint64 h, uint64 tweak)
 {
-	h ^= (h >> 23) + tweak;
-	h *= 0x2127599bf4325c37;
-	h ^= h >> 47;
-	return h;
+  h ^= (h >> 23) + tweak;
+  h *= 0x2127599bf4325c37;
+  h ^= h >> 47;
+  return h;
 }
 
 /* combine one chunk of input into the hash */
 static inline void
 fasthash_combine(fasthash_state *hs)
 {
-	hs->hash ^= fasthash_mix(hs->accum, 0);
-	hs->hash *= 0x880355f21e6d1965;
+  hs->hash ^= fasthash_mix(hs->accum, 0);
+  hs->hash *= 0x880355f21e6d1965;
 }
 
 /* accumulate up to 8 bytes of input and combine it into the hash */
 static inline void
 fasthash_accum(fasthash_state *hs, const char *k, size_t len)
 {
-	uint32		lower_four;
+  uint32    lower_four;
 
-	Assert(len <= FH_SIZEOF_ACCUM);
-	hs->accum = 0;
+  Assert(len <= FH_SIZEOF_ACCUM);
+  hs->accum = 0;
 
-	/*
-	 * For consistency, bytewise loads must match the platform's endianness.
-	 */
+  /*
+   * For consistency, bytewise loads must match the platform's endianness.
+   */
 #ifdef WORDS_BIGENDIAN
-	switch (len)
-	{
-		case 8:
-			memcpy(&hs->accum, k, 8);
-			break;
-		case 7:
-			hs->accum |= (uint64) k[6] << 8;
-			/* FALLTHROUGH */
-		case 6:
-			hs->accum |= (uint64) k[5] << 16;
-			/* FALLTHROUGH */
-		case 5:
-			hs->accum |= (uint64) k[4] << 24;
-			/* FALLTHROUGH */
-		case 4:
-			memcpy(&lower_four, k, sizeof(lower_four));
-			hs->accum |= (uint64) lower_four << 32;
-			break;
-		case 3:
-			hs->accum |= (uint64) k[2] << 40;
-			/* FALLTHROUGH */
-		case 2:
-			hs->accum |= (uint64) k[1] << 48;
-			/* FALLTHROUGH */
-		case 1:
-			hs->accum |= (uint64) k[0] << 56;
-			break;
-		case 0:
-			return;
-	}
+
+  switch (len)
+  {
+    case 8:
+      memcpy(&hs->accum, k, 8);
+      break;
+
+    case 7:
+      hs->accum |= (uint64) k[6] << 8;
+
+    /* FALLTHROUGH */
+    case 6:
+      hs->accum |= (uint64) k[5] << 16;
+
+    /* FALLTHROUGH */
+    case 5:
+      hs->accum |= (uint64) k[4] << 24;
+
+    /* FALLTHROUGH */
+    case 4:
+      memcpy(&lower_four, k, sizeof(lower_four));
+      hs->accum |= (uint64) lower_four << 32;
+      break;
+
+    case 3:
+      hs->accum |= (uint64) k[2] << 40;
+
+    /* FALLTHROUGH */
+    case 2:
+      hs->accum |= (uint64) k[1] << 48;
+
+    /* FALLTHROUGH */
+    case 1:
+      hs->accum |= (uint64) k[0] << 56;
+      break;
+
+    case 0:
+      return;
+  }
+
 #else
-	switch (len)
-	{
-		case 8:
-			memcpy(&hs->accum, k, 8);
-			break;
-		case 7:
-			hs->accum |= (uint64) k[6] << 48;
-			/* FALLTHROUGH */
-		case 6:
-			hs->accum |= (uint64) k[5] << 40;
-			/* FALLTHROUGH */
-		case 5:
-			hs->accum |= (uint64) k[4] << 32;
-			/* FALLTHROUGH */
-		case 4:
-			memcpy(&lower_four, k, sizeof(lower_four));
-			hs->accum |= lower_four;
-			break;
-		case 3:
-			hs->accum |= (uint64) k[2] << 16;
-			/* FALLTHROUGH */
-		case 2:
-			hs->accum |= (uint64) k[1] << 8;
-			/* FALLTHROUGH */
-		case 1:
-			hs->accum |= (uint64) k[0];
-			break;
-		case 0:
-			return;
-	}
+
+  switch (len)
+  {
+    case 8:
+      memcpy(&hs->accum, k, 8);
+      break;
+
+    case 7:
+      hs->accum |= (uint64) k[6] << 48;
+
+    /* FALLTHROUGH */
+    case 6:
+      hs->accum |= (uint64) k[5] << 40;
+
+    /* FALLTHROUGH */
+    case 5:
+      hs->accum |= (uint64) k[4] << 32;
+
+    /* FALLTHROUGH */
+    case 4:
+      memcpy(&lower_four, k, sizeof(lower_four));
+      hs->accum |= lower_four;
+      break;
+
+    case 3:
+      hs->accum |= (uint64) k[2] << 16;
+
+    /* FALLTHROUGH */
+    case 2:
+      hs->accum |= (uint64) k[1] << 8;
+
+    /* FALLTHROUGH */
+    case 1:
+      hs->accum |= (uint64) k[0];
+      break;
+
+    case 0:
+      return;
+  }
+
 #endif
 
-	fasthash_combine(hs);
+  fasthash_combine(hs);
 }
 
 /*
@@ -215,7 +235,7 @@ fasthash_accum(fasthash_state *hs, const char *k, size_t len)
  * https://graphics.stanford.edu/~seander/bithacks.html#ZeroInWord
  */
 #define haszero64(v) \
-	(((v) - 0x0101010101010101) & ~(v) & 0x8080808080808080)
+  (((v) - 0x0101010101010101) & ~(v) & 0x8080808080808080)
 
 /*
  * all-purpose workhorse for fasthash_accum_cstring
@@ -223,20 +243,20 @@ fasthash_accum(fasthash_state *hs, const char *k, size_t len)
 static inline size_t
 fasthash_accum_cstring_unaligned(fasthash_state *hs, const char *str)
 {
-	const char *const start = str;
+  const char *const start = str;
 
-	while (*str)
-	{
-		size_t		chunk_len = 0;
+  while (*str)
+  {
+    size_t    chunk_len = 0;
 
-		while (chunk_len < FH_SIZEOF_ACCUM && str[chunk_len] != '\0')
-			chunk_len++;
+    while (chunk_len < FH_SIZEOF_ACCUM && str[chunk_len] != '\0')
+      chunk_len++;
 
-		fasthash_accum(hs, str, chunk_len);
-		str += chunk_len;
-	}
+    fasthash_accum(hs, str, chunk_len);
+    str += chunk_len;
+  }
 
-	return str - start;
+  return str - start;
 }
 
 /*
@@ -252,34 +272,35 @@ pg_attribute_no_sanitize_address()
 static inline size_t
 fasthash_accum_cstring_aligned(fasthash_state *hs, const char *str)
 {
-	const char *const start = str;
-	size_t		remainder;
-	uint64		zero_byte_low;
+  const char *const start = str;
+  size_t    remainder;
+  uint64    zero_byte_low;
 
-	Assert(PointerIsAligned(start, uint64));
+  Assert(PointerIsAligned(start, uint64));
 
-	/*
-	 * For every chunk of input, check for zero bytes before mixing into the
-	 * hash. The chunk with zeros must contain the NUL terminator.
-	 */
-	for (;;)
-	{
-		uint64		chunk = *(uint64 *) str;
+  /*
+   * For every chunk of input, check for zero bytes before mixing into the
+   * hash. The chunk with zeros must contain the NUL terminator.
+   */
+  for (;;)
+  {
+    uint64    chunk = *(uint64 *) str;
 
-		zero_byte_low = haszero64(chunk);
-		if (zero_byte_low)
-			break;
+    zero_byte_low = haszero64(chunk);
 
-		hs->accum = chunk;
-		fasthash_combine(hs);
-		str += FH_SIZEOF_ACCUM;
-	}
+    if (zero_byte_low)
+      break;
 
-	/* mix in remaining bytes */
-	remainder = fasthash_accum_cstring_unaligned(hs, str);
-	str += remainder;
+    hs->accum = chunk;
+    fasthash_combine(hs);
+    str += FH_SIZEOF_ACCUM;
+  }
 
-	return str - start;
+  /* mix in remaining bytes */
+  remainder = fasthash_accum_cstring_unaligned(hs, str);
+  str += remainder;
+
+  return str - start;
 }
 
 /*
@@ -290,28 +311,30 @@ fasthash_accum_cstring(fasthash_state *hs, const char *str)
 {
 #if SIZEOF_VOID_P >= 8
 
-	size_t		len;
+  size_t    len;
 #ifdef USE_ASSERT_CHECKING
-	size_t		len_check;
-	fasthash_state hs_check;
+  size_t    len_check;
+  fasthash_state hs_check;
 
-	memcpy(&hs_check, hs, sizeof(fasthash_state));
-	len_check = fasthash_accum_cstring_unaligned(&hs_check, str);
+  memcpy(&hs_check, hs, sizeof(fasthash_state));
+  len_check = fasthash_accum_cstring_unaligned(&hs_check, str);
 #endif
-	if (PointerIsAligned(str, uint64))
-	{
-		len = fasthash_accum_cstring_aligned(hs, str);
-		Assert(len_check == len);
-		Assert(hs_check.hash == hs->hash);
-		return len;
-	}
-#endif							/* SIZEOF_VOID_P */
 
-	/*
-	 * It's not worth it to try to make the word-at-a-time optimization work
-	 * on 32-bit platforms.
-	 */
-	return fasthash_accum_cstring_unaligned(hs, str);
+  if (PointerIsAligned(str, uint64))
+  {
+    len = fasthash_accum_cstring_aligned(hs, str);
+    Assert(len_check == len);
+    Assert(hs_check.hash == hs->hash);
+    return len;
+  }
+
+#endif              /* SIZEOF_VOID_P */
+
+  /*
+   * It's not worth it to try to make the word-at-a-time optimization work
+   * on 32-bit platforms.
+   */
+  return fasthash_accum_cstring_unaligned(hs, str);
 }
 
 /*
@@ -324,7 +347,7 @@ fasthash_accum_cstring(fasthash_state *hs, const char *str)
 static inline uint64
 fasthash_final64(fasthash_state *hs, uint64 tweak)
 {
-	return fasthash_mix(hs->hash, tweak);
+  return fasthash_mix(hs->hash, tweak);
 }
 
 /*
@@ -336,18 +359,18 @@ fasthash_final64(fasthash_state *hs, uint64 tweak)
 static inline uint32
 fasthash_reduce32(uint64 h)
 {
-	/*
-	 * Convert the 64-bit hashcode to Fermat residue, which shall retain
-	 * information from both the higher and lower parts of hashcode.
-	 */
-	return h - (h >> 32);
+  /*
+   * Convert the 64-bit hashcode to Fermat residue, which shall retain
+   * information from both the higher and lower parts of hashcode.
+   */
+  return h - (h >> 32);
 }
 
 /* finalize and reduce */
 static inline uint32
 fasthash_final32(fasthash_state *hs, uint64 tweak)
 {
-	return fasthash_reduce32(fasthash_final64(hs, tweak));
+  return fasthash_reduce32(fasthash_final64(hs, tweak));
 }
 
 /*
@@ -359,29 +382,29 @@ fasthash_final32(fasthash_state *hs, uint64 tweak)
 static inline uint64
 fasthash64(const char *k, size_t len, uint64 seed)
 {
-	fasthash_state hs;
+  fasthash_state hs;
 
-	fasthash_init(&hs, 0);
+  fasthash_init(&hs, 0);
 
-	/* re-initialize the seed according to input length */
-	hs.hash = seed ^ (len * 0x880355f21e6d1965);
+  /* re-initialize the seed according to input length */
+  hs.hash = seed ^ (len * 0x880355f21e6d1965);
 
-	while (len >= FH_SIZEOF_ACCUM)
-	{
-		fasthash_accum(&hs, k, FH_SIZEOF_ACCUM);
-		k += FH_SIZEOF_ACCUM;
-		len -= FH_SIZEOF_ACCUM;
-	}
+  while (len >= FH_SIZEOF_ACCUM)
+  {
+    fasthash_accum(&hs, k, FH_SIZEOF_ACCUM);
+    k += FH_SIZEOF_ACCUM;
+    len -= FH_SIZEOF_ACCUM;
+  }
 
-	fasthash_accum(&hs, k, len);
-	return fasthash_final64(&hs, 0);
+  fasthash_accum(&hs, k, len);
+  return fasthash_final64(&hs, 0);
 }
 
 /* like fasthash64, but returns a 32-bit hashcode */
 static inline uint32
 fasthash32(const char *k, size_t len, uint64 seed)
 {
-	return fasthash_reduce32(fasthash64(k, len, seed));
+  return fasthash_reduce32(fasthash64(k, len, seed));
 }
 
 /*
@@ -390,18 +413,18 @@ fasthash32(const char *k, size_t len, uint64 seed)
 static inline uint32
 hash_string(const char *s)
 {
-	fasthash_state hs;
-	size_t		s_len;
+  fasthash_state hs;
+  size_t    s_len;
 
-	fasthash_init(&hs, 0);
+  fasthash_init(&hs, 0);
 
-	/*
-	 * Combine string into the hash and save the length for tweaking the final
-	 * mix.
-	 */
-	s_len = fasthash_accum_cstring(&hs, s);
+  /*
+   * Combine string into the hash and save the length for tweaking the final
+   * mix.
+   */
+  s_len = fasthash_accum_cstring(&hs, s);
 
-	return fasthash_final32(&hs, s_len);
+  return fasthash_final32(&hs, s_len);
 }
 
-#endif							/* HASHFN_UNSTABLE_H */
+#endif              /* HASHFN_UNSTABLE_H */

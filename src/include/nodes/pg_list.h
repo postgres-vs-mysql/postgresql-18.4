@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_list.h
- *	  interface for PostgreSQL generic list package
+ *    interface for PostgreSQL generic list package
  *
  * Once upon a time, parts of Postgres were written in Lisp and used real
  * cons-cell lists for major data structures.  When that code was rewritten
@@ -17,13 +17,13 @@
  *
  * We support four types of lists:
  *
- *	T_List: lists of pointers
- *		(in practice usually pointers to Nodes, but not always;
- *		declared as "void *" to minimize casting annoyances)
- *	T_IntList: lists of integers
- *	T_OidList: lists of Oids
- *	T_XidList: lists of TransactionIds
- *		(the XidList infrastructure is less complete than the other cases)
+ *  T_List: lists of pointers
+ *    (in practice usually pointers to Nodes, but not always;
+ *    declared as "void *" to minimize casting annoyances)
+ *  T_IntList: lists of integers
+ *  T_OidList: lists of Oids
+ *  T_XidList: lists of TransactionIds
+ *    (the XidList infrastructure is less complete than the other cases)
  *
  * (At the moment, ints, Oids, and XIDs are the same size, but they may not
  * always be so; be careful to use the appropriate list type for your data.)
@@ -44,78 +44,78 @@
 
 typedef union ListCell
 {
-	void	   *ptr_value;
-	int			int_value;
-	Oid			oid_value;
-	TransactionId xid_value;
+  void     *ptr_value;
+  int     int_value;
+  Oid     oid_value;
+  TransactionId xid_value;
 } ListCell;
 
 typedef struct List
 {
-	NodeTag		type;			/* T_List, T_IntList, T_OidList, or T_XidList */
-	int			length;			/* number of elements currently present */
-	int			max_length;		/* allocated length of elements[] */
-	ListCell   *elements;		/* re-allocatable array of cells */
-	/* We may allocate some cells along with the List header: */
-	ListCell	initial_elements[FLEXIBLE_ARRAY_MEMBER];
-	/* If elements == initial_elements, it's not a separate allocation */
+  NodeTag   type;     /* T_List, T_IntList, T_OidList, or T_XidList */
+  int     length;     /* number of elements currently present */
+  int     max_length;   /* allocated length of elements[] */
+  ListCell   *elements;   /* re-allocatable array of cells */
+  /* We may allocate some cells along with the List header: */
+  ListCell  initial_elements[FLEXIBLE_ARRAY_MEMBER];
+  /* If elements == initial_elements, it's not a separate allocation */
 } List;
 
 /*
  * The *only* valid representation of an empty list is NIL; in other
  * words, a non-NIL list is guaranteed to have length >= 1.
  */
-#define NIL						((List *) NULL)
+#define NIL           ((List *) NULL)
 
 /*
  * State structs for various looping macros below.
  */
 typedef struct ForEachState
 {
-	const List *l;				/* list we're looping through */
-	int			i;				/* current element index */
+  const List *l;        /* list we're looping through */
+  int     i;        /* current element index */
 } ForEachState;
 
 typedef struct ForBothState
 {
-	const List *l1;				/* lists we're looping through */
-	const List *l2;
-	int			i;				/* common element index */
+  const List *l1;       /* lists we're looping through */
+  const List *l2;
+  int     i;        /* common element index */
 } ForBothState;
 
 typedef struct ForBothCellState
 {
-	const List *l1;				/* lists we're looping through */
-	const List *l2;
-	int			i1;				/* current element indexes */
-	int			i2;
+  const List *l1;       /* lists we're looping through */
+  const List *l2;
+  int     i1;       /* current element indexes */
+  int     i2;
 } ForBothCellState;
 
 typedef struct ForThreeState
 {
-	const List *l1;				/* lists we're looping through */
-	const List *l2;
-	const List *l3;
-	int			i;				/* common element index */
+  const List *l1;       /* lists we're looping through */
+  const List *l2;
+  const List *l3;
+  int     i;        /* common element index */
 } ForThreeState;
 
 typedef struct ForFourState
 {
-	const List *l1;				/* lists we're looping through */
-	const List *l2;
-	const List *l3;
-	const List *l4;
-	int			i;				/* common element index */
+  const List *l1;       /* lists we're looping through */
+  const List *l2;
+  const List *l3;
+  const List *l4;
+  int     i;        /* common element index */
 } ForFourState;
 
 typedef struct ForFiveState
 {
-	const List *l1;				/* lists we're looping through */
-	const List *l2;
-	const List *l3;
-	const List *l4;
-	const List *l5;
-	int			i;				/* common element index */
+  const List *l1;       /* lists we're looping through */
+  const List *l2;
+  const List *l3;
+  const List *l4;
+  const List *l5;
+  int     i;        /* common element index */
 } ForFiveState;
 
 /*
@@ -127,31 +127,31 @@ typedef struct ForFiveState
 static inline ListCell *
 list_head(const List *l)
 {
-	return l ? &l->elements[0] : NULL;
+  return l ? &l->elements[0] : NULL;
 }
 
 /* Fetch address of list's last cell; NULL if empty list */
 static inline ListCell *
 list_tail(const List *l)
 {
-	return l ? &l->elements[l->length - 1] : NULL;
+  return l ? &l->elements[l->length - 1] : NULL;
 }
 
 /* Fetch address of list's second cell, if it has one, else NULL */
 static inline ListCell *
 list_second_cell(const List *l)
 {
-	if (l && l->length >= 2)
-		return &l->elements[1];
-	else
-		return NULL;
+  if (l && l->length >= 2)
+    return &l->elements[1];
+  else
+    return NULL;
 }
 
 /* Fetch list's length */
 static inline int
 list_length(const List *l)
 {
-	return l ? l->length : 0;
+  return l ? l->length : 0;
 }
 
 /*
@@ -169,105 +169,105 @@ list_length(const List *l)
  * linitial() than lfirst(): given a List, lsecond() returns the data
  * in the second list cell.
  */
-#define lfirst(lc)				((lc)->ptr_value)
-#define lfirst_int(lc)			((lc)->int_value)
-#define lfirst_oid(lc)			((lc)->oid_value)
-#define lfirst_xid(lc)			((lc)->xid_value)
-#define lfirst_node(type,lc)	castNode(type, lfirst(lc))
+#define lfirst(lc)        ((lc)->ptr_value)
+#define lfirst_int(lc)      ((lc)->int_value)
+#define lfirst_oid(lc)      ((lc)->oid_value)
+#define lfirst_xid(lc)      ((lc)->xid_value)
+#define lfirst_node(type,lc)  castNode(type, lfirst(lc))
 
-#define linitial(l)				lfirst(list_nth_cell(l, 0))
-#define linitial_int(l)			lfirst_int(list_nth_cell(l, 0))
-#define linitial_oid(l)			lfirst_oid(list_nth_cell(l, 0))
-#define linitial_node(type,l)	castNode(type, linitial(l))
+#define linitial(l)       lfirst(list_nth_cell(l, 0))
+#define linitial_int(l)     lfirst_int(list_nth_cell(l, 0))
+#define linitial_oid(l)     lfirst_oid(list_nth_cell(l, 0))
+#define linitial_node(type,l) castNode(type, linitial(l))
 
-#define lsecond(l)				lfirst(list_nth_cell(l, 1))
-#define lsecond_int(l)			lfirst_int(list_nth_cell(l, 1))
-#define lsecond_oid(l)			lfirst_oid(list_nth_cell(l, 1))
-#define lsecond_node(type,l)	castNode(type, lsecond(l))
+#define lsecond(l)        lfirst(list_nth_cell(l, 1))
+#define lsecond_int(l)      lfirst_int(list_nth_cell(l, 1))
+#define lsecond_oid(l)      lfirst_oid(list_nth_cell(l, 1))
+#define lsecond_node(type,l)  castNode(type, lsecond(l))
 
-#define lthird(l)				lfirst(list_nth_cell(l, 2))
-#define lthird_int(l)			lfirst_int(list_nth_cell(l, 2))
-#define lthird_oid(l)			lfirst_oid(list_nth_cell(l, 2))
-#define lthird_node(type,l)		castNode(type, lthird(l))
+#define lthird(l)       lfirst(list_nth_cell(l, 2))
+#define lthird_int(l)     lfirst_int(list_nth_cell(l, 2))
+#define lthird_oid(l)     lfirst_oid(list_nth_cell(l, 2))
+#define lthird_node(type,l)   castNode(type, lthird(l))
 
-#define lfourth(l)				lfirst(list_nth_cell(l, 3))
-#define lfourth_int(l)			lfirst_int(list_nth_cell(l, 3))
-#define lfourth_oid(l)			lfirst_oid(list_nth_cell(l, 3))
-#define lfourth_node(type,l)	castNode(type, lfourth(l))
+#define lfourth(l)        lfirst(list_nth_cell(l, 3))
+#define lfourth_int(l)      lfirst_int(list_nth_cell(l, 3))
+#define lfourth_oid(l)      lfirst_oid(list_nth_cell(l, 3))
+#define lfourth_node(type,l)  castNode(type, lfourth(l))
 
-#define llast(l)				lfirst(list_last_cell(l))
-#define llast_int(l)			lfirst_int(list_last_cell(l))
-#define llast_oid(l)			lfirst_oid(list_last_cell(l))
-#define llast_xid(l)			lfirst_xid(list_last_cell(l))
-#define llast_node(type,l)		castNode(type, llast(l))
+#define llast(l)        lfirst(list_last_cell(l))
+#define llast_int(l)      lfirst_int(list_last_cell(l))
+#define llast_oid(l)      lfirst_oid(list_last_cell(l))
+#define llast_xid(l)      lfirst_xid(list_last_cell(l))
+#define llast_node(type,l)    castNode(type, llast(l))
 
 /*
  * Convenience macros for building fixed-length lists
  */
-#define list_make_ptr_cell(v)	((ListCell) {.ptr_value = (v)})
-#define list_make_int_cell(v)	((ListCell) {.int_value = (v)})
-#define list_make_oid_cell(v)	((ListCell) {.oid_value = (v)})
-#define list_make_xid_cell(v)	((ListCell) {.xid_value = (v)})
+#define list_make_ptr_cell(v) ((ListCell) {.ptr_value = (v)})
+#define list_make_int_cell(v) ((ListCell) {.int_value = (v)})
+#define list_make_oid_cell(v) ((ListCell) {.oid_value = (v)})
+#define list_make_xid_cell(v) ((ListCell) {.xid_value = (v)})
 
 #define list_make1(x1) \
-	list_make1_impl(T_List, list_make_ptr_cell(x1))
+  list_make1_impl(T_List, list_make_ptr_cell(x1))
 #define list_make2(x1,x2) \
-	list_make2_impl(T_List, list_make_ptr_cell(x1), list_make_ptr_cell(x2))
+  list_make2_impl(T_List, list_make_ptr_cell(x1), list_make_ptr_cell(x2))
 #define list_make3(x1,x2,x3) \
-	list_make3_impl(T_List, list_make_ptr_cell(x1), list_make_ptr_cell(x2), \
-					list_make_ptr_cell(x3))
+  list_make3_impl(T_List, list_make_ptr_cell(x1), list_make_ptr_cell(x2), \
+          list_make_ptr_cell(x3))
 #define list_make4(x1,x2,x3,x4) \
-	list_make4_impl(T_List, list_make_ptr_cell(x1), list_make_ptr_cell(x2), \
-					list_make_ptr_cell(x3), list_make_ptr_cell(x4))
+  list_make4_impl(T_List, list_make_ptr_cell(x1), list_make_ptr_cell(x2), \
+          list_make_ptr_cell(x3), list_make_ptr_cell(x4))
 #define list_make5(x1,x2,x3,x4,x5) \
-	list_make5_impl(T_List, list_make_ptr_cell(x1), list_make_ptr_cell(x2), \
-					list_make_ptr_cell(x3), list_make_ptr_cell(x4), \
-					list_make_ptr_cell(x5))
+  list_make5_impl(T_List, list_make_ptr_cell(x1), list_make_ptr_cell(x2), \
+          list_make_ptr_cell(x3), list_make_ptr_cell(x4), \
+          list_make_ptr_cell(x5))
 
 #define list_make1_int(x1) \
-	list_make1_impl(T_IntList, list_make_int_cell(x1))
+  list_make1_impl(T_IntList, list_make_int_cell(x1))
 #define list_make2_int(x1,x2) \
-	list_make2_impl(T_IntList, list_make_int_cell(x1), list_make_int_cell(x2))
+  list_make2_impl(T_IntList, list_make_int_cell(x1), list_make_int_cell(x2))
 #define list_make3_int(x1,x2,x3) \
-	list_make3_impl(T_IntList, list_make_int_cell(x1), list_make_int_cell(x2), \
-					list_make_int_cell(x3))
+  list_make3_impl(T_IntList, list_make_int_cell(x1), list_make_int_cell(x2), \
+          list_make_int_cell(x3))
 #define list_make4_int(x1,x2,x3,x4) \
-	list_make4_impl(T_IntList, list_make_int_cell(x1), list_make_int_cell(x2), \
-					list_make_int_cell(x3), list_make_int_cell(x4))
+  list_make4_impl(T_IntList, list_make_int_cell(x1), list_make_int_cell(x2), \
+          list_make_int_cell(x3), list_make_int_cell(x4))
 #define list_make5_int(x1,x2,x3,x4,x5) \
-	list_make5_impl(T_IntList, list_make_int_cell(x1), list_make_int_cell(x2), \
-					list_make_int_cell(x3), list_make_int_cell(x4), \
-					list_make_int_cell(x5))
+  list_make5_impl(T_IntList, list_make_int_cell(x1), list_make_int_cell(x2), \
+          list_make_int_cell(x3), list_make_int_cell(x4), \
+          list_make_int_cell(x5))
 
 #define list_make1_oid(x1) \
-	list_make1_impl(T_OidList, list_make_oid_cell(x1))
+  list_make1_impl(T_OidList, list_make_oid_cell(x1))
 #define list_make2_oid(x1,x2) \
-	list_make2_impl(T_OidList, list_make_oid_cell(x1), list_make_oid_cell(x2))
+  list_make2_impl(T_OidList, list_make_oid_cell(x1), list_make_oid_cell(x2))
 #define list_make3_oid(x1,x2,x3) \
-	list_make3_impl(T_OidList, list_make_oid_cell(x1), list_make_oid_cell(x2), \
-					list_make_oid_cell(x3))
+  list_make3_impl(T_OidList, list_make_oid_cell(x1), list_make_oid_cell(x2), \
+          list_make_oid_cell(x3))
 #define list_make4_oid(x1,x2,x3,x4) \
-	list_make4_impl(T_OidList, list_make_oid_cell(x1), list_make_oid_cell(x2), \
-					list_make_oid_cell(x3), list_make_oid_cell(x4))
+  list_make4_impl(T_OidList, list_make_oid_cell(x1), list_make_oid_cell(x2), \
+          list_make_oid_cell(x3), list_make_oid_cell(x4))
 #define list_make5_oid(x1,x2,x3,x4,x5) \
-	list_make5_impl(T_OidList, list_make_oid_cell(x1), list_make_oid_cell(x2), \
-					list_make_oid_cell(x3), list_make_oid_cell(x4), \
-					list_make_oid_cell(x5))
+  list_make5_impl(T_OidList, list_make_oid_cell(x1), list_make_oid_cell(x2), \
+          list_make_oid_cell(x3), list_make_oid_cell(x4), \
+          list_make_oid_cell(x5))
 
 #define list_make1_xid(x1) \
-	list_make1_impl(T_XidList, list_make_xid_cell(x1))
+  list_make1_impl(T_XidList, list_make_xid_cell(x1))
 #define list_make2_xid(x1,x2) \
-	list_make2_impl(T_XidList, list_make_xid_cell(x1), list_make_xid_cell(x2))
+  list_make2_impl(T_XidList, list_make_xid_cell(x1), list_make_xid_cell(x2))
 #define list_make3_xid(x1,x2,x3) \
-	list_make3_impl(T_XidList, list_make_xid_cell(x1), list_make_xid_cell(x2), \
-					list_make_xid_cell(x3))
+  list_make3_impl(T_XidList, list_make_xid_cell(x1), list_make_xid_cell(x2), \
+          list_make_xid_cell(x3))
 #define list_make4_xid(x1,x2,x3,x4) \
-	list_make4_impl(T_XidList, list_make_xid_cell(x1), list_make_xid_cell(x2), \
-					list_make_xid_cell(x3), list_make_xid_cell(x4))
+  list_make4_impl(T_XidList, list_make_xid_cell(x1), list_make_xid_cell(x2), \
+          list_make_xid_cell(x3), list_make_xid_cell(x4))
 #define list_make5_xid(x1,x2,x3,x4,x5) \
-	list_make5_impl(T_XidList, list_make_xid_cell(x1), list_make_xid_cell(x2), \
-					list_make_xid_cell(x3), list_make_xid_cell(x4), \
-					list_make_xid_cell(x5))
+  list_make5_impl(T_XidList, list_make_xid_cell(x1), list_make_xid_cell(x2), \
+          list_make_xid_cell(x3), list_make_xid_cell(x4), \
+          list_make_xid_cell(x5))
 
 /*
  * Locate the n'th cell (counting from 0) of the list.
@@ -276,9 +276,9 @@ list_length(const List *l)
 static inline ListCell *
 list_nth_cell(const List *list, int n)
 {
-	Assert(list != NIL);
-	Assert(n >= 0 && n < list->length);
-	return &list->elements[n];
+  Assert(list != NIL);
+  Assert(n >= 0 && n < list->length);
+  return &list->elements[n];
 }
 
 /*
@@ -287,8 +287,8 @@ list_nth_cell(const List *list, int n)
 static inline ListCell *
 list_last_cell(const List *list)
 {
-	Assert(list != NIL);
-	return &list->elements[list->length - 1];
+  Assert(list != NIL);
+  return &list->elements[list->length - 1];
 }
 
 /*
@@ -298,8 +298,8 @@ list_last_cell(const List *list)
 static inline void *
 list_nth(const List *list, int n)
 {
-	Assert(IsA(list, List));
-	return lfirst(list_nth_cell(list, n));
+  Assert(IsA(list, List));
+  return lfirst(list_nth_cell(list, n));
 }
 
 /*
@@ -309,8 +309,8 @@ list_nth(const List *list, int n)
 static inline int
 list_nth_int(const List *list, int n)
 {
-	Assert(IsA(list, IntList));
-	return lfirst_int(list_nth_cell(list, n));
+  Assert(IsA(list, IntList));
+  return lfirst_int(list_nth_cell(list, n));
 }
 
 /*
@@ -320,11 +320,11 @@ list_nth_int(const List *list, int n)
 static inline Oid
 list_nth_oid(const List *list, int n)
 {
-	Assert(IsA(list, OidList));
-	return lfirst_oid(list_nth_cell(list, n));
+  Assert(IsA(list, OidList));
+  return lfirst_oid(list_nth_cell(list, n));
 }
 
-#define list_nth_node(type,list,n)	castNode(type, list_nth(list, n))
+#define list_nth_node(type,list,n)  castNode(type, list_nth(list, n))
 
 /*
  * Get the given ListCell's index (from 0) in the given List.
@@ -332,8 +332,8 @@ list_nth_oid(const List *list, int n)
 static inline int
 list_cell_number(const List *l, const ListCell *c)
 {
-	Assert(c >= &l->elements[0] && c < &l->elements[l->length]);
-	return c - l->elements;
+  Assert(c >= &l->elements[0] && c < &l->elements[l->length]);
+  return c - l->elements;
 }
 
 /*
@@ -342,17 +342,18 @@ list_cell_number(const List *l, const ListCell *c)
 static inline ListCell *
 lnext(const List *l, const ListCell *c)
 {
-	Assert(c >= &l->elements[0] && c < &l->elements[l->length]);
-	c++;
-	if (c < &l->elements[l->length])
-		return (ListCell *) c;
-	else
-		return NULL;
+  Assert(c >= &l->elements[0] && c < &l->elements[l->length]);
+  c++;
+
+  if (c < &l->elements[l->length])
+    return (ListCell *) c;
+  else
+    return NULL;
 }
 
 /*
  * foreach -
- *	  a convenience macro for looping through a list
+ *    a convenience macro for looping through a list
  *
  * "cell" must be the name of a "ListCell *" variable; it's made to point
  * to each List element in turn.  "cell" will be NULL after normal exit from
@@ -370,31 +371,31 @@ lnext(const List *l, const ListCell *c)
  * foreach_delete_current() to do so.  BUT: either of these actions will
  * invalidate the "cell" pointer for the remainder of the current iteration.
  */
-#define foreach(cell, lst)	\
-	for (ForEachState cell##__state = {(lst), 0}; \
-		 (cell##__state.l != NIL && \
-		  cell##__state.i < cell##__state.l->length) ? \
-		 (cell = &cell##__state.l->elements[cell##__state.i], true) : \
-		 (cell = NULL, false); \
-		 cell##__state.i++)
+#define foreach(cell, lst)  \
+  for (ForEachState cell##__state = {(lst), 0}; \
+     (cell##__state.l != NIL && \
+      cell##__state.i < cell##__state.l->length) ? \
+     (cell = &cell##__state.l->elements[cell##__state.i], true) : \
+     (cell = NULL, false); \
+     cell##__state.i++)
 
 /*
  * foreach_delete_current -
- *	  delete the current list element from the List associated with a
- *	  surrounding foreach() or foreach_*() loop, returning the new List
- *	  pointer; pass the name of the iterator variable.
+ *    delete the current list element from the List associated with a
+ *    surrounding foreach() or foreach_*() loop, returning the new List
+ *    pointer; pass the name of the iterator variable.
  *
  * This is similar to list_delete_cell(), but it also adjusts the loop's state
  * so that no list elements will be missed.  Do not delete elements from an
  * active foreach or foreach_* loop's list in any other way!
  */
-#define foreach_delete_current(lst, var_or_cell)	\
-	((List *) (var_or_cell##__state.l = list_delete_nth_cell(lst, var_or_cell##__state.i--)))
+#define foreach_delete_current(lst, var_or_cell)  \
+  ((List *) (var_or_cell##__state.l = list_delete_nth_cell(lst, var_or_cell##__state.i--)))
 
 /*
  * foreach_current_index -
- *	  get the zero-based list index of a surrounding foreach() or foreach_*()
- *	  loop's current element; pass the name of the iterator variable.
+ *    get the zero-based list index of a surrounding foreach() or foreach_*()
+ *    loop's current element; pass the name of the iterator variable.
  *
  * Beware of using this after foreach_delete_current(); the value will be
  * out of sync for the rest of the current loop iteration.  Anyway, since
@@ -404,52 +405,53 @@ lnext(const List *l, const ListCell *c)
 
 /*
  * for_each_from -
- *	  Like foreach(), but start from the N'th (zero-based) list element,
- *	  not necessarily the first one.
+ *    Like foreach(), but start from the N'th (zero-based) list element,
+ *    not necessarily the first one.
  *
  * It's okay for N to exceed the list length, but not for it to be negative.
  *
  * The caveats for foreach() apply equally here.
  */
-#define for_each_from(cell, lst, N)	\
-	for (ForEachState cell##__state = for_each_from_setup(lst, N); \
-		 (cell##__state.l != NIL && \
-		  cell##__state.i < cell##__state.l->length) ? \
-		 (cell = &cell##__state.l->elements[cell##__state.i], true) : \
-		 (cell = NULL, false); \
-		 cell##__state.i++)
+#define for_each_from(cell, lst, N) \
+  for (ForEachState cell##__state = for_each_from_setup(lst, N); \
+     (cell##__state.l != NIL && \
+      cell##__state.i < cell##__state.l->length) ? \
+     (cell = &cell##__state.l->elements[cell##__state.i], true) : \
+     (cell = NULL, false); \
+     cell##__state.i++)
 
 static inline ForEachState
 for_each_from_setup(const List *lst, int N)
 {
-	ForEachState r = {lst, N};
+  ForEachState r = {lst, N};
 
-	Assert(N >= 0);
-	return r;
+  Assert(N >= 0);
+  return r;
 }
 
 /*
  * for_each_cell -
- *	  a convenience macro which loops through a list starting from a
- *	  specified cell
+ *    a convenience macro which loops through a list starting from a
+ *    specified cell
  *
  * The caveats for foreach() apply equally here.
  */
-#define for_each_cell(cell, lst, initcell)	\
-	for (ForEachState cell##__state = for_each_cell_setup(lst, initcell); \
-		 (cell##__state.l != NIL && \
-		  cell##__state.i < cell##__state.l->length) ? \
-		 (cell = &cell##__state.l->elements[cell##__state.i], true) : \
-		 (cell = NULL, false); \
-		 cell##__state.i++)
+#define for_each_cell(cell, lst, initcell)  \
+  for (ForEachState cell##__state = for_each_cell_setup(lst, initcell); \
+     (cell##__state.l != NIL && \
+      cell##__state.i < cell##__state.l->length) ? \
+     (cell = &cell##__state.l->elements[cell##__state.i], true) : \
+     (cell = NULL, false); \
+     cell##__state.i++)
 
 static inline ForEachState
 for_each_cell_setup(const List *lst, const ListCell *initcell)
 {
-	ForEachState r = {lst,
-	initcell ? list_cell_number(lst, initcell) : list_length(lst)};
+  ForEachState r = {lst,
+                    initcell ? list_cell_number(lst, initcell) : list_length(lst)
+                   };
 
-	return r;
+  return r;
 }
 
 /*
@@ -467,9 +469,9 @@ for_each_cell_setup(const List *lst, const ListCell *initcell)
  * also apply to these convenience macros.
  */
 #define foreach_ptr(type, var, lst) foreach_internal(type, *, var, lst, lfirst)
-#define foreach_int(var, lst)	foreach_internal(int, , var, lst, lfirst_int)
-#define foreach_oid(var, lst)	foreach_internal(Oid, , var, lst, lfirst_oid)
-#define foreach_xid(var, lst)	foreach_internal(TransactionId, , var, lst, lfirst_xid)
+#define foreach_int(var, lst) foreach_internal(int, , var, lst, lfirst_int)
+#define foreach_oid(var, lst) foreach_internal(Oid, , var, lst, lfirst_oid)
+#define foreach_xid(var, lst) foreach_internal(TransactionId, , var, lst, lfirst_xid)
 
 /*
  * The internal implementation of the above macros.  Do not use directly.
@@ -479,134 +481,135 @@ for_each_cell_setup(const List *lst, const ListCell *initcell)
  * compilers will unroll it, thereby optimizing it away.
  */
 #define foreach_internal(type, pointer, var, lst, func) \
-	for (type pointer var = 0, pointer var##__outerloop = (type pointer) 1; \
-		 var##__outerloop; \
-		 var##__outerloop = 0) \
-		for (ForEachState var##__state = {(lst), 0}; \
-			 (var##__state.l != NIL && \
-			  var##__state.i < var##__state.l->length && \
-			 (var = (type pointer) func(&var##__state.l->elements[var##__state.i]), true)); \
-			 var##__state.i++)
+  for (type pointer var = 0, pointer var##__outerloop = (type pointer) 1; \
+     var##__outerloop; \
+     var##__outerloop = 0) \
+    for (ForEachState var##__state = {(lst), 0}; \
+       (var##__state.l != NIL && \
+        var##__state.i < var##__state.l->length && \
+       (var = (type pointer) func(&var##__state.l->elements[var##__state.i]), true)); \
+       var##__state.i++)
 
 /*
  * foreach_node -
- *	  The same as foreach_ptr, but asserts that the element is of the specified
- *	  node type.
+ *    The same as foreach_ptr, but asserts that the element is of the specified
+ *    node type.
  */
 #define foreach_node(type, var, lst) \
-	for (type * var = 0, *var##__outerloop = (type *) 1; \
-		 var##__outerloop; \
-		 var##__outerloop = 0) \
-		for (ForEachState var##__state = {(lst), 0}; \
-			 (var##__state.l != NIL && \
-			  var##__state.i < var##__state.l->length && \
-			 (var = lfirst_node(type, &var##__state.l->elements[var##__state.i]), true)); \
-			 var##__state.i++)
+  for (type * var = 0, *var##__outerloop = (type *) 1; \
+     var##__outerloop; \
+     var##__outerloop = 0) \
+    for (ForEachState var##__state = {(lst), 0}; \
+       (var##__state.l != NIL && \
+        var##__state.i < var##__state.l->length && \
+       (var = lfirst_node(type, &var##__state.l->elements[var##__state.i]), true)); \
+       var##__state.i++)
 
 /*
  * forboth -
- *	  a convenience macro for advancing through two linked lists
- *	  simultaneously. This macro loops through both lists at the same
- *	  time, stopping when either list runs out of elements. Depending
- *	  on the requirements of the call site, it may also be wise to
- *	  assert that the lengths of the two lists are equal. (But, if they
- *	  are not, some callers rely on the ending cell values being separately
- *	  NULL or non-NULL as defined here; don't try to optimize that.)
+ *    a convenience macro for advancing through two linked lists
+ *    simultaneously. This macro loops through both lists at the same
+ *    time, stopping when either list runs out of elements. Depending
+ *    on the requirements of the call site, it may also be wise to
+ *    assert that the lengths of the two lists are equal. (But, if they
+ *    are not, some callers rely on the ending cell values being separately
+ *    NULL or non-NULL as defined here; don't try to optimize that.)
  *
  * The caveats for foreach() apply equally here.
  */
-#define forboth(cell1, list1, cell2, list2)							\
-	for (ForBothState cell1##__state = {(list1), (list2), 0}; \
-		 multi_for_advance_cell(cell1, cell1##__state, l1, i), \
-		 multi_for_advance_cell(cell2, cell1##__state, l2, i), \
-		 (cell1 != NULL && cell2 != NULL); \
-		 cell1##__state.i++)
+#define forboth(cell1, list1, cell2, list2)             \
+  for (ForBothState cell1##__state = {(list1), (list2), 0}; \
+     multi_for_advance_cell(cell1, cell1##__state, l1, i), \
+     multi_for_advance_cell(cell2, cell1##__state, l2, i), \
+     (cell1 != NULL && cell2 != NULL); \
+     cell1##__state.i++)
 
 #define multi_for_advance_cell(cell, state, l, i) \
-	(cell = (state.l != NIL && state.i < state.l->length) ? \
-	 &state.l->elements[state.i] : NULL)
+  (cell = (state.l != NIL && state.i < state.l->length) ? \
+   &state.l->elements[state.i] : NULL)
 
 /*
  * for_both_cell -
- *	  a convenience macro which loops through two lists starting from the
- *	  specified cells of each. This macro loops through both lists at the same
- *	  time, stopping when either list runs out of elements.  Depending on the
- *	  requirements of the call site, it may also be wise to assert that the
- *	  lengths of the two lists are equal, and initcell1 and initcell2 are at
- *	  the same position in the respective lists.
+ *    a convenience macro which loops through two lists starting from the
+ *    specified cells of each. This macro loops through both lists at the same
+ *    time, stopping when either list runs out of elements.  Depending on the
+ *    requirements of the call site, it may also be wise to assert that the
+ *    lengths of the two lists are equal, and initcell1 and initcell2 are at
+ *    the same position in the respective lists.
  *
  * The caveats for foreach() apply equally here.
  */
-#define for_both_cell(cell1, list1, initcell1, cell2, list2, initcell2)	\
-	for (ForBothCellState cell1##__state = \
-			 for_both_cell_setup(list1, initcell1, list2, initcell2); \
-		 multi_for_advance_cell(cell1, cell1##__state, l1, i1), \
-		 multi_for_advance_cell(cell2, cell1##__state, l2, i2), \
-		 (cell1 != NULL && cell2 != NULL); \
-		 cell1##__state.i1++, cell1##__state.i2++)
+#define for_both_cell(cell1, list1, initcell1, cell2, list2, initcell2) \
+  for (ForBothCellState cell1##__state = \
+       for_both_cell_setup(list1, initcell1, list2, initcell2); \
+     multi_for_advance_cell(cell1, cell1##__state, l1, i1), \
+     multi_for_advance_cell(cell2, cell1##__state, l2, i2), \
+     (cell1 != NULL && cell2 != NULL); \
+     cell1##__state.i1++, cell1##__state.i2++)
 
 static inline ForBothCellState
 for_both_cell_setup(const List *list1, const ListCell *initcell1,
-					const List *list2, const ListCell *initcell2)
+                    const List *list2, const ListCell *initcell2)
 {
-	ForBothCellState r = {list1, list2,
-		initcell1 ? list_cell_number(list1, initcell1) : list_length(list1),
-	initcell2 ? list_cell_number(list2, initcell2) : list_length(list2)};
+  ForBothCellState r = {list1, list2,
+                        initcell1 ? list_cell_number(list1, initcell1) : list_length(list1),
+                        initcell2 ? list_cell_number(list2, initcell2) : list_length(list2)
+                       };
 
-	return r;
+  return r;
 }
 
 /*
  * forthree -
- *	  the same for three lists
+ *    the same for three lists
  */
 #define forthree(cell1, list1, cell2, list2, cell3, list3) \
-	for (ForThreeState cell1##__state = {(list1), (list2), (list3), 0}; \
-		 multi_for_advance_cell(cell1, cell1##__state, l1, i), \
-		 multi_for_advance_cell(cell2, cell1##__state, l2, i), \
-		 multi_for_advance_cell(cell3, cell1##__state, l3, i), \
-		 (cell1 != NULL && cell2 != NULL && cell3 != NULL); \
-		 cell1##__state.i++)
+  for (ForThreeState cell1##__state = {(list1), (list2), (list3), 0}; \
+     multi_for_advance_cell(cell1, cell1##__state, l1, i), \
+     multi_for_advance_cell(cell2, cell1##__state, l2, i), \
+     multi_for_advance_cell(cell3, cell1##__state, l3, i), \
+     (cell1 != NULL && cell2 != NULL && cell3 != NULL); \
+     cell1##__state.i++)
 
 /*
  * forfour -
- *	  the same for four lists
+ *    the same for four lists
  */
 #define forfour(cell1, list1, cell2, list2, cell3, list3, cell4, list4) \
-	for (ForFourState cell1##__state = {(list1), (list2), (list3), (list4), 0}; \
-		 multi_for_advance_cell(cell1, cell1##__state, l1, i), \
-		 multi_for_advance_cell(cell2, cell1##__state, l2, i), \
-		 multi_for_advance_cell(cell3, cell1##__state, l3, i), \
-		 multi_for_advance_cell(cell4, cell1##__state, l4, i), \
-		 (cell1 != NULL && cell2 != NULL && cell3 != NULL && cell4 != NULL); \
-		 cell1##__state.i++)
+  for (ForFourState cell1##__state = {(list1), (list2), (list3), (list4), 0}; \
+     multi_for_advance_cell(cell1, cell1##__state, l1, i), \
+     multi_for_advance_cell(cell2, cell1##__state, l2, i), \
+     multi_for_advance_cell(cell3, cell1##__state, l3, i), \
+     multi_for_advance_cell(cell4, cell1##__state, l4, i), \
+     (cell1 != NULL && cell2 != NULL && cell3 != NULL && cell4 != NULL); \
+     cell1##__state.i++)
 
 /*
  * forfive -
- *	  the same for five lists
+ *    the same for five lists
  */
 #define forfive(cell1, list1, cell2, list2, cell3, list3, cell4, list4, cell5, list5) \
-	for (ForFiveState cell1##__state = {(list1), (list2), (list3), (list4), (list5), 0}; \
-		 multi_for_advance_cell(cell1, cell1##__state, l1, i), \
-		 multi_for_advance_cell(cell2, cell1##__state, l2, i), \
-		 multi_for_advance_cell(cell3, cell1##__state, l3, i), \
-		 multi_for_advance_cell(cell4, cell1##__state, l4, i), \
-		 multi_for_advance_cell(cell5, cell1##__state, l5, i), \
-		 (cell1 != NULL && cell2 != NULL && cell3 != NULL && \
-		  cell4 != NULL && cell5 != NULL); \
-		 cell1##__state.i++)
+  for (ForFiveState cell1##__state = {(list1), (list2), (list3), (list4), (list5), 0}; \
+     multi_for_advance_cell(cell1, cell1##__state, l1, i), \
+     multi_for_advance_cell(cell2, cell1##__state, l2, i), \
+     multi_for_advance_cell(cell3, cell1##__state, l3, i), \
+     multi_for_advance_cell(cell4, cell1##__state, l4, i), \
+     multi_for_advance_cell(cell5, cell1##__state, l5, i), \
+     (cell1 != NULL && cell2 != NULL && cell3 != NULL && \
+      cell4 != NULL && cell5 != NULL); \
+     cell1##__state.i++)
 
 /* Functions in src/backend/nodes/list.c */
 
 extern List *list_make1_impl(NodeTag t, ListCell datum1);
 extern List *list_make2_impl(NodeTag t, ListCell datum1, ListCell datum2);
 extern List *list_make3_impl(NodeTag t, ListCell datum1, ListCell datum2,
-							 ListCell datum3);
+                             ListCell datum3);
 extern List *list_make4_impl(NodeTag t, ListCell datum1, ListCell datum2,
-							 ListCell datum3, ListCell datum4);
+                             ListCell datum3, ListCell datum4);
 extern List *list_make5_impl(NodeTag t, ListCell datum1, ListCell datum2,
-							 ListCell datum3, ListCell datum4,
-							 ListCell datum5);
+                             ListCell datum3, ListCell datum4,
+                             ListCell datum5);
 
 pg_nodiscard extern List *lappend(List *list, void *datum);
 pg_nodiscard extern List *lappend_int(List *list, int datum);
@@ -680,7 +683,7 @@ pg_nodiscard extern List *list_copy_deep(const List *oldlist);
 typedef int (*list_sort_comparator) (const ListCell *a, const ListCell *b);
 extern void list_sort(List *list, list_sort_comparator cmp);
 
-extern int	list_int_cmp(const ListCell *p1, const ListCell *p2);
-extern int	list_oid_cmp(const ListCell *p1, const ListCell *p2);
+extern int  list_int_cmp(const ListCell *p1, const ListCell *p2);
+extern int  list_oid_cmp(const ListCell *p1, const ListCell *p2);
 
-#endif							/* PG_LIST_H */
+#endif              /* PG_LIST_H */

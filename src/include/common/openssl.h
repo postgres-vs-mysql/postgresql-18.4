@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * openssl.h
- *	  OpenSSL supporting functionality shared between frontend and backend
+ *    OpenSSL supporting functionality shared between frontend and backend
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *		  src/include/common/openssl.h
+ *      src/include/common/openssl.h
  *
  *-------------------------------------------------------------------------
  */
@@ -38,6 +38,6 @@
 #define MAX_OPENSSL_TLS_VERSION  "TLSv1"
 #endif
 
-#endif							/* USE_OPENSSL */
+#endif              /* USE_OPENSSL */
 
-#endif							/* COMMON_OPENSSL_H */
+#endif              /* COMMON_OPENSSL_H */

@@ -7,7 +7,7 @@
  *
  *
  * IDENTIFICATION
- *	  src/backend/rewrite/rewriteManip.c
+ *    src/backend/rewrite/rewriteManip.c
  *
  *-------------------------------------------------------------------------
  */
@@ -25,55 +25,50 @@
 #include "utils/lsyscache.h"
 
 
-typedef struct
-{
-	int			sublevels_up;
+typedef struct {
+  int     sublevels_up;
 } contain_aggs_of_level_context;
 
-typedef struct
-{
-	int			agg_location;
-	int			sublevels_up;
+typedef struct {
+  int     agg_location;
+  int     sublevels_up;
 } locate_agg_of_level_context;
 
-typedef struct
-{
-	int			win_location;
+typedef struct {
+  int     win_location;
 } locate_windowfunc_context;
 
-typedef struct
-{
-	const Bitmapset *target_relids;
-	const Bitmapset *added_relids;
-	int			sublevels_up;
+typedef struct {
+  const Bitmapset *target_relids;
+  const Bitmapset *added_relids;
+  int     sublevels_up;
 } add_nulling_relids_context;
 
-typedef struct
-{
-	const Bitmapset *removable_relids;
-	const Bitmapset *except_relids;
-	int			sublevels_up;
+typedef struct {
+  const Bitmapset *removable_relids;
+  const Bitmapset *except_relids;
+  int     sublevels_up;
 } remove_nulling_relids_context;
 
 static bool contain_aggs_of_level_walker(Node *node,
-										 contain_aggs_of_level_context *context);
+    contain_aggs_of_level_context *context);
 static bool locate_agg_of_level_walker(Node *node,
-									   locate_agg_of_level_context *context);
+                                       locate_agg_of_level_context *context);
 static bool contain_windowfuncs_walker(Node *node, void *context);
 static bool locate_windowfunc_walker(Node *node,
-									 locate_windowfunc_context *context);
+                                     locate_windowfunc_context *context);
 static bool checkExprHasSubLink_walker(Node *node, void *context);
 static Relids offset_relid_set(Relids relids, int offset);
 static Node *add_nulling_relids_mutator(Node *node,
-										add_nulling_relids_context *context);
+                                        add_nulling_relids_context *context);
 static Node *remove_nulling_relids_mutator(Node *node,
-										   remove_nulling_relids_context *context);
+    remove_nulling_relids_context *context);
 
 
 /*
  * contain_aggs_of_level -
- *	Check if an expression contains an aggregate function call of a
- *	specified query level.
+ *  Check if an expression contains an aggregate function call of a
+ *  specified query level.
  *
  * The objective of this routine is to detect whether there are aggregates
  * belonging to the given query level.  Aggregates belonging to subqueries
@@ -84,57 +79,60 @@ static Node *remove_nulling_relids_mutator(Node *node,
 bool
 contain_aggs_of_level(Node *node, int levelsup)
 {
-	contain_aggs_of_level_context context;
+  contain_aggs_of_level_context context;
 
-	context.sublevels_up = levelsup;
+  context.sublevels_up = levelsup;
 
-	/*
-	 * Must be prepared to start with a Query or a bare expression tree; if
-	 * it's a Query, we don't want to increment sublevels_up.
-	 */
-	return query_or_expression_tree_walker(node,
-										   contain_aggs_of_level_walker,
-										   &context,
-										   0);
+  /*
+   * Must be prepared to start with a Query or a bare expression tree; if
+   * it's a Query, we don't want to increment sublevels_up.
+   */
+  return query_or_expression_tree_walker(node,
+                                         contain_aggs_of_level_walker,
+                                         &context,
+                                         0);
 }
 
 static bool
 contain_aggs_of_level_walker(Node *node,
-							 contain_aggs_of_level_context *context)
+                             contain_aggs_of_level_context *context)
 {
-	if (node == NULL)
-		return false;
-	if (IsA(node, Aggref))
-	{
-		if (((Aggref *) node)->agglevelsup == context->sublevels_up)
-			return true;		/* abort the tree traversal and return true */
-		/* else fall through to examine argument */
-	}
-	if (IsA(node, GroupingFunc))
-	{
-		if (((GroupingFunc *) node)->agglevelsup == context->sublevels_up)
-			return true;
-		/* else fall through to examine argument */
-	}
-	if (IsA(node, Query))
-	{
-		/* Recurse into subselects */
-		bool		result;
+  if (node == NULL)
+    return false;
 
-		context->sublevels_up++;
-		result = query_tree_walker((Query *) node,
-								   contain_aggs_of_level_walker,
-								   context, 0);
-		context->sublevels_up--;
-		return result;
-	}
-	return expression_tree_walker(node, contain_aggs_of_level_walker,
-								  context);
+  if (IsA(node, Aggref)) {
+    if (((Aggref *) node)->agglevelsup == context->sublevels_up)
+      return true;    /* abort the tree traversal and return true */
+
+    /* else fall through to examine argument */
+  }
+
+  if (IsA(node, GroupingFunc)) {
+    if (((GroupingFunc *) node)->agglevelsup == context->sublevels_up)
+      return true;
+
+    /* else fall through to examine argument */
+  }
+
+  if (IsA(node, Query)) {
+    /* Recurse into subselects */
+    bool    result;
+
+    context->sublevels_up++;
+    result = query_tree_walker((Query *) node,
+                               contain_aggs_of_level_walker,
+                               context, 0);
+    context->sublevels_up--;
+    return result;
+  }
+
+  return expression_tree_walker(node, contain_aggs_of_level_walker,
+                                context);
 }
 
 /*
  * locate_agg_of_level -
- *	  Find the parse location of any aggregate of the specified query level.
+ *    Find the parse location of any aggregate of the specified query level.
  *
  * Returns -1 if no such agg is in the querytree, or if they all have
  * unknown parse location.  (The former case is probably caller error,
@@ -148,95 +146,97 @@ contain_aggs_of_level_walker(Node *node,
 int
 locate_agg_of_level(Node *node, int levelsup)
 {
-	locate_agg_of_level_context context;
+  locate_agg_of_level_context context;
 
-	context.agg_location = -1;	/* in case we find nothing */
-	context.sublevels_up = levelsup;
+  context.agg_location = -1;  /* in case we find nothing */
+  context.sublevels_up = levelsup;
 
-	/*
-	 * Must be prepared to start with a Query or a bare expression tree; if
-	 * it's a Query, we don't want to increment sublevels_up.
-	 */
-	(void) query_or_expression_tree_walker(node,
-										   locate_agg_of_level_walker,
-										   &context,
-										   0);
+  /*
+   * Must be prepared to start with a Query or a bare expression tree; if
+   * it's a Query, we don't want to increment sublevels_up.
+   */
+  (void) query_or_expression_tree_walker(node,
+                                         locate_agg_of_level_walker,
+                                         &context,
+                                         0);
 
-	return context.agg_location;
+  return context.agg_location;
 }
 
 static bool
 locate_agg_of_level_walker(Node *node,
-						   locate_agg_of_level_context *context)
+                           locate_agg_of_level_context *context)
 {
-	if (node == NULL)
-		return false;
-	if (IsA(node, Aggref))
-	{
-		if (((Aggref *) node)->agglevelsup == context->sublevels_up &&
-			((Aggref *) node)->location >= 0)
-		{
-			context->agg_location = ((Aggref *) node)->location;
-			return true;		/* abort the tree traversal and return true */
-		}
-		/* else fall through to examine argument */
-	}
-	if (IsA(node, GroupingFunc))
-	{
-		if (((GroupingFunc *) node)->agglevelsup == context->sublevels_up &&
-			((GroupingFunc *) node)->location >= 0)
-		{
-			context->agg_location = ((GroupingFunc *) node)->location;
-			return true;		/* abort the tree traversal and return true */
-		}
-	}
-	if (IsA(node, Query))
-	{
-		/* Recurse into subselects */
-		bool		result;
+  if (node == NULL)
+    return false;
 
-		context->sublevels_up++;
-		result = query_tree_walker((Query *) node,
-								   locate_agg_of_level_walker,
-								   context, 0);
-		context->sublevels_up--;
-		return result;
-	}
-	return expression_tree_walker(node, locate_agg_of_level_walker, context);
+  if (IsA(node, Aggref)) {
+    if (((Aggref *) node)->agglevelsup == context->sublevels_up &&
+        ((Aggref *) node)->location >= 0) {
+      context->agg_location = ((Aggref *) node)->location;
+      return true;    /* abort the tree traversal and return true */
+    }
+
+    /* else fall through to examine argument */
+  }
+
+  if (IsA(node, GroupingFunc)) {
+    if (((GroupingFunc *) node)->agglevelsup == context->sublevels_up &&
+        ((GroupingFunc *) node)->location >= 0) {
+      context->agg_location = ((GroupingFunc *) node)->location;
+      return true;    /* abort the tree traversal and return true */
+    }
+  }
+
+  if (IsA(node, Query)) {
+    /* Recurse into subselects */
+    bool    result;
+
+    context->sublevels_up++;
+    result = query_tree_walker((Query *) node,
+                               locate_agg_of_level_walker,
+                               context, 0);
+    context->sublevels_up--;
+    return result;
+  }
+
+  return expression_tree_walker(node, locate_agg_of_level_walker, context);
 }
 
 /*
  * contain_windowfuncs -
- *	Check if an expression contains a window function call of the
- *	current query level.
+ *  Check if an expression contains a window function call of the
+ *  current query level.
  */
 bool
 contain_windowfuncs(Node *node)
 {
-	/*
-	 * Must be prepared to start with a Query or a bare expression tree; if
-	 * it's a Query, we don't want to increment sublevels_up.
-	 */
-	return query_or_expression_tree_walker(node,
-										   contain_windowfuncs_walker,
-										   NULL,
-										   0);
+  /*
+   * Must be prepared to start with a Query or a bare expression tree; if
+   * it's a Query, we don't want to increment sublevels_up.
+   */
+  return query_or_expression_tree_walker(node,
+                                         contain_windowfuncs_walker,
+                                         NULL,
+                                         0);
 }
 
 static bool
 contain_windowfuncs_walker(Node *node, void *context)
 {
-	if (node == NULL)
-		return false;
-	if (IsA(node, WindowFunc))
-		return true;			/* abort the tree traversal and return true */
-	/* Mustn't recurse into subselects */
-	return expression_tree_walker(node, contain_windowfuncs_walker, context);
+  if (node == NULL)
+    return false;
+
+  if (IsA(node, WindowFunc))
+    return true;      /* abort the tree traversal and return true */
+
+  /* Mustn't recurse into subselects */
+  return expression_tree_walker(node, contain_windowfuncs_walker, context);
 }
 
 /*
  * locate_windowfunc -
- *	  Find the parse location of any windowfunc of the current query level.
+ *    Find the parse location of any windowfunc of the current query level.
  *
  * Returns -1 if no such windowfunc is in the querytree, or if they all have
  * unknown parse location.  (The former case is probably caller error,
@@ -250,65 +250,68 @@ contain_windowfuncs_walker(Node *node, void *context)
 int
 locate_windowfunc(Node *node)
 {
-	locate_windowfunc_context context;
+  locate_windowfunc_context context;
 
-	context.win_location = -1;	/* in case we find nothing */
+  context.win_location = -1;  /* in case we find nothing */
 
-	/*
-	 * Must be prepared to start with a Query or a bare expression tree; if
-	 * it's a Query, we don't want to increment sublevels_up.
-	 */
-	(void) query_or_expression_tree_walker(node,
-										   locate_windowfunc_walker,
-										   &context,
-										   0);
+  /*
+   * Must be prepared to start with a Query or a bare expression tree; if
+   * it's a Query, we don't want to increment sublevels_up.
+   */
+  (void) query_or_expression_tree_walker(node,
+                                         locate_windowfunc_walker,
+                                         &context,
+                                         0);
 
-	return context.win_location;
+  return context.win_location;
 }
 
 static bool
 locate_windowfunc_walker(Node *node, locate_windowfunc_context *context)
 {
-	if (node == NULL)
-		return false;
-	if (IsA(node, WindowFunc))
-	{
-		if (((WindowFunc *) node)->location >= 0)
-		{
-			context->win_location = ((WindowFunc *) node)->location;
-			return true;		/* abort the tree traversal and return true */
-		}
-		/* else fall through to examine argument */
-	}
-	/* Mustn't recurse into subselects */
-	return expression_tree_walker(node, locate_windowfunc_walker, context);
+  if (node == NULL)
+    return false;
+
+  if (IsA(node, WindowFunc)) {
+    if (((WindowFunc *) node)->location >= 0) {
+      context->win_location = ((WindowFunc *) node)->location;
+      return true;    /* abort the tree traversal and return true */
+    }
+
+    /* else fall through to examine argument */
+  }
+
+  /* Mustn't recurse into subselects */
+  return expression_tree_walker(node, locate_windowfunc_walker, context);
 }
 
 /*
  * checkExprHasSubLink -
- *	Check if an expression contains a SubLink.
+ *  Check if an expression contains a SubLink.
  */
 bool
 checkExprHasSubLink(Node *node)
 {
-	/*
-	 * If a Query is passed, examine it --- but we should not recurse into
-	 * sub-Queries that are in its rangetable or CTE list.
-	 */
-	return query_or_expression_tree_walker(node,
-										   checkExprHasSubLink_walker,
-										   NULL,
-										   QTW_IGNORE_RC_SUBQUERIES);
+  /*
+   * If a Query is passed, examine it --- but we should not recurse into
+   * sub-Queries that are in its rangetable or CTE list.
+   */
+  return query_or_expression_tree_walker(node,
+                                         checkExprHasSubLink_walker,
+                                         NULL,
+                                         QTW_IGNORE_RC_SUBQUERIES);
 }
 
 static bool
 checkExprHasSubLink_walker(Node *node, void *context)
 {
-	if (node == NULL)
-		return false;
-	if (IsA(node, SubLink))
-		return true;			/* abort the tree traversal and return true */
-	return expression_tree_walker(node, checkExprHasSubLink_walker, context);
+  if (node == NULL)
+    return false;
+
+  if (IsA(node, SubLink))
+    return true;      /* abort the tree traversal and return true */
+
+  return expression_tree_walker(node, checkExprHasSubLink_walker, context);
 }
 
 /*
@@ -320,20 +323,22 @@ checkExprHasSubLink_walker(Node *node, void *context)
 static bool
 contains_multiexpr_param(Node *node, void *context)
 {
-	if (node == NULL)
-		return false;
-	if (IsA(node, Param))
-	{
-		if (((Param *) node)->paramkind == PARAM_MULTIEXPR)
-			return true;		/* abort the tree traversal and return true */
-		return false;
-	}
-	return expression_tree_walker(node, contains_multiexpr_param, context);
+  if (node == NULL)
+    return false;
+
+  if (IsA(node, Param)) {
+    if (((Param *) node)->paramkind == PARAM_MULTIEXPR)
+      return true;    /* abort the tree traversal and return true */
+
+    return false;
+  }
+
+  return expression_tree_walker(node, contains_multiexpr_param, context);
 }
 
 /*
  * CombineRangeTables
- * 		Adds the RTEs of 'src_rtable' into 'dst_rtable'
+ *    Adds the RTEs of 'src_rtable' into 'dst_rtable'
  *
  * This also adds the RTEPermissionInfos of 'src_perminfos' (belonging to the
  * RTEs in 'src_rtable') into *dst_perminfos and also updates perminfoindex of
@@ -345,24 +350,22 @@ contains_multiexpr_param(Node *node, void *context)
  */
 void
 CombineRangeTables(List **dst_rtable, List **dst_perminfos,
-				   List *src_rtable, List *src_perminfos)
+                   List *src_rtable, List *src_perminfos)
 {
-	ListCell   *l;
-	int			offset = list_length(*dst_perminfos);
+  ListCell   *l;
+  int     offset = list_length(*dst_perminfos);
 
-	if (offset > 0)
-	{
-		foreach(l, src_rtable)
-		{
-			RangeTblEntry *rte = lfirst_node(RangeTblEntry, l);
+  if (offset > 0) {
+    foreach(l, src_rtable) {
+      RangeTblEntry *rte = lfirst_node(RangeTblEntry, l);
 
-			if (rte->perminfoindex > 0)
-				rte->perminfoindex += offset;
-		}
-	}
+      if (rte->perminfoindex > 0)
+        rte->perminfoindex += offset;
+    }
+  }
 
-	*dst_perminfos = list_concat(*dst_perminfos, src_perminfos);
-	*dst_rtable = list_concat(*dst_rtable, src_rtable);
+  *dst_perminfos = list_concat(*dst_perminfos, src_perminfos);
+  *dst_rtable = list_concat(*dst_rtable, src_rtable);
 }
 
 /*
@@ -378,161 +381,164 @@ CombineRangeTables(List **dst_rtable, List **dst_perminfos,
  * earlier to ensure that no unwanted side-effects occur!
  */
 
-typedef struct
-{
-	int			offset;
-	int			sublevels_up;
+typedef struct {
+  int     offset;
+  int     sublevels_up;
 } OffsetVarNodes_context;
 
 static bool
 OffsetVarNodes_walker(Node *node, OffsetVarNodes_context *context)
 {
-	if (node == NULL)
-		return false;
-	if (IsA(node, Var))
-	{
-		Var		   *var = (Var *) node;
+  if (node == NULL)
+    return false;
 
-		if (var->varlevelsup == context->sublevels_up)
-		{
-			var->varno += context->offset;
-			var->varnullingrels = offset_relid_set(var->varnullingrels,
-												   context->offset);
-			if (var->varnosyn > 0)
-				var->varnosyn += context->offset;
-		}
-		return false;
-	}
-	if (IsA(node, CurrentOfExpr))
-	{
-		CurrentOfExpr *cexpr = (CurrentOfExpr *) node;
+  if (IsA(node, Var)) {
+    Var      *var = (Var *) node;
 
-		if (context->sublevels_up == 0)
-			cexpr->cvarno += context->offset;
-		return false;
-	}
-	if (IsA(node, RangeTblRef))
-	{
-		RangeTblRef *rtr = (RangeTblRef *) node;
+    if (var->varlevelsup == context->sublevels_up) {
+      var->varno += context->offset;
+      var->varnullingrels = offset_relid_set(var->varnullingrels,
+                                             context->offset);
 
-		if (context->sublevels_up == 0)
-			rtr->rtindex += context->offset;
-		/* the subquery itself is visited separately */
-		return false;
-	}
-	if (IsA(node, JoinExpr))
-	{
-		JoinExpr   *j = (JoinExpr *) node;
+      if (var->varnosyn > 0)
+        var->varnosyn += context->offset;
+    }
 
-		if (j->rtindex && context->sublevels_up == 0)
-			j->rtindex += context->offset;
-		/* fall through to examine children */
-	}
-	if (IsA(node, PlaceHolderVar))
-	{
-		PlaceHolderVar *phv = (PlaceHolderVar *) node;
+    return false;
+  }
 
-		if (phv->phlevelsup == context->sublevels_up)
-		{
-			phv->phrels = offset_relid_set(phv->phrels,
-										   context->offset);
-			phv->phnullingrels = offset_relid_set(phv->phnullingrels,
-												  context->offset);
-		}
-		/* fall through to examine children */
-	}
-	if (IsA(node, AppendRelInfo))
-	{
-		AppendRelInfo *appinfo = (AppendRelInfo *) node;
+  if (IsA(node, CurrentOfExpr)) {
+    CurrentOfExpr *cexpr = (CurrentOfExpr *) node;
 
-		if (context->sublevels_up == 0)
-		{
-			appinfo->parent_relid += context->offset;
-			appinfo->child_relid += context->offset;
-		}
-		/* fall through to examine children */
-	}
-	/* Shouldn't need to handle other planner auxiliary nodes here */
-	Assert(!IsA(node, PlanRowMark));
-	Assert(!IsA(node, SpecialJoinInfo));
-	Assert(!IsA(node, PlaceHolderInfo));
-	Assert(!IsA(node, MinMaxAggInfo));
+    if (context->sublevels_up == 0)
+      cexpr->cvarno += context->offset;
 
-	if (IsA(node, Query))
-	{
-		/* Recurse into subselects */
-		bool		result;
+    return false;
+  }
 
-		context->sublevels_up++;
-		result = query_tree_walker((Query *) node, OffsetVarNodes_walker,
-								   context, 0);
-		context->sublevels_up--;
-		return result;
-	}
-	return expression_tree_walker(node, OffsetVarNodes_walker, context);
+  if (IsA(node, RangeTblRef)) {
+    RangeTblRef *rtr = (RangeTblRef *) node;
+
+    if (context->sublevels_up == 0)
+      rtr->rtindex += context->offset;
+
+    /* the subquery itself is visited separately */
+    return false;
+  }
+
+  if (IsA(node, JoinExpr)) {
+    JoinExpr   *j = (JoinExpr *) node;
+
+    if (j->rtindex && context->sublevels_up == 0)
+      j->rtindex += context->offset;
+
+    /* fall through to examine children */
+  }
+
+  if (IsA(node, PlaceHolderVar)) {
+    PlaceHolderVar *phv = (PlaceHolderVar *) node;
+
+    if (phv->phlevelsup == context->sublevels_up) {
+      phv->phrels = offset_relid_set(phv->phrels,
+                                     context->offset);
+      phv->phnullingrels = offset_relid_set(phv->phnullingrels,
+                                            context->offset);
+    }
+
+    /* fall through to examine children */
+  }
+
+  if (IsA(node, AppendRelInfo)) {
+    AppendRelInfo *appinfo = (AppendRelInfo *) node;
+
+    if (context->sublevels_up == 0) {
+      appinfo->parent_relid += context->offset;
+      appinfo->child_relid += context->offset;
+    }
+
+    /* fall through to examine children */
+  }
+
+  /* Shouldn't need to handle other planner auxiliary nodes here */
+  Assert(!IsA(node, PlanRowMark));
+  Assert(!IsA(node, SpecialJoinInfo));
+  Assert(!IsA(node, PlaceHolderInfo));
+  Assert(!IsA(node, MinMaxAggInfo));
+
+  if (IsA(node, Query)) {
+    /* Recurse into subselects */
+    bool    result;
+
+    context->sublevels_up++;
+    result = query_tree_walker((Query *) node, OffsetVarNodes_walker,
+                               context, 0);
+    context->sublevels_up--;
+    return result;
+  }
+
+  return expression_tree_walker(node, OffsetVarNodes_walker, context);
 }
 
 void
 OffsetVarNodes(Node *node, int offset, int sublevels_up)
 {
-	OffsetVarNodes_context context;
+  OffsetVarNodes_context context;
 
-	context.offset = offset;
-	context.sublevels_up = sublevels_up;
+  context.offset = offset;
+  context.sublevels_up = sublevels_up;
 
-	/*
-	 * Must be prepared to start with a Query or a bare expression tree; if
-	 * it's a Query, go straight to query_tree_walker to make sure that
-	 * sublevels_up doesn't get incremented prematurely.
-	 */
-	if (node && IsA(node, Query))
-	{
-		Query	   *qry = (Query *) node;
+  /*
+   * Must be prepared to start with a Query or a bare expression tree; if
+   * it's a Query, go straight to query_tree_walker to make sure that
+   * sublevels_up doesn't get incremented prematurely.
+   */
+  if (node && IsA(node, Query)) {
+    Query    *qry = (Query *) node;
 
-		/*
-		 * If we are starting at a Query, and sublevels_up is zero, then we
-		 * must also fix rangetable indexes in the Query itself --- namely
-		 * resultRelation, mergeTargetRelation, exclRelIndex and rowMarks
-		 * entries.  sublevels_up cannot be zero when recursing into a
-		 * subquery, so there's no need to have the same logic inside
-		 * OffsetVarNodes_walker.
-		 */
-		if (sublevels_up == 0)
-		{
-			ListCell   *l;
+    /*
+     * If we are starting at a Query, and sublevels_up is zero, then we
+     * must also fix rangetable indexes in the Query itself --- namely
+     * resultRelation, mergeTargetRelation, exclRelIndex and rowMarks
+     * entries.  sublevels_up cannot be zero when recursing into a
+     * subquery, so there's no need to have the same logic inside
+     * OffsetVarNodes_walker.
+     */
+    if (sublevels_up == 0) {
+      ListCell   *l;
 
-			if (qry->resultRelation)
-				qry->resultRelation += offset;
+      if (qry->resultRelation)
+        qry->resultRelation += offset;
 
-			if (qry->mergeTargetRelation)
-				qry->mergeTargetRelation += offset;
+      if (qry->mergeTargetRelation)
+        qry->mergeTargetRelation += offset;
 
-			if (qry->onConflict && qry->onConflict->exclRelIndex)
-				qry->onConflict->exclRelIndex += offset;
+      if (qry->onConflict && qry->onConflict->exclRelIndex)
+        qry->onConflict->exclRelIndex += offset;
 
-			foreach(l, qry->rowMarks)
-			{
-				RowMarkClause *rc = (RowMarkClause *) lfirst(l);
+      foreach(l, qry->rowMarks) {
+        RowMarkClause *rc = (RowMarkClause *) lfirst(l);
 
-				rc->rti += offset;
-			}
-		}
-		query_tree_walker(qry, OffsetVarNodes_walker, &context, 0);
-	}
-	else
-		OffsetVarNodes_walker(node, &context);
+        rc->rti += offset;
+      }
+    }
+
+    query_tree_walker(qry, OffsetVarNodes_walker, &context, 0);
+  } else
+    OffsetVarNodes_walker(node, &context);
 }
 
 static Relids
 offset_relid_set(Relids relids, int offset)
 {
-	Relids		result = NULL;
-	int			rtindex;
+  Relids    result = NULL;
+  int     rtindex;
 
-	rtindex = -1;
-	while ((rtindex = bms_next_member(relids, rtindex)) >= 0)
-		result = bms_add_member(result, rtindex + offset);
-	return result;
+  rtindex = -1;
+
+  while ((rtindex = bms_next_member(relids, rtindex)) >= 0)
+    result = bms_add_member(result, rtindex + offset);
+
+  return result;
 }
 
 /*
@@ -551,119 +557,126 @@ offset_relid_set(Relids relids, int offset)
 static bool
 ChangeVarNodes_walker(Node *node, ChangeVarNodes_context *context)
 {
-	if (node == NULL)
-		return false;
+  if (node == NULL)
+    return false;
 
-	if (context->callback && context->callback(node, context))
-		return false;
+  if (context->callback && context->callback(node, context))
+    return false;
 
-	if (IsA(node, Var))
-	{
-		Var		   *var = (Var *) node;
+  if (IsA(node, Var)) {
+    Var      *var = (Var *) node;
 
-		if (var->varlevelsup == context->sublevels_up)
-		{
-			if (var->varno == context->rt_index)
-				var->varno = context->new_index;
-			var->varnullingrels = adjust_relid_set(var->varnullingrels,
-												   context->rt_index,
-												   context->new_index);
-			if (var->varnosyn == context->rt_index)
-				var->varnosyn = context->new_index;
-		}
-		return false;
-	}
-	if (IsA(node, CurrentOfExpr))
-	{
-		CurrentOfExpr *cexpr = (CurrentOfExpr *) node;
+    if (var->varlevelsup == context->sublevels_up) {
+      if (var->varno == context->rt_index)
+        var->varno = context->new_index;
 
-		if (context->sublevels_up == 0 &&
-			cexpr->cvarno == context->rt_index)
-			cexpr->cvarno = context->new_index;
-		return false;
-	}
-	if (IsA(node, RangeTblRef))
-	{
-		RangeTblRef *rtr = (RangeTblRef *) node;
+      var->varnullingrels = adjust_relid_set(var->varnullingrels,
+                                             context->rt_index,
+                                             context->new_index);
 
-		if (context->sublevels_up == 0 &&
-			rtr->rtindex == context->rt_index)
-			rtr->rtindex = context->new_index;
-		/* the subquery itself is visited separately */
-		return false;
-	}
-	if (IsA(node, JoinExpr))
-	{
-		JoinExpr   *j = (JoinExpr *) node;
+      if (var->varnosyn == context->rt_index)
+        var->varnosyn = context->new_index;
+    }
 
-		if (context->sublevels_up == 0 &&
-			j->rtindex == context->rt_index)
-			j->rtindex = context->new_index;
-		/* fall through to examine children */
-	}
-	if (IsA(node, PlaceHolderVar))
-	{
-		PlaceHolderVar *phv = (PlaceHolderVar *) node;
+    return false;
+  }
 
-		if (phv->phlevelsup == context->sublevels_up)
-		{
-			phv->phrels = adjust_relid_set(phv->phrels,
-										   context->rt_index,
-										   context->new_index);
-			phv->phnullingrels = adjust_relid_set(phv->phnullingrels,
-												  context->rt_index,
-												  context->new_index);
-		}
-		/* fall through to examine children */
-	}
-	if (IsA(node, PlanRowMark))
-	{
-		PlanRowMark *rowmark = (PlanRowMark *) node;
+  if (IsA(node, CurrentOfExpr)) {
+    CurrentOfExpr *cexpr = (CurrentOfExpr *) node;
 
-		if (context->sublevels_up == 0)
-		{
-			if (rowmark->rti == context->rt_index)
-				rowmark->rti = context->new_index;
-			if (rowmark->prti == context->rt_index)
-				rowmark->prti = context->new_index;
-		}
-		return false;
-	}
-	if (IsA(node, AppendRelInfo))
-	{
-		AppendRelInfo *appinfo = (AppendRelInfo *) node;
+    if (context->sublevels_up == 0 &&
+        cexpr->cvarno == context->rt_index)
+      cexpr->cvarno = context->new_index;
 
-		if (context->sublevels_up == 0)
-		{
-			if (appinfo->parent_relid == context->rt_index)
-				appinfo->parent_relid = context->new_index;
-			if (appinfo->child_relid == context->rt_index)
-				appinfo->child_relid = context->new_index;
-		}
-		/* fall through to examine children */
-	}
-	/* Shouldn't need to handle other planner auxiliary nodes here */
-	Assert(!IsA(node, SpecialJoinInfo));
-	Assert(!IsA(node, PlaceHolderInfo));
-	Assert(!IsA(node, MinMaxAggInfo));
+    return false;
+  }
 
-	if (IsA(node, Query))
-	{
-		/* Recurse into subselects */
-		bool		result;
+  if (IsA(node, RangeTblRef)) {
+    RangeTblRef *rtr = (RangeTblRef *) node;
 
-		context->sublevels_up++;
-		result = query_tree_walker((Query *) node, ChangeVarNodes_walker,
-								   context, 0);
-		context->sublevels_up--;
-		return result;
-	}
-	return expression_tree_walker(node, ChangeVarNodes_walker, context);
+    if (context->sublevels_up == 0 &&
+        rtr->rtindex == context->rt_index)
+      rtr->rtindex = context->new_index;
+
+    /* the subquery itself is visited separately */
+    return false;
+  }
+
+  if (IsA(node, JoinExpr)) {
+    JoinExpr   *j = (JoinExpr *) node;
+
+    if (context->sublevels_up == 0 &&
+        j->rtindex == context->rt_index)
+      j->rtindex = context->new_index;
+
+    /* fall through to examine children */
+  }
+
+  if (IsA(node, PlaceHolderVar)) {
+    PlaceHolderVar *phv = (PlaceHolderVar *) node;
+
+    if (phv->phlevelsup == context->sublevels_up) {
+      phv->phrels = adjust_relid_set(phv->phrels,
+                                     context->rt_index,
+                                     context->new_index);
+      phv->phnullingrels = adjust_relid_set(phv->phnullingrels,
+                                            context->rt_index,
+                                            context->new_index);
+    }
+
+    /* fall through to examine children */
+  }
+
+  if (IsA(node, PlanRowMark)) {
+    PlanRowMark *rowmark = (PlanRowMark *) node;
+
+    if (context->sublevels_up == 0) {
+      if (rowmark->rti == context->rt_index)
+        rowmark->rti = context->new_index;
+
+      if (rowmark->prti == context->rt_index)
+        rowmark->prti = context->new_index;
+    }
+
+    return false;
+  }
+
+  if (IsA(node, AppendRelInfo)) {
+    AppendRelInfo *appinfo = (AppendRelInfo *) node;
+
+    if (context->sublevels_up == 0) {
+      if (appinfo->parent_relid == context->rt_index)
+        appinfo->parent_relid = context->new_index;
+
+      if (appinfo->child_relid == context->rt_index)
+        appinfo->child_relid = context->new_index;
+    }
+
+    /* fall through to examine children */
+  }
+
+  /* Shouldn't need to handle other planner auxiliary nodes here */
+  Assert(!IsA(node, SpecialJoinInfo));
+  Assert(!IsA(node, PlaceHolderInfo));
+  Assert(!IsA(node, MinMaxAggInfo));
+
+  if (IsA(node, Query)) {
+    /* Recurse into subselects */
+    bool    result;
+
+    context->sublevels_up++;
+    result = query_tree_walker((Query *) node, ChangeVarNodes_walker,
+                               context, 0);
+    context->sublevels_up--;
+    return result;
+  }
+
+  return expression_tree_walker(node, ChangeVarNodes_walker, context);
 }
 
 /*
  * ChangeVarNodesExtended - similar to ChangeVarNodes, but with an additional
- *							'callback' param
+ *              'callback' param
  *
  * ChangeVarNodes changes a given node and all of its underlying nodes.  This
  * version of function additionally takes a callback, which has a chance to
@@ -675,69 +688,66 @@ ChangeVarNodes_walker(Node *node, ChangeVarNodes_context *context)
  */
 void
 ChangeVarNodesExtended(Node *node, int rt_index, int new_index,
-					   int sublevels_up, ChangeVarNodes_callback callback)
+                       int sublevels_up, ChangeVarNodes_callback callback)
 {
-	ChangeVarNodes_context context;
+  ChangeVarNodes_context context;
 
-	context.rt_index = rt_index;
-	context.new_index = new_index;
-	context.sublevels_up = sublevels_up;
-	context.callback = callback;
+  context.rt_index = rt_index;
+  context.new_index = new_index;
+  context.sublevels_up = sublevels_up;
+  context.callback = callback;
 
-	/*
-	 * Must be prepared to start with a Query or a bare expression tree; if
-	 * it's a Query, go straight to query_tree_walker to make sure that
-	 * sublevels_up doesn't get incremented prematurely.
-	 */
-	if (node && IsA(node, Query))
-	{
-		Query	   *qry = (Query *) node;
+  /*
+   * Must be prepared to start with a Query or a bare expression tree; if
+   * it's a Query, go straight to query_tree_walker to make sure that
+   * sublevels_up doesn't get incremented prematurely.
+   */
+  if (node && IsA(node, Query)) {
+    Query    *qry = (Query *) node;
 
-		/*
-		 * If we are starting at a Query, and sublevels_up is zero, then we
-		 * must also fix rangetable indexes in the Query itself --- namely
-		 * resultRelation, mergeTargetRelation, exclRelIndex  and rowMarks
-		 * entries.  sublevels_up cannot be zero when recursing into a
-		 * subquery, so there's no need to have the same logic inside
-		 * ChangeVarNodes_walker.
-		 */
-		if (sublevels_up == 0)
-		{
-			ListCell   *l;
+    /*
+     * If we are starting at a Query, and sublevels_up is zero, then we
+     * must also fix rangetable indexes in the Query itself --- namely
+     * resultRelation, mergeTargetRelation, exclRelIndex  and rowMarks
+     * entries.  sublevels_up cannot be zero when recursing into a
+     * subquery, so there's no need to have the same logic inside
+     * ChangeVarNodes_walker.
+     */
+    if (sublevels_up == 0) {
+      ListCell   *l;
 
-			if (qry->resultRelation == rt_index)
-				qry->resultRelation = new_index;
+      if (qry->resultRelation == rt_index)
+        qry->resultRelation = new_index;
 
-			if (qry->mergeTargetRelation == rt_index)
-				qry->mergeTargetRelation = new_index;
+      if (qry->mergeTargetRelation == rt_index)
+        qry->mergeTargetRelation = new_index;
 
-			/* this is unlikely to ever be used, but ... */
-			if (qry->onConflict && qry->onConflict->exclRelIndex == rt_index)
-				qry->onConflict->exclRelIndex = new_index;
+      /* this is unlikely to ever be used, but ... */
+      if (qry->onConflict && qry->onConflict->exclRelIndex == rt_index)
+        qry->onConflict->exclRelIndex = new_index;
 
-			foreach(l, qry->rowMarks)
-			{
-				RowMarkClause *rc = (RowMarkClause *) lfirst(l);
+      foreach(l, qry->rowMarks) {
+        RowMarkClause *rc = (RowMarkClause *) lfirst(l);
 
-				if (rc->rti == rt_index)
-					rc->rti = new_index;
-			}
-		}
-		query_tree_walker(qry, ChangeVarNodes_walker, &context, 0);
-	}
-	else
-		ChangeVarNodes_walker(node, &context);
+        if (rc->rti == rt_index)
+          rc->rti = new_index;
+      }
+    }
+
+    query_tree_walker(qry, ChangeVarNodes_walker, &context, 0);
+  } else
+    ChangeVarNodes_walker(node, &context);
 }
 
 void
 ChangeVarNodes(Node *node, int rt_index, int new_index, int sublevels_up)
 {
-	ChangeVarNodesExtended(node, rt_index, new_index, sublevels_up, NULL);
+  ChangeVarNodesExtended(node, rt_index, new_index, sublevels_up, NULL);
 }
 
 /*
  * ChangeVarNodesWalkExpression - process subexpression within a callback
- *								  function passed to ChangeVarNodesExtended.
+ *                  function passed to ChangeVarNodesExtended.
  *
  * This is intended to be used by a callback that needs to recursively
  * process subexpressions of some node being visited by an outer
@@ -756,7 +766,7 @@ ChangeVarNodes(Node *node, int rt_index, int new_index, int sublevels_up)
 bool
 ChangeVarNodesWalkExpression(Node *node, ChangeVarNodes_context *context)
 {
-	return ChangeVarNodes_walker(node, context);
+  return ChangeVarNodes_walker(node, context);
 }
 
 /*
@@ -771,16 +781,17 @@ ChangeVarNodesWalkExpression(Node *node, ChangeVarNodes_context *context)
 Relids
 adjust_relid_set(Relids relids, int oldrelid, int newrelid)
 {
-	if (!IS_SPECIAL_VARNO(oldrelid) && bms_is_member(oldrelid, relids))
-	{
-		/* Ensure we have a modifiable copy */
-		relids = bms_copy(relids);
-		/* Remove old, add new */
-		relids = bms_del_member(relids, oldrelid);
-		if (!IS_SPECIAL_VARNO(newrelid))
-			relids = bms_add_member(relids, newrelid);
-	}
-	return relids;
+  if (!IS_SPECIAL_VARNO(oldrelid) && bms_is_member(oldrelid, relids)) {
+    /* Ensure we have a modifiable copy */
+    relids = bms_copy(relids);
+    /* Remove old, add new */
+    relids = bms_del_member(relids, oldrelid);
+
+    if (!IS_SPECIAL_VARNO(newrelid))
+      relids = bms_add_member(relids, newrelid);
+  }
+
+  return relids;
 }
 
 /*
@@ -802,128 +813,134 @@ adjust_relid_set(Relids relids, int oldrelid, int newrelid)
  * earlier to ensure that no unwanted side-effects occur!
  */
 
-typedef struct
-{
-	int			delta_sublevels_up;
-	int			min_sublevels_up;
+typedef struct {
+  int     delta_sublevels_up;
+  int     min_sublevels_up;
 } IncrementVarSublevelsUp_context;
 
 static bool
 IncrementVarSublevelsUp_walker(Node *node,
-							   IncrementVarSublevelsUp_context *context)
+                               IncrementVarSublevelsUp_context *context)
 {
-	if (node == NULL)
-		return false;
-	if (IsA(node, Var))
-	{
-		Var		   *var = (Var *) node;
+  if (node == NULL)
+    return false;
 
-		if (var->varlevelsup >= context->min_sublevels_up)
-			var->varlevelsup += context->delta_sublevels_up;
-		return false;			/* done here */
-	}
-	if (IsA(node, CurrentOfExpr))
-	{
-		/* this should not happen */
-		if (context->min_sublevels_up == 0)
-			elog(ERROR, "cannot push down CurrentOfExpr");
-		return false;
-	}
-	if (IsA(node, Aggref))
-	{
-		Aggref	   *agg = (Aggref *) node;
+  if (IsA(node, Var)) {
+    Var      *var = (Var *) node;
 
-		if (agg->agglevelsup >= context->min_sublevels_up)
-			agg->agglevelsup += context->delta_sublevels_up;
-		/* fall through to recurse into argument */
-	}
-	if (IsA(node, GroupingFunc))
-	{
-		GroupingFunc *grp = (GroupingFunc *) node;
+    if (var->varlevelsup >= context->min_sublevels_up)
+      var->varlevelsup += context->delta_sublevels_up;
 
-		if (grp->agglevelsup >= context->min_sublevels_up)
-			grp->agglevelsup += context->delta_sublevels_up;
-		/* fall through to recurse into argument */
-	}
-	if (IsA(node, PlaceHolderVar))
-	{
-		PlaceHolderVar *phv = (PlaceHolderVar *) node;
+    return false;     /* done here */
+  }
 
-		if (phv->phlevelsup >= context->min_sublevels_up)
-			phv->phlevelsup += context->delta_sublevels_up;
-		/* fall through to recurse into argument */
-	}
-	if (IsA(node, ReturningExpr))
-	{
-		ReturningExpr *rexpr = (ReturningExpr *) node;
+  if (IsA(node, CurrentOfExpr)) {
+    /* this should not happen */
+    if (context->min_sublevels_up == 0)
+      elog(ERROR, "cannot push down CurrentOfExpr");
 
-		if (rexpr->retlevelsup >= context->min_sublevels_up)
-			rexpr->retlevelsup += context->delta_sublevels_up;
-		/* fall through to recurse into argument */
-	}
-	if (IsA(node, RangeTblEntry))
-	{
-		RangeTblEntry *rte = (RangeTblEntry *) node;
+    return false;
+  }
 
-		if (rte->rtekind == RTE_CTE)
-		{
-			if (rte->ctelevelsup >= context->min_sublevels_up)
-				rte->ctelevelsup += context->delta_sublevels_up;
-		}
-		return false;			/* allow range_table_walker to continue */
-	}
-	if (IsA(node, Query))
-	{
-		/* Recurse into subselects */
-		bool		result;
+  if (IsA(node, Aggref)) {
+    Aggref     *agg = (Aggref *) node;
 
-		context->min_sublevels_up++;
-		result = query_tree_walker((Query *) node,
-								   IncrementVarSublevelsUp_walker,
-								   context,
-								   QTW_EXAMINE_RTES_BEFORE);
-		context->min_sublevels_up--;
-		return result;
-	}
-	return expression_tree_walker(node, IncrementVarSublevelsUp_walker, context);
+    if (agg->agglevelsup >= context->min_sublevels_up)
+      agg->agglevelsup += context->delta_sublevels_up;
+
+    /* fall through to recurse into argument */
+  }
+
+  if (IsA(node, GroupingFunc)) {
+    GroupingFunc *grp = (GroupingFunc *) node;
+
+    if (grp->agglevelsup >= context->min_sublevels_up)
+      grp->agglevelsup += context->delta_sublevels_up;
+
+    /* fall through to recurse into argument */
+  }
+
+  if (IsA(node, PlaceHolderVar)) {
+    PlaceHolderVar *phv = (PlaceHolderVar *) node;
+
+    if (phv->phlevelsup >= context->min_sublevels_up)
+      phv->phlevelsup += context->delta_sublevels_up;
+
+    /* fall through to recurse into argument */
+  }
+
+  if (IsA(node, ReturningExpr)) {
+    ReturningExpr *rexpr = (ReturningExpr *) node;
+
+    if (rexpr->retlevelsup >= context->min_sublevels_up)
+      rexpr->retlevelsup += context->delta_sublevels_up;
+
+    /* fall through to recurse into argument */
+  }
+
+  if (IsA(node, RangeTblEntry)) {
+    RangeTblEntry *rte = (RangeTblEntry *) node;
+
+    if (rte->rtekind == RTE_CTE) {
+      if (rte->ctelevelsup >= context->min_sublevels_up)
+        rte->ctelevelsup += context->delta_sublevels_up;
+    }
+
+    return false;     /* allow range_table_walker to continue */
+  }
+
+  if (IsA(node, Query)) {
+    /* Recurse into subselects */
+    bool    result;
+
+    context->min_sublevels_up++;
+    result = query_tree_walker((Query *) node,
+                               IncrementVarSublevelsUp_walker,
+                               context,
+                               QTW_EXAMINE_RTES_BEFORE);
+    context->min_sublevels_up--;
+    return result;
+  }
+
+  return expression_tree_walker(node, IncrementVarSublevelsUp_walker, context);
 }
 
 void
 IncrementVarSublevelsUp(Node *node, int delta_sublevels_up,
-						int min_sublevels_up)
+                        int min_sublevels_up)
 {
-	IncrementVarSublevelsUp_context context;
+  IncrementVarSublevelsUp_context context;
 
-	context.delta_sublevels_up = delta_sublevels_up;
-	context.min_sublevels_up = min_sublevels_up;
+  context.delta_sublevels_up = delta_sublevels_up;
+  context.min_sublevels_up = min_sublevels_up;
 
-	/*
-	 * Must be prepared to start with a Query or a bare expression tree; if
-	 * it's a Query, we don't want to increment sublevels_up.
-	 */
-	query_or_expression_tree_walker(node,
-									IncrementVarSublevelsUp_walker,
-									&context,
-									QTW_EXAMINE_RTES_BEFORE);
+  /*
+   * Must be prepared to start with a Query or a bare expression tree; if
+   * it's a Query, we don't want to increment sublevels_up.
+   */
+  query_or_expression_tree_walker(node,
+                                  IncrementVarSublevelsUp_walker,
+                                  &context,
+                                  QTW_EXAMINE_RTES_BEFORE);
 }
 
 /*
  * IncrementVarSublevelsUp_rtable -
- *	Same as IncrementVarSublevelsUp, but to be invoked on a range table.
+ *  Same as IncrementVarSublevelsUp, but to be invoked on a range table.
  */
 void
 IncrementVarSublevelsUp_rtable(List *rtable, int delta_sublevels_up,
-							   int min_sublevels_up)
+                               int min_sublevels_up)
 {
-	IncrementVarSublevelsUp_context context;
+  IncrementVarSublevelsUp_context context;
 
-	context.delta_sublevels_up = delta_sublevels_up;
-	context.min_sublevels_up = min_sublevels_up;
+  context.delta_sublevels_up = delta_sublevels_up;
+  context.min_sublevels_up = min_sublevels_up;
 
-	range_table_walker(rtable,
-					   IncrementVarSublevelsUp_walker,
-					   &context,
-					   QTW_EXAMINE_RTES_BEFORE);
+  range_table_walker(rtable,
+                     IncrementVarSublevelsUp_walker,
+                     &context,
+                     QTW_EXAMINE_RTES_BEFORE);
 }
 
 /*
@@ -937,150 +954,153 @@ IncrementVarSublevelsUp_rtable(List *rtable, int delta_sublevels_up,
  * earlier to ensure that no unwanted side-effects occur!
  */
 
-typedef struct
-{
-	int			result_relation;
-	int			sublevels_up;
-	VarReturningType returning_type;
+typedef struct {
+  int     result_relation;
+  int     sublevels_up;
+  VarReturningType returning_type;
 } SetVarReturningType_context;
 
 static bool
 SetVarReturningType_walker(Node *node, SetVarReturningType_context *context)
 {
-	if (node == NULL)
-		return false;
-	if (IsA(node, Var))
-	{
-		Var		   *var = (Var *) node;
+  if (node == NULL)
+    return false;
 
-		if (var->varno == context->result_relation &&
-			var->varlevelsup == context->sublevels_up)
-			var->varreturningtype = context->returning_type;
+  if (IsA(node, Var)) {
+    Var      *var = (Var *) node;
 
-		return false;
-	}
+    if (var->varno == context->result_relation &&
+        var->varlevelsup == context->sublevels_up)
+      var->varreturningtype = context->returning_type;
 
-	if (IsA(node, Query))
-	{
-		/* Recurse into subselects */
-		bool		result;
+    return false;
+  }
 
-		context->sublevels_up++;
-		result = query_tree_walker((Query *) node, SetVarReturningType_walker,
-								   context, 0);
-		context->sublevels_up--;
-		return result;
-	}
-	return expression_tree_walker(node, SetVarReturningType_walker, context);
+  if (IsA(node, Query)) {
+    /* Recurse into subselects */
+    bool    result;
+
+    context->sublevels_up++;
+    result = query_tree_walker((Query *) node, SetVarReturningType_walker,
+                               context, 0);
+    context->sublevels_up--;
+    return result;
+  }
+
+  return expression_tree_walker(node, SetVarReturningType_walker, context);
 }
 
 static void
 SetVarReturningType(Node *node, int result_relation, int sublevels_up,
-					VarReturningType returning_type)
+                    VarReturningType returning_type)
 {
-	SetVarReturningType_context context;
+  SetVarReturningType_context context;
 
-	context.result_relation = result_relation;
-	context.sublevels_up = sublevels_up;
-	context.returning_type = returning_type;
+  context.result_relation = result_relation;
+  context.sublevels_up = sublevels_up;
+  context.returning_type = returning_type;
 
-	/* Expect to start with an expression */
-	SetVarReturningType_walker(node, &context);
+  /* Expect to start with an expression */
+  SetVarReturningType_walker(node, &context);
 }
 
 /*
  * rangeTableEntry_used - detect whether an RTE is referenced somewhere
- *	in var nodes or join or setOp trees of a query or expression.
+ *  in var nodes or join or setOp trees of a query or expression.
  */
 
-typedef struct
-{
-	int			rt_index;
-	int			sublevels_up;
+typedef struct {
+  int     rt_index;
+  int     sublevels_up;
 } rangeTableEntry_used_context;
 
 static bool
 rangeTableEntry_used_walker(Node *node,
-							rangeTableEntry_used_context *context)
+                            rangeTableEntry_used_context *context)
 {
-	if (node == NULL)
-		return false;
-	if (IsA(node, Var))
-	{
-		Var		   *var = (Var *) node;
+  if (node == NULL)
+    return false;
 
-		if (var->varlevelsup == context->sublevels_up &&
-			(var->varno == context->rt_index ||
-			 bms_is_member(context->rt_index, var->varnullingrels)))
-			return true;
-		return false;
-	}
-	if (IsA(node, CurrentOfExpr))
-	{
-		CurrentOfExpr *cexpr = (CurrentOfExpr *) node;
+  if (IsA(node, Var)) {
+    Var      *var = (Var *) node;
 
-		if (context->sublevels_up == 0 &&
-			cexpr->cvarno == context->rt_index)
-			return true;
-		return false;
-	}
-	if (IsA(node, RangeTblRef))
-	{
-		RangeTblRef *rtr = (RangeTblRef *) node;
+    if (var->varlevelsup == context->sublevels_up &&
+        (var->varno == context->rt_index ||
+         bms_is_member(context->rt_index, var->varnullingrels)))
+      return true;
 
-		if (rtr->rtindex == context->rt_index &&
-			context->sublevels_up == 0)
-			return true;
-		/* the subquery itself is visited separately */
-		return false;
-	}
-	if (IsA(node, JoinExpr))
-	{
-		JoinExpr   *j = (JoinExpr *) node;
+    return false;
+  }
 
-		if (j->rtindex == context->rt_index &&
-			context->sublevels_up == 0)
-			return true;
-		/* fall through to examine children */
-	}
-	/* Shouldn't need to handle planner auxiliary nodes here */
-	Assert(!IsA(node, PlaceHolderVar));
-	Assert(!IsA(node, PlanRowMark));
-	Assert(!IsA(node, SpecialJoinInfo));
-	Assert(!IsA(node, AppendRelInfo));
-	Assert(!IsA(node, PlaceHolderInfo));
-	Assert(!IsA(node, MinMaxAggInfo));
+  if (IsA(node, CurrentOfExpr)) {
+    CurrentOfExpr *cexpr = (CurrentOfExpr *) node;
 
-	if (IsA(node, Query))
-	{
-		/* Recurse into subselects */
-		bool		result;
+    if (context->sublevels_up == 0 &&
+        cexpr->cvarno == context->rt_index)
+      return true;
 
-		context->sublevels_up++;
-		result = query_tree_walker((Query *) node, rangeTableEntry_used_walker,
-								   context, 0);
-		context->sublevels_up--;
-		return result;
-	}
-	return expression_tree_walker(node, rangeTableEntry_used_walker, context);
+    return false;
+  }
+
+  if (IsA(node, RangeTblRef)) {
+    RangeTblRef *rtr = (RangeTblRef *) node;
+
+    if (rtr->rtindex == context->rt_index &&
+        context->sublevels_up == 0)
+      return true;
+
+    /* the subquery itself is visited separately */
+    return false;
+  }
+
+  if (IsA(node, JoinExpr)) {
+    JoinExpr   *j = (JoinExpr *) node;
+
+    if (j->rtindex == context->rt_index &&
+        context->sublevels_up == 0)
+      return true;
+
+    /* fall through to examine children */
+  }
+
+  /* Shouldn't need to handle planner auxiliary nodes here */
+  Assert(!IsA(node, PlaceHolderVar));
+  Assert(!IsA(node, PlanRowMark));
+  Assert(!IsA(node, SpecialJoinInfo));
+  Assert(!IsA(node, AppendRelInfo));
+  Assert(!IsA(node, PlaceHolderInfo));
+  Assert(!IsA(node, MinMaxAggInfo));
+
+  if (IsA(node, Query)) {
+    /* Recurse into subselects */
+    bool    result;
+
+    context->sublevels_up++;
+    result = query_tree_walker((Query *) node, rangeTableEntry_used_walker,
+                               context, 0);
+    context->sublevels_up--;
+    return result;
+  }
+
+  return expression_tree_walker(node, rangeTableEntry_used_walker, context);
 }
 
 bool
 rangeTableEntry_used(Node *node, int rt_index, int sublevels_up)
 {
-	rangeTableEntry_used_context context;
+  rangeTableEntry_used_context context;
 
-	context.rt_index = rt_index;
-	context.sublevels_up = sublevels_up;
+  context.rt_index = rt_index;
+  context.sublevels_up = sublevels_up;
 
-	/*
-	 * Must be prepared to start with a Query or a bare expression tree; if
-	 * it's a Query, we don't want to increment sublevels_up.
-	 */
-	return query_or_expression_tree_walker(node,
-										   rangeTableEntry_used_walker,
-										   &context,
-										   0);
+  /*
+   * Must be prepared to start with a Query or a bare expression tree; if
+   * it's a Query, we don't want to increment sublevels_up.
+   */
+  return query_or_expression_tree_walker(node,
+                                         rangeTableEntry_used_walker,
+                                         &context,
+                                         0);
 }
 
 
@@ -1100,55 +1120,65 @@ rangeTableEntry_used(Node *node, int rt_index, int sublevels_up)
 Query *
 getInsertSelectQuery(Query *parsetree, Query ***subquery_ptr)
 {
-	Query	   *selectquery;
-	RangeTblEntry *selectrte;
-	RangeTblRef *rtr;
+  Query    *selectquery;
+  RangeTblEntry *selectrte;
+  RangeTblRef *rtr;
 
-	if (subquery_ptr)
-		*subquery_ptr = NULL;
+  if (subquery_ptr)
+    *subquery_ptr = NULL;
 
-	if (parsetree == NULL)
-		return parsetree;
-	if (parsetree->commandType != CMD_INSERT)
-		return parsetree;
+  if (parsetree == NULL)
+    return parsetree;
 
-	/*
-	 * Currently, this is ONLY applied to rule-action queries, and so we
-	 * expect to find the OLD and NEW placeholder entries in the given query.
-	 * If they're not there, it must be an INSERT/SELECT in which they've been
-	 * pushed down to the SELECT.
-	 */
-	if (list_length(parsetree->rtable) >= 2 &&
-		strcmp(rt_fetch(PRS2_OLD_VARNO, parsetree->rtable)->eref->aliasname,
-			   "old") == 0 &&
-		strcmp(rt_fetch(PRS2_NEW_VARNO, parsetree->rtable)->eref->aliasname,
-			   "new") == 0)
-		return parsetree;
-	Assert(parsetree->jointree && IsA(parsetree->jointree, FromExpr));
-	if (list_length(parsetree->jointree->fromlist) != 1)
-		elog(ERROR, "expected to find SELECT subquery");
-	rtr = (RangeTblRef *) linitial(parsetree->jointree->fromlist);
-	if (!IsA(rtr, RangeTblRef))
-		elog(ERROR, "expected to find SELECT subquery");
-	selectrte = rt_fetch(rtr->rtindex, parsetree->rtable);
-	if (!(selectrte->rtekind == RTE_SUBQUERY &&
-		  selectrte->subquery &&
-		  IsA(selectrte->subquery, Query) &&
-		  selectrte->subquery->commandType == CMD_SELECT))
-		elog(ERROR, "expected to find SELECT subquery");
-	selectquery = selectrte->subquery;
-	if (list_length(selectquery->rtable) >= 2 &&
-		strcmp(rt_fetch(PRS2_OLD_VARNO, selectquery->rtable)->eref->aliasname,
-			   "old") == 0 &&
-		strcmp(rt_fetch(PRS2_NEW_VARNO, selectquery->rtable)->eref->aliasname,
-			   "new") == 0)
-	{
-		if (subquery_ptr)
-			*subquery_ptr = &(selectrte->subquery);
-		return selectquery;
-	}
-	elog(ERROR, "could not find rule placeholders");
-	return NULL;				/* not reached */
+  if (parsetree->commandType != CMD_INSERT)
+    return parsetree;
+
+  /*
+   * Currently, this is ONLY applied to rule-action queries, and so we
+   * expect to find the OLD and NEW placeholder entries in the given query.
+   * If they're not there, it must be an INSERT/SELECT in which they've been
+   * pushed down to the SELECT.
+   */
+  if (list_length(parsetree->rtable) >= 2 &&
+      strcmp(rt_fetch(PRS2_OLD_VARNO, parsetree->rtable)->eref->aliasname,
+             "old") == 0 &&
+      strcmp(rt_fetch(PRS2_NEW_VARNO, parsetree->rtable)->eref->aliasname,
+             "new") == 0)
+    return parsetree;
+
+  Assert(parsetree->jointree && IsA(parsetree->jointree, FromExpr));
+
+  if (list_length(parsetree->jointree->fromlist) != 1)
+    elog(ERROR, "expected to find SELECT subquery");
+
+  rtr = (RangeTblRef *) linitial(parsetree->jointree->fromlist);
+
+  if (!IsA(rtr, RangeTblRef))
+    elog(ERROR, "expected to find SELECT subquery");
+
+  selectrte = rt_fetch(rtr->rtindex, parsetree->rtable);
+
+  if (!(selectrte->rtekind == RTE_SUBQUERY &&
+        selectrte->subquery &&
+        IsA(selectrte->subquery, Query) &&
+        selectrte->subquery->commandType == CMD_SELECT))
+    elog(ERROR, "expected to find SELECT subquery");
+
+  selectquery = selectrte->subquery;
+
+  if (list_length(selectquery->rtable) >= 2 &&
+      strcmp(rt_fetch(PRS2_OLD_VARNO, selectquery->rtable)->eref->aliasname,
+             "old") == 0 &&
+      strcmp(rt_fetch(PRS2_NEW_VARNO, selectquery->rtable)->eref->aliasname,
+             "new") == 0) {
+    if (subquery_ptr)
+      *subquery_ptr = &(selectrte->subquery);
+
+    return selectquery;
+  }
+
+  elog(ERROR, "could not find rule placeholders");
+  return NULL;        /* not reached */
 }
 
 
@@ -1158,63 +1188,61 @@ getInsertSelectQuery(Query *parsetree, Query ***subquery_ptr)
 void
 AddQual(Query *parsetree, Node *qual)
 {
-	Node	   *copy;
+  Node     *copy;
 
-	if (qual == NULL)
-		return;
+  if (qual == NULL)
+    return;
 
-	if (parsetree->commandType == CMD_UTILITY)
-	{
-		/*
-		 * There's noplace to put the qual on a utility statement.
-		 *
-		 * If it's a NOTIFY, silently ignore the qual; this means that the
-		 * NOTIFY will execute, whether or not there are any qualifying rows.
-		 * While clearly wrong, this is much more useful than refusing to
-		 * execute the rule at all, and extra NOTIFY events are harmless for
-		 * typical uses of NOTIFY.
-		 *
-		 * If it isn't a NOTIFY, error out, since unconditional execution of
-		 * other utility stmts is unlikely to be wanted.  (This case is not
-		 * currently allowed anyway, but keep the test for safety.)
-		 */
-		if (parsetree->utilityStmt && IsA(parsetree->utilityStmt, NotifyStmt))
-			return;
-		else
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("conditional utility statements are not implemented")));
-	}
+  if (parsetree->commandType == CMD_UTILITY) {
+    /*
+     * There's noplace to put the qual on a utility statement.
+     *
+     * If it's a NOTIFY, silently ignore the qual; this means that the
+     * NOTIFY will execute, whether or not there are any qualifying rows.
+     * While clearly wrong, this is much more useful than refusing to
+     * execute the rule at all, and extra NOTIFY events are harmless for
+     * typical uses of NOTIFY.
+     *
+     * If it isn't a NOTIFY, error out, since unconditional execution of
+     * other utility stmts is unlikely to be wanted.  (This case is not
+     * currently allowed anyway, but keep the test for safety.)
+     */
+    if (parsetree->utilityStmt && IsA(parsetree->utilityStmt, NotifyStmt))
+      return;
+    else
+      ereport(ERROR,
+              (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+               errmsg("conditional utility statements are not implemented")));
+  }
 
-	if (parsetree->setOperations != NULL)
-	{
-		/*
-		 * There's noplace to put the qual on a setop statement, either. (This
-		 * could be fixed, but right now the planner simply ignores any qual
-		 * condition on a setop query.)
-		 */
-		ereport(ERROR,
-				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("conditional UNION/INTERSECT/EXCEPT statements are not implemented")));
-	}
+  if (parsetree->setOperations != NULL) {
+    /*
+     * There's noplace to put the qual on a setop statement, either. (This
+     * could be fixed, but right now the planner simply ignores any qual
+     * condition on a setop query.)
+     */
+    ereport(ERROR,
+            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+             errmsg("conditional UNION/INTERSECT/EXCEPT statements are not implemented")));
+  }
 
-	/* INTERSECT wants the original, but we need to copy - Jan */
-	copy = copyObject(qual);
+  /* INTERSECT wants the original, but we need to copy - Jan */
+  copy = copyObject(qual);
 
-	parsetree->jointree->quals = make_and_qual(parsetree->jointree->quals,
-											   copy);
+  parsetree->jointree->quals = make_and_qual(parsetree->jointree->quals,
+                               copy);
 
-	/*
-	 * We had better not have stuck an aggregate into the WHERE clause.
-	 */
-	Assert(!contain_aggs_of_level(copy, 0));
+  /*
+   * We had better not have stuck an aggregate into the WHERE clause.
+   */
+  Assert(!contain_aggs_of_level(copy, 0));
 
-	/*
-	 * Make sure query is marked correctly if added qual has sublinks. Need
-	 * not search qual when query is already marked.
-	 */
-	if (!parsetree->hasSubLinks)
-		parsetree->hasSubLinks = checkExprHasSubLink(copy);
+  /*
+   * Make sure query is marked correctly if added qual has sublinks. Need
+   * not search qual when query is already marked.
+   */
+  if (!parsetree->hasSubLinks)
+    parsetree->hasSubLinks = checkExprHasSubLink(copy);
 }
 
 
@@ -1226,18 +1254,18 @@ AddQual(Query *parsetree, Node *qual)
 void
 AddInvertedQual(Query *parsetree, Node *qual)
 {
-	BooleanTest *invqual;
+  BooleanTest *invqual;
 
-	if (qual == NULL)
-		return;
+  if (qual == NULL)
+    return;
 
-	/* Need not copy input qual, because AddQual will... */
-	invqual = makeNode(BooleanTest);
-	invqual->arg = (Expr *) qual;
-	invqual->booltesttype = IS_NOT_TRUE;
-	invqual->location = -1;
+  /* Need not copy input qual, because AddQual will... */
+  invqual = makeNode(BooleanTest);
+  invqual->arg = (Expr *) qual;
+  invqual->booltesttype = IS_NOT_TRUE;
+  invqual->location = -1;
 
-	AddQual(parsetree, (Node *) invqual);
+  AddQual(parsetree, (Node *) invqual);
 }
 
 
@@ -1249,84 +1277,81 @@ AddInvertedQual(Query *parsetree, Node *qual)
  */
 Node *
 add_nulling_relids(Node *node,
-				   const Bitmapset *target_relids,
-				   const Bitmapset *added_relids)
+                   const Bitmapset *target_relids,
+                   const Bitmapset *added_relids)
 {
-	add_nulling_relids_context context;
+  add_nulling_relids_context context;
 
-	context.target_relids = target_relids;
-	context.added_relids = added_relids;
-	context.sublevels_up = 0;
-	return query_or_expression_tree_mutator(node,
-											add_nulling_relids_mutator,
-											&context,
-											0);
+  context.target_relids = target_relids;
+  context.added_relids = added_relids;
+  context.sublevels_up = 0;
+  return query_or_expression_tree_mutator(node,
+                                          add_nulling_relids_mutator,
+                                          &context,
+                                          0);
 }
 
 static Node *
 add_nulling_relids_mutator(Node *node,
-						   add_nulling_relids_context *context)
+                           add_nulling_relids_context *context)
 {
-	if (node == NULL)
-		return NULL;
-	if (IsA(node, Var))
-	{
-		Var		   *var = (Var *) node;
+  if (node == NULL)
+    return NULL;
 
-		if (var->varlevelsup == context->sublevels_up &&
-			(context->target_relids == NULL ||
-			 bms_is_member(var->varno, context->target_relids)))
-		{
-			Relids		newnullingrels = bms_union(var->varnullingrels,
-												   context->added_relids);
+  if (IsA(node, Var)) {
+    Var      *var = (Var *) node;
 
-			/* Copy the Var ... */
-			var = copyObject(var);
-			/* ... and replace the copy's varnullingrels field */
-			var->varnullingrels = newnullingrels;
-			return (Node *) var;
-		}
-		/* Otherwise fall through to copy the Var normally */
-	}
-	else if (IsA(node, PlaceHolderVar))
-	{
-		PlaceHolderVar *phv = (PlaceHolderVar *) node;
+    if (var->varlevelsup == context->sublevels_up &&
+        (context->target_relids == NULL ||
+         bms_is_member(var->varno, context->target_relids))) {
+      Relids    newnullingrels = bms_union(var->varnullingrels,
+                                           context->added_relids);
 
-		if (phv->phlevelsup == context->sublevels_up &&
-			(context->target_relids == NULL ||
-			 bms_overlap(phv->phrels, context->target_relids)))
-		{
-			Relids		newnullingrels = bms_union(phv->phnullingrels,
-												   context->added_relids);
+      /* Copy the Var ... */
+      var = copyObject(var);
+      /* ... and replace the copy's varnullingrels field */
+      var->varnullingrels = newnullingrels;
+      return (Node *) var;
+    }
 
-			/*
-			 * We don't modify the contents of the PHV's expression, only add
-			 * to phnullingrels.  This corresponds to assuming that the PHV
-			 * will be evaluated at the same level as before, then perhaps be
-			 * nulled as it bubbles up.  Hence, just flat-copy the node ...
-			 */
-			phv = makeNode(PlaceHolderVar);
-			memcpy(phv, node, sizeof(PlaceHolderVar));
-			/* ... and replace the copy's phnullingrels field */
-			phv->phnullingrels = newnullingrels;
-			return (Node *) phv;
-		}
-		/* Otherwise fall through to copy the PlaceHolderVar normally */
-	}
-	else if (IsA(node, Query))
-	{
-		/* Recurse into RTE or sublink subquery */
-		Query	   *newnode;
+    /* Otherwise fall through to copy the Var normally */
+  } else if (IsA(node, PlaceHolderVar)) {
+    PlaceHolderVar *phv = (PlaceHolderVar *) node;
 
-		context->sublevels_up++;
-		newnode = query_tree_mutator((Query *) node,
-									 add_nulling_relids_mutator,
-									 context,
-									 0);
-		context->sublevels_up--;
-		return (Node *) newnode;
-	}
-	return expression_tree_mutator(node, add_nulling_relids_mutator, context);
+    if (phv->phlevelsup == context->sublevels_up &&
+        (context->target_relids == NULL ||
+         bms_overlap(phv->phrels, context->target_relids))) {
+      Relids    newnullingrels = bms_union(phv->phnullingrels,
+                                           context->added_relids);
+
+      /*
+       * We don't modify the contents of the PHV's expression, only add
+       * to phnullingrels.  This corresponds to assuming that the PHV
+       * will be evaluated at the same level as before, then perhaps be
+       * nulled as it bubbles up.  Hence, just flat-copy the node ...
+       */
+      phv = makeNode(PlaceHolderVar);
+      memcpy(phv, node, sizeof(PlaceHolderVar));
+      /* ... and replace the copy's phnullingrels field */
+      phv->phnullingrels = newnullingrels;
+      return (Node *) phv;
+    }
+
+    /* Otherwise fall through to copy the PlaceHolderVar normally */
+  } else if (IsA(node, Query)) {
+    /* Recurse into RTE or sublink subquery */
+    Query    *newnode;
+
+    context->sublevels_up++;
+    newnode = query_tree_mutator((Query *) node,
+                                 add_nulling_relids_mutator,
+                                 context,
+                                 0);
+    context->sublevels_up--;
+    return (Node *) newnode;
+  }
+
+  return expression_tree_mutator(node, add_nulling_relids_mutator, context);
 }
 
 /*
@@ -1337,86 +1362,83 @@ add_nulling_relids_mutator(Node *node,
  */
 Node *
 remove_nulling_relids(Node *node,
-					  const Bitmapset *removable_relids,
-					  const Bitmapset *except_relids)
+                      const Bitmapset *removable_relids,
+                      const Bitmapset *except_relids)
 {
-	remove_nulling_relids_context context;
+  remove_nulling_relids_context context;
 
-	context.removable_relids = removable_relids;
-	context.except_relids = except_relids;
-	context.sublevels_up = 0;
-	return query_or_expression_tree_mutator(node,
-											remove_nulling_relids_mutator,
-											&context,
-											0);
+  context.removable_relids = removable_relids;
+  context.except_relids = except_relids;
+  context.sublevels_up = 0;
+  return query_or_expression_tree_mutator(node,
+                                          remove_nulling_relids_mutator,
+                                          &context,
+                                          0);
 }
 
 static Node *
 remove_nulling_relids_mutator(Node *node,
-							  remove_nulling_relids_context *context)
+                              remove_nulling_relids_context *context)
 {
-	if (node == NULL)
-		return NULL;
-	if (IsA(node, Var))
-	{
-		Var		   *var = (Var *) node;
+  if (node == NULL)
+    return NULL;
 
-		if (var->varlevelsup == context->sublevels_up &&
-			!bms_is_member(var->varno, context->except_relids) &&
-			bms_overlap(var->varnullingrels, context->removable_relids))
-		{
-			/* Copy the Var ... */
-			var = copyObject(var);
-			/* ... and replace the copy's varnullingrels field */
-			var->varnullingrels = bms_difference(var->varnullingrels,
-												 context->removable_relids);
-			return (Node *) var;
-		}
-		/* Otherwise fall through to copy the Var normally */
-	}
-	else if (IsA(node, PlaceHolderVar))
-	{
-		PlaceHolderVar *phv = (PlaceHolderVar *) node;
+  if (IsA(node, Var)) {
+    Var      *var = (Var *) node;
 
-		if (phv->phlevelsup == context->sublevels_up &&
-			!bms_overlap(phv->phrels, context->except_relids))
-		{
-			/*
-			 * Note: it might seem desirable to remove the PHV altogether if
-			 * phnullingrels goes to empty.  Currently we dare not do that
-			 * because we use PHVs in some cases to enforce separate identity
-			 * of subexpressions; see wrap_option usages in prepjointree.c.
-			 */
-			/* Copy the PlaceHolderVar and mutate what's below ... */
-			phv = (PlaceHolderVar *)
-				expression_tree_mutator(node,
-										remove_nulling_relids_mutator,
-										context);
-			/* ... and replace the copy's phnullingrels field */
-			phv->phnullingrels = bms_difference(phv->phnullingrels,
-												context->removable_relids);
-			/* We must also update phrels, if it contains a removable RTI */
-			phv->phrels = bms_difference(phv->phrels,
-										 context->removable_relids);
-			Assert(!bms_is_empty(phv->phrels));
-			return (Node *) phv;
-		}
-		/* Otherwise fall through to copy the PlaceHolderVar normally */
-	}
-	else if (IsA(node, Query))
-	{
-		/* Recurse into RTE or sublink subquery */
-		Query	   *newnode;
+    if (var->varlevelsup == context->sublevels_up &&
+        !bms_is_member(var->varno, context->except_relids) &&
+        bms_overlap(var->varnullingrels, context->removable_relids)) {
+      /* Copy the Var ... */
+      var = copyObject(var);
+      /* ... and replace the copy's varnullingrels field */
+      var->varnullingrels = bms_difference(var->varnullingrels,
+                                           context->removable_relids);
+      return (Node *) var;
+    }
 
-		context->sublevels_up++;
-		newnode = query_tree_mutator((Query *) node,
-									 remove_nulling_relids_mutator,
-									 context,
-									 0);
-		context->sublevels_up--;
-		return (Node *) newnode;
-	}
-	return expression_tree_mutator(node, remove_nulling_relids_mutator, context);
+    /* Otherwise fall through to copy the Var normally */
+  } else if (IsA(node, PlaceHolderVar)) {
+    PlaceHolderVar *phv = (PlaceHolderVar *) node;
+
+    if (phv->phlevelsup == context->sublevels_up &&
+        !bms_overlap(phv->phrels, context->except_relids)) {
+      /*
+       * Note: it might seem desirable to remove the PHV altogether if
+       * phnullingrels goes to empty.  Currently we dare not do that
+       * because we use PHVs in some cases to enforce separate identity
+       * of subexpressions; see wrap_option usages in prepjointree.c.
+       */
+      /* Copy the PlaceHolderVar and mutate what's below ... */
+      phv = (PlaceHolderVar *)
+            expression_tree_mutator(node,
+                                    remove_nulling_relids_mutator,
+                                    context);
+      /* ... and replace the copy's phnullingrels field */
+      phv->phnullingrels = bms_difference(phv->phnullingrels,
+                                          context->removable_relids);
+      /* We must also update phrels, if it contains a removable RTI */
+      phv->phrels = bms_difference(phv->phrels,
+                                   context->removable_relids);
+      Assert(!bms_is_empty(phv->phrels));
+      return (Node *) phv;
+    }
+
+    /* Otherwise fall through to copy the PlaceHolderVar normally */
+  } else if (IsA(node, Query)) {
+    /* Recurse into RTE or sublink subquery */
+    Query    *newnode;
+
+    context->sublevels_up++;
+    newnode = query_tree_mutator((Query *) node,
+                                 remove_nulling_relids_mutator,
+                                 context,
+                                 0);
+    context->sublevels_up--;
+    return (Node *) newnode;
+  }
+
+  return expression_tree_mutator(node, remove_nulling_relids_mutator, context);
 }
 
 
@@ -1444,94 +1466,94 @@ remove_nulling_relids_mutator(Node *node,
  */
 Node *
 replace_rte_variables(Node *node, int target_varno, int sublevels_up,
-					  replace_rte_variables_callback callback,
-					  void *callback_arg,
-					  bool *outer_hasSubLinks)
+                      replace_rte_variables_callback callback,
+                      void *callback_arg,
+                      bool *outer_hasSubLinks)
 {
-	Node	   *result;
-	replace_rte_variables_context context;
+  Node     *result;
+  replace_rte_variables_context context;
 
-	context.callback = callback;
-	context.callback_arg = callback_arg;
-	context.target_varno = target_varno;
-	context.sublevels_up = sublevels_up;
+  context.callback = callback;
+  context.callback_arg = callback_arg;
+  context.target_varno = target_varno;
+  context.sublevels_up = sublevels_up;
 
-	/*
-	 * We try to initialize inserted_sublink to true if there is no need to
-	 * detect new sublinks because the query already has some.
-	 */
-	if (node && IsA(node, Query))
-		context.inserted_sublink = ((Query *) node)->hasSubLinks;
-	else if (outer_hasSubLinks)
-		context.inserted_sublink = *outer_hasSubLinks;
-	else
-		context.inserted_sublink = false;
+  /*
+   * We try to initialize inserted_sublink to true if there is no need to
+   * detect new sublinks because the query already has some.
+   */
+  if (node && IsA(node, Query))
+    context.inserted_sublink = ((Query *) node)->hasSubLinks;
+  else if (outer_hasSubLinks)
+    context.inserted_sublink = *outer_hasSubLinks;
+  else
+    context.inserted_sublink = false;
 
-	/*
-	 * Must be prepared to start with a Query or a bare expression tree; if
-	 * it's a Query, we don't want to increment sublevels_up.
-	 */
-	result = query_or_expression_tree_mutator(node,
-											  replace_rte_variables_mutator,
-											  &context,
-											  0);
+  /*
+   * Must be prepared to start with a Query or a bare expression tree; if
+   * it's a Query, we don't want to increment sublevels_up.
+   */
+  result = query_or_expression_tree_mutator(node,
+           replace_rte_variables_mutator,
+           &context,
+           0);
 
-	if (context.inserted_sublink)
-	{
-		if (result && IsA(result, Query))
-			((Query *) result)->hasSubLinks = true;
-		else if (outer_hasSubLinks)
-			*outer_hasSubLinks = true;
-		else
-			elog(ERROR, "replace_rte_variables inserted a SubLink, but has noplace to record it");
-	}
+  if (context.inserted_sublink) {
+    if (result && IsA(result, Query))
+      ((Query *) result)->hasSubLinks = true;
+    else if (outer_hasSubLinks)
+      *outer_hasSubLinks = true;
+    else
+      elog(ERROR, "replace_rte_variables inserted a SubLink, but has noplace to record it");
+  }
 
-	return result;
+  return result;
 }
 
 Node *
 replace_rte_variables_mutator(Node *node,
-							  replace_rte_variables_context *context)
+                              replace_rte_variables_context *context)
 {
-	if (node == NULL)
-		return NULL;
-	if (IsA(node, Var))
-	{
-		Var		   *var = (Var *) node;
+  if (node == NULL)
+    return NULL;
 
-		if (var->varno == context->target_varno &&
-			var->varlevelsup == context->sublevels_up)
-		{
-			/* Found a matching variable, make the substitution */
-			Node	   *newnode;
+  if (IsA(node, Var)) {
+    Var      *var = (Var *) node;
 
-			newnode = context->callback(var, context);
-			/* Detect if we are adding a sublink to query */
-			if (!context->inserted_sublink)
-				context->inserted_sublink = checkExprHasSubLink(newnode);
-			return newnode;
-		}
-		/* otherwise fall through to copy the var normally */
-	}
-	else if (IsA(node, Query))
-	{
-		/* Recurse into RTE subquery or not-yet-planned sublink subquery */
-		Query	   *newnode;
-		bool		save_inserted_sublink;
+    if (var->varno == context->target_varno &&
+        var->varlevelsup == context->sublevels_up) {
+      /* Found a matching variable, make the substitution */
+      Node     *newnode;
 
-		context->sublevels_up++;
-		save_inserted_sublink = context->inserted_sublink;
-		context->inserted_sublink = ((Query *) node)->hasSubLinks;
-		newnode = query_tree_mutator((Query *) node,
-									 replace_rte_variables_mutator,
-									 context,
-									 0);
-		newnode->hasSubLinks |= context->inserted_sublink;
-		context->inserted_sublink = save_inserted_sublink;
-		context->sublevels_up--;
-		return (Node *) newnode;
-	}
-	return expression_tree_mutator(node, replace_rte_variables_mutator, context);
+      newnode = context->callback(var, context);
+
+      /* Detect if we are adding a sublink to query */
+      if (!context->inserted_sublink)
+        context->inserted_sublink = checkExprHasSubLink(newnode);
+
+      return newnode;
+    }
+
+    /* otherwise fall through to copy the var normally */
+  } else if (IsA(node, Query)) {
+    /* Recurse into RTE subquery or not-yet-planned sublink subquery */
+    Query    *newnode;
+    bool    save_inserted_sublink;
+
+    context->sublevels_up++;
+    save_inserted_sublink = context->inserted_sublink;
+    context->inserted_sublink = ((Query *) node)->hasSubLinks;
+    newnode = query_tree_mutator((Query *) node,
+                                 replace_rte_variables_mutator,
+                                 context,
+                                 0);
+    newnode->hasSubLinks |= context->inserted_sublink;
+    context->inserted_sublink = save_inserted_sublink;
+    context->sublevels_up--;
+    return (Node *) newnode;
+  }
+
+  return expression_tree_mutator(node, replace_rte_variables_mutator, context);
 }
 
 
@@ -1559,161 +1581,156 @@ replace_rte_variables_mutator(Node *node,
  * overly complicated.
  */
 
-typedef struct
-{
-	int			target_varno;	/* RTE index to search for */
-	int			sublevels_up;	/* (current) nesting depth */
-	const AttrMap *attno_map;	/* map array for user attnos */
-	Oid			to_rowtype;		/* change whole-row Vars to this type */
-	bool	   *found_whole_row;	/* output flag */
+typedef struct {
+  int     target_varno; /* RTE index to search for */
+  int     sublevels_up; /* (current) nesting depth */
+  const AttrMap *attno_map; /* map array for user attnos */
+  Oid     to_rowtype;   /* change whole-row Vars to this type */
+  bool     *found_whole_row;  /* output flag */
 } map_variable_attnos_context;
 
 static Node *
 map_variable_attnos_mutator(Node *node,
-							map_variable_attnos_context *context)
+                            map_variable_attnos_context *context)
 {
-	if (node == NULL)
-		return NULL;
-	if (IsA(node, Var))
-	{
-		Var		   *var = (Var *) node;
+  if (node == NULL)
+    return NULL;
 
-		if (var->varno == context->target_varno &&
-			var->varlevelsup == context->sublevels_up)
-		{
-			/* Found a matching variable, make the substitution */
-			Var		   *newvar = (Var *) palloc(sizeof(Var));
-			int			attno = var->varattno;
+  if (IsA(node, Var)) {
+    Var      *var = (Var *) node;
 
-			*newvar = *var;		/* initially copy all fields of the Var */
+    if (var->varno == context->target_varno &&
+        var->varlevelsup == context->sublevels_up) {
+      /* Found a matching variable, make the substitution */
+      Var      *newvar = (Var *) palloc(sizeof(Var));
+      int     attno = var->varattno;
 
-			if (attno > 0)
-			{
-				/* user-defined column, replace attno */
-				if (attno > context->attno_map->maplen ||
-					context->attno_map->attnums[attno - 1] == 0)
-					elog(ERROR, "unexpected varattno %d in expression to be mapped",
-						 attno);
-				newvar->varattno = context->attno_map->attnums[attno - 1];
-				/* If the syntactic referent is same RTE, fix it too */
-				if (newvar->varnosyn == context->target_varno)
-					newvar->varattnosyn = newvar->varattno;
-			}
-			else if (attno == 0)
-			{
-				/* whole-row variable, warn caller */
-				*(context->found_whole_row) = true;
+      *newvar = *var;   /* initially copy all fields of the Var */
 
-				/* If the caller expects us to convert the Var, do so. */
-				if (OidIsValid(context->to_rowtype) &&
-					context->to_rowtype != var->vartype)
-				{
-					ConvertRowtypeExpr *r;
+      if (attno > 0) {
+        /* user-defined column, replace attno */
+        if (attno > context->attno_map->maplen ||
+            context->attno_map->attnums[attno - 1] == 0)
+          elog(ERROR, "unexpected varattno %d in expression to be mapped",
+               attno);
 
-					/* This certainly won't work for a RECORD variable. */
-					Assert(var->vartype != RECORDOID);
+        newvar->varattno = context->attno_map->attnums[attno - 1];
 
-					/* Var itself is changed to the requested type. */
-					newvar->vartype = context->to_rowtype;
+        /* If the syntactic referent is same RTE, fix it too */
+        if (newvar->varnosyn == context->target_varno)
+          newvar->varattnosyn = newvar->varattno;
+      } else if (attno == 0) {
+        /* whole-row variable, warn caller */
+        *(context->found_whole_row) = true;
 
-					/*
-					 * Add a conversion node on top to convert back to the
-					 * original type expected by the expression.
-					 */
-					r = makeNode(ConvertRowtypeExpr);
-					r->arg = (Expr *) newvar;
-					r->resulttype = var->vartype;
-					r->convertformat = COERCE_IMPLICIT_CAST;
-					r->location = -1;
+        /* If the caller expects us to convert the Var, do so. */
+        if (OidIsValid(context->to_rowtype) &&
+            context->to_rowtype != var->vartype) {
+          ConvertRowtypeExpr *r;
 
-					return (Node *) r;
-				}
-			}
-			return (Node *) newvar;
-		}
-		/* otherwise fall through to copy the var normally */
-	}
-	else if (IsA(node, ConvertRowtypeExpr))
-	{
-		ConvertRowtypeExpr *r = (ConvertRowtypeExpr *) node;
-		Var		   *var = (Var *) r->arg;
+          /* This certainly won't work for a RECORD variable. */
+          Assert(var->vartype != RECORDOID);
 
-		/*
-		 * If this is coercing a whole-row Var that we need to convert, then
-		 * just convert the Var without adding an extra ConvertRowtypeExpr.
-		 * Effectively we're simplifying var::parenttype::grandparenttype into
-		 * just var::grandparenttype.  This avoids building stacks of CREs if
-		 * this function is applied repeatedly.
-		 */
-		if (IsA(var, Var) &&
-			var->varno == context->target_varno &&
-			var->varlevelsup == context->sublevels_up &&
-			var->varattno == 0 &&
-			OidIsValid(context->to_rowtype) &&
-			context->to_rowtype != var->vartype)
-		{
-			ConvertRowtypeExpr *newnode;
-			Var		   *newvar = (Var *) palloc(sizeof(Var));
+          /* Var itself is changed to the requested type. */
+          newvar->vartype = context->to_rowtype;
 
-			/* whole-row variable, warn caller */
-			*(context->found_whole_row) = true;
+          /*
+           * Add a conversion node on top to convert back to the
+           * original type expected by the expression.
+           */
+          r = makeNode(ConvertRowtypeExpr);
+          r->arg = (Expr *) newvar;
+          r->resulttype = var->vartype;
+          r->convertformat = COERCE_IMPLICIT_CAST;
+          r->location = -1;
 
-			*newvar = *var;		/* initially copy all fields of the Var */
+          return (Node *) r;
+        }
+      }
 
-			/* This certainly won't work for a RECORD variable. */
-			Assert(var->vartype != RECORDOID);
+      return (Node *) newvar;
+    }
 
-			/* Var itself is changed to the requested type. */
-			newvar->vartype = context->to_rowtype;
+    /* otherwise fall through to copy the var normally */
+  } else if (IsA(node, ConvertRowtypeExpr)) {
+    ConvertRowtypeExpr *r = (ConvertRowtypeExpr *) node;
+    Var      *var = (Var *) r->arg;
 
-			newnode = (ConvertRowtypeExpr *) palloc(sizeof(ConvertRowtypeExpr));
-			*newnode = *r;		/* initially copy all fields of the CRE */
-			newnode->arg = (Expr *) newvar;
+    /*
+     * If this is coercing a whole-row Var that we need to convert, then
+     * just convert the Var without adding an extra ConvertRowtypeExpr.
+     * Effectively we're simplifying var::parenttype::grandparenttype into
+     * just var::grandparenttype.  This avoids building stacks of CREs if
+     * this function is applied repeatedly.
+     */
+    if (IsA(var, Var) &&
+        var->varno == context->target_varno &&
+        var->varlevelsup == context->sublevels_up &&
+        var->varattno == 0 &&
+        OidIsValid(context->to_rowtype) &&
+        context->to_rowtype != var->vartype) {
+      ConvertRowtypeExpr *newnode;
+      Var      *newvar = (Var *) palloc(sizeof(Var));
 
-			return (Node *) newnode;
-		}
-		/* otherwise fall through to process the expression normally */
-	}
-	else if (IsA(node, Query))
-	{
-		/* Recurse into RTE subquery or not-yet-planned sublink subquery */
-		Query	   *newnode;
+      /* whole-row variable, warn caller */
+      *(context->found_whole_row) = true;
 
-		context->sublevels_up++;
-		newnode = query_tree_mutator((Query *) node,
-									 map_variable_attnos_mutator,
-									 context,
-									 0);
-		context->sublevels_up--;
-		return (Node *) newnode;
-	}
-	return expression_tree_mutator(node, map_variable_attnos_mutator, context);
+      *newvar = *var;   /* initially copy all fields of the Var */
+
+      /* This certainly won't work for a RECORD variable. */
+      Assert(var->vartype != RECORDOID);
+
+      /* Var itself is changed to the requested type. */
+      newvar->vartype = context->to_rowtype;
+
+      newnode = (ConvertRowtypeExpr *) palloc(sizeof(ConvertRowtypeExpr));
+      *newnode = *r;    /* initially copy all fields of the CRE */
+      newnode->arg = (Expr *) newvar;
+
+      return (Node *) newnode;
+    }
+
+    /* otherwise fall through to process the expression normally */
+  } else if (IsA(node, Query)) {
+    /* Recurse into RTE subquery or not-yet-planned sublink subquery */
+    Query    *newnode;
+
+    context->sublevels_up++;
+    newnode = query_tree_mutator((Query *) node,
+                                 map_variable_attnos_mutator,
+                                 context,
+                                 0);
+    context->sublevels_up--;
+    return (Node *) newnode;
+  }
+
+  return expression_tree_mutator(node, map_variable_attnos_mutator, context);
 }
 
 Node *
 map_variable_attnos(Node *node,
-					int target_varno, int sublevels_up,
-					const AttrMap *attno_map,
-					Oid to_rowtype, bool *found_whole_row)
+                    int target_varno, int sublevels_up,
+                    const AttrMap *attno_map,
+                    Oid to_rowtype, bool *found_whole_row)
 {
-	map_variable_attnos_context context;
+  map_variable_attnos_context context;
 
-	context.target_varno = target_varno;
-	context.sublevels_up = sublevels_up;
-	context.attno_map = attno_map;
-	context.to_rowtype = to_rowtype;
-	context.found_whole_row = found_whole_row;
+  context.target_varno = target_varno;
+  context.sublevels_up = sublevels_up;
+  context.attno_map = attno_map;
+  context.to_rowtype = to_rowtype;
+  context.found_whole_row = found_whole_row;
 
-	*found_whole_row = false;
+  *found_whole_row = false;
 
-	/*
-	 * Must be prepared to start with a Query or a bare expression tree; if
-	 * it's a Query, we don't want to increment sublevels_up.
-	 */
-	return query_or_expression_tree_mutator(node,
-											map_variable_attnos_mutator,
-											&context,
-											0);
+  /*
+   * Must be prepared to start with a Query or a bare expression tree; if
+   * it's a Query, we don't want to increment sublevels_up.
+   */
+  return query_or_expression_tree_mutator(node,
+                                          map_variable_attnos_mutator,
+                                          &context,
+                                          0);
 }
 
 
@@ -1725,9 +1742,9 @@ map_variable_attnos(Node *node,
  *
  * If there is no matching resno for such a Var, the action depends on the
  * nomatch_option:
- *	REPLACEVARS_REPORT_ERROR: throw an error
- *	REPLACEVARS_CHANGE_VARNO: change Var's varno to nomatch_varno
- *	REPLACEVARS_SUBSTITUTE_NULL: replace Var with a NULL Const of same type
+ *  REPLACEVARS_REPORT_ERROR: throw an error
+ *  REPLACEVARS_CHANGE_VARNO: change Var's varno to nomatch_varno
+ *  REPLACEVARS_SUBSTITUTE_NULL: replace Var with a NULL Const of same type
  *
  * The caller must also provide target_rte, the RTE describing the target
  * relation.  This is needed to handle whole-row Vars referencing the target.
@@ -1750,222 +1767,214 @@ map_variable_attnos(Node *node,
  * outer_hasSubLinks works the same as for replace_rte_variables().
  */
 
-typedef struct
-{
-	RangeTblEntry *target_rte;
-	List	   *targetlist;
-	int			result_relation;
-	ReplaceVarsNoMatchOption nomatch_option;
-	int			nomatch_varno;
+typedef struct {
+  RangeTblEntry *target_rte;
+  List     *targetlist;
+  int     result_relation;
+  ReplaceVarsNoMatchOption nomatch_option;
+  int     nomatch_varno;
 } ReplaceVarsFromTargetList_context;
 
 static Node *
 ReplaceVarsFromTargetList_callback(Var *var,
-								   replace_rte_variables_context *context)
+                                   replace_rte_variables_context *context)
 {
-	ReplaceVarsFromTargetList_context *rcon = (ReplaceVarsFromTargetList_context *) context->callback_arg;
-	Node	   *newnode;
+  ReplaceVarsFromTargetList_context *rcon = (ReplaceVarsFromTargetList_context *) context->callback_arg;
+  Node     *newnode;
 
-	newnode = ReplaceVarFromTargetList(var,
-									   rcon->target_rte,
-									   rcon->targetlist,
-									   rcon->result_relation,
-									   rcon->nomatch_option,
-									   rcon->nomatch_varno);
+  newnode = ReplaceVarFromTargetList(var,
+                                     rcon->target_rte,
+                                     rcon->targetlist,
+                                     rcon->result_relation,
+                                     rcon->nomatch_option,
+                                     rcon->nomatch_varno);
 
-	/* Must adjust varlevelsup if replaced Var is within a subquery */
-	if (var->varlevelsup > 0)
-		IncrementVarSublevelsUp(newnode, var->varlevelsup, 0);
+  /* Must adjust varlevelsup if replaced Var is within a subquery */
+  if (var->varlevelsup > 0)
+    IncrementVarSublevelsUp(newnode, var->varlevelsup, 0);
 
-	return newnode;
+  return newnode;
 }
 
 Node *
 ReplaceVarFromTargetList(Var *var,
-						 RangeTblEntry *target_rte,
-						 List *targetlist,
-						 int result_relation,
-						 ReplaceVarsNoMatchOption nomatch_option,
-						 int nomatch_varno)
+                         RangeTblEntry *target_rte,
+                         List *targetlist,
+                         int result_relation,
+                         ReplaceVarsNoMatchOption nomatch_option,
+                         int nomatch_varno)
 {
-	TargetEntry *tle;
+  TargetEntry *tle;
 
-	if (var->varattno == InvalidAttrNumber)
-	{
-		/* Must expand whole-tuple reference into RowExpr */
-		RowExpr    *rowexpr;
-		List	   *colnames;
-		List	   *fields;
-		ListCell   *lc;
+  if (var->varattno == InvalidAttrNumber) {
+    /* Must expand whole-tuple reference into RowExpr */
+    RowExpr    *rowexpr;
+    List     *colnames;
+    List     *fields;
+    ListCell   *lc;
 
-		/*
-		 * If generating an expansion for a var of a named rowtype (ie, this
-		 * is a plain relation RTE), then we must include dummy items for
-		 * dropped columns.  If the var is RECORD (ie, this is a JOIN), then
-		 * omit dropped columns.  In the latter case, attach column names to
-		 * the RowExpr for use of the executor and ruleutils.c.
-		 *
-		 * In order to be able to cache the results, we always generate the
-		 * expansion with varlevelsup = 0.  The caller is responsible for
-		 * adjusting it if needed.
-		 *
-		 * The varreturningtype is copied onto each individual field Var, so
-		 * that it is handled correctly when we recurse.
-		 */
-		expandRTE(target_rte,
-				  var->varno, 0 /* not varlevelsup */ ,
-				  var->varreturningtype, var->location,
-				  (var->vartype != RECORDOID),
-				  &colnames, &fields);
-		rowexpr = makeNode(RowExpr);
-		/* the fields will be set below */
-		rowexpr->args = NIL;
-		rowexpr->row_typeid = var->vartype;
-		rowexpr->row_format = COERCE_IMPLICIT_CAST;
-		rowexpr->colnames = (var->vartype == RECORDOID) ? colnames : NIL;
-		rowexpr->location = var->location;
-		/* Adjust the generated per-field Vars... */
-		foreach(lc, fields)
-		{
-			Node	   *field = lfirst(lc);
+    /*
+     * If generating an expansion for a var of a named rowtype (ie, this
+     * is a plain relation RTE), then we must include dummy items for
+     * dropped columns.  If the var is RECORD (ie, this is a JOIN), then
+     * omit dropped columns.  In the latter case, attach column names to
+     * the RowExpr for use of the executor and ruleutils.c.
+     *
+     * In order to be able to cache the results, we always generate the
+     * expansion with varlevelsup = 0.  The caller is responsible for
+     * adjusting it if needed.
+     *
+     * The varreturningtype is copied onto each individual field Var, so
+     * that it is handled correctly when we recurse.
+     */
+    expandRTE(target_rte,
+              var->varno, 0 /* not varlevelsup */,
+              var->varreturningtype, var->location,
+              (var->vartype != RECORDOID),
+              &colnames, &fields);
+    rowexpr = makeNode(RowExpr);
+    /* the fields will be set below */
+    rowexpr->args = NIL;
+    rowexpr->row_typeid = var->vartype;
+    rowexpr->row_format = COERCE_IMPLICIT_CAST;
+    rowexpr->colnames = (var->vartype == RECORDOID) ? colnames : NIL;
+    rowexpr->location = var->location;
 
-			if (field && IsA(field, Var))
-				field = ReplaceVarFromTargetList((Var *) field,
-												 target_rte,
-												 targetlist,
-												 result_relation,
-												 nomatch_option,
-												 nomatch_varno);
-			rowexpr->args = lappend(rowexpr->args, field);
-		}
+    /* Adjust the generated per-field Vars... */
+    foreach(lc, fields) {
+      Node     *field = lfirst(lc);
 
-		/* Wrap it in a ReturningExpr, if needed, per comments above */
-		if (var->varreturningtype != VAR_RETURNING_DEFAULT)
-		{
-			ReturningExpr *rexpr = makeNode(ReturningExpr);
+      if (field && IsA(field, Var))
+        field = ReplaceVarFromTargetList((Var *) field,
+                                         target_rte,
+                                         targetlist,
+                                         result_relation,
+                                         nomatch_option,
+                                         nomatch_varno);
 
-			rexpr->retlevelsup = 0;
-			rexpr->retold = (var->varreturningtype == VAR_RETURNING_OLD);
-			rexpr->retexpr = (Expr *) rowexpr;
+      rowexpr->args = lappend(rowexpr->args, field);
+    }
 
-			return (Node *) rexpr;
-		}
+    /* Wrap it in a ReturningExpr, if needed, per comments above */
+    if (var->varreturningtype != VAR_RETURNING_DEFAULT) {
+      ReturningExpr *rexpr = makeNode(ReturningExpr);
 
-		return (Node *) rowexpr;
-	}
+      rexpr->retlevelsup = 0;
+      rexpr->retold = (var->varreturningtype == VAR_RETURNING_OLD);
+      rexpr->retexpr = (Expr *) rowexpr;
 
-	/* Normal case referencing one targetlist element */
-	tle = get_tle_by_resno(targetlist, var->varattno);
+      return (Node *) rexpr;
+    }
 
-	if (tle == NULL || tle->resjunk)
-	{
-		/* Failed to find column in targetlist */
-		switch (nomatch_option)
-		{
-			case REPLACEVARS_REPORT_ERROR:
-				/* fall through, throw error below */
-				break;
+    return (Node *) rowexpr;
+  }
 
-			case REPLACEVARS_CHANGE_VARNO:
-				var = copyObject(var);
-				var->varno = nomatch_varno;
-				var->varlevelsup = 0;
-				/* we leave the syntactic referent alone */
-				return (Node *) var;
+  /* Normal case referencing one targetlist element */
+  tle = get_tle_by_resno(targetlist, var->varattno);
 
-			case REPLACEVARS_SUBSTITUTE_NULL:
-				{
-					/*
-					 * If Var is of domain type, we must add a CoerceToDomain
-					 * node, in case there is a NOT NULL domain constraint.
-					 */
-					int16		vartyplen;
-					bool		vartypbyval;
+  if (tle == NULL || tle->resjunk) {
+    /* Failed to find column in targetlist */
+    switch (nomatch_option) {
+      case REPLACEVARS_REPORT_ERROR:
+        /* fall through, throw error below */
+        break;
 
-					get_typlenbyval(var->vartype, &vartyplen, &vartypbyval);
-					return coerce_null_to_domain(var->vartype,
-												 var->vartypmod,
-												 var->varcollid,
-												 vartyplen,
-												 vartypbyval);
-				}
-		}
-		elog(ERROR, "could not find replacement targetlist entry for attno %d",
-			 var->varattno);
-		return NULL;			/* keep compiler quiet */
-	}
-	else
-	{
-		/* Make a copy of the tlist item to return */
-		Expr	   *newnode = copyObject(tle->expr);
+      case REPLACEVARS_CHANGE_VARNO:
+        var = copyObject(var);
+        var->varno = nomatch_varno;
+        var->varlevelsup = 0;
+        /* we leave the syntactic referent alone */
+        return (Node *) var;
 
-		/*
-		 * Check to see if the tlist item contains a PARAM_MULTIEXPR Param,
-		 * and throw error if so.  This case could only happen when expanding
-		 * an ON UPDATE rule's NEW variable and the referenced tlist item in
-		 * the original UPDATE command is part of a multiple assignment. There
-		 * seems no practical way to handle such cases without multiple
-		 * evaluation of the multiple assignment's sub-select, which would
-		 * create semantic oddities that users of rules would probably prefer
-		 * not to cope with.  So treat it as an unimplemented feature.
-		 */
-		if (contains_multiexpr_param((Node *) newnode, NULL))
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("NEW variables in ON UPDATE rules cannot reference columns that are part of a multiple assignment in the subject UPDATE command")));
+      case REPLACEVARS_SUBSTITUTE_NULL: {
+        /*
+         * If Var is of domain type, we must add a CoerceToDomain
+         * node, in case there is a NOT NULL domain constraint.
+         */
+        int16   vartyplen;
+        bool    vartypbyval;
 
-		/* Handle any OLD/NEW RETURNING list Vars */
-		if (var->varreturningtype != VAR_RETURNING_DEFAULT)
-		{
-			/*
-			 * Copy varreturningtype onto any Vars in the tlist item that
-			 * refer to result_relation (which had better be non-zero).
-			 */
-			if (result_relation == 0)
-				elog(ERROR, "variable returning old/new found outside RETURNING list");
+        get_typlenbyval(var->vartype, &vartyplen, &vartypbyval);
+        return coerce_null_to_domain(var->vartype,
+                                     var->vartypmod,
+                                     var->varcollid,
+                                     vartyplen,
+                                     vartypbyval);
+      }
+    }
 
-			SetVarReturningType((Node *) newnode, result_relation,
-								0, var->varreturningtype);
+    elog(ERROR, "could not find replacement targetlist entry for attno %d",
+         var->varattno);
+    return NULL;      /* keep compiler quiet */
+  } else {
+    /* Make a copy of the tlist item to return */
+    Expr     *newnode = copyObject(tle->expr);
 
-			/* Wrap it in a ReturningExpr, if needed, per comments above */
-			if (!IsA(newnode, Var) ||
-				((Var *) newnode)->varno != result_relation ||
-				((Var *) newnode)->varlevelsup != 0)
-			{
-				ReturningExpr *rexpr = makeNode(ReturningExpr);
+    /*
+     * Check to see if the tlist item contains a PARAM_MULTIEXPR Param,
+     * and throw error if so.  This case could only happen when expanding
+     * an ON UPDATE rule's NEW variable and the referenced tlist item in
+     * the original UPDATE command is part of a multiple assignment. There
+     * seems no practical way to handle such cases without multiple
+     * evaluation of the multiple assignment's sub-select, which would
+     * create semantic oddities that users of rules would probably prefer
+     * not to cope with.  So treat it as an unimplemented feature.
+     */
+    if (contains_multiexpr_param((Node *) newnode, NULL))
+      ereport(ERROR,
+              (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+               errmsg("NEW variables in ON UPDATE rules cannot reference columns that are part of a multiple assignment in the subject UPDATE command")));
 
-				rexpr->retlevelsup = 0;
-				rexpr->retold = (var->varreturningtype == VAR_RETURNING_OLD);
-				rexpr->retexpr = newnode;
+    /* Handle any OLD/NEW RETURNING list Vars */
+    if (var->varreturningtype != VAR_RETURNING_DEFAULT) {
+      /*
+       * Copy varreturningtype onto any Vars in the tlist item that
+       * refer to result_relation (which had better be non-zero).
+       */
+      if (result_relation == 0)
+        elog(ERROR, "variable returning old/new found outside RETURNING list");
 
-				newnode = (Expr *) rexpr;
-			}
-		}
+      SetVarReturningType((Node *) newnode, result_relation,
+                          0, var->varreturningtype);
 
-		return (Node *) newnode;
-	}
+      /* Wrap it in a ReturningExpr, if needed, per comments above */
+      if (!IsA(newnode, Var) ||
+          ((Var *) newnode)->varno != result_relation ||
+          ((Var *) newnode)->varlevelsup != 0) {
+        ReturningExpr *rexpr = makeNode(ReturningExpr);
+
+        rexpr->retlevelsup = 0;
+        rexpr->retold = (var->varreturningtype == VAR_RETURNING_OLD);
+        rexpr->retexpr = newnode;
+
+        newnode = (Expr *) rexpr;
+      }
+    }
+
+    return (Node *) newnode;
+  }
 }
 
 Node *
 ReplaceVarsFromTargetList(Node *node,
-						  int target_varno, int sublevels_up,
-						  RangeTblEntry *target_rte,
-						  List *targetlist,
-						  int result_relation,
-						  ReplaceVarsNoMatchOption nomatch_option,
-						  int nomatch_varno,
-						  bool *outer_hasSubLinks)
+                          int target_varno, int sublevels_up,
+                          RangeTblEntry *target_rte,
+                          List *targetlist,
+                          int result_relation,
+                          ReplaceVarsNoMatchOption nomatch_option,
+                          int nomatch_varno,
+                          bool *outer_hasSubLinks)
 {
-	ReplaceVarsFromTargetList_context context;
+  ReplaceVarsFromTargetList_context context;
 
-	context.target_rte = target_rte;
-	context.targetlist = targetlist;
-	context.result_relation = result_relation;
-	context.nomatch_option = nomatch_option;
-	context.nomatch_varno = nomatch_varno;
+  context.target_rte = target_rte;
+  context.targetlist = targetlist;
+  context.result_relation = result_relation;
+  context.nomatch_option = nomatch_option;
+  context.nomatch_varno = nomatch_varno;
 
-	return replace_rte_variables(node, target_varno, sublevels_up,
-								 ReplaceVarsFromTargetList_callback,
-								 &context,
-								 outer_hasSubLinks);
+  return replace_rte_variables(node, target_varno, sublevels_up,
+                               ReplaceVarsFromTargetList_callback,
+                               &context,
+                               outer_hasSubLinks);
 }

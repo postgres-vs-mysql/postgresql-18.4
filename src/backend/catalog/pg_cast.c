@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * pg_cast.c
- *	  routines to support manipulation of the pg_cast relation
+ *    routines to support manipulation of the pg_cast relation
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/backend/catalog/pg_cast.c
+ *    src/backend/catalog/pg_cast.c
  *
  *-------------------------------------------------------------------------
  */
@@ -29,7 +29,7 @@
 
 /*
  * ----------------------------------------------------------------
- *		CastCreate
+ *    CastCreate
  *
  * Forms and inserts catalog tuples for a new cast being created.
  * Caller must have already checked privileges, and done consistency
@@ -47,92 +47,91 @@
  */
 ObjectAddress
 CastCreate(Oid sourcetypeid, Oid targettypeid,
-		   Oid funcid, Oid incastid, Oid outcastid,
-		   char castcontext, char castmethod, DependencyType behavior)
+           Oid funcid, Oid incastid, Oid outcastid,
+           char castcontext, char castmethod, DependencyType behavior)
 {
-	Relation	relation;
-	HeapTuple	tuple;
-	Oid			castid;
-	Datum		values[Natts_pg_cast];
-	bool		nulls[Natts_pg_cast] = {0};
-	ObjectAddress myself,
-				referenced;
-	ObjectAddresses *addrs;
+  Relation  relation;
+  HeapTuple tuple;
+  Oid     castid;
+  Datum   values[Natts_pg_cast];
+  bool    nulls[Natts_pg_cast] = {0};
+  ObjectAddress myself,
+                referenced;
+  ObjectAddresses *addrs;
 
-	relation = table_open(CastRelationId, RowExclusiveLock);
+  relation = table_open(CastRelationId, RowExclusiveLock);
 
-	/*
-	 * Check for duplicate.  This is just to give a friendly error message,
-	 * the unique index would catch it anyway (so no need to sweat about race
-	 * conditions).
-	 */
-	tuple = SearchSysCache2(CASTSOURCETARGET,
-							ObjectIdGetDatum(sourcetypeid),
-							ObjectIdGetDatum(targettypeid));
-	if (HeapTupleIsValid(tuple))
-		ereport(ERROR,
-				(errcode(ERRCODE_DUPLICATE_OBJECT),
-				 errmsg("cast from type %s to type %s already exists",
-						format_type_be(sourcetypeid),
-						format_type_be(targettypeid))));
+  /*
+   * Check for duplicate.  This is just to give a friendly error message,
+   * the unique index would catch it anyway (so no need to sweat about race
+   * conditions).
+   */
+  tuple = SearchSysCache2(CASTSOURCETARGET,
+                          ObjectIdGetDatum(sourcetypeid),
+                          ObjectIdGetDatum(targettypeid));
 
-	/* ready to go */
-	castid = GetNewOidWithIndex(relation, CastOidIndexId, Anum_pg_cast_oid);
-	values[Anum_pg_cast_oid - 1] = ObjectIdGetDatum(castid);
-	values[Anum_pg_cast_castsource - 1] = ObjectIdGetDatum(sourcetypeid);
-	values[Anum_pg_cast_casttarget - 1] = ObjectIdGetDatum(targettypeid);
-	values[Anum_pg_cast_castfunc - 1] = ObjectIdGetDatum(funcid);
-	values[Anum_pg_cast_castcontext - 1] = CharGetDatum(castcontext);
-	values[Anum_pg_cast_castmethod - 1] = CharGetDatum(castmethod);
+  if (HeapTupleIsValid(tuple))
+    ereport(ERROR,
+            (errcode(ERRCODE_DUPLICATE_OBJECT),
+             errmsg("cast from type %s to type %s already exists",
+                    format_type_be(sourcetypeid),
+                    format_type_be(targettypeid))));
 
-	tuple = heap_form_tuple(RelationGetDescr(relation), values, nulls);
+  /* ready to go */
+  castid = GetNewOidWithIndex(relation, CastOidIndexId, Anum_pg_cast_oid);
+  values[Anum_pg_cast_oid - 1] = ObjectIdGetDatum(castid);
+  values[Anum_pg_cast_castsource - 1] = ObjectIdGetDatum(sourcetypeid);
+  values[Anum_pg_cast_casttarget - 1] = ObjectIdGetDatum(targettypeid);
+  values[Anum_pg_cast_castfunc - 1] = ObjectIdGetDatum(funcid);
+  values[Anum_pg_cast_castcontext - 1] = CharGetDatum(castcontext);
+  values[Anum_pg_cast_castmethod - 1] = CharGetDatum(castmethod);
 
-	CatalogTupleInsert(relation, tuple);
+  tuple = heap_form_tuple(RelationGetDescr(relation), values, nulls);
 
-	addrs = new_object_addresses();
+  CatalogTupleInsert(relation, tuple);
 
-	/* make dependency entries */
-	ObjectAddressSet(myself, CastRelationId, castid);
+  addrs = new_object_addresses();
 
-	/* dependency on source type */
-	ObjectAddressSet(referenced, TypeRelationId, sourcetypeid);
-	add_exact_object_address(&referenced, addrs);
+  /* make dependency entries */
+  ObjectAddressSet(myself, CastRelationId, castid);
 
-	/* dependency on target type */
-	ObjectAddressSet(referenced, TypeRelationId, targettypeid);
-	add_exact_object_address(&referenced, addrs);
+  /* dependency on source type */
+  ObjectAddressSet(referenced, TypeRelationId, sourcetypeid);
+  add_exact_object_address(&referenced, addrs);
 
-	/* dependency on function */
-	if (OidIsValid(funcid))
-	{
-		ObjectAddressSet(referenced, ProcedureRelationId, funcid);
-		add_exact_object_address(&referenced, addrs);
-	}
+  /* dependency on target type */
+  ObjectAddressSet(referenced, TypeRelationId, targettypeid);
+  add_exact_object_address(&referenced, addrs);
 
-	/* dependencies on casts required for function */
-	if (OidIsValid(incastid))
-	{
-		ObjectAddressSet(referenced, CastRelationId, incastid);
-		add_exact_object_address(&referenced, addrs);
-	}
-	if (OidIsValid(outcastid))
-	{
-		ObjectAddressSet(referenced, CastRelationId, outcastid);
-		add_exact_object_address(&referenced, addrs);
-	}
+  /* dependency on function */
+  if (OidIsValid(funcid)) {
+    ObjectAddressSet(referenced, ProcedureRelationId, funcid);
+    add_exact_object_address(&referenced, addrs);
+  }
 
-	record_object_address_dependencies(&myself, addrs, behavior);
-	free_object_addresses(addrs);
+  /* dependencies on casts required for function */
+  if (OidIsValid(incastid)) {
+    ObjectAddressSet(referenced, CastRelationId, incastid);
+    add_exact_object_address(&referenced, addrs);
+  }
 
-	/* dependency on extension */
-	recordDependencyOnCurrentExtension(&myself, false);
+  if (OidIsValid(outcastid)) {
+    ObjectAddressSet(referenced, CastRelationId, outcastid);
+    add_exact_object_address(&referenced, addrs);
+  }
 
-	/* Post creation hook for new cast */
-	InvokeObjectPostCreateHook(CastRelationId, castid, 0);
+  record_object_address_dependencies(&myself, addrs, behavior);
+  free_object_addresses(addrs);
 
-	heap_freetuple(tuple);
+  /* dependency on extension */
+  recordDependencyOnCurrentExtension(&myself, false);
 
-	table_close(relation, RowExclusiveLock);
+  /* Post creation hook for new cast */
+  InvokeObjectPostCreateHook(CastRelationId, castid, 0);
 
-	return myself;
+  heap_freetuple(tuple);
+
+  table_close(relation, RowExclusiveLock);
+
+  return myself;
 }

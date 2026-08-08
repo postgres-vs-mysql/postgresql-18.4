@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * pgoutput.c
- *		Logical Replication output plugin
+ *    Logical Replication output plugin
  *
  * Copyright (c) 2012-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *		  src/backend/replication/pgoutput/pgoutput.c
+ *      src/backend/replication/pgoutput/pgoutput.c
  *
  *-------------------------------------------------------------------------
  */
@@ -37,70 +37,69 @@
 #include "utils/varlena.h"
 
 PG_MODULE_MAGIC_EXT(
-					.name = "pgoutput",
-					.version = PG_VERSION
+  .name = "pgoutput",
+  .version = PG_VERSION
 );
 
 static void pgoutput_startup(LogicalDecodingContext *ctx,
-							 OutputPluginOptions *opt, bool is_init);
+                             OutputPluginOptions *opt, bool is_init);
 static void pgoutput_shutdown(LogicalDecodingContext *ctx);
 static void pgoutput_begin_txn(LogicalDecodingContext *ctx,
-							   ReorderBufferTXN *txn);
+                               ReorderBufferTXN *txn);
 static void pgoutput_commit_txn(LogicalDecodingContext *ctx,
-								ReorderBufferTXN *txn, XLogRecPtr commit_lsn);
+                                ReorderBufferTXN *txn, XLogRecPtr commit_lsn);
 static void pgoutput_change(LogicalDecodingContext *ctx,
-							ReorderBufferTXN *txn, Relation relation,
-							ReorderBufferChange *change);
+                            ReorderBufferTXN *txn, Relation relation,
+                            ReorderBufferChange *change);
 static void pgoutput_truncate(LogicalDecodingContext *ctx,
-							  ReorderBufferTXN *txn, int nrelations, Relation relations[],
-							  ReorderBufferChange *change);
+                              ReorderBufferTXN *txn, int nrelations, Relation relations[],
+                              ReorderBufferChange *change);
 static void pgoutput_message(LogicalDecodingContext *ctx,
-							 ReorderBufferTXN *txn, XLogRecPtr message_lsn,
-							 bool transactional, const char *prefix,
-							 Size sz, const char *message);
+                             ReorderBufferTXN *txn, XLogRecPtr message_lsn,
+                             bool transactional, const char *prefix,
+                             Size sz, const char *message);
 static bool pgoutput_origin_filter(LogicalDecodingContext *ctx,
-								   RepOriginId origin_id);
+                                   RepOriginId origin_id);
 static void pgoutput_begin_prepare_txn(LogicalDecodingContext *ctx,
-									   ReorderBufferTXN *txn);
+                                       ReorderBufferTXN *txn);
 static void pgoutput_prepare_txn(LogicalDecodingContext *ctx,
-								 ReorderBufferTXN *txn, XLogRecPtr prepare_lsn);
+                                 ReorderBufferTXN *txn, XLogRecPtr prepare_lsn);
 static void pgoutput_commit_prepared_txn(LogicalDecodingContext *ctx,
-										 ReorderBufferTXN *txn, XLogRecPtr commit_lsn);
+    ReorderBufferTXN *txn, XLogRecPtr commit_lsn);
 static void pgoutput_rollback_prepared_txn(LogicalDecodingContext *ctx,
-										   ReorderBufferTXN *txn,
-										   XLogRecPtr prepare_end_lsn,
-										   TimestampTz prepare_time);
+    ReorderBufferTXN *txn,
+    XLogRecPtr prepare_end_lsn,
+    TimestampTz prepare_time);
 static void pgoutput_stream_start(struct LogicalDecodingContext *ctx,
-								  ReorderBufferTXN *txn);
+                                  ReorderBufferTXN *txn);
 static void pgoutput_stream_stop(struct LogicalDecodingContext *ctx,
-								 ReorderBufferTXN *txn);
+                                 ReorderBufferTXN *txn);
 static void pgoutput_stream_abort(struct LogicalDecodingContext *ctx,
-								  ReorderBufferTXN *txn,
-								  XLogRecPtr abort_lsn);
+                                  ReorderBufferTXN *txn,
+                                  XLogRecPtr abort_lsn);
 static void pgoutput_stream_commit(struct LogicalDecodingContext *ctx,
-								   ReorderBufferTXN *txn,
-								   XLogRecPtr commit_lsn);
+                                   ReorderBufferTXN *txn,
+                                   XLogRecPtr commit_lsn);
 static void pgoutput_stream_prepare_txn(LogicalDecodingContext *ctx,
-										ReorderBufferTXN *txn, XLogRecPtr prepare_lsn);
+                                        ReorderBufferTXN *txn, XLogRecPtr prepare_lsn);
 
 static bool publications_valid;
 
 static List *LoadPublications(List *pubnames);
 static void publication_invalidation_cb(Datum arg, int cacheid,
-										uint32 hashvalue);
+                                        uint32 hashvalue);
 static void send_repl_origin(LogicalDecodingContext *ctx,
-							 RepOriginId origin_id, XLogRecPtr origin_lsn,
-							 bool send_origin);
+                             RepOriginId origin_id, XLogRecPtr origin_lsn,
+                             bool send_origin);
 
 /*
  * Only 3 publication actions are used for row filtering ("insert", "update",
  * "delete"). See RelationSyncEntry.exprstate[].
  */
-enum RowFilterPubAction
-{
-	PUBACTION_INSERT,
-	PUBACTION_UPDATE,
-	PUBACTION_DELETE,
+enum RowFilterPubAction {
+  PUBACTION_INSERT,
+  PUBACTION_UPDATE,
+  PUBACTION_DELETE,
 };
 
 #define NUM_ROWFILTER_PUBACTIONS (PUBACTION_DELETE+1)
@@ -123,68 +122,67 @@ enum RowFilterPubAction
  * For partitions, 'pubactions' considers not only the table's own
  * publications, but also those of all of its ancestors.
  */
-typedef struct RelationSyncEntry
-{
-	Oid			relid;			/* relation oid */
+typedef struct RelationSyncEntry {
+  Oid     relid;      /* relation oid */
 
-	bool		replicate_valid;	/* overall validity flag for entry */
+  bool    replicate_valid;  /* overall validity flag for entry */
 
-	bool		schema_sent;
+  bool    schema_sent;
 
-	/*
-	 * This will be PUBLISH_GENCOLS_STORED if the relation contains generated
-	 * columns and the 'publish_generated_columns' parameter is set to
-	 * PUBLISH_GENCOLS_STORED. Otherwise, it will be PUBLISH_GENCOLS_NONE,
-	 * indicating that no generated columns should be published, unless
-	 * explicitly specified in the column list.
-	 */
-	PublishGencolsType include_gencols_type;
-	List	   *streamed_txns;	/* streamed toplevel transactions with this
-								 * schema */
+  /*
+   * This will be PUBLISH_GENCOLS_STORED if the relation contains generated
+   * columns and the 'publish_generated_columns' parameter is set to
+   * PUBLISH_GENCOLS_STORED. Otherwise, it will be PUBLISH_GENCOLS_NONE,
+   * indicating that no generated columns should be published, unless
+   * explicitly specified in the column list.
+   */
+  PublishGencolsType include_gencols_type;
+  List     *streamed_txns;  /* streamed toplevel transactions with this
+                 * schema */
 
-	/* are we publishing this rel? */
-	PublicationActions pubactions;
+  /* are we publishing this rel? */
+  PublicationActions pubactions;
 
-	/*
-	 * ExprState array for row filter. Different publication actions don't
-	 * allow multiple expressions to always be combined into one, because
-	 * updates or deletes restrict the column in expression to be part of the
-	 * replica identity index whereas inserts do not have this restriction, so
-	 * there is one ExprState per publication action.
-	 */
-	ExprState  *exprstate[NUM_ROWFILTER_PUBACTIONS];
-	EState	   *estate;			/* executor state used for row filter */
-	TupleTableSlot *new_slot;	/* slot for storing new tuple */
-	TupleTableSlot *old_slot;	/* slot for storing old tuple */
+  /*
+   * ExprState array for row filter. Different publication actions don't
+   * allow multiple expressions to always be combined into one, because
+   * updates or deletes restrict the column in expression to be part of the
+   * replica identity index whereas inserts do not have this restriction, so
+   * there is one ExprState per publication action.
+   */
+  ExprState  *exprstate[NUM_ROWFILTER_PUBACTIONS];
+  EState     *estate;     /* executor state used for row filter */
+  TupleTableSlot *new_slot; /* slot for storing new tuple */
+  TupleTableSlot *old_slot; /* slot for storing old tuple */
 
-	/*
-	 * OID of the relation to publish changes as.  For a partition, this may
-	 * be set to one of its ancestors whose schema will be used when
-	 * replicating changes, if publish_via_partition_root is set for the
-	 * publication.
-	 */
-	Oid			publish_as_relid;
+  /*
+   * OID of the relation to publish changes as.  For a partition, this may
+   * be set to one of its ancestors whose schema will be used when
+   * replicating changes, if publish_via_partition_root is set for the
+   * publication.
+   */
+  Oid     publish_as_relid;
 
-	/*
-	 * Map used when replicating using an ancestor's schema to convert tuples
-	 * from partition's type to the ancestor's; NULL if publish_as_relid is
-	 * same as 'relid' or if unnecessary due to partition and the ancestor
-	 * having identical TupleDesc.
-	 */
-	AttrMap    *attrmap;
+  /*
+   * Map used when replicating using an ancestor's schema to convert tuples
+   * from partition's type to the ancestor's; NULL if publish_as_relid is
+   * same as 'relid' or if unnecessary due to partition and the ancestor
+   * having identical TupleDesc.
+   */
+  AttrMap    *attrmap;
 
-	/*
-	 * Columns included in the publication, or NULL if all columns are
-	 * included implicitly.  Note that the attnums in this bitmap are not
-	 * shifted by FirstLowInvalidHeapAttributeNumber.
-	 */
-	Bitmapset  *columns;
+  /*
+   * Columns included in the publication, or NULL if all columns are
+   * included implicitly.  Note that the attnums in this bitmap are not
+   * shifted by FirstLowInvalidHeapAttributeNumber.
+   */
+  Bitmapset  *columns;
 
-	/*
-	 * Private context to store additional data for this entry - state for the
-	 * row filter expressions, column list, etc.
-	 */
-	MemoryContext entry_cxt;
+  /*
+   * Private context to store additional data for this entry - state for the
+   * row filter expressions, column list, etc.
+   */
+  MemoryContext entry_cxt;
 } RelationSyncEntry;
 
 /*
@@ -211,9 +209,8 @@ typedef struct RelationSyncEntry
  * We also don't have this optimization for streamed transactions because
  * they can contain prepared transactions.
  */
-typedef struct PGOutputTxnData
-{
-	bool		sent_begin_txn; /* flag indicating whether BEGIN has been sent */
+typedef struct PGOutputTxnData {
+  bool    sent_begin_txn; /* flag indicating whether BEGIN has been sent */
 } PGOutputTxnData;
 
 /* Map used to remember which relation schemas we sent. */
@@ -222,37 +219,37 @@ static HTAB *RelationSyncCache = NULL;
 static void init_rel_sync_cache(MemoryContext cachectx);
 static void cleanup_rel_sync_cache(TransactionId xid, bool is_commit);
 static RelationSyncEntry *get_rel_sync_entry(PGOutputData *data,
-											 Relation relation);
+    Relation relation);
 static void send_relation_and_attrs(Relation relation, TransactionId xid,
-									LogicalDecodingContext *ctx,
-									RelationSyncEntry *relentry);
+                                    LogicalDecodingContext *ctx,
+                                    RelationSyncEntry *relentry);
 static void rel_sync_cache_relation_cb(Datum arg, Oid relid);
 static void rel_sync_cache_publication_cb(Datum arg, int cacheid,
-										  uint32 hashvalue);
+    uint32 hashvalue);
 static void set_schema_sent_in_streamed_txn(RelationSyncEntry *entry,
-											TransactionId xid);
+    TransactionId xid);
 static bool get_schema_sent_in_streamed_txn(RelationSyncEntry *entry,
-											TransactionId xid);
+    TransactionId xid);
 static void init_tuple_slot(PGOutputData *data, Relation relation,
-							RelationSyncEntry *entry);
+                            RelationSyncEntry *entry);
 static void pgoutput_memory_context_reset(void *arg);
 
 /* row filter routines */
 static EState *create_estate_for_relation(Relation rel);
 static void pgoutput_row_filter_init(PGOutputData *data,
-									 List *publications,
-									 RelationSyncEntry *entry);
+                                     List *publications,
+                                     RelationSyncEntry *entry);
 static bool pgoutput_row_filter_exec_expr(ExprState *state,
-										  ExprContext *econtext);
+    ExprContext *econtext);
 static bool pgoutput_row_filter(Relation relation, TupleTableSlot *old_slot,
-								TupleTableSlot **new_slot_ptr,
-								RelationSyncEntry *entry,
-								ReorderBufferChangeType *action);
+                                TupleTableSlot **new_slot_ptr,
+                                RelationSyncEntry *entry,
+                                ReorderBufferChangeType *action);
 
 /* column list routines */
 static void pgoutput_column_list_init(PGOutputData *data,
-									  List *publications,
-									  RelationSyncEntry *entry);
+                                      List *publications,
+                                      RelationSyncEntry *entry);
 
 /*
  * Specify output plugin callbacks
@@ -260,173 +257,168 @@ static void pgoutput_column_list_init(PGOutputData *data,
 void
 _PG_output_plugin_init(OutputPluginCallbacks *cb)
 {
-	cb->startup_cb = pgoutput_startup;
-	cb->begin_cb = pgoutput_begin_txn;
-	cb->change_cb = pgoutput_change;
-	cb->truncate_cb = pgoutput_truncate;
-	cb->message_cb = pgoutput_message;
-	cb->commit_cb = pgoutput_commit_txn;
+  cb->startup_cb = pgoutput_startup;
+  cb->begin_cb = pgoutput_begin_txn;
+  cb->change_cb = pgoutput_change;
+  cb->truncate_cb = pgoutput_truncate;
+  cb->message_cb = pgoutput_message;
+  cb->commit_cb = pgoutput_commit_txn;
 
-	cb->begin_prepare_cb = pgoutput_begin_prepare_txn;
-	cb->prepare_cb = pgoutput_prepare_txn;
-	cb->commit_prepared_cb = pgoutput_commit_prepared_txn;
-	cb->rollback_prepared_cb = pgoutput_rollback_prepared_txn;
-	cb->filter_by_origin_cb = pgoutput_origin_filter;
-	cb->shutdown_cb = pgoutput_shutdown;
+  cb->begin_prepare_cb = pgoutput_begin_prepare_txn;
+  cb->prepare_cb = pgoutput_prepare_txn;
+  cb->commit_prepared_cb = pgoutput_commit_prepared_txn;
+  cb->rollback_prepared_cb = pgoutput_rollback_prepared_txn;
+  cb->filter_by_origin_cb = pgoutput_origin_filter;
+  cb->shutdown_cb = pgoutput_shutdown;
 
-	/* transaction streaming */
-	cb->stream_start_cb = pgoutput_stream_start;
-	cb->stream_stop_cb = pgoutput_stream_stop;
-	cb->stream_abort_cb = pgoutput_stream_abort;
-	cb->stream_commit_cb = pgoutput_stream_commit;
-	cb->stream_change_cb = pgoutput_change;
-	cb->stream_message_cb = pgoutput_message;
-	cb->stream_truncate_cb = pgoutput_truncate;
-	/* transaction streaming - two-phase commit */
-	cb->stream_prepare_cb = pgoutput_stream_prepare_txn;
+  /* transaction streaming */
+  cb->stream_start_cb = pgoutput_stream_start;
+  cb->stream_stop_cb = pgoutput_stream_stop;
+  cb->stream_abort_cb = pgoutput_stream_abort;
+  cb->stream_commit_cb = pgoutput_stream_commit;
+  cb->stream_change_cb = pgoutput_change;
+  cb->stream_message_cb = pgoutput_message;
+  cb->stream_truncate_cb = pgoutput_truncate;
+  /* transaction streaming - two-phase commit */
+  cb->stream_prepare_cb = pgoutput_stream_prepare_txn;
 }
 
 static void
 parse_output_parameters(List *options, PGOutputData *data)
 {
-	ListCell   *lc;
-	bool		protocol_version_given = false;
-	bool		publication_names_given = false;
-	bool		binary_option_given = false;
-	bool		messages_option_given = false;
-	bool		streaming_given = false;
-	bool		two_phase_option_given = false;
-	bool		origin_option_given = false;
+  ListCell   *lc;
+  bool    protocol_version_given = false;
+  bool    publication_names_given = false;
+  bool    binary_option_given = false;
+  bool    messages_option_given = false;
+  bool    streaming_given = false;
+  bool    two_phase_option_given = false;
+  bool    origin_option_given = false;
 
-	data->binary = false;
-	data->streaming = LOGICALREP_STREAM_OFF;
-	data->messages = false;
-	data->two_phase = false;
+  data->binary = false;
+  data->streaming = LOGICALREP_STREAM_OFF;
+  data->messages = false;
+  data->two_phase = false;
 
-	foreach(lc, options)
-	{
-		DefElem    *defel = (DefElem *) lfirst(lc);
+  foreach(lc, options) {
+    DefElem    *defel = (DefElem *) lfirst(lc);
 
-		Assert(defel->arg == NULL || IsA(defel->arg, String));
+    Assert(defel->arg == NULL || IsA(defel->arg, String));
 
-		/* Check each param, whether or not we recognize it */
-		if (strcmp(defel->defname, "proto_version") == 0)
-		{
-			unsigned long parsed;
-			char	   *endptr;
+    /* Check each param, whether or not we recognize it */
+    if (strcmp(defel->defname, "proto_version") == 0) {
+      unsigned long parsed;
+      char     *endptr;
 
-			if (protocol_version_given)
-				ereport(ERROR,
-						(errcode(ERRCODE_SYNTAX_ERROR),
-						 errmsg("conflicting or redundant options")));
-			protocol_version_given = true;
+      if (protocol_version_given)
+        ereport(ERROR,
+                (errcode(ERRCODE_SYNTAX_ERROR),
+                 errmsg("conflicting or redundant options")));
 
-			errno = 0;
-			parsed = strtoul(strVal(defel->arg), &endptr, 10);
-			if (errno != 0 || *endptr != '\0')
-				ereport(ERROR,
-						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-						 errmsg("invalid proto_version")));
+      protocol_version_given = true;
 
-			if (parsed > PG_UINT32_MAX)
-				ereport(ERROR,
-						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-						 errmsg("proto_version \"%s\" out of range",
-								strVal(defel->arg))));
+      errno = 0;
+      parsed = strtoul(strVal(defel->arg), &endptr, 10);
 
-			data->protocol_version = (uint32) parsed;
-		}
-		else if (strcmp(defel->defname, "publication_names") == 0)
-		{
-			if (publication_names_given)
-				ereport(ERROR,
-						(errcode(ERRCODE_SYNTAX_ERROR),
-						 errmsg("conflicting or redundant options")));
-			publication_names_given = true;
+      if (errno != 0 || *endptr != '\0')
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("invalid proto_version")));
 
-			/*
-			 * Pass a copy of the DefElem->arg since SplitIdentifierString
-			 * modifies its input.
-			 */
-			if (!SplitIdentifierString(pstrdup(strVal(defel->arg)), ',',
-									   &data->publication_names))
-				ereport(ERROR,
-						(errcode(ERRCODE_INVALID_NAME),
-						 errmsg("invalid publication_names syntax")));
-		}
-		else if (strcmp(defel->defname, "binary") == 0)
-		{
-			if (binary_option_given)
-				ereport(ERROR,
-						(errcode(ERRCODE_SYNTAX_ERROR),
-						 errmsg("conflicting or redundant options")));
-			binary_option_given = true;
+      if (parsed > PG_UINT32_MAX)
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                 errmsg("proto_version \"%s\" out of range",
+                        strVal(defel->arg))));
 
-			data->binary = defGetBoolean(defel);
-		}
-		else if (strcmp(defel->defname, "messages") == 0)
-		{
-			if (messages_option_given)
-				ereport(ERROR,
-						(errcode(ERRCODE_SYNTAX_ERROR),
-						 errmsg("conflicting or redundant options")));
-			messages_option_given = true;
+      data->protocol_version = (uint32) parsed;
+    } else if (strcmp(defel->defname, "publication_names") == 0) {
+      if (publication_names_given)
+        ereport(ERROR,
+                (errcode(ERRCODE_SYNTAX_ERROR),
+                 errmsg("conflicting or redundant options")));
 
-			data->messages = defGetBoolean(defel);
-		}
-		else if (strcmp(defel->defname, "streaming") == 0)
-		{
-			if (streaming_given)
-				ereport(ERROR,
-						(errcode(ERRCODE_SYNTAX_ERROR),
-						 errmsg("conflicting or redundant options")));
-			streaming_given = true;
+      publication_names_given = true;
 
-			data->streaming = defGetStreamingMode(defel);
-		}
-		else if (strcmp(defel->defname, "two_phase") == 0)
-		{
-			if (two_phase_option_given)
-				ereport(ERROR,
-						(errcode(ERRCODE_SYNTAX_ERROR),
-						 errmsg("conflicting or redundant options")));
-			two_phase_option_given = true;
+      /*
+       * Pass a copy of the DefElem->arg since SplitIdentifierString
+       * modifies its input.
+       */
+      if (!SplitIdentifierString(pstrdup(strVal(defel->arg)), ',',
+                                 &data->publication_names))
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_NAME),
+                 errmsg("invalid publication_names syntax")));
+    } else if (strcmp(defel->defname, "binary") == 0) {
+      if (binary_option_given)
+        ereport(ERROR,
+                (errcode(ERRCODE_SYNTAX_ERROR),
+                 errmsg("conflicting or redundant options")));
 
-			data->two_phase = defGetBoolean(defel);
-		}
-		else if (strcmp(defel->defname, "origin") == 0)
-		{
-			char	   *origin;
+      binary_option_given = true;
 
-			if (origin_option_given)
-				ereport(ERROR,
-						errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("conflicting or redundant options"));
-			origin_option_given = true;
+      data->binary = defGetBoolean(defel);
+    } else if (strcmp(defel->defname, "messages") == 0) {
+      if (messages_option_given)
+        ereport(ERROR,
+                (errcode(ERRCODE_SYNTAX_ERROR),
+                 errmsg("conflicting or redundant options")));
 
-			origin = defGetString(defel);
-			if (pg_strcasecmp(origin, LOGICALREP_ORIGIN_NONE) == 0)
-				data->publish_no_origin = true;
-			else if (pg_strcasecmp(origin, LOGICALREP_ORIGIN_ANY) == 0)
-				data->publish_no_origin = false;
-			else
-				ereport(ERROR,
-						errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-						errmsg("unrecognized origin value: \"%s\"", origin));
-		}
-		else
-			elog(ERROR, "unrecognized pgoutput option: %s", defel->defname);
-	}
+      messages_option_given = true;
 
-	/* Check required options */
-	if (!protocol_version_given)
-		ereport(ERROR,
-				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				errmsg("option \"%s\" missing", "proto_version"));
-	if (!publication_names_given)
-		ereport(ERROR,
-				errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				errmsg("option \"%s\" missing", "publication_names"));
+      data->messages = defGetBoolean(defel);
+    } else if (strcmp(defel->defname, "streaming") == 0) {
+      if (streaming_given)
+        ereport(ERROR,
+                (errcode(ERRCODE_SYNTAX_ERROR),
+                 errmsg("conflicting or redundant options")));
+
+      streaming_given = true;
+
+      data->streaming = defGetStreamingMode(defel);
+    } else if (strcmp(defel->defname, "two_phase") == 0) {
+      if (two_phase_option_given)
+        ereport(ERROR,
+                (errcode(ERRCODE_SYNTAX_ERROR),
+                 errmsg("conflicting or redundant options")));
+
+      two_phase_option_given = true;
+
+      data->two_phase = defGetBoolean(defel);
+    } else if (strcmp(defel->defname, "origin") == 0) {
+      char     *origin;
+
+      if (origin_option_given)
+        ereport(ERROR,
+                errcode(ERRCODE_SYNTAX_ERROR),
+                errmsg("conflicting or redundant options"));
+
+      origin_option_given = true;
+
+      origin = defGetString(defel);
+
+      if (pg_strcasecmp(origin, LOGICALREP_ORIGIN_NONE) == 0)
+        data->publish_no_origin = true;
+      else if (pg_strcasecmp(origin, LOGICALREP_ORIGIN_ANY) == 0)
+        data->publish_no_origin = false;
+      else
+        ereport(ERROR,
+                errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                errmsg("unrecognized origin value: \"%s\"", origin));
+    } else
+      elog(ERROR, "unrecognized pgoutput option: %s", defel->defname);
+  }
+
+  /* Check required options */
+  if (!protocol_version_given)
+    ereport(ERROR,
+            errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+            errmsg("option \"%s\" missing", "proto_version"));
+
+  if (!publication_names_given)
+    ereport(ERROR,
+            errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+            errmsg("option \"%s\" missing", "publication_names"));
 }
 
 /*
@@ -435,11 +427,10 @@ parse_output_parameters(List *options, PGOutputData *data)
 static void
 pgoutput_memory_context_reset(void *arg)
 {
-	if (RelationSyncCache)
-	{
-		hash_destroy(RelationSyncCache);
-		RelationSyncCache = NULL;
-	}
+  if (RelationSyncCache) {
+    hash_destroy(RelationSyncCache);
+    RelationSyncCache = NULL;
+  }
 }
 
 /*
@@ -447,137 +438,133 @@ pgoutput_memory_context_reset(void *arg)
  */
 static void
 pgoutput_startup(LogicalDecodingContext *ctx, OutputPluginOptions *opt,
-				 bool is_init)
+                 bool is_init)
 {
-	PGOutputData *data = palloc0(sizeof(PGOutputData));
-	static bool publication_callback_registered = false;
-	MemoryContextCallback *mcallback;
+  PGOutputData *data = palloc0(sizeof(PGOutputData));
+  static bool publication_callback_registered = false;
+  MemoryContextCallback *mcallback;
 
-	/* Create our memory context for private allocations. */
-	data->context = AllocSetContextCreate(ctx->context,
-										  "logical replication output context",
-										  ALLOCSET_DEFAULT_SIZES);
+  /* Create our memory context for private allocations. */
+  data->context = AllocSetContextCreate(ctx->context,
+                                        "logical replication output context",
+                                        ALLOCSET_DEFAULT_SIZES);
 
-	data->cachectx = AllocSetContextCreate(ctx->context,
-										   "logical replication cache context",
-										   ALLOCSET_DEFAULT_SIZES);
+  data->cachectx = AllocSetContextCreate(ctx->context,
+                                         "logical replication cache context",
+                                         ALLOCSET_DEFAULT_SIZES);
 
-	data->pubctx = AllocSetContextCreate(ctx->context,
-										 "logical replication publication list context",
-										 ALLOCSET_SMALL_SIZES);
+  data->pubctx = AllocSetContextCreate(ctx->context,
+                                       "logical replication publication list context",
+                                       ALLOCSET_SMALL_SIZES);
 
-	/*
-	 * Ensure to cleanup RelationSyncCache even when logical decoding invoked
-	 * via SQL interface ends up with an error.
-	 */
-	mcallback = palloc0(sizeof(MemoryContextCallback));
-	mcallback->func = pgoutput_memory_context_reset;
-	MemoryContextRegisterResetCallback(ctx->context, mcallback);
+  /*
+   * Ensure to cleanup RelationSyncCache even when logical decoding invoked
+   * via SQL interface ends up with an error.
+   */
+  mcallback = palloc0(sizeof(MemoryContextCallback));
+  mcallback->func = pgoutput_memory_context_reset;
+  MemoryContextRegisterResetCallback(ctx->context, mcallback);
 
-	ctx->output_plugin_private = data;
+  ctx->output_plugin_private = data;
 
-	/* This plugin uses binary protocol. */
-	opt->output_type = OUTPUT_PLUGIN_BINARY_OUTPUT;
+  /* This plugin uses binary protocol. */
+  opt->output_type = OUTPUT_PLUGIN_BINARY_OUTPUT;
 
-	/*
-	 * This is replication start and not slot initialization.
-	 *
-	 * Parse and validate options passed by the client.
-	 */
-	if (!is_init)
-	{
-		/* Parse the params and ERROR if we see any we don't recognize */
-		parse_output_parameters(ctx->output_plugin_options, data);
+  /*
+   * This is replication start and not slot initialization.
+   *
+   * Parse and validate options passed by the client.
+   */
+  if (!is_init) {
+    /* Parse the params and ERROR if we see any we don't recognize */
+    parse_output_parameters(ctx->output_plugin_options, data);
 
-		/* Check if we support requested protocol */
-		if (data->protocol_version > LOGICALREP_PROTO_MAX_VERSION_NUM)
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("client sent proto_version=%d but server only supports protocol %d or lower",
-							data->protocol_version, LOGICALREP_PROTO_MAX_VERSION_NUM)));
+    /* Check if we support requested protocol */
+    if (data->protocol_version > LOGICALREP_PROTO_MAX_VERSION_NUM)
+      ereport(ERROR,
+              (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+               errmsg("client sent proto_version=%d but server only supports protocol %d or lower",
+                      data->protocol_version, LOGICALREP_PROTO_MAX_VERSION_NUM)));
 
-		if (data->protocol_version < LOGICALREP_PROTO_MIN_VERSION_NUM)
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("client sent proto_version=%d but server only supports protocol %d or higher",
-							data->protocol_version, LOGICALREP_PROTO_MIN_VERSION_NUM)));
+    if (data->protocol_version < LOGICALREP_PROTO_MIN_VERSION_NUM)
+      ereport(ERROR,
+              (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+               errmsg("client sent proto_version=%d but server only supports protocol %d or higher",
+                      data->protocol_version, LOGICALREP_PROTO_MIN_VERSION_NUM)));
 
-		/*
-		 * Decide whether to enable streaming. It is disabled by default, in
-		 * which case we just update the flag in decoding context. Otherwise
-		 * we only allow it with sufficient version of the protocol, and when
-		 * the output plugin supports it.
-		 */
-		if (data->streaming == LOGICALREP_STREAM_OFF)
-			ctx->streaming = false;
-		else if (data->streaming == LOGICALREP_STREAM_ON &&
-				 data->protocol_version < LOGICALREP_PROTO_STREAM_VERSION_NUM)
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("requested proto_version=%d does not support streaming, need %d or higher",
-							data->protocol_version, LOGICALREP_PROTO_STREAM_VERSION_NUM)));
-		else if (data->streaming == LOGICALREP_STREAM_PARALLEL &&
-				 data->protocol_version < LOGICALREP_PROTO_STREAM_PARALLEL_VERSION_NUM)
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("requested proto_version=%d does not support parallel streaming, need %d or higher",
-							data->protocol_version, LOGICALREP_PROTO_STREAM_PARALLEL_VERSION_NUM)));
-		else if (!ctx->streaming)
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("streaming requested, but not supported by output plugin")));
+    /*
+     * Decide whether to enable streaming. It is disabled by default, in
+     * which case we just update the flag in decoding context. Otherwise
+     * we only allow it with sufficient version of the protocol, and when
+     * the output plugin supports it.
+     */
+    if (data->streaming == LOGICALREP_STREAM_OFF)
+      ctx->streaming = false;
+    else if (data->streaming == LOGICALREP_STREAM_ON &&
+             data->protocol_version < LOGICALREP_PROTO_STREAM_VERSION_NUM)
+      ereport(ERROR,
+              (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+               errmsg("requested proto_version=%d does not support streaming, need %d or higher",
+                      data->protocol_version, LOGICALREP_PROTO_STREAM_VERSION_NUM)));
+    else if (data->streaming == LOGICALREP_STREAM_PARALLEL &&
+             data->protocol_version < LOGICALREP_PROTO_STREAM_PARALLEL_VERSION_NUM)
+      ereport(ERROR,
+              (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+               errmsg("requested proto_version=%d does not support parallel streaming, need %d or higher",
+                      data->protocol_version, LOGICALREP_PROTO_STREAM_PARALLEL_VERSION_NUM)));
+    else if (!ctx->streaming)
+      ereport(ERROR,
+              (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+               errmsg("streaming requested, but not supported by output plugin")));
 
-		/*
-		 * Here, we just check whether the two-phase option is passed by
-		 * plugin and decide whether to enable it at later point of time. It
-		 * remains enabled if the previous start-up has done so. But we only
-		 * allow the option to be passed in with sufficient version of the
-		 * protocol, and when the output plugin supports it.
-		 */
-		if (!data->two_phase)
-			ctx->twophase_opt_given = false;
-		else if (data->protocol_version < LOGICALREP_PROTO_TWOPHASE_VERSION_NUM)
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("requested proto_version=%d does not support two-phase commit, need %d or higher",
-							data->protocol_version, LOGICALREP_PROTO_TWOPHASE_VERSION_NUM)));
-		else if (!ctx->twophase)
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("two-phase commit requested, but not supported by output plugin")));
-		else
-			ctx->twophase_opt_given = true;
+    /*
+     * Here, we just check whether the two-phase option is passed by
+     * plugin and decide whether to enable it at later point of time. It
+     * remains enabled if the previous start-up has done so. But we only
+     * allow the option to be passed in with sufficient version of the
+     * protocol, and when the output plugin supports it.
+     */
+    if (!data->two_phase)
+      ctx->twophase_opt_given = false;
+    else if (data->protocol_version < LOGICALREP_PROTO_TWOPHASE_VERSION_NUM)
+      ereport(ERROR,
+              (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+               errmsg("requested proto_version=%d does not support two-phase commit, need %d or higher",
+                      data->protocol_version, LOGICALREP_PROTO_TWOPHASE_VERSION_NUM)));
+    else if (!ctx->twophase)
+      ereport(ERROR,
+              (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+               errmsg("two-phase commit requested, but not supported by output plugin")));
+    else
+      ctx->twophase_opt_given = true;
 
-		/* Init publication state. */
-		data->publications = NIL;
-		publications_valid = false;
+    /* Init publication state. */
+    data->publications = NIL;
+    publications_valid = false;
 
-		/*
-		 * Register callback for pg_publication if we didn't already do that
-		 * during some previous call in this process.
-		 */
-		if (!publication_callback_registered)
-		{
-			CacheRegisterSyscacheCallback(PUBLICATIONOID,
-										  publication_invalidation_cb,
-										  (Datum) 0);
-			CacheRegisterRelSyncCallback(rel_sync_cache_relation_cb,
-										 (Datum) 0);
-			publication_callback_registered = true;
-		}
+    /*
+     * Register callback for pg_publication if we didn't already do that
+     * during some previous call in this process.
+     */
+    if (!publication_callback_registered) {
+      CacheRegisterSyscacheCallback(PUBLICATIONOID,
+                                    publication_invalidation_cb,
+                                    (Datum) 0);
+      CacheRegisterRelSyncCallback(rel_sync_cache_relation_cb,
+                                   (Datum) 0);
+      publication_callback_registered = true;
+    }
 
-		/* Initialize relation schema cache. */
-		init_rel_sync_cache(CacheMemoryContext);
-	}
-	else
-	{
-		/*
-		 * Disable the streaming and prepared transactions during the slot
-		 * initialization mode.
-		 */
-		ctx->streaming = false;
-		ctx->twophase = false;
-	}
+    /* Initialize relation schema cache. */
+    init_rel_sync_cache(CacheMemoryContext);
+  } else {
+    /*
+     * Disable the streaming and prepared transactions during the slot
+     * initialization mode.
+     */
+    ctx->streaming = false;
+    ctx->twophase = false;
+  }
 }
 
 /*
@@ -593,10 +580,10 @@ pgoutput_startup(LogicalDecodingContext *ctx, OutputPluginOptions *opt,
 static void
 pgoutput_begin_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn)
 {
-	PGOutputTxnData *txndata = MemoryContextAllocZero(ctx->context,
-													  sizeof(PGOutputTxnData));
+  PGOutputTxnData *txndata = MemoryContextAllocZero(ctx->context,
+                             sizeof(PGOutputTxnData));
 
-	txn->output_plugin_private = txndata;
+  txn->output_plugin_private = txndata;
 }
 
 /*
@@ -607,20 +594,20 @@ pgoutput_begin_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn)
 static void
 pgoutput_send_begin(LogicalDecodingContext *ctx, ReorderBufferTXN *txn)
 {
-	bool		send_replication_origin = txn->origin_id != InvalidRepOriginId;
-	PGOutputTxnData *txndata = (PGOutputTxnData *) txn->output_plugin_private;
+  bool    send_replication_origin = txn->origin_id != InvalidRepOriginId;
+  PGOutputTxnData *txndata = (PGOutputTxnData *) txn->output_plugin_private;
 
-	Assert(txndata);
-	Assert(!txndata->sent_begin_txn);
+  Assert(txndata);
+  Assert(!txndata->sent_begin_txn);
 
-	OutputPluginPrepareWrite(ctx, !send_replication_origin);
-	logicalrep_write_begin(ctx->out, txn);
-	txndata->sent_begin_txn = true;
+  OutputPluginPrepareWrite(ctx, !send_replication_origin);
+  logicalrep_write_begin(ctx->out, txn);
+  txndata->sent_begin_txn = true;
 
-	send_repl_origin(ctx, txn->origin_id, txn->origin_lsn,
-					 send_replication_origin);
+  send_repl_origin(ctx, txn->origin_id, txn->origin_lsn,
+                   send_replication_origin);
 
-	OutputPluginWrite(ctx, true);
+  OutputPluginWrite(ctx, true);
 }
 
 /*
@@ -628,31 +615,30 @@ pgoutput_send_begin(LogicalDecodingContext *ctx, ReorderBufferTXN *txn)
  */
 static void
 pgoutput_commit_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
-					XLogRecPtr commit_lsn)
+                    XLogRecPtr commit_lsn)
 {
-	PGOutputTxnData *txndata = (PGOutputTxnData *) txn->output_plugin_private;
-	bool		sent_begin_txn;
+  PGOutputTxnData *txndata = (PGOutputTxnData *) txn->output_plugin_private;
+  bool    sent_begin_txn;
 
-	Assert(txndata);
+  Assert(txndata);
 
-	/*
-	 * We don't need to send the commit message unless some relevant change
-	 * from this transaction has been sent to the downstream.
-	 */
-	sent_begin_txn = txndata->sent_begin_txn;
-	OutputPluginUpdateProgress(ctx, !sent_begin_txn);
-	pfree(txndata);
-	txn->output_plugin_private = NULL;
+  /*
+   * We don't need to send the commit message unless some relevant change
+   * from this transaction has been sent to the downstream.
+   */
+  sent_begin_txn = txndata->sent_begin_txn;
+  OutputPluginUpdateProgress(ctx, !sent_begin_txn);
+  pfree(txndata);
+  txn->output_plugin_private = NULL;
 
-	if (!sent_begin_txn)
-	{
-		elog(DEBUG1, "skipped replication of an empty transaction with XID: %u", txn->xid);
-		return;
-	}
+  if (!sent_begin_txn) {
+    elog(DEBUG1, "skipped replication of an empty transaction with XID: %u", txn->xid);
+    return;
+  }
 
-	OutputPluginPrepareWrite(ctx, true);
-	logicalrep_write_commit(ctx->out, txn, commit_lsn);
-	OutputPluginWrite(ctx, true);
+  OutputPluginPrepareWrite(ctx, true);
+  logicalrep_write_commit(ctx->out, txn, commit_lsn);
+  OutputPluginWrite(ctx, true);
 }
 
 /*
@@ -661,15 +647,15 @@ pgoutput_commit_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
 static void
 pgoutput_begin_prepare_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn)
 {
-	bool		send_replication_origin = txn->origin_id != InvalidRepOriginId;
+  bool    send_replication_origin = txn->origin_id != InvalidRepOriginId;
 
-	OutputPluginPrepareWrite(ctx, !send_replication_origin);
-	logicalrep_write_begin_prepare(ctx->out, txn);
+  OutputPluginPrepareWrite(ctx, !send_replication_origin);
+  logicalrep_write_begin_prepare(ctx->out, txn);
 
-	send_repl_origin(ctx, txn->origin_id, txn->origin_lsn,
-					 send_replication_origin);
+  send_repl_origin(ctx, txn->origin_id, txn->origin_lsn,
+                   send_replication_origin);
 
-	OutputPluginWrite(ctx, true);
+  OutputPluginWrite(ctx, true);
 }
 
 /*
@@ -677,13 +663,13 @@ pgoutput_begin_prepare_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn)
  */
 static void
 pgoutput_prepare_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
-					 XLogRecPtr prepare_lsn)
+                     XLogRecPtr prepare_lsn)
 {
-	OutputPluginUpdateProgress(ctx, false);
+  OutputPluginUpdateProgress(ctx, false);
 
-	OutputPluginPrepareWrite(ctx, true);
-	logicalrep_write_prepare(ctx->out, txn, prepare_lsn);
-	OutputPluginWrite(ctx, true);
+  OutputPluginPrepareWrite(ctx, true);
+  logicalrep_write_prepare(ctx->out, txn, prepare_lsn);
+  OutputPluginWrite(ctx, true);
 }
 
 /*
@@ -691,13 +677,13 @@ pgoutput_prepare_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
  */
 static void
 pgoutput_commit_prepared_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
-							 XLogRecPtr commit_lsn)
+                             XLogRecPtr commit_lsn)
 {
-	OutputPluginUpdateProgress(ctx, false);
+  OutputPluginUpdateProgress(ctx, false);
 
-	OutputPluginPrepareWrite(ctx, true);
-	logicalrep_write_commit_prepared(ctx->out, txn, commit_lsn);
-	OutputPluginWrite(ctx, true);
+  OutputPluginPrepareWrite(ctx, true);
+  logicalrep_write_commit_prepared(ctx->out, txn, commit_lsn);
+  OutputPluginWrite(ctx, true);
 }
 
 /*
@@ -705,16 +691,16 @@ pgoutput_commit_prepared_txn(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
  */
 static void
 pgoutput_rollback_prepared_txn(LogicalDecodingContext *ctx,
-							   ReorderBufferTXN *txn,
-							   XLogRecPtr prepare_end_lsn,
-							   TimestampTz prepare_time)
+                               ReorderBufferTXN *txn,
+                               XLogRecPtr prepare_end_lsn,
+                               TimestampTz prepare_time)
 {
-	OutputPluginUpdateProgress(ctx, false);
+  OutputPluginUpdateProgress(ctx, false);
 
-	OutputPluginPrepareWrite(ctx, true);
-	logicalrep_write_rollback_prepared(ctx->out, txn, prepare_end_lsn,
-									   prepare_time);
-	OutputPluginWrite(ctx, true);
+  OutputPluginPrepareWrite(ctx, true);
+  logicalrep_write_rollback_prepared(ctx->out, txn, prepare_end_lsn,
+                                     prepare_time);
+  OutputPluginWrite(ctx, true);
 }
 
 /*
@@ -723,70 +709,69 @@ pgoutput_rollback_prepared_txn(LogicalDecodingContext *ctx,
  */
 static void
 maybe_send_schema(LogicalDecodingContext *ctx,
-				  ReorderBufferChange *change,
-				  Relation relation, RelationSyncEntry *relentry)
+                  ReorderBufferChange *change,
+                  Relation relation, RelationSyncEntry *relentry)
 {
-	PGOutputData *data = (PGOutputData *) ctx->output_plugin_private;
-	bool		schema_sent;
-	TransactionId xid = InvalidTransactionId;
-	TransactionId topxid = InvalidTransactionId;
+  PGOutputData *data = (PGOutputData *) ctx->output_plugin_private;
+  bool    schema_sent;
+  TransactionId xid = InvalidTransactionId;
+  TransactionId topxid = InvalidTransactionId;
 
-	/*
-	 * Remember XID of the (sub)transaction for the change. We don't care if
-	 * it's top-level transaction or not (we have already sent that XID in
-	 * start of the current streaming block).
-	 *
-	 * If we're not in a streaming block, just use InvalidTransactionId and
-	 * the write methods will not include it.
-	 */
-	if (data->in_streaming)
-		xid = change->txn->xid;
+  /*
+   * Remember XID of the (sub)transaction for the change. We don't care if
+   * it's top-level transaction or not (we have already sent that XID in
+   * start of the current streaming block).
+   *
+   * If we're not in a streaming block, just use InvalidTransactionId and
+   * the write methods will not include it.
+   */
+  if (data->in_streaming)
+    xid = change->txn->xid;
 
-	if (rbtxn_is_subtxn(change->txn))
-		topxid = rbtxn_get_toptxn(change->txn)->xid;
-	else
-		topxid = xid;
+  if (rbtxn_is_subtxn(change->txn))
+    topxid = rbtxn_get_toptxn(change->txn)->xid;
+  else
+    topxid = xid;
 
-	/*
-	 * Do we need to send the schema? We do track streamed transactions
-	 * separately, because those may be applied later (and the regular
-	 * transactions won't see their effects until then) and in an order that
-	 * we don't know at this point.
-	 *
-	 * XXX There is a scope of optimization here. Currently, we always send
-	 * the schema first time in a streaming transaction but we can probably
-	 * avoid that by checking 'relentry->schema_sent' flag. However, before
-	 * doing that we need to study its impact on the case where we have a mix
-	 * of streaming and non-streaming transactions.
-	 */
-	if (data->in_streaming)
-		schema_sent = get_schema_sent_in_streamed_txn(relentry, topxid);
-	else
-		schema_sent = relentry->schema_sent;
+  /*
+   * Do we need to send the schema? We do track streamed transactions
+   * separately, because those may be applied later (and the regular
+   * transactions won't see their effects until then) and in an order that
+   * we don't know at this point.
+   *
+   * XXX There is a scope of optimization here. Currently, we always send
+   * the schema first time in a streaming transaction but we can probably
+   * avoid that by checking 'relentry->schema_sent' flag. However, before
+   * doing that we need to study its impact on the case where we have a mix
+   * of streaming and non-streaming transactions.
+   */
+  if (data->in_streaming)
+    schema_sent = get_schema_sent_in_streamed_txn(relentry, topxid);
+  else
+    schema_sent = relentry->schema_sent;
 
-	/* Nothing to do if we already sent the schema. */
-	if (schema_sent)
-		return;
+  /* Nothing to do if we already sent the schema. */
+  if (schema_sent)
+    return;
 
-	/*
-	 * Send the schema.  If the changes will be published using an ancestor's
-	 * schema, not the relation's own, send that ancestor's schema before
-	 * sending relation's own (XXX - maybe sending only the former suffices?).
-	 */
-	if (relentry->publish_as_relid != RelationGetRelid(relation))
-	{
-		Relation	ancestor = RelationIdGetRelation(relentry->publish_as_relid);
+  /*
+   * Send the schema.  If the changes will be published using an ancestor's
+   * schema, not the relation's own, send that ancestor's schema before
+   * sending relation's own (XXX - maybe sending only the former suffices?).
+   */
+  if (relentry->publish_as_relid != RelationGetRelid(relation)) {
+    Relation  ancestor = RelationIdGetRelation(relentry->publish_as_relid);
 
-		send_relation_and_attrs(ancestor, xid, ctx, relentry);
-		RelationClose(ancestor);
-	}
+    send_relation_and_attrs(ancestor, xid, ctx, relentry);
+    RelationClose(ancestor);
+  }
 
-	send_relation_and_attrs(relation, xid, ctx, relentry);
+  send_relation_and_attrs(relation, xid, ctx, relentry);
 
-	if (data->in_streaming)
-		set_schema_sent_in_streamed_txn(relentry, topxid);
-	else
-		relentry->schema_sent = true;
+  if (data->in_streaming)
+    set_schema_sent_in_streamed_txn(relentry, topxid);
+  else
+    relentry->schema_sent = true;
 }
 
 /*
@@ -794,42 +779,41 @@ maybe_send_schema(LogicalDecodingContext *ctx,
  */
 static void
 send_relation_and_attrs(Relation relation, TransactionId xid,
-						LogicalDecodingContext *ctx,
-						RelationSyncEntry *relentry)
+                        LogicalDecodingContext *ctx,
+                        RelationSyncEntry *relentry)
 {
-	TupleDesc	desc = RelationGetDescr(relation);
-	Bitmapset  *columns = relentry->columns;
-	PublishGencolsType include_gencols_type = relentry->include_gencols_type;
-	int			i;
+  TupleDesc desc = RelationGetDescr(relation);
+  Bitmapset  *columns = relentry->columns;
+  PublishGencolsType include_gencols_type = relentry->include_gencols_type;
+  int     i;
 
-	/*
-	 * Write out type info if needed.  We do that only for user-created types.
-	 * We use FirstGenbkiObjectId as the cutoff, so that we only consider
-	 * objects with hand-assigned OIDs to be "built in", not for instance any
-	 * function or type defined in the information_schema. This is important
-	 * because only hand-assigned OIDs can be expected to remain stable across
-	 * major versions.
-	 */
-	for (i = 0; i < desc->natts; i++)
-	{
-		Form_pg_attribute att = TupleDescAttr(desc, i);
+  /*
+   * Write out type info if needed.  We do that only for user-created types.
+   * We use FirstGenbkiObjectId as the cutoff, so that we only consider
+   * objects with hand-assigned OIDs to be "built in", not for instance any
+   * function or type defined in the information_schema. This is important
+   * because only hand-assigned OIDs can be expected to remain stable across
+   * major versions.
+   */
+  for (i = 0; i < desc->natts; i++) {
+    Form_pg_attribute att = TupleDescAttr(desc, i);
 
-		if (!logicalrep_should_publish_column(att, columns,
-											  include_gencols_type))
-			continue;
+    if (!logicalrep_should_publish_column(att, columns,
+                                          include_gencols_type))
+      continue;
 
-		if (att->atttypid < FirstGenbkiObjectId)
-			continue;
+    if (att->atttypid < FirstGenbkiObjectId)
+      continue;
 
-		OutputPluginPrepareWrite(ctx, false);
-		logicalrep_write_typ(ctx->out, xid, att->atttypid);
-		OutputPluginWrite(ctx, false);
-	}
+    OutputPluginPrepareWrite(ctx, false);
+    logicalrep_write_typ(ctx->out, xid, att->atttypid);
+    OutputPluginWrite(ctx, false);
+  }
 
-	OutputPluginPrepareWrite(ctx, false);
-	logicalrep_write_rel(ctx->out, xid, relation, columns,
-						 include_gencols_type);
-	OutputPluginWrite(ctx, false);
+  OutputPluginPrepareWrite(ctx, false);
+  logicalrep_write_rel(ctx->out, xid, relation, columns,
+                       include_gencols_type);
+  OutputPluginWrite(ctx, false);
 }
 
 /*
@@ -839,26 +823,26 @@ send_relation_and_attrs(Relation relation, TransactionId xid,
 static EState *
 create_estate_for_relation(Relation rel)
 {
-	EState	   *estate;
-	RangeTblEntry *rte;
-	List	   *perminfos = NIL;
+  EState     *estate;
+  RangeTblEntry *rte;
+  List     *perminfos = NIL;
 
-	estate = CreateExecutorState();
+  estate = CreateExecutorState();
 
-	rte = makeNode(RangeTblEntry);
-	rte->rtekind = RTE_RELATION;
-	rte->relid = RelationGetRelid(rel);
-	rte->relkind = rel->rd_rel->relkind;
-	rte->rellockmode = AccessShareLock;
+  rte = makeNode(RangeTblEntry);
+  rte->rtekind = RTE_RELATION;
+  rte->relid = RelationGetRelid(rel);
+  rte->relkind = rel->rd_rel->relkind;
+  rte->rellockmode = AccessShareLock;
 
-	addRTEPermissionInfo(&perminfos, rte);
+  addRTEPermissionInfo(&perminfos, rte);
 
-	ExecInitRangeTable(estate, list_make1(rte), perminfos,
-					   bms_make_singleton(1));
+  ExecInitRangeTable(estate, list_make1(rte), perminfos,
+                     bms_make_singleton(1));
 
-	estate->es_output_cid = GetCurrentCommandId(false);
+  estate->es_output_cid = GetCurrentCommandId(false);
 
-	return estate;
+  return estate;
 }
 
 /*
@@ -870,21 +854,21 @@ create_estate_for_relation(Relation rel)
 static bool
 pgoutput_row_filter_exec_expr(ExprState *state, ExprContext *econtext)
 {
-	Datum		ret;
-	bool		isnull;
+  Datum   ret;
+  bool    isnull;
 
-	Assert(state != NULL);
+  Assert(state != NULL);
 
-	ret = ExecEvalExprSwitchContext(state, econtext, &isnull);
+  ret = ExecEvalExprSwitchContext(state, econtext, &isnull);
 
-	elog(DEBUG3, "row filter evaluates to %s (isnull: %s)",
-		 isnull ? "false" : DatumGetBool(ret) ? "true" : "false",
-		 isnull ? "true" : "false");
+  elog(DEBUG3, "row filter evaluates to %s (isnull: %s)",
+       isnull ? "false" : DatumGetBool(ret) ? "true" : "false",
+       isnull ? "true" : "false");
 
-	if (isnull)
-		return false;
+  if (isnull)
+    return false;
 
-	return DatumGetBool(ret);
+  return DatumGetBool(ret);
 }
 
 /*
@@ -893,20 +877,20 @@ pgoutput_row_filter_exec_expr(ExprState *state, ExprContext *econtext)
 static void
 pgoutput_ensure_entry_cxt(PGOutputData *data, RelationSyncEntry *entry)
 {
-	Relation	relation;
+  Relation  relation;
 
-	/* The context may already exist, in which case bail out. */
-	if (entry->entry_cxt)
-		return;
+  /* The context may already exist, in which case bail out. */
+  if (entry->entry_cxt)
+    return;
 
-	relation = RelationIdGetRelation(entry->publish_as_relid);
+  relation = RelationIdGetRelation(entry->publish_as_relid);
 
-	entry->entry_cxt = AllocSetContextCreate(data->cachectx,
-											 "entry private context",
-											 ALLOCSET_SMALL_SIZES);
+  entry->entry_cxt = AllocSetContextCreate(data->cachectx,
+                     "entry private context",
+                     ALLOCSET_SMALL_SIZES);
 
-	MemoryContextCopyAndSetIdentifier(entry->entry_cxt,
-									  RelationGetRelationName(relation));
+  MemoryContextCopyAndSetIdentifier(entry->entry_cxt,
+                                    RelationGetRelationName(relation));
 }
 
 /*
@@ -914,145 +898,140 @@ pgoutput_ensure_entry_cxt(PGOutputData *data, RelationSyncEntry *entry)
  */
 static void
 pgoutput_row_filter_init(PGOutputData *data, List *publications,
-						 RelationSyncEntry *entry)
+                         RelationSyncEntry *entry)
 {
-	ListCell   *lc;
-	List	   *rfnodes[] = {NIL, NIL, NIL};	/* One per pubaction */
-	bool		no_filter[] = {false, false, false};	/* One per pubaction */
-	MemoryContext oldctx;
-	int			idx;
-	bool		has_filter = true;
-	Oid			schemaid = get_rel_namespace(entry->publish_as_relid);
+  ListCell   *lc;
+  List     *rfnodes[] = {NIL, NIL, NIL};  /* One per pubaction */
+  bool    no_filter[] = {false, false, false};  /* One per pubaction */
+  MemoryContext oldctx;
+  int     idx;
+  bool    has_filter = true;
+  Oid     schemaid = get_rel_namespace(entry->publish_as_relid);
 
-	/*
-	 * Find if there are any row filters for this relation. If there are, then
-	 * prepare the necessary ExprState and cache it in entry->exprstate. To
-	 * build an expression state, we need to ensure the following:
-	 *
-	 * All the given publication-table mappings must be checked.
-	 *
-	 * Multiple publications might have multiple row filters for this
-	 * relation. Since row filter usage depends on the DML operation, there
-	 * are multiple lists (one for each operation) to which row filters will
-	 * be appended.
-	 *
-	 * FOR ALL TABLES and FOR TABLES IN SCHEMA implies "don't use row filter
-	 * expression" so it takes precedence.
-	 */
-	foreach(lc, publications)
-	{
-		Publication *pub = lfirst(lc);
-		HeapTuple	rftuple = NULL;
-		Datum		rfdatum = 0;
-		bool		pub_no_filter = true;
+  /*
+   * Find if there are any row filters for this relation. If there are, then
+   * prepare the necessary ExprState and cache it in entry->exprstate. To
+   * build an expression state, we need to ensure the following:
+   *
+   * All the given publication-table mappings must be checked.
+   *
+   * Multiple publications might have multiple row filters for this
+   * relation. Since row filter usage depends on the DML operation, there
+   * are multiple lists (one for each operation) to which row filters will
+   * be appended.
+   *
+   * FOR ALL TABLES and FOR TABLES IN SCHEMA implies "don't use row filter
+   * expression" so it takes precedence.
+   */
+  foreach(lc, publications) {
+    Publication *pub = lfirst(lc);
+    HeapTuple rftuple = NULL;
+    Datum   rfdatum = 0;
+    bool    pub_no_filter = true;
 
-		/*
-		 * If the publication is FOR ALL TABLES, or the publication includes a
-		 * FOR TABLES IN SCHEMA where the table belongs to the referred
-		 * schema, then it is treated the same as if there are no row filters
-		 * (even if other publications have a row filter).
-		 */
-		if (!pub->alltables &&
-			!SearchSysCacheExists2(PUBLICATIONNAMESPACEMAP,
-								   ObjectIdGetDatum(schemaid),
-								   ObjectIdGetDatum(pub->oid)))
-		{
-			/*
-			 * Check for the presence of a row filter in this publication.
-			 */
-			rftuple = SearchSysCache2(PUBLICATIONRELMAP,
-									  ObjectIdGetDatum(entry->publish_as_relid),
-									  ObjectIdGetDatum(pub->oid));
+    /*
+     * If the publication is FOR ALL TABLES, or the publication includes a
+     * FOR TABLES IN SCHEMA where the table belongs to the referred
+     * schema, then it is treated the same as if there are no row filters
+     * (even if other publications have a row filter).
+     */
+    if (!pub->alltables &&
+        !SearchSysCacheExists2(PUBLICATIONNAMESPACEMAP,
+                               ObjectIdGetDatum(schemaid),
+                               ObjectIdGetDatum(pub->oid))) {
+      /*
+       * Check for the presence of a row filter in this publication.
+       */
+      rftuple = SearchSysCache2(PUBLICATIONRELMAP,
+                                ObjectIdGetDatum(entry->publish_as_relid),
+                                ObjectIdGetDatum(pub->oid));
 
-			if (HeapTupleIsValid(rftuple))
-			{
-				/* Null indicates no filter. */
-				rfdatum = SysCacheGetAttr(PUBLICATIONRELMAP, rftuple,
-										  Anum_pg_publication_rel_prqual,
-										  &pub_no_filter);
-			}
-		}
+      if (HeapTupleIsValid(rftuple)) {
+        /* Null indicates no filter. */
+        rfdatum = SysCacheGetAttr(PUBLICATIONRELMAP, rftuple,
+                                  Anum_pg_publication_rel_prqual,
+                                  &pub_no_filter);
+      }
+    }
 
-		if (pub_no_filter)
-		{
-			if (rftuple)
-				ReleaseSysCache(rftuple);
+    if (pub_no_filter) {
+      if (rftuple)
+        ReleaseSysCache(rftuple);
 
-			no_filter[PUBACTION_INSERT] |= pub->pubactions.pubinsert;
-			no_filter[PUBACTION_UPDATE] |= pub->pubactions.pubupdate;
-			no_filter[PUBACTION_DELETE] |= pub->pubactions.pubdelete;
+      no_filter[PUBACTION_INSERT] |= pub->pubactions.pubinsert;
+      no_filter[PUBACTION_UPDATE] |= pub->pubactions.pubupdate;
+      no_filter[PUBACTION_DELETE] |= pub->pubactions.pubdelete;
 
-			/*
-			 * Quick exit if all the DML actions are publicized via this
-			 * publication.
-			 */
-			if (no_filter[PUBACTION_INSERT] &&
-				no_filter[PUBACTION_UPDATE] &&
-				no_filter[PUBACTION_DELETE])
-			{
-				has_filter = false;
-				break;
-			}
+      /*
+       * Quick exit if all the DML actions are publicized via this
+       * publication.
+       */
+      if (no_filter[PUBACTION_INSERT] &&
+          no_filter[PUBACTION_UPDATE] &&
+          no_filter[PUBACTION_DELETE]) {
+        has_filter = false;
+        break;
+      }
 
-			/* No additional work for this publication. Next one. */
-			continue;
-		}
+      /* No additional work for this publication. Next one. */
+      continue;
+    }
 
-		/* Form the per pubaction row filter lists. */
-		if (pub->pubactions.pubinsert && !no_filter[PUBACTION_INSERT])
-			rfnodes[PUBACTION_INSERT] = lappend(rfnodes[PUBACTION_INSERT],
-												TextDatumGetCString(rfdatum));
-		if (pub->pubactions.pubupdate && !no_filter[PUBACTION_UPDATE])
-			rfnodes[PUBACTION_UPDATE] = lappend(rfnodes[PUBACTION_UPDATE],
-												TextDatumGetCString(rfdatum));
-		if (pub->pubactions.pubdelete && !no_filter[PUBACTION_DELETE])
-			rfnodes[PUBACTION_DELETE] = lappend(rfnodes[PUBACTION_DELETE],
-												TextDatumGetCString(rfdatum));
+    /* Form the per pubaction row filter lists. */
+    if (pub->pubactions.pubinsert && !no_filter[PUBACTION_INSERT])
+      rfnodes[PUBACTION_INSERT] = lappend(rfnodes[PUBACTION_INSERT],
+                                          TextDatumGetCString(rfdatum));
 
-		ReleaseSysCache(rftuple);
-	}							/* loop all subscribed publications */
+    if (pub->pubactions.pubupdate && !no_filter[PUBACTION_UPDATE])
+      rfnodes[PUBACTION_UPDATE] = lappend(rfnodes[PUBACTION_UPDATE],
+                                          TextDatumGetCString(rfdatum));
 
-	/* Clean the row filter */
-	for (idx = 0; idx < NUM_ROWFILTER_PUBACTIONS; idx++)
-	{
-		if (no_filter[idx])
-		{
-			list_free_deep(rfnodes[idx]);
-			rfnodes[idx] = NIL;
-		}
-	}
+    if (pub->pubactions.pubdelete && !no_filter[PUBACTION_DELETE])
+      rfnodes[PUBACTION_DELETE] = lappend(rfnodes[PUBACTION_DELETE],
+                                          TextDatumGetCString(rfdatum));
 
-	if (has_filter)
-	{
-		Relation	relation = RelationIdGetRelation(entry->publish_as_relid);
+    ReleaseSysCache(rftuple);
+  }             /* loop all subscribed publications */
 
-		pgoutput_ensure_entry_cxt(data, entry);
+  /* Clean the row filter */
+  for (idx = 0; idx < NUM_ROWFILTER_PUBACTIONS; idx++) {
+    if (no_filter[idx]) {
+      list_free_deep(rfnodes[idx]);
+      rfnodes[idx] = NIL;
+    }
+  }
 
-		/*
-		 * Now all the filters for all pubactions are known. Combine them when
-		 * their pubactions are the same.
-		 */
-		oldctx = MemoryContextSwitchTo(entry->entry_cxt);
-		entry->estate = create_estate_for_relation(relation);
-		for (idx = 0; idx < NUM_ROWFILTER_PUBACTIONS; idx++)
-		{
-			List	   *filters = NIL;
-			Expr	   *rfnode;
+  if (has_filter) {
+    Relation  relation = RelationIdGetRelation(entry->publish_as_relid);
 
-			if (rfnodes[idx] == NIL)
-				continue;
+    pgoutput_ensure_entry_cxt(data, entry);
 
-			foreach(lc, rfnodes[idx])
-				filters = lappend(filters, expand_generated_columns_in_expr(stringToNode((char *) lfirst(lc)), relation, 1));
+    /*
+     * Now all the filters for all pubactions are known. Combine them when
+     * their pubactions are the same.
+     */
+    oldctx = MemoryContextSwitchTo(entry->entry_cxt);
+    entry->estate = create_estate_for_relation(relation);
 
-			/* combine the row filter and cache the ExprState */
-			rfnode = make_orclause(filters);
-			entry->exprstate[idx] = ExecPrepareExpr(rfnode, entry->estate);
-		}						/* for each pubaction */
-		MemoryContextSwitchTo(oldctx);
+    for (idx = 0; idx < NUM_ROWFILTER_PUBACTIONS; idx++) {
+      List     *filters = NIL;
+      Expr     *rfnode;
 
-		RelationClose(relation);
-	}
+      if (rfnodes[idx] == NIL)
+        continue;
+
+      foreach(lc, rfnodes[idx])
+        filters = lappend(filters, expand_generated_columns_in_expr(stringToNode((char *) lfirst(lc)), relation, 1));
+
+      /* combine the row filter and cache the ExprState */
+      rfnode = make_orclause(filters);
+      entry->exprstate[idx] = ExecPrepareExpr(rfnode, entry->estate);
+    }           /* for each pubaction */
+
+    MemoryContextSwitchTo(oldctx);
+
+    RelationClose(relation);
+  }
 }
 
 /*
@@ -1061,58 +1040,52 @@ pgoutput_row_filter_init(PGOutputData *data, List *publications,
  */
 static void
 check_and_init_gencol(PGOutputData *data, List *publications,
-					  RelationSyncEntry *entry)
+                      RelationSyncEntry *entry)
 {
-	Relation	relation = RelationIdGetRelation(entry->publish_as_relid);
-	TupleDesc	desc = RelationGetDescr(relation);
-	bool		gencolpresent = false;
-	bool		first = true;
+  Relation  relation = RelationIdGetRelation(entry->publish_as_relid);
+  TupleDesc desc = RelationGetDescr(relation);
+  bool    gencolpresent = false;
+  bool    first = true;
 
-	/* Check if there is any generated column present. */
-	for (int i = 0; i < desc->natts; i++)
-	{
-		Form_pg_attribute att = TupleDescAttr(desc, i);
+  /* Check if there is any generated column present. */
+  for (int i = 0; i < desc->natts; i++) {
+    Form_pg_attribute att = TupleDescAttr(desc, i);
 
-		if (att->attgenerated)
-		{
-			gencolpresent = true;
-			break;
-		}
-	}
+    if (att->attgenerated) {
+      gencolpresent = true;
+      break;
+    }
+  }
 
-	/* There are no generated columns to be published. */
-	if (!gencolpresent)
-	{
-		entry->include_gencols_type = PUBLISH_GENCOLS_NONE;
-		return;
-	}
+  /* There are no generated columns to be published. */
+  if (!gencolpresent) {
+    entry->include_gencols_type = PUBLISH_GENCOLS_NONE;
+    return;
+  }
 
-	/*
-	 * There may be a conflicting value for 'publish_generated_columns'
-	 * parameter in the publications.
-	 */
-	foreach_ptr(Publication, pub, publications)
-	{
-		/*
-		 * The column list takes precedence over the
-		 * 'publish_generated_columns' parameter. Those will be checked later,
-		 * see pgoutput_column_list_init.
-		 */
-		if (check_and_fetch_column_list(pub, entry->publish_as_relid, NULL, NULL))
-			continue;
+  /*
+   * There may be a conflicting value for 'publish_generated_columns'
+   * parameter in the publications.
+   */
+  foreach_ptr(Publication, pub, publications) {
+    /*
+     * The column list takes precedence over the
+     * 'publish_generated_columns' parameter. Those will be checked later,
+     * see pgoutput_column_list_init.
+     */
+    if (check_and_fetch_column_list(pub, entry->publish_as_relid, NULL, NULL))
+      continue;
 
-		if (first)
-		{
-			entry->include_gencols_type = pub->pubgencols_type;
-			first = false;
-		}
-		else if (entry->include_gencols_type != pub->pubgencols_type)
-			ereport(ERROR,
-					errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					errmsg("cannot use different values of publish_generated_columns for table \"%s.%s\" in different publications",
-						   get_namespace_name(RelationGetNamespace(relation)),
-						   RelationGetRelationName(relation)));
-	}
+    if (first) {
+      entry->include_gencols_type = pub->pubgencols_type;
+      first = false;
+    } else if (entry->include_gencols_type != pub->pubgencols_type)
+      ereport(ERROR,
+              errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+              errmsg("cannot use different values of publish_generated_columns for table \"%s.%s\" in different publications",
+                     get_namespace_name(RelationGetNamespace(relation)),
+                     RelationGetRelationName(relation)));
+  }
 }
 
 /*
@@ -1120,85 +1093,80 @@ check_and_init_gencol(PGOutputData *data, List *publications,
  */
 static void
 pgoutput_column_list_init(PGOutputData *data, List *publications,
-						  RelationSyncEntry *entry)
+                          RelationSyncEntry *entry)
 {
-	ListCell   *lc;
-	bool		first = true;
-	Relation	relation = RelationIdGetRelation(entry->publish_as_relid);
-	bool		found_pub_collist = false;
-	Bitmapset  *relcols = NULL;
+  ListCell   *lc;
+  bool    first = true;
+  Relation  relation = RelationIdGetRelation(entry->publish_as_relid);
+  bool    found_pub_collist = false;
+  Bitmapset  *relcols = NULL;
 
-	pgoutput_ensure_entry_cxt(data, entry);
+  pgoutput_ensure_entry_cxt(data, entry);
 
-	/*
-	 * Find if there are any column lists for this relation. If there are,
-	 * build a bitmap using the column lists.
-	 *
-	 * Multiple publications might have multiple column lists for this
-	 * relation.
-	 *
-	 * Note that we don't support the case where the column list is different
-	 * for the same table when combining publications. See comments atop
-	 * fetch_table_list. But one can later change the publication so we still
-	 * need to check all the given publication-table mappings and report an
-	 * error if any publications have a different column list.
-	 */
-	foreach(lc, publications)
-	{
-		Publication *pub = lfirst(lc);
-		Bitmapset  *cols = NULL;
+  /*
+   * Find if there are any column lists for this relation. If there are,
+   * build a bitmap using the column lists.
+   *
+   * Multiple publications might have multiple column lists for this
+   * relation.
+   *
+   * Note that we don't support the case where the column list is different
+   * for the same table when combining publications. See comments atop
+   * fetch_table_list. But one can later change the publication so we still
+   * need to check all the given publication-table mappings and report an
+   * error if any publications have a different column list.
+   */
+  foreach(lc, publications) {
+    Publication *pub = lfirst(lc);
+    Bitmapset  *cols = NULL;
 
-		/* Retrieve the bitmap of columns for a column list publication. */
-		found_pub_collist |= check_and_fetch_column_list(pub,
-														 entry->publish_as_relid,
-														 entry->entry_cxt, &cols);
+    /* Retrieve the bitmap of columns for a column list publication. */
+    found_pub_collist |= check_and_fetch_column_list(pub,
+                         entry->publish_as_relid,
+                         entry->entry_cxt, &cols);
 
-		/*
-		 * For non-column list publications — e.g. TABLE (without a column
-		 * list), ALL TABLES, or ALL TABLES IN SCHEMA, we consider all columns
-		 * of the table (including generated columns when
-		 * 'publish_generated_columns' parameter is true).
-		 */
-		if (!cols)
-		{
-			/*
-			 * Cache the table columns for the first publication with no
-			 * specified column list to detect publication with a different
-			 * column list.
-			 */
-			if (!relcols && (list_length(publications) > 1))
-			{
-				MemoryContext oldcxt = MemoryContextSwitchTo(entry->entry_cxt);
+    /*
+     * For non-column list publications — e.g. TABLE (without a column
+     * list), ALL TABLES, or ALL TABLES IN SCHEMA, we consider all columns
+     * of the table (including generated columns when
+     * 'publish_generated_columns' parameter is true).
+     */
+    if (!cols) {
+      /*
+       * Cache the table columns for the first publication with no
+       * specified column list to detect publication with a different
+       * column list.
+       */
+      if (!relcols && (list_length(publications) > 1)) {
+        MemoryContext oldcxt = MemoryContextSwitchTo(entry->entry_cxt);
 
-				relcols = pub_form_cols_map(relation,
-											entry->include_gencols_type);
-				MemoryContextSwitchTo(oldcxt);
-			}
+        relcols = pub_form_cols_map(relation,
+                                    entry->include_gencols_type);
+        MemoryContextSwitchTo(oldcxt);
+      }
 
-			cols = relcols;
-		}
+      cols = relcols;
+    }
 
-		if (first)
-		{
-			entry->columns = cols;
-			first = false;
-		}
-		else if (!bms_equal(entry->columns, cols))
-			ereport(ERROR,
-					errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					errmsg("cannot use different column lists for table \"%s.%s\" in different publications",
-						   get_namespace_name(RelationGetNamespace(relation)),
-						   RelationGetRelationName(relation)));
-	}							/* loop all subscribed publications */
+    if (first) {
+      entry->columns = cols;
+      first = false;
+    } else if (!bms_equal(entry->columns, cols))
+      ereport(ERROR,
+              errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+              errmsg("cannot use different column lists for table \"%s.%s\" in different publications",
+                     get_namespace_name(RelationGetNamespace(relation)),
+                     RelationGetRelationName(relation)));
+  }             /* loop all subscribed publications */
 
-	/*
-	 * If no column list publications exist, columns to be published will be
-	 * computed later according to the 'publish_generated_columns' parameter.
-	 */
-	if (!found_pub_collist)
-		entry->columns = NULL;
+  /*
+   * If no column list publications exist, columns to be published will be
+   * computed later according to the 'publish_generated_columns' parameter.
+   */
+  if (!found_pub_collist)
+    entry->columns = NULL;
 
-	RelationClose(relation);
+  RelationClose(relation);
 }
 
 /*
@@ -1207,44 +1175,43 @@ pgoutput_column_list_init(PGOutputData *data, List *publications,
  */
 static void
 init_tuple_slot(PGOutputData *data, Relation relation,
-				RelationSyncEntry *entry)
+                RelationSyncEntry *entry)
 {
-	MemoryContext oldctx;
-	TupleDesc	oldtupdesc;
-	TupleDesc	newtupdesc;
+  MemoryContext oldctx;
+  TupleDesc oldtupdesc;
+  TupleDesc newtupdesc;
 
-	oldctx = MemoryContextSwitchTo(data->cachectx);
+  oldctx = MemoryContextSwitchTo(data->cachectx);
 
-	/*
-	 * Create tuple table slots. Create a copy of the TupleDesc as it needs to
-	 * live as long as the cache remains.
-	 */
-	oldtupdesc = CreateTupleDescCopyConstr(RelationGetDescr(relation));
-	newtupdesc = CreateTupleDescCopyConstr(RelationGetDescr(relation));
+  /*
+   * Create tuple table slots. Create a copy of the TupleDesc as it needs to
+   * live as long as the cache remains.
+   */
+  oldtupdesc = CreateTupleDescCopyConstr(RelationGetDescr(relation));
+  newtupdesc = CreateTupleDescCopyConstr(RelationGetDescr(relation));
 
-	entry->old_slot = MakeSingleTupleTableSlot(oldtupdesc, &TTSOpsHeapTuple);
-	entry->new_slot = MakeSingleTupleTableSlot(newtupdesc, &TTSOpsHeapTuple);
+  entry->old_slot = MakeSingleTupleTableSlot(oldtupdesc, &TTSOpsHeapTuple);
+  entry->new_slot = MakeSingleTupleTableSlot(newtupdesc, &TTSOpsHeapTuple);
 
-	MemoryContextSwitchTo(oldctx);
+  MemoryContextSwitchTo(oldctx);
 
-	/*
-	 * Cache the map that will be used to convert the relation's tuples into
-	 * the ancestor's format, if needed.
-	 */
-	if (entry->publish_as_relid != RelationGetRelid(relation))
-	{
-		Relation	ancestor = RelationIdGetRelation(entry->publish_as_relid);
-		TupleDesc	indesc = RelationGetDescr(relation);
-		TupleDesc	outdesc = RelationGetDescr(ancestor);
+  /*
+   * Cache the map that will be used to convert the relation's tuples into
+   * the ancestor's format, if needed.
+   */
+  if (entry->publish_as_relid != RelationGetRelid(relation)) {
+    Relation  ancestor = RelationIdGetRelation(entry->publish_as_relid);
+    TupleDesc indesc = RelationGetDescr(relation);
+    TupleDesc outdesc = RelationGetDescr(ancestor);
 
-		/* Map must live as long as the logical decoding context. */
-		oldctx = MemoryContextSwitchTo(data->cachectx);
+    /* Map must live as long as the logical decoding context. */
+    oldctx = MemoryContextSwitchTo(data->cachectx);
 
-		entry->attrmap = build_attrmap_by_name_if_req(indesc, outdesc, false);
+    entry->attrmap = build_attrmap_by_name_if_req(indesc, outdesc, false);
 
-		MemoryContextSwitchTo(oldctx);
-		RelationClose(ancestor);
-	}
+    MemoryContextSwitchTo(oldctx);
+    RelationClose(ancestor);
+  }
 }
 
 /*
@@ -1299,178 +1266,171 @@ init_tuple_slot(PGOutputData *data, Relation relation,
  */
 static bool
 pgoutput_row_filter(Relation relation, TupleTableSlot *old_slot,
-					TupleTableSlot **new_slot_ptr, RelationSyncEntry *entry,
-					ReorderBufferChangeType *action)
+                    TupleTableSlot **new_slot_ptr, RelationSyncEntry *entry,
+                    ReorderBufferChangeType *action)
 {
-	TupleDesc	desc;
-	int			i;
-	bool		old_matched,
-				new_matched,
-				result;
-	TupleTableSlot *tmp_new_slot;
-	TupleTableSlot *new_slot = *new_slot_ptr;
-	ExprContext *ecxt;
-	ExprState  *filter_exprstate;
+  TupleDesc desc;
+  int     i;
+  bool    old_matched,
+          new_matched,
+          result;
+  TupleTableSlot *tmp_new_slot;
+  TupleTableSlot *new_slot = *new_slot_ptr;
+  ExprContext *ecxt;
+  ExprState  *filter_exprstate;
 
-	/*
-	 * We need this map to avoid relying on ReorderBufferChangeType enums
-	 * having specific values.
-	 */
-	static const int map_changetype_pubaction[] = {
-		[REORDER_BUFFER_CHANGE_INSERT] = PUBACTION_INSERT,
-		[REORDER_BUFFER_CHANGE_UPDATE] = PUBACTION_UPDATE,
-		[REORDER_BUFFER_CHANGE_DELETE] = PUBACTION_DELETE
-	};
+  /*
+   * We need this map to avoid relying on ReorderBufferChangeType enums
+   * having specific values.
+   */
+  static const int map_changetype_pubaction[] = {
+    [REORDER_BUFFER_CHANGE_INSERT] = PUBACTION_INSERT,
+    [REORDER_BUFFER_CHANGE_UPDATE] = PUBACTION_UPDATE,
+    [REORDER_BUFFER_CHANGE_DELETE] = PUBACTION_DELETE
+  };
 
-	Assert(*action == REORDER_BUFFER_CHANGE_INSERT ||
-		   *action == REORDER_BUFFER_CHANGE_UPDATE ||
-		   *action == REORDER_BUFFER_CHANGE_DELETE);
+  Assert(*action == REORDER_BUFFER_CHANGE_INSERT ||
+         *action == REORDER_BUFFER_CHANGE_UPDATE ||
+         *action == REORDER_BUFFER_CHANGE_DELETE);
 
-	Assert(new_slot || old_slot);
+  Assert(new_slot || old_slot);
 
-	/* Get the corresponding row filter */
-	filter_exprstate = entry->exprstate[map_changetype_pubaction[*action]];
+  /* Get the corresponding row filter */
+  filter_exprstate = entry->exprstate[map_changetype_pubaction[*action]];
 
-	/* Bail out if there is no row filter */
-	if (!filter_exprstate)
-		return true;
+  /* Bail out if there is no row filter */
+  if (!filter_exprstate)
+    return true;
 
-	elog(DEBUG3, "table \"%s.%s\" has row filter",
-		 get_namespace_name(RelationGetNamespace(relation)),
-		 RelationGetRelationName(relation));
+  elog(DEBUG3, "table \"%s.%s\" has row filter",
+       get_namespace_name(RelationGetNamespace(relation)),
+       RelationGetRelationName(relation));
 
-	ResetPerTupleExprContext(entry->estate);
+  ResetPerTupleExprContext(entry->estate);
 
-	ecxt = GetPerTupleExprContext(entry->estate);
+  ecxt = GetPerTupleExprContext(entry->estate);
 
-	/*
-	 * For the following occasions where there is only one tuple, we can
-	 * evaluate the row filter for that tuple and return.
-	 *
-	 * For inserts, we only have the new tuple.
-	 *
-	 * For updates, we can have only a new tuple when none of the replica
-	 * identity columns changed and none of those columns have external data
-	 * but we still need to evaluate the row filter for the new tuple as the
-	 * existing values of those columns might not match the filter. Also,
-	 * users can use constant expressions in the row filter, so we anyway need
-	 * to evaluate it for the new tuple.
-	 *
-	 * For deletes, we only have the old tuple.
-	 */
-	if (!new_slot || !old_slot)
-	{
-		ecxt->ecxt_scantuple = new_slot ? new_slot : old_slot;
-		result = pgoutput_row_filter_exec_expr(filter_exprstate, ecxt);
+  /*
+   * For the following occasions where there is only one tuple, we can
+   * evaluate the row filter for that tuple and return.
+   *
+   * For inserts, we only have the new tuple.
+   *
+   * For updates, we can have only a new tuple when none of the replica
+   * identity columns changed and none of those columns have external data
+   * but we still need to evaluate the row filter for the new tuple as the
+   * existing values of those columns might not match the filter. Also,
+   * users can use constant expressions in the row filter, so we anyway need
+   * to evaluate it for the new tuple.
+   *
+   * For deletes, we only have the old tuple.
+   */
+  if (!new_slot || !old_slot) {
+    ecxt->ecxt_scantuple = new_slot ? new_slot : old_slot;
+    result = pgoutput_row_filter_exec_expr(filter_exprstate, ecxt);
 
-		return result;
-	}
+    return result;
+  }
 
-	/*
-	 * Both the old and new tuples must be valid only for updates and need to
-	 * be checked against the row filter.
-	 */
-	Assert(map_changetype_pubaction[*action] == PUBACTION_UPDATE);
+  /*
+   * Both the old and new tuples must be valid only for updates and need to
+   * be checked against the row filter.
+   */
+  Assert(map_changetype_pubaction[*action] == PUBACTION_UPDATE);
 
-	slot_getallattrs(new_slot);
-	slot_getallattrs(old_slot);
+  slot_getallattrs(new_slot);
+  slot_getallattrs(old_slot);
 
-	tmp_new_slot = NULL;
-	desc = RelationGetDescr(relation);
+  tmp_new_slot = NULL;
+  desc = RelationGetDescr(relation);
 
-	/*
-	 * The new tuple might not have all the replica identity columns, in which
-	 * case it needs to be copied over from the old tuple.
-	 */
-	for (i = 0; i < desc->natts; i++)
-	{
-		CompactAttribute *att = TupleDescCompactAttr(desc, i);
+  /*
+   * The new tuple might not have all the replica identity columns, in which
+   * case it needs to be copied over from the old tuple.
+   */
+  for (i = 0; i < desc->natts; i++) {
+    CompactAttribute *att = TupleDescCompactAttr(desc, i);
 
-		/*
-		 * if the column in the new tuple or old tuple is null, nothing to do
-		 */
-		if (new_slot->tts_isnull[i] || old_slot->tts_isnull[i])
-			continue;
+    /*
+     * if the column in the new tuple or old tuple is null, nothing to do
+     */
+    if (new_slot->tts_isnull[i] || old_slot->tts_isnull[i])
+      continue;
 
-		/*
-		 * Unchanged toasted replica identity columns are only logged in the
-		 * old tuple. Copy this over to the new tuple. The changed (or WAL
-		 * Logged) toast values are always assembled in memory and set as
-		 * VARTAG_INDIRECT. See ReorderBufferToastReplace.
-		 */
-		if (att->attlen == -1 &&
-			VARATT_IS_EXTERNAL_ONDISK(new_slot->tts_values[i]) &&
-			!VARATT_IS_EXTERNAL_ONDISK(old_slot->tts_values[i]))
-		{
-			if (!tmp_new_slot)
-			{
-				tmp_new_slot = MakeSingleTupleTableSlot(desc, &TTSOpsVirtual);
-				ExecClearTuple(tmp_new_slot);
+    /*
+     * Unchanged toasted replica identity columns are only logged in the
+     * old tuple. Copy this over to the new tuple. The changed (or WAL
+     * Logged) toast values are always assembled in memory and set as
+     * VARTAG_INDIRECT. See ReorderBufferToastReplace.
+     */
+    if (att->attlen == -1 &&
+        VARATT_IS_EXTERNAL_ONDISK(new_slot->tts_values[i]) &&
+        !VARATT_IS_EXTERNAL_ONDISK(old_slot->tts_values[i])) {
+      if (!tmp_new_slot) {
+        tmp_new_slot = MakeSingleTupleTableSlot(desc, &TTSOpsVirtual);
+        ExecClearTuple(tmp_new_slot);
 
-				memcpy(tmp_new_slot->tts_values, new_slot->tts_values,
-					   desc->natts * sizeof(Datum));
-				memcpy(tmp_new_slot->tts_isnull, new_slot->tts_isnull,
-					   desc->natts * sizeof(bool));
-			}
+        memcpy(tmp_new_slot->tts_values, new_slot->tts_values,
+               desc->natts * sizeof(Datum));
+        memcpy(tmp_new_slot->tts_isnull, new_slot->tts_isnull,
+               desc->natts * sizeof(bool));
+      }
 
-			tmp_new_slot->tts_values[i] = old_slot->tts_values[i];
-			tmp_new_slot->tts_isnull[i] = old_slot->tts_isnull[i];
-		}
-	}
+      tmp_new_slot->tts_values[i] = old_slot->tts_values[i];
+      tmp_new_slot->tts_isnull[i] = old_slot->tts_isnull[i];
+    }
+  }
 
-	ecxt->ecxt_scantuple = old_slot;
-	old_matched = pgoutput_row_filter_exec_expr(filter_exprstate, ecxt);
+  ecxt->ecxt_scantuple = old_slot;
+  old_matched = pgoutput_row_filter_exec_expr(filter_exprstate, ecxt);
 
-	if (tmp_new_slot)
-	{
-		ExecStoreVirtualTuple(tmp_new_slot);
-		ecxt->ecxt_scantuple = tmp_new_slot;
-	}
-	else
-		ecxt->ecxt_scantuple = new_slot;
+  if (tmp_new_slot) {
+    ExecStoreVirtualTuple(tmp_new_slot);
+    ecxt->ecxt_scantuple = tmp_new_slot;
+  } else
+    ecxt->ecxt_scantuple = new_slot;
 
-	new_matched = pgoutput_row_filter_exec_expr(filter_exprstate, ecxt);
+  new_matched = pgoutput_row_filter_exec_expr(filter_exprstate, ecxt);
 
-	/*
-	 * Case 1: if both tuples don't match the row filter, bailout. Send
-	 * nothing.
-	 */
-	if (!old_matched && !new_matched)
-		return false;
+  /*
+   * Case 1: if both tuples don't match the row filter, bailout. Send
+   * nothing.
+   */
+  if (!old_matched && !new_matched)
+    return false;
 
-	/*
-	 * Case 2: if the old tuple doesn't satisfy the row filter but the new
-	 * tuple does, transform the UPDATE into INSERT.
-	 *
-	 * Use the newly transformed tuple that must contain the column values for
-	 * all the replica identity columns. This is required to ensure that the
-	 * while inserting the tuple in the downstream node, we have all the
-	 * required column values.
-	 */
-	if (!old_matched && new_matched)
-	{
-		*action = REORDER_BUFFER_CHANGE_INSERT;
+  /*
+   * Case 2: if the old tuple doesn't satisfy the row filter but the new
+   * tuple does, transform the UPDATE into INSERT.
+   *
+   * Use the newly transformed tuple that must contain the column values for
+   * all the replica identity columns. This is required to ensure that the
+   * while inserting the tuple in the downstream node, we have all the
+   * required column values.
+   */
+  if (!old_matched && new_matched) {
+    *action = REORDER_BUFFER_CHANGE_INSERT;
 
-		if (tmp_new_slot)
-			*new_slot_ptr = tmp_new_slot;
-	}
+    if (tmp_new_slot)
+      *new_slot_ptr = tmp_new_slot;
+  }
 
-	/*
-	 * Case 3: if the old tuple satisfies the row filter but the new tuple
-	 * doesn't, transform the UPDATE into DELETE.
-	 *
-	 * This transformation does not require another tuple. The Old tuple will
-	 * be used for DELETE.
-	 */
-	else if (old_matched && !new_matched)
-		*action = REORDER_BUFFER_CHANGE_DELETE;
+  /*
+   * Case 3: if the old tuple satisfies the row filter but the new tuple
+   * doesn't, transform the UPDATE into DELETE.
+   *
+   * This transformation does not require another tuple. The Old tuple will
+   * be used for DELETE.
+   */
+  else if (old_matched && !new_matched)
+    *action = REORDER_BUFFER_CHANGE_DELETE;
 
-	/*
-	 * Case 4: if both tuples match the row filter, transformation isn't
-	 * required. (*action is default UPDATE).
-	 */
+  /*
+   * Case 4: if both tuples match the row filter, transformation isn't
+   * required. (*action is default UPDATE).
+   */
 
-	return true;
+  return true;
 }
 
 /*
@@ -1480,283 +1440,280 @@ pgoutput_row_filter(Relation relation, TupleTableSlot *old_slot,
  */
 static void
 pgoutput_change(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
-				Relation relation, ReorderBufferChange *change)
+                Relation relation, ReorderBufferChange *change)
 {
-	PGOutputData *data = (PGOutputData *) ctx->output_plugin_private;
-	PGOutputTxnData *txndata = (PGOutputTxnData *) txn->output_plugin_private;
-	MemoryContext old;
-	RelationSyncEntry *relentry;
-	TransactionId xid = InvalidTransactionId;
-	Relation	ancestor = NULL;
-	Relation	targetrel = relation;
-	ReorderBufferChangeType action = change->action;
-	TupleTableSlot *old_slot = NULL;
-	TupleTableSlot *new_slot = NULL;
+  PGOutputData *data = (PGOutputData *) ctx->output_plugin_private;
+  PGOutputTxnData *txndata = (PGOutputTxnData *) txn->output_plugin_private;
+  MemoryContext old;
+  RelationSyncEntry *relentry;
+  TransactionId xid = InvalidTransactionId;
+  Relation  ancestor = NULL;
+  Relation  targetrel = relation;
+  ReorderBufferChangeType action = change->action;
+  TupleTableSlot *old_slot = NULL;
+  TupleTableSlot *new_slot = NULL;
 
-	if (!is_publishable_relation(relation))
-		return;
+  if (!is_publishable_relation(relation))
+    return;
 
-	/*
-	 * Remember the xid for the change in streaming mode. We need to send xid
-	 * with each change in the streaming mode so that subscriber can make
-	 * their association and on aborts, it can discard the corresponding
-	 * changes.
-	 */
-	if (data->in_streaming)
-		xid = change->txn->xid;
+  /*
+   * Remember the xid for the change in streaming mode. We need to send xid
+   * with each change in the streaming mode so that subscriber can make
+   * their association and on aborts, it can discard the corresponding
+   * changes.
+   */
+  if (data->in_streaming)
+    xid = change->txn->xid;
 
-	relentry = get_rel_sync_entry(data, relation);
+  relentry = get_rel_sync_entry(data, relation);
 
-	/* First check the table filter */
-	switch (action)
-	{
-		case REORDER_BUFFER_CHANGE_INSERT:
-			if (!relentry->pubactions.pubinsert)
-				return;
-			break;
-		case REORDER_BUFFER_CHANGE_UPDATE:
-			if (!relentry->pubactions.pubupdate)
-				return;
-			break;
-		case REORDER_BUFFER_CHANGE_DELETE:
-			if (!relentry->pubactions.pubdelete)
-				return;
+  /* First check the table filter */
+  switch (action) {
+    case REORDER_BUFFER_CHANGE_INSERT:
+      if (!relentry->pubactions.pubinsert)
+        return;
 
-			/*
-			 * This is only possible if deletes are allowed even when replica
-			 * identity is not defined for a table. Since the DELETE action
-			 * can't be published, we simply return.
-			 */
-			if (!change->data.tp.oldtuple)
-			{
-				elog(DEBUG1, "didn't send DELETE change because of missing oldtuple");
-				return;
-			}
-			break;
-		default:
-			Assert(false);
-	}
+      break;
 
-	/* Avoid leaking memory by using and resetting our own context */
-	old = MemoryContextSwitchTo(data->context);
+    case REORDER_BUFFER_CHANGE_UPDATE:
+      if (!relentry->pubactions.pubupdate)
+        return;
 
-	/* Switch relation if publishing via root. */
-	if (relentry->publish_as_relid != RelationGetRelid(relation))
-	{
-		Assert(relation->rd_rel->relispartition);
-		ancestor = RelationIdGetRelation(relentry->publish_as_relid);
-		targetrel = ancestor;
-	}
+      break;
 
-	if (change->data.tp.oldtuple)
-	{
-		old_slot = relentry->old_slot;
-		ExecStoreHeapTuple(change->data.tp.oldtuple, old_slot, false);
+    case REORDER_BUFFER_CHANGE_DELETE:
+      if (!relentry->pubactions.pubdelete)
+        return;
 
-		/* Convert tuple if needed. */
-		if (relentry->attrmap)
-		{
-			TupleTableSlot *slot = MakeTupleTableSlot(RelationGetDescr(targetrel),
-													  &TTSOpsVirtual);
+      /*
+       * This is only possible if deletes are allowed even when replica
+       * identity is not defined for a table. Since the DELETE action
+       * can't be published, we simply return.
+       */
+      if (!change->data.tp.oldtuple) {
+        elog(DEBUG1, "didn't send DELETE change because of missing oldtuple");
+        return;
+      }
 
-			old_slot = execute_attr_map_slot(relentry->attrmap, old_slot, slot);
-		}
-	}
+      break;
 
-	if (change->data.tp.newtuple)
-	{
-		new_slot = relentry->new_slot;
-		ExecStoreHeapTuple(change->data.tp.newtuple, new_slot, false);
+    default:
+      Assert(false);
+  }
 
-		/* Convert tuple if needed. */
-		if (relentry->attrmap)
-		{
-			TupleTableSlot *slot = MakeTupleTableSlot(RelationGetDescr(targetrel),
-													  &TTSOpsVirtual);
+  /* Avoid leaking memory by using and resetting our own context */
+  old = MemoryContextSwitchTo(data->context);
 
-			new_slot = execute_attr_map_slot(relentry->attrmap, new_slot, slot);
-		}
-	}
+  /* Switch relation if publishing via root. */
+  if (relentry->publish_as_relid != RelationGetRelid(relation)) {
+    Assert(relation->rd_rel->relispartition);
+    ancestor = RelationIdGetRelation(relentry->publish_as_relid);
+    targetrel = ancestor;
+  }
 
-	/*
-	 * Check row filter.
-	 *
-	 * Updates could be transformed to inserts or deletes based on the results
-	 * of the row filter for old and new tuple.
-	 */
-	if (!pgoutput_row_filter(targetrel, old_slot, &new_slot, relentry, &action))
-		goto cleanup;
+  if (change->data.tp.oldtuple) {
+    old_slot = relentry->old_slot;
+    ExecStoreHeapTuple(change->data.tp.oldtuple, old_slot, false);
 
-	/*
-	 * Send BEGIN if we haven't yet.
-	 *
-	 * We send the BEGIN message after ensuring that we will actually send the
-	 * change. This avoids sending a pair of BEGIN/COMMIT messages for empty
-	 * transactions.
-	 */
-	if (txndata && !txndata->sent_begin_txn)
-		pgoutput_send_begin(ctx, txn);
+    /* Convert tuple if needed. */
+    if (relentry->attrmap) {
+      TupleTableSlot *slot = MakeTupleTableSlot(RelationGetDescr(targetrel),
+                             &TTSOpsVirtual);
 
-	/*
-	 * Schema should be sent using the original relation because it also sends
-	 * the ancestor's relation.
-	 */
-	maybe_send_schema(ctx, change, relation, relentry);
+      old_slot = execute_attr_map_slot(relentry->attrmap, old_slot, slot);
+    }
+  }
 
-	OutputPluginPrepareWrite(ctx, true);
+  if (change->data.tp.newtuple) {
+    new_slot = relentry->new_slot;
+    ExecStoreHeapTuple(change->data.tp.newtuple, new_slot, false);
 
-	/* Send the data */
-	switch (action)
-	{
-		case REORDER_BUFFER_CHANGE_INSERT:
-			logicalrep_write_insert(ctx->out, xid, targetrel, new_slot,
-									data->binary, relentry->columns,
-									relentry->include_gencols_type);
-			break;
-		case REORDER_BUFFER_CHANGE_UPDATE:
-			logicalrep_write_update(ctx->out, xid, targetrel, old_slot,
-									new_slot, data->binary, relentry->columns,
-									relentry->include_gencols_type);
-			break;
-		case REORDER_BUFFER_CHANGE_DELETE:
-			logicalrep_write_delete(ctx->out, xid, targetrel, old_slot,
-									data->binary, relentry->columns,
-									relentry->include_gencols_type);
-			break;
-		default:
-			Assert(false);
-	}
+    /* Convert tuple if needed. */
+    if (relentry->attrmap) {
+      TupleTableSlot *slot = MakeTupleTableSlot(RelationGetDescr(targetrel),
+                             &TTSOpsVirtual);
 
-	OutputPluginWrite(ctx, true);
+      new_slot = execute_attr_map_slot(relentry->attrmap, new_slot, slot);
+    }
+  }
+
+  /*
+   * Check row filter.
+   *
+   * Updates could be transformed to inserts or deletes based on the results
+   * of the row filter for old and new tuple.
+   */
+  if (!pgoutput_row_filter(targetrel, old_slot, &new_slot, relentry, &action))
+    goto cleanup;
+
+  /*
+   * Send BEGIN if we haven't yet.
+   *
+   * We send the BEGIN message after ensuring that we will actually send the
+   * change. This avoids sending a pair of BEGIN/COMMIT messages for empty
+   * transactions.
+   */
+  if (txndata && !txndata->sent_begin_txn)
+    pgoutput_send_begin(ctx, txn);
+
+  /*
+   * Schema should be sent using the original relation because it also sends
+   * the ancestor's relation.
+   */
+  maybe_send_schema(ctx, change, relation, relentry);
+
+  OutputPluginPrepareWrite(ctx, true);
+
+  /* Send the data */
+  switch (action) {
+    case REORDER_BUFFER_CHANGE_INSERT:
+      logicalrep_write_insert(ctx->out, xid, targetrel, new_slot,
+                              data->binary, relentry->columns,
+                              relentry->include_gencols_type);
+      break;
+
+    case REORDER_BUFFER_CHANGE_UPDATE:
+      logicalrep_write_update(ctx->out, xid, targetrel, old_slot,
+                              new_slot, data->binary, relentry->columns,
+                              relentry->include_gencols_type);
+      break;
+
+    case REORDER_BUFFER_CHANGE_DELETE:
+      logicalrep_write_delete(ctx->out, xid, targetrel, old_slot,
+                              data->binary, relentry->columns,
+                              relentry->include_gencols_type);
+      break;
+
+    default:
+      Assert(false);
+  }
+
+  OutputPluginWrite(ctx, true);
 
 cleanup:
-	if (RelationIsValid(ancestor))
-	{
-		RelationClose(ancestor);
-		ancestor = NULL;
-	}
 
-	/* Drop the new slots that were used to store the converted tuples. */
-	if (relentry->attrmap)
-	{
-		if (old_slot)
-			ExecDropSingleTupleTableSlot(old_slot);
+  if (RelationIsValid(ancestor)) {
+    RelationClose(ancestor);
+    ancestor = NULL;
+  }
 
-		if (new_slot)
-			ExecDropSingleTupleTableSlot(new_slot);
-	}
+  /* Drop the new slots that were used to store the converted tuples. */
+  if (relentry->attrmap) {
+    if (old_slot)
+      ExecDropSingleTupleTableSlot(old_slot);
 
-	MemoryContextSwitchTo(old);
-	MemoryContextReset(data->context);
+    if (new_slot)
+      ExecDropSingleTupleTableSlot(new_slot);
+  }
+
+  MemoryContextSwitchTo(old);
+  MemoryContextReset(data->context);
 }
 
 static void
 pgoutput_truncate(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
-				  int nrelations, Relation relations[], ReorderBufferChange *change)
+                  int nrelations, Relation relations[], ReorderBufferChange *change)
 {
-	PGOutputData *data = (PGOutputData *) ctx->output_plugin_private;
-	PGOutputTxnData *txndata = (PGOutputTxnData *) txn->output_plugin_private;
-	MemoryContext old;
-	RelationSyncEntry *relentry;
-	int			i;
-	int			nrelids;
-	Oid		   *relids;
-	TransactionId xid = InvalidTransactionId;
+  PGOutputData *data = (PGOutputData *) ctx->output_plugin_private;
+  PGOutputTxnData *txndata = (PGOutputTxnData *) txn->output_plugin_private;
+  MemoryContext old;
+  RelationSyncEntry *relentry;
+  int     i;
+  int     nrelids;
+  Oid      *relids;
+  TransactionId xid = InvalidTransactionId;
 
-	/* Remember the xid for the change in streaming mode. See pgoutput_change. */
-	if (data->in_streaming)
-		xid = change->txn->xid;
+  /* Remember the xid for the change in streaming mode. See pgoutput_change. */
+  if (data->in_streaming)
+    xid = change->txn->xid;
 
-	old = MemoryContextSwitchTo(data->context);
+  old = MemoryContextSwitchTo(data->context);
 
-	relids = palloc0(nrelations * sizeof(Oid));
-	nrelids = 0;
+  relids = palloc0(nrelations * sizeof(Oid));
+  nrelids = 0;
 
-	for (i = 0; i < nrelations; i++)
-	{
-		Relation	relation = relations[i];
-		Oid			relid = RelationGetRelid(relation);
+  for (i = 0; i < nrelations; i++) {
+    Relation  relation = relations[i];
+    Oid     relid = RelationGetRelid(relation);
 
-		if (!is_publishable_relation(relation))
-			continue;
+    if (!is_publishable_relation(relation))
+      continue;
 
-		relentry = get_rel_sync_entry(data, relation);
+    relentry = get_rel_sync_entry(data, relation);
 
-		if (!relentry->pubactions.pubtruncate)
-			continue;
+    if (!relentry->pubactions.pubtruncate)
+      continue;
 
-		/*
-		 * Don't send partitions if the publication wants to send only the
-		 * root tables through it.
-		 */
-		if (relation->rd_rel->relispartition &&
-			relentry->publish_as_relid != relid)
-			continue;
+    /*
+     * Don't send partitions if the publication wants to send only the
+     * root tables through it.
+     */
+    if (relation->rd_rel->relispartition &&
+        relentry->publish_as_relid != relid)
+      continue;
 
-		relids[nrelids++] = relid;
+    relids[nrelids++] = relid;
 
-		/* Send BEGIN if we haven't yet */
-		if (txndata && !txndata->sent_begin_txn)
-			pgoutput_send_begin(ctx, txn);
+    /* Send BEGIN if we haven't yet */
+    if (txndata && !txndata->sent_begin_txn)
+      pgoutput_send_begin(ctx, txn);
 
-		maybe_send_schema(ctx, change, relation, relentry);
-	}
+    maybe_send_schema(ctx, change, relation, relentry);
+  }
 
-	if (nrelids > 0)
-	{
-		OutputPluginPrepareWrite(ctx, true);
-		logicalrep_write_truncate(ctx->out,
-								  xid,
-								  nrelids,
-								  relids,
-								  change->data.truncate.cascade,
-								  change->data.truncate.restart_seqs);
-		OutputPluginWrite(ctx, true);
-	}
+  if (nrelids > 0) {
+    OutputPluginPrepareWrite(ctx, true);
+    logicalrep_write_truncate(ctx->out,
+                              xid,
+                              nrelids,
+                              relids,
+                              change->data.truncate.cascade,
+                              change->data.truncate.restart_seqs);
+    OutputPluginWrite(ctx, true);
+  }
 
-	MemoryContextSwitchTo(old);
-	MemoryContextReset(data->context);
+  MemoryContextSwitchTo(old);
+  MemoryContextReset(data->context);
 }
 
 static void
 pgoutput_message(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
-				 XLogRecPtr message_lsn, bool transactional, const char *prefix, Size sz,
-				 const char *message)
+                 XLogRecPtr message_lsn, bool transactional, const char *prefix, Size sz,
+                 const char *message)
 {
-	PGOutputData *data = (PGOutputData *) ctx->output_plugin_private;
-	TransactionId xid = InvalidTransactionId;
+  PGOutputData *data = (PGOutputData *) ctx->output_plugin_private;
+  TransactionId xid = InvalidTransactionId;
 
-	if (!data->messages)
-		return;
+  if (!data->messages)
+    return;
 
-	/*
-	 * Remember the xid for the message in streaming mode. See
-	 * pgoutput_change.
-	 */
-	if (data->in_streaming)
-		xid = txn->xid;
+  /*
+   * Remember the xid for the message in streaming mode. See
+   * pgoutput_change.
+   */
+  if (data->in_streaming)
+    xid = txn->xid;
 
-	/*
-	 * Output BEGIN if we haven't yet. Avoid for non-transactional messages.
-	 */
-	if (transactional)
-	{
-		PGOutputTxnData *txndata = (PGOutputTxnData *) txn->output_plugin_private;
+  /*
+   * Output BEGIN if we haven't yet. Avoid for non-transactional messages.
+   */
+  if (transactional) {
+    PGOutputTxnData *txndata = (PGOutputTxnData *) txn->output_plugin_private;
 
-		/* Send BEGIN if we haven't yet */
-		if (txndata && !txndata->sent_begin_txn)
-			pgoutput_send_begin(ctx, txn);
-	}
+    /* Send BEGIN if we haven't yet */
+    if (txndata && !txndata->sent_begin_txn)
+      pgoutput_send_begin(ctx, txn);
+  }
 
-	OutputPluginPrepareWrite(ctx, true);
-	logicalrep_write_message(ctx->out,
-							 xid,
-							 message_lsn,
-							 transactional,
-							 prefix,
-							 sz,
-							 message);
-	OutputPluginWrite(ctx, true);
+  OutputPluginPrepareWrite(ctx, true);
+  logicalrep_write_message(ctx->out,
+                           xid,
+                           message_lsn,
+                           transactional,
+                           prefix,
+                           sz,
+                           message);
+  OutputPluginWrite(ctx, true);
 }
 
 /*
@@ -1765,14 +1722,14 @@ pgoutput_message(LogicalDecodingContext *ctx, ReorderBufferTXN *txn,
  */
 static bool
 pgoutput_origin_filter(LogicalDecodingContext *ctx,
-					   RepOriginId origin_id)
+                       RepOriginId origin_id)
 {
-	PGOutputData *data = (PGOutputData *) ctx->output_plugin_private;
+  PGOutputData *data = (PGOutputData *) ctx->output_plugin_private;
 
-	if (data->publish_no_origin && origin_id != InvalidRepOriginId)
-		return true;
+  if (data->publish_no_origin && origin_id != InvalidRepOriginId)
+    return true;
 
-	return false;
+  return false;
 }
 
 /*
@@ -1785,7 +1742,7 @@ pgoutput_origin_filter(LogicalDecodingContext *ctx,
 static void
 pgoutput_shutdown(LogicalDecodingContext *ctx)
 {
-	pgoutput_memory_context_reset(NULL);
+  pgoutput_memory_context_reset(NULL);
 }
 
 /*
@@ -1799,25 +1756,24 @@ pgoutput_shutdown(LogicalDecodingContext *ctx)
 static List *
 LoadPublications(List *pubnames)
 {
-	List	   *result = NIL;
-	ListCell   *lc;
+  List     *result = NIL;
+  ListCell   *lc;
 
-	foreach(lc, pubnames)
-	{
-		char	   *pubname = (char *) lfirst(lc);
-		Publication *pub = GetPublicationByName(pubname, true);
+  foreach(lc, pubnames) {
+    char     *pubname = (char *) lfirst(lc);
+    Publication *pub = GetPublicationByName(pubname, true);
 
-		if (pub)
-			result = lappend(result, pub);
-		else
-			ereport(WARNING,
-					errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-					errmsg("skipped loading publication \"%s\"", pubname),
-					errdetail("The publication does not exist at this point in the WAL."),
-					errhint("Create the publication if it does not exist."));
-	}
+    if (pub)
+      result = lappend(result, pub);
+    else
+      ereport(WARNING,
+              errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+              errmsg("skipped loading publication \"%s\"", pubname),
+              errdetail("The publication does not exist at this point in the WAL."),
+              errhint("Create the publication if it does not exist."));
+  }
 
-	return result;
+  return result;
 }
 
 /*
@@ -1828,7 +1784,7 @@ LoadPublications(List *pubnames)
 static void
 publication_invalidation_cb(Datum arg, int cacheid, uint32 hashvalue)
 {
-	publications_valid = false;
+  publications_valid = false;
 }
 
 /*
@@ -1836,31 +1792,31 @@ publication_invalidation_cb(Datum arg, int cacheid, uint32 hashvalue)
  */
 static void
 pgoutput_stream_start(struct LogicalDecodingContext *ctx,
-					  ReorderBufferTXN *txn)
+                      ReorderBufferTXN *txn)
 {
-	PGOutputData *data = (PGOutputData *) ctx->output_plugin_private;
-	bool		send_replication_origin = txn->origin_id != InvalidRepOriginId;
+  PGOutputData *data = (PGOutputData *) ctx->output_plugin_private;
+  bool    send_replication_origin = txn->origin_id != InvalidRepOriginId;
 
-	/* we can't nest streaming of transactions */
-	Assert(!data->in_streaming);
+  /* we can't nest streaming of transactions */
+  Assert(!data->in_streaming);
 
-	/*
-	 * If we already sent the first stream for this transaction then don't
-	 * send the origin id in the subsequent streams.
-	 */
-	if (rbtxn_is_streamed(txn))
-		send_replication_origin = false;
+  /*
+   * If we already sent the first stream for this transaction then don't
+   * send the origin id in the subsequent streams.
+   */
+  if (rbtxn_is_streamed(txn))
+    send_replication_origin = false;
 
-	OutputPluginPrepareWrite(ctx, !send_replication_origin);
-	logicalrep_write_stream_start(ctx->out, txn->xid, !rbtxn_is_streamed(txn));
+  OutputPluginPrepareWrite(ctx, !send_replication_origin);
+  logicalrep_write_stream_start(ctx->out, txn->xid, !rbtxn_is_streamed(txn));
 
-	send_repl_origin(ctx, txn->origin_id, InvalidXLogRecPtr,
-					 send_replication_origin);
+  send_repl_origin(ctx, txn->origin_id, InvalidXLogRecPtr,
+                   send_replication_origin);
 
-	OutputPluginWrite(ctx, true);
+  OutputPluginWrite(ctx, true);
 
-	/* we're streaming a chunk of transaction now */
-	data->in_streaming = true;
+  /* we're streaming a chunk of transaction now */
+  data->in_streaming = true;
 }
 
 /*
@@ -1868,19 +1824,19 @@ pgoutput_stream_start(struct LogicalDecodingContext *ctx,
  */
 static void
 pgoutput_stream_stop(struct LogicalDecodingContext *ctx,
-					 ReorderBufferTXN *txn)
+                     ReorderBufferTXN *txn)
 {
-	PGOutputData *data = (PGOutputData *) ctx->output_plugin_private;
+  PGOutputData *data = (PGOutputData *) ctx->output_plugin_private;
 
-	/* we should be streaming a transaction */
-	Assert(data->in_streaming);
+  /* we should be streaming a transaction */
+  Assert(data->in_streaming);
 
-	OutputPluginPrepareWrite(ctx, true);
-	logicalrep_write_stream_stop(ctx->out);
-	OutputPluginWrite(ctx, true);
+  OutputPluginPrepareWrite(ctx, true);
+  logicalrep_write_stream_stop(ctx->out);
+  OutputPluginWrite(ctx, true);
 
-	/* we've stopped streaming a transaction */
-	data->in_streaming = false;
+  /* we've stopped streaming a transaction */
+  data->in_streaming = false;
 }
 
 /*
@@ -1889,31 +1845,31 @@ pgoutput_stream_stop(struct LogicalDecodingContext *ctx,
  */
 static void
 pgoutput_stream_abort(struct LogicalDecodingContext *ctx,
-					  ReorderBufferTXN *txn,
-					  XLogRecPtr abort_lsn)
+                      ReorderBufferTXN *txn,
+                      XLogRecPtr abort_lsn)
 {
-	ReorderBufferTXN *toptxn;
-	PGOutputData *data = (PGOutputData *) ctx->output_plugin_private;
-	bool		write_abort_info = (data->streaming == LOGICALREP_STREAM_PARALLEL);
+  ReorderBufferTXN *toptxn;
+  PGOutputData *data = (PGOutputData *) ctx->output_plugin_private;
+  bool    write_abort_info = (data->streaming == LOGICALREP_STREAM_PARALLEL);
 
-	/*
-	 * The abort should happen outside streaming block, even for streamed
-	 * transactions. The transaction has to be marked as streamed, though.
-	 */
-	Assert(!data->in_streaming);
+  /*
+   * The abort should happen outside streaming block, even for streamed
+   * transactions. The transaction has to be marked as streamed, though.
+   */
+  Assert(!data->in_streaming);
 
-	/* determine the toplevel transaction */
-	toptxn = rbtxn_get_toptxn(txn);
+  /* determine the toplevel transaction */
+  toptxn = rbtxn_get_toptxn(txn);
 
-	Assert(rbtxn_is_streamed(toptxn));
+  Assert(rbtxn_is_streamed(toptxn));
 
-	OutputPluginPrepareWrite(ctx, true);
-	logicalrep_write_stream_abort(ctx->out, toptxn->xid, txn->xid, abort_lsn,
-								  txn->xact_time.abort_time, write_abort_info);
+  OutputPluginPrepareWrite(ctx, true);
+  logicalrep_write_stream_abort(ctx->out, toptxn->xid, txn->xid, abort_lsn,
+                                txn->xact_time.abort_time, write_abort_info);
 
-	OutputPluginWrite(ctx, true);
+  OutputPluginWrite(ctx, true);
 
-	cleanup_rel_sync_cache(toptxn->xid, false);
+  cleanup_rel_sync_cache(toptxn->xid, false);
 }
 
 /*
@@ -1922,25 +1878,25 @@ pgoutput_stream_abort(struct LogicalDecodingContext *ctx,
  */
 static void
 pgoutput_stream_commit(struct LogicalDecodingContext *ctx,
-					   ReorderBufferTXN *txn,
-					   XLogRecPtr commit_lsn)
+                       ReorderBufferTXN *txn,
+                       XLogRecPtr commit_lsn)
 {
-	PGOutputData *data PG_USED_FOR_ASSERTS_ONLY = (PGOutputData *) ctx->output_plugin_private;
+  PGOutputData *data PG_USED_FOR_ASSERTS_ONLY = (PGOutputData *) ctx->output_plugin_private;
 
-	/*
-	 * The commit should happen outside streaming block, even for streamed
-	 * transactions. The transaction has to be marked as streamed, though.
-	 */
-	Assert(!data->in_streaming);
-	Assert(rbtxn_is_streamed(txn));
+  /*
+   * The commit should happen outside streaming block, even for streamed
+   * transactions. The transaction has to be marked as streamed, though.
+   */
+  Assert(!data->in_streaming);
+  Assert(rbtxn_is_streamed(txn));
 
-	OutputPluginUpdateProgress(ctx, false);
+  OutputPluginUpdateProgress(ctx, false);
 
-	OutputPluginPrepareWrite(ctx, true);
-	logicalrep_write_stream_commit(ctx->out, txn, commit_lsn);
-	OutputPluginWrite(ctx, true);
+  OutputPluginPrepareWrite(ctx, true);
+  logicalrep_write_stream_commit(ctx->out, txn, commit_lsn);
+  OutputPluginWrite(ctx, true);
 
-	cleanup_rel_sync_cache(txn->xid, true);
+  cleanup_rel_sync_cache(txn->xid, true);
 }
 
 /*
@@ -1950,15 +1906,15 @@ pgoutput_stream_commit(struct LogicalDecodingContext *ctx,
  */
 static void
 pgoutput_stream_prepare_txn(LogicalDecodingContext *ctx,
-							ReorderBufferTXN *txn,
-							XLogRecPtr prepare_lsn)
+                            ReorderBufferTXN *txn,
+                            XLogRecPtr prepare_lsn)
 {
-	Assert(rbtxn_is_streamed(txn));
+  Assert(rbtxn_is_streamed(txn));
 
-	OutputPluginUpdateProgress(ctx, false);
-	OutputPluginPrepareWrite(ctx, true);
-	logicalrep_write_stream_prepare(ctx->out, txn, prepare_lsn);
-	OutputPluginWrite(ctx, true);
+  OutputPluginUpdateProgress(ctx, false);
+  OutputPluginPrepareWrite(ctx, true);
+  logicalrep_write_stream_prepare(ctx->out, txn, prepare_lsn);
+  OutputPluginWrite(ctx, true);
 }
 
 /*
@@ -1971,47 +1927,47 @@ pgoutput_stream_prepare_txn(LogicalDecodingContext *ctx,
 static void
 init_rel_sync_cache(MemoryContext cachectx)
 {
-	HASHCTL		ctl;
-	static bool relation_callbacks_registered = false;
+  HASHCTL   ctl;
+  static bool relation_callbacks_registered = false;
 
-	/* Nothing to do if hash table already exists */
-	if (RelationSyncCache != NULL)
-		return;
+  /* Nothing to do if hash table already exists */
+  if (RelationSyncCache != NULL)
+    return;
 
-	/* Make a new hash table for the cache */
-	ctl.keysize = sizeof(Oid);
-	ctl.entrysize = sizeof(RelationSyncEntry);
-	ctl.hcxt = cachectx;
+  /* Make a new hash table for the cache */
+  ctl.keysize = sizeof(Oid);
+  ctl.entrysize = sizeof(RelationSyncEntry);
+  ctl.hcxt = cachectx;
 
-	RelationSyncCache = hash_create("logical replication output relation cache",
-									128, &ctl,
-									HASH_ELEM | HASH_CONTEXT | HASH_BLOBS);
+  RelationSyncCache = hash_create("logical replication output relation cache",
+                                  128, &ctl,
+                                  HASH_ELEM | HASH_CONTEXT | HASH_BLOBS);
 
-	Assert(RelationSyncCache != NULL);
+  Assert(RelationSyncCache != NULL);
 
-	/* No more to do if we already registered callbacks */
-	if (relation_callbacks_registered)
-		return;
+  /* No more to do if we already registered callbacks */
+  if (relation_callbacks_registered)
+    return;
 
-	/* We must update the cache entry for a relation after a relcache flush */
-	CacheRegisterRelcacheCallback(rel_sync_cache_relation_cb, (Datum) 0);
+  /* We must update the cache entry for a relation after a relcache flush */
+  CacheRegisterRelcacheCallback(rel_sync_cache_relation_cb, (Datum) 0);
 
-	/*
-	 * Flush all cache entries after a pg_namespace change, in case it was a
-	 * schema rename affecting a relation being replicated.
-	 *
-	 * XXX: It is not a good idea to invalidate all the relation entries in
-	 * RelationSyncCache on schema rename. We can optimize it to invalidate
-	 * only the required relations by either having a specific invalidation
-	 * message containing impacted relations or by having schema information
-	 * in each RelationSyncCache entry and using hashvalue of pg_namespace.oid
-	 * passed to the callback.
-	 */
-	CacheRegisterSyscacheCallback(NAMESPACEOID,
-								  rel_sync_cache_publication_cb,
-								  (Datum) 0);
+  /*
+   * Flush all cache entries after a pg_namespace change, in case it was a
+   * schema rename affecting a relation being replicated.
+   *
+   * XXX: It is not a good idea to invalidate all the relation entries in
+   * RelationSyncCache on schema rename. We can optimize it to invalidate
+   * only the required relations by either having a specific invalidation
+   * message containing impacted relations or by having schema information
+   * in each RelationSyncCache entry and using hashvalue of pg_namespace.oid
+   * passed to the callback.
+   */
+  CacheRegisterSyscacheCallback(NAMESPACEOID,
+                                rel_sync_cache_publication_cb,
+                                (Datum) 0);
 
-	relation_callbacks_registered = true;
+  relation_callbacks_registered = true;
 }
 
 /*
@@ -2020,7 +1976,7 @@ init_rel_sync_cache(MemoryContext cachectx)
 static bool
 get_schema_sent_in_streamed_txn(RelationSyncEntry *entry, TransactionId xid)
 {
-	return list_member_xid(entry->streamed_txns, xid);
+  return list_member_xid(entry->streamed_txns, xid);
 }
 
 /*
@@ -2030,13 +1986,13 @@ get_schema_sent_in_streamed_txn(RelationSyncEntry *entry, TransactionId xid)
 static void
 set_schema_sent_in_streamed_txn(RelationSyncEntry *entry, TransactionId xid)
 {
-	MemoryContext oldctx;
+  MemoryContext oldctx;
 
-	oldctx = MemoryContextSwitchTo(CacheMemoryContext);
+  oldctx = MemoryContextSwitchTo(CacheMemoryContext);
 
-	entry->streamed_txns = lappend_xid(entry->streamed_txns, xid);
+  entry->streamed_txns = lappend_xid(entry->streamed_txns, xid);
 
-	MemoryContextSwitchTo(oldctx);
+  MemoryContextSwitchTo(oldctx);
 }
 
 /*
@@ -2051,285 +2007,272 @@ set_schema_sent_in_streamed_txn(RelationSyncEntry *entry, TransactionId xid)
 static RelationSyncEntry *
 get_rel_sync_entry(PGOutputData *data, Relation relation)
 {
-	RelationSyncEntry *entry;
-	bool		found;
-	MemoryContext oldctx;
-	Oid			relid = RelationGetRelid(relation);
+  RelationSyncEntry *entry;
+  bool    found;
+  MemoryContext oldctx;
+  Oid     relid = RelationGetRelid(relation);
 
-	Assert(RelationSyncCache != NULL);
+  Assert(RelationSyncCache != NULL);
 
-	/* Find cached relation info, creating if not found */
-	entry = (RelationSyncEntry *) hash_search(RelationSyncCache,
-											  &relid,
-											  HASH_ENTER, &found);
-	Assert(entry != NULL);
+  /* Find cached relation info, creating if not found */
+  entry = (RelationSyncEntry *) hash_search(RelationSyncCache,
+          &relid,
+          HASH_ENTER, &found);
+  Assert(entry != NULL);
 
-	/* initialize entry, if it's new */
-	if (!found)
-	{
-		entry->replicate_valid = false;
-		entry->schema_sent = false;
-		entry->include_gencols_type = PUBLISH_GENCOLS_NONE;
-		entry->streamed_txns = NIL;
-		entry->pubactions.pubinsert = entry->pubactions.pubupdate =
-			entry->pubactions.pubdelete = entry->pubactions.pubtruncate = false;
-		entry->new_slot = NULL;
-		entry->old_slot = NULL;
-		memset(entry->exprstate, 0, sizeof(entry->exprstate));
-		entry->entry_cxt = NULL;
-		entry->publish_as_relid = InvalidOid;
-		entry->columns = NULL;
-		entry->attrmap = NULL;
-	}
+  /* initialize entry, if it's new */
+  if (!found) {
+    entry->replicate_valid = false;
+    entry->schema_sent = false;
+    entry->include_gencols_type = PUBLISH_GENCOLS_NONE;
+    entry->streamed_txns = NIL;
+    entry->pubactions.pubinsert = entry->pubactions.pubupdate =
+                                    entry->pubactions.pubdelete = entry->pubactions.pubtruncate = false;
+    entry->new_slot = NULL;
+    entry->old_slot = NULL;
+    memset(entry->exprstate, 0, sizeof(entry->exprstate));
+    entry->entry_cxt = NULL;
+    entry->publish_as_relid = InvalidOid;
+    entry->columns = NULL;
+    entry->attrmap = NULL;
+  }
 
-	/* Validate the entry */
-	if (!entry->replicate_valid)
-	{
-		Oid			schemaId = get_rel_namespace(relid);
-		List	   *pubids = GetRelationPublications(relid);
+  /* Validate the entry */
+  if (!entry->replicate_valid) {
+    Oid     schemaId = get_rel_namespace(relid);
+    List     *pubids = GetRelationPublications(relid);
 
-		/*
-		 * We don't acquire a lock on the namespace system table as we build
-		 * the cache entry using a historic snapshot and all the later changes
-		 * are absorbed while decoding WAL.
-		 */
-		List	   *schemaPubids = GetSchemaPublications(schemaId);
-		ListCell   *lc;
-		Oid			publish_as_relid = relid;
-		int			publish_ancestor_level = 0;
-		bool		am_partition = get_rel_relispartition(relid);
-		char		relkind = get_rel_relkind(relid);
-		List	   *rel_publications = NIL;
+    /*
+     * We don't acquire a lock on the namespace system table as we build
+     * the cache entry using a historic snapshot and all the later changes
+     * are absorbed while decoding WAL.
+     */
+    List     *schemaPubids = GetSchemaPublications(schemaId);
+    ListCell   *lc;
+    Oid     publish_as_relid = relid;
+    int     publish_ancestor_level = 0;
+    bool    am_partition = get_rel_relispartition(relid);
+    char    relkind = get_rel_relkind(relid);
+    List     *rel_publications = NIL;
 
-		/* Reload publications if needed before use. */
-		if (!publications_valid)
-		{
-			MemoryContextReset(data->pubctx);
+    /* Reload publications if needed before use. */
+    if (!publications_valid) {
+      MemoryContextReset(data->pubctx);
 
-			oldctx = MemoryContextSwitchTo(data->pubctx);
-			data->publications = LoadPublications(data->publication_names);
-			MemoryContextSwitchTo(oldctx);
-			publications_valid = true;
-		}
+      oldctx = MemoryContextSwitchTo(data->pubctx);
+      data->publications = LoadPublications(data->publication_names);
+      MemoryContextSwitchTo(oldctx);
+      publications_valid = true;
+    }
 
-		/*
-		 * Reset schema_sent status as the relation definition may have
-		 * changed.  Also reset pubactions to empty in case rel was dropped
-		 * from a publication.  Also free any objects that depended on the
-		 * earlier definition.
-		 */
-		entry->schema_sent = false;
-		entry->include_gencols_type = PUBLISH_GENCOLS_NONE;
-		list_free(entry->streamed_txns);
-		entry->streamed_txns = NIL;
-		bms_free(entry->columns);
-		entry->columns = NULL;
-		entry->pubactions.pubinsert = false;
-		entry->pubactions.pubupdate = false;
-		entry->pubactions.pubdelete = false;
-		entry->pubactions.pubtruncate = false;
+    /*
+     * Reset schema_sent status as the relation definition may have
+     * changed.  Also reset pubactions to empty in case rel was dropped
+     * from a publication.  Also free any objects that depended on the
+     * earlier definition.
+     */
+    entry->schema_sent = false;
+    entry->include_gencols_type = PUBLISH_GENCOLS_NONE;
+    list_free(entry->streamed_txns);
+    entry->streamed_txns = NIL;
+    bms_free(entry->columns);
+    entry->columns = NULL;
+    entry->pubactions.pubinsert = false;
+    entry->pubactions.pubupdate = false;
+    entry->pubactions.pubdelete = false;
+    entry->pubactions.pubtruncate = false;
 
-		/*
-		 * Tuple slots cleanups. (Will be rebuilt later if needed).
-		 */
-		if (entry->old_slot)
-		{
-			TupleDesc	desc = entry->old_slot->tts_tupleDescriptor;
+    /*
+     * Tuple slots cleanups. (Will be rebuilt later if needed).
+     */
+    if (entry->old_slot) {
+      TupleDesc desc = entry->old_slot->tts_tupleDescriptor;
 
-			Assert(desc->tdrefcount == -1);
+      Assert(desc->tdrefcount == -1);
 
-			ExecDropSingleTupleTableSlot(entry->old_slot);
+      ExecDropSingleTupleTableSlot(entry->old_slot);
 
-			/*
-			 * ExecDropSingleTupleTableSlot() would not free the TupleDesc, so
-			 * do it now to avoid any leaks.
-			 */
-			FreeTupleDesc(desc);
-		}
-		if (entry->new_slot)
-		{
-			TupleDesc	desc = entry->new_slot->tts_tupleDescriptor;
+      /*
+       * ExecDropSingleTupleTableSlot() would not free the TupleDesc, so
+       * do it now to avoid any leaks.
+       */
+      FreeTupleDesc(desc);
+    }
 
-			Assert(desc->tdrefcount == -1);
+    if (entry->new_slot) {
+      TupleDesc desc = entry->new_slot->tts_tupleDescriptor;
 
-			ExecDropSingleTupleTableSlot(entry->new_slot);
+      Assert(desc->tdrefcount == -1);
 
-			/*
-			 * ExecDropSingleTupleTableSlot() would not free the TupleDesc, so
-			 * do it now to avoid any leaks.
-			 */
-			FreeTupleDesc(desc);
-		}
+      ExecDropSingleTupleTableSlot(entry->new_slot);
 
-		entry->old_slot = NULL;
-		entry->new_slot = NULL;
+      /*
+       * ExecDropSingleTupleTableSlot() would not free the TupleDesc, so
+       * do it now to avoid any leaks.
+       */
+      FreeTupleDesc(desc);
+    }
 
-		if (entry->attrmap)
-			free_attrmap(entry->attrmap);
-		entry->attrmap = NULL;
+    entry->old_slot = NULL;
+    entry->new_slot = NULL;
 
-		/*
-		 * Row filter cache cleanups.
-		 */
-		if (entry->entry_cxt)
-			MemoryContextDelete(entry->entry_cxt);
+    if (entry->attrmap)
+      free_attrmap(entry->attrmap);
 
-		entry->entry_cxt = NULL;
-		entry->estate = NULL;
-		memset(entry->exprstate, 0, sizeof(entry->exprstate));
+    entry->attrmap = NULL;
 
-		/*
-		 * Build publication cache. We can't use one provided by relcache as
-		 * relcache considers all publications that the given relation is in,
-		 * but here we only need to consider ones that the subscriber
-		 * requested.
-		 */
-		foreach(lc, data->publications)
-		{
-			Publication *pub = lfirst(lc);
-			bool		publish = false;
+    /*
+     * Row filter cache cleanups.
+     */
+    if (entry->entry_cxt)
+      MemoryContextDelete(entry->entry_cxt);
 
-			/*
-			 * Under what relid should we publish changes in this publication?
-			 * We'll use the top-most relid across all publications. Also
-			 * track the ancestor level for this publication.
-			 */
-			Oid			pub_relid = relid;
-			int			ancestor_level = 0;
+    entry->entry_cxt = NULL;
+    entry->estate = NULL;
+    memset(entry->exprstate, 0, sizeof(entry->exprstate));
 
-			/*
-			 * If this is a FOR ALL TABLES publication, pick the partition
-			 * root and set the ancestor level accordingly.
-			 */
-			if (pub->alltables)
-			{
-				publish = true;
-				if (pub->pubviaroot && am_partition)
-				{
-					List	   *ancestors = get_partition_ancestors(relid);
+    /*
+     * Build publication cache. We can't use one provided by relcache as
+     * relcache considers all publications that the given relation is in,
+     * but here we only need to consider ones that the subscriber
+     * requested.
+     */
+    foreach(lc, data->publications) {
+      Publication *pub = lfirst(lc);
+      bool    publish = false;
 
-					pub_relid = llast_oid(ancestors);
-					ancestor_level = list_length(ancestors);
-				}
-			}
+      /*
+       * Under what relid should we publish changes in this publication?
+       * We'll use the top-most relid across all publications. Also
+       * track the ancestor level for this publication.
+       */
+      Oid     pub_relid = relid;
+      int     ancestor_level = 0;
 
-			if (!publish)
-			{
-				bool		ancestor_published = false;
+      /*
+       * If this is a FOR ALL TABLES publication, pick the partition
+       * root and set the ancestor level accordingly.
+       */
+      if (pub->alltables) {
+        publish = true;
 
-				/*
-				 * For a partition, check if any of the ancestors are
-				 * published.  If so, note down the topmost ancestor that is
-				 * published via this publication, which will be used as the
-				 * relation via which to publish the partition's changes.
-				 */
-				if (am_partition)
-				{
-					Oid			ancestor;
-					int			level;
-					List	   *ancestors = get_partition_ancestors(relid);
+        if (pub->pubviaroot && am_partition) {
+          List     *ancestors = get_partition_ancestors(relid);
 
-					ancestor = GetTopMostAncestorInPublication(pub->oid,
-															   ancestors,
-															   &level);
+          pub_relid = llast_oid(ancestors);
+          ancestor_level = list_length(ancestors);
+        }
+      }
 
-					if (ancestor != InvalidOid)
-					{
-						ancestor_published = true;
-						if (pub->pubviaroot)
-						{
-							pub_relid = ancestor;
-							ancestor_level = level;
-						}
-					}
-				}
+      if (!publish) {
+        bool    ancestor_published = false;
 
-				if (list_member_oid(pubids, pub->oid) ||
-					list_member_oid(schemaPubids, pub->oid) ||
-					ancestor_published)
-					publish = true;
-			}
+        /*
+         * For a partition, check if any of the ancestors are
+         * published.  If so, note down the topmost ancestor that is
+         * published via this publication, which will be used as the
+         * relation via which to publish the partition's changes.
+         */
+        if (am_partition) {
+          Oid     ancestor;
+          int     level;
+          List     *ancestors = get_partition_ancestors(relid);
 
-			/*
-			 * If the relation is to be published, determine actions to
-			 * publish, and list of columns, if appropriate.
-			 *
-			 * Don't publish changes for partitioned tables, because
-			 * publishing those of its partitions suffices, unless partition
-			 * changes won't be published due to pubviaroot being set.
-			 */
-			if (publish &&
-				(relkind != RELKIND_PARTITIONED_TABLE || pub->pubviaroot))
-			{
-				entry->pubactions.pubinsert |= pub->pubactions.pubinsert;
-				entry->pubactions.pubupdate |= pub->pubactions.pubupdate;
-				entry->pubactions.pubdelete |= pub->pubactions.pubdelete;
-				entry->pubactions.pubtruncate |= pub->pubactions.pubtruncate;
+          ancestor = GetTopMostAncestorInPublication(pub->oid,
+                     ancestors,
+                     &level);
 
-				/*
-				 * We want to publish the changes as the top-most ancestor
-				 * across all publications. So we need to check if the already
-				 * calculated level is higher than the new one. If yes, we can
-				 * ignore the new value (as it's a child). Otherwise the new
-				 * value is an ancestor, so we keep it.
-				 */
-				if (publish_ancestor_level > ancestor_level)
-					continue;
+          if (ancestor != InvalidOid) {
+            ancestor_published = true;
 
-				/*
-				 * If we found an ancestor higher up in the tree, discard the
-				 * list of publications through which we replicate it, and use
-				 * the new ancestor.
-				 */
-				if (publish_ancestor_level < ancestor_level)
-				{
-					publish_as_relid = pub_relid;
-					publish_ancestor_level = ancestor_level;
+            if (pub->pubviaroot) {
+              pub_relid = ancestor;
+              ancestor_level = level;
+            }
+          }
+        }
 
-					/* reset the publication list for this relation */
-					rel_publications = NIL;
-				}
-				else
-				{
-					/* Same ancestor level, has to be the same OID. */
-					Assert(publish_as_relid == pub_relid);
-				}
+        if (list_member_oid(pubids, pub->oid) ||
+            list_member_oid(schemaPubids, pub->oid) ||
+            ancestor_published)
+          publish = true;
+      }
 
-				/* Track publications for this ancestor. */
-				rel_publications = lappend(rel_publications, pub);
-			}
-		}
+      /*
+       * If the relation is to be published, determine actions to
+       * publish, and list of columns, if appropriate.
+       *
+       * Don't publish changes for partitioned tables, because
+       * publishing those of its partitions suffices, unless partition
+       * changes won't be published due to pubviaroot being set.
+       */
+      if (publish &&
+          (relkind != RELKIND_PARTITIONED_TABLE || pub->pubviaroot)) {
+        entry->pubactions.pubinsert |= pub->pubactions.pubinsert;
+        entry->pubactions.pubupdate |= pub->pubactions.pubupdate;
+        entry->pubactions.pubdelete |= pub->pubactions.pubdelete;
+        entry->pubactions.pubtruncate |= pub->pubactions.pubtruncate;
 
-		entry->publish_as_relid = publish_as_relid;
+        /*
+         * We want to publish the changes as the top-most ancestor
+         * across all publications. So we need to check if the already
+         * calculated level is higher than the new one. If yes, we can
+         * ignore the new value (as it's a child). Otherwise the new
+         * value is an ancestor, so we keep it.
+         */
+        if (publish_ancestor_level > ancestor_level)
+          continue;
 
-		/*
-		 * Initialize the tuple slot, map, and row filter. These are only used
-		 * when publishing inserts, updates, or deletes.
-		 */
-		if (entry->pubactions.pubinsert || entry->pubactions.pubupdate ||
-			entry->pubactions.pubdelete)
-		{
-			/* Initialize the tuple slot and map */
-			init_tuple_slot(data, relation, entry);
+        /*
+         * If we found an ancestor higher up in the tree, discard the
+         * list of publications through which we replicate it, and use
+         * the new ancestor.
+         */
+        if (publish_ancestor_level < ancestor_level) {
+          publish_as_relid = pub_relid;
+          publish_ancestor_level = ancestor_level;
 
-			/* Initialize the row filter */
-			pgoutput_row_filter_init(data, rel_publications, entry);
+          /* reset the publication list for this relation */
+          rel_publications = NIL;
+        } else {
+          /* Same ancestor level, has to be the same OID. */
+          Assert(publish_as_relid == pub_relid);
+        }
 
-			/* Check whether to publish generated columns. */
-			check_and_init_gencol(data, rel_publications, entry);
+        /* Track publications for this ancestor. */
+        rel_publications = lappend(rel_publications, pub);
+      }
+    }
 
-			/* Initialize the column list */
-			pgoutput_column_list_init(data, rel_publications, entry);
-		}
+    entry->publish_as_relid = publish_as_relid;
 
-		list_free(pubids);
-		list_free(schemaPubids);
-		list_free(rel_publications);
+    /*
+     * Initialize the tuple slot, map, and row filter. These are only used
+     * when publishing inserts, updates, or deletes.
+     */
+    if (entry->pubactions.pubinsert || entry->pubactions.pubupdate ||
+        entry->pubactions.pubdelete) {
+      /* Initialize the tuple slot and map */
+      init_tuple_slot(data, relation, entry);
 
-		entry->replicate_valid = true;
-	}
+      /* Initialize the row filter */
+      pgoutput_row_filter_init(data, rel_publications, entry);
 
-	return entry;
+      /* Check whether to publish generated columns. */
+      check_and_init_gencol(data, rel_publications, entry);
+
+      /* Initialize the column list */
+      pgoutput_column_list_init(data, rel_publications, entry);
+    }
+
+    list_free(pubids);
+    list_free(schemaPubids);
+    list_free(rel_publications);
+
+    entry->replicate_valid = true;
+  }
+
+  return entry;
 }
 
 /*
@@ -2346,33 +2289,31 @@ get_rel_sync_entry(PGOutputData *data, Relation relation)
 static void
 cleanup_rel_sync_cache(TransactionId xid, bool is_commit)
 {
-	HASH_SEQ_STATUS hash_seq;
-	RelationSyncEntry *entry;
+  HASH_SEQ_STATUS hash_seq;
+  RelationSyncEntry *entry;
 
-	Assert(RelationSyncCache != NULL);
+  Assert(RelationSyncCache != NULL);
 
-	hash_seq_init(&hash_seq, RelationSyncCache);
-	while ((entry = hash_seq_search(&hash_seq)) != NULL)
-	{
-		/*
-		 * We can set the schema_sent flag for an entry that has committed xid
-		 * in the list as that ensures that the subscriber would have the
-		 * corresponding schema and we don't need to send it unless there is
-		 * any invalidation for that relation.
-		 */
-		foreach_xid(streamed_txn, entry->streamed_txns)
-		{
-			if (xid == streamed_txn)
-			{
-				if (is_commit)
-					entry->schema_sent = true;
+  hash_seq_init(&hash_seq, RelationSyncCache);
 
-				entry->streamed_txns =
-					foreach_delete_current(entry->streamed_txns, streamed_txn);
-				break;
-			}
-		}
-	}
+  while ((entry = hash_seq_search(&hash_seq)) != NULL) {
+    /*
+     * We can set the schema_sent flag for an entry that has committed xid
+     * in the list as that ensures that the subscriber would have the
+     * corresponding schema and we don't need to send it unless there is
+     * any invalidation for that relation.
+     */
+    foreach_xid(streamed_txn, entry->streamed_txns) {
+      if (xid == streamed_txn) {
+        if (is_commit)
+          entry->schema_sent = true;
+
+        entry->streamed_txns =
+          foreach_delete_current(entry->streamed_txns, streamed_txn);
+        break;
+      }
+    }
+  }
 }
 
 /*
@@ -2381,46 +2322,44 @@ cleanup_rel_sync_cache(TransactionId xid, bool is_commit)
 static void
 rel_sync_cache_relation_cb(Datum arg, Oid relid)
 {
-	RelationSyncEntry *entry;
+  RelationSyncEntry *entry;
 
-	/*
-	 * We can get here if the plugin was used in SQL interface as the
-	 * RelationSyncCache is destroyed when the decoding finishes, but there is
-	 * no way to unregister the relcache invalidation callback.
-	 */
-	if (RelationSyncCache == NULL)
-		return;
+  /*
+   * We can get here if the plugin was used in SQL interface as the
+   * RelationSyncCache is destroyed when the decoding finishes, but there is
+   * no way to unregister the relcache invalidation callback.
+   */
+  if (RelationSyncCache == NULL)
+    return;
 
-	/*
-	 * Nobody keeps pointers to entries in this hash table around outside
-	 * logical decoding callback calls - but invalidation events can come in
-	 * *during* a callback if we do any syscache access in the callback.
-	 * Because of that we must mark the cache entry as invalid but not damage
-	 * any of its substructure here.  The next get_rel_sync_entry() call will
-	 * rebuild it all.
-	 */
-	if (OidIsValid(relid))
-	{
-		/*
-		 * Getting invalidations for relations that aren't in the table is
-		 * entirely normal.  So we don't care if it's found or not.
-		 */
-		entry = (RelationSyncEntry *) hash_search(RelationSyncCache, &relid,
-												  HASH_FIND, NULL);
-		if (entry != NULL)
-			entry->replicate_valid = false;
-	}
-	else
-	{
-		/* Whole cache must be flushed. */
-		HASH_SEQ_STATUS status;
+  /*
+   * Nobody keeps pointers to entries in this hash table around outside
+   * logical decoding callback calls - but invalidation events can come in
+   * *during* a callback if we do any syscache access in the callback.
+   * Because of that we must mark the cache entry as invalid but not damage
+   * any of its substructure here.  The next get_rel_sync_entry() call will
+   * rebuild it all.
+   */
+  if (OidIsValid(relid)) {
+    /*
+     * Getting invalidations for relations that aren't in the table is
+     * entirely normal.  So we don't care if it's found or not.
+     */
+    entry = (RelationSyncEntry *) hash_search(RelationSyncCache, &relid,
+            HASH_FIND, NULL);
 
-		hash_seq_init(&status, RelationSyncCache);
-		while ((entry = (RelationSyncEntry *) hash_seq_search(&status)) != NULL)
-		{
-			entry->replicate_valid = false;
-		}
-	}
+    if (entry != NULL)
+      entry->replicate_valid = false;
+  } else {
+    /* Whole cache must be flushed. */
+    HASH_SEQ_STATUS status;
+
+    hash_seq_init(&status, RelationSyncCache);
+
+    while ((entry = (RelationSyncEntry *) hash_seq_search(&status)) != NULL) {
+      entry->replicate_valid = false;
+    }
+  }
 }
 
 /*
@@ -2431,54 +2370,52 @@ rel_sync_cache_relation_cb(Datum arg, Oid relid)
 static void
 rel_sync_cache_publication_cb(Datum arg, int cacheid, uint32 hashvalue)
 {
-	HASH_SEQ_STATUS status;
-	RelationSyncEntry *entry;
+  HASH_SEQ_STATUS status;
+  RelationSyncEntry *entry;
 
-	/*
-	 * We can get here if the plugin was used in SQL interface as the
-	 * RelationSyncCache is destroyed when the decoding finishes, but there is
-	 * no way to unregister the invalidation callbacks.
-	 */
-	if (RelationSyncCache == NULL)
-		return;
+  /*
+   * We can get here if the plugin was used in SQL interface as the
+   * RelationSyncCache is destroyed when the decoding finishes, but there is
+   * no way to unregister the invalidation callbacks.
+   */
+  if (RelationSyncCache == NULL)
+    return;
 
-	/*
-	 * We have no easy way to identify which cache entries this invalidation
-	 * event might have affected, so just mark them all invalid.
-	 */
-	hash_seq_init(&status, RelationSyncCache);
-	while ((entry = (RelationSyncEntry *) hash_seq_search(&status)) != NULL)
-	{
-		entry->replicate_valid = false;
-	}
+  /*
+   * We have no easy way to identify which cache entries this invalidation
+   * event might have affected, so just mark them all invalid.
+   */
+  hash_seq_init(&status, RelationSyncCache);
+
+  while ((entry = (RelationSyncEntry *) hash_seq_search(&status)) != NULL) {
+    entry->replicate_valid = false;
+  }
 }
 
 /* Send Replication origin */
 static void
 send_repl_origin(LogicalDecodingContext *ctx, RepOriginId origin_id,
-				 XLogRecPtr origin_lsn, bool send_origin)
+                 XLogRecPtr origin_lsn, bool send_origin)
 {
-	if (send_origin)
-	{
-		char	   *origin;
+  if (send_origin) {
+    char     *origin;
 
-		/*----------
-		 * XXX: which behaviour do we want here?
-		 *
-		 * Alternatives:
-		 *  - don't send origin message if origin name not found
-		 *    (that's what we do now)
-		 *  - throw error - that will break replication, not good
-		 *  - send some special "unknown" origin
-		 *----------
-		 */
-		if (replorigin_by_oid(origin_id, true, &origin))
-		{
-			/* Message boundary */
-			OutputPluginWrite(ctx, false);
-			OutputPluginPrepareWrite(ctx, true);
+    /*----------
+     * XXX: which behaviour do we want here?
+     *
+     * Alternatives:
+     *  - don't send origin message if origin name not found
+     *    (that's what we do now)
+     *  - throw error - that will break replication, not good
+     *  - send some special "unknown" origin
+     *----------
+     */
+    if (replorigin_by_oid(origin_id, true, &origin)) {
+      /* Message boundary */
+      OutputPluginWrite(ctx, false);
+      OutputPluginPrepareWrite(ctx, true);
 
-			logicalrep_write_origin(ctx->out, origin, origin_lsn);
-		}
-	}
+      logicalrep_write_origin(ctx->out, origin, origin_lsn);
+    }
+  }
 }

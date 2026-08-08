@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * logicalproto.h
- *		logical replication protocol
+ *    logical replication protocol
  *
  * Copyright (c) 2015-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *		src/include/replication/logicalproto.h
+ *    src/include/replication/logicalproto.h
  *
  *-------------------------------------------------------------------------
  */
@@ -56,25 +56,25 @@
  */
 typedef enum LogicalRepMsgType
 {
-	LOGICAL_REP_MSG_BEGIN = 'B',
-	LOGICAL_REP_MSG_COMMIT = 'C',
-	LOGICAL_REP_MSG_ORIGIN = 'O',
-	LOGICAL_REP_MSG_INSERT = 'I',
-	LOGICAL_REP_MSG_UPDATE = 'U',
-	LOGICAL_REP_MSG_DELETE = 'D',
-	LOGICAL_REP_MSG_TRUNCATE = 'T',
-	LOGICAL_REP_MSG_RELATION = 'R',
-	LOGICAL_REP_MSG_TYPE = 'Y',
-	LOGICAL_REP_MSG_MESSAGE = 'M',
-	LOGICAL_REP_MSG_BEGIN_PREPARE = 'b',
-	LOGICAL_REP_MSG_PREPARE = 'P',
-	LOGICAL_REP_MSG_COMMIT_PREPARED = 'K',
-	LOGICAL_REP_MSG_ROLLBACK_PREPARED = 'r',
-	LOGICAL_REP_MSG_STREAM_START = 'S',
-	LOGICAL_REP_MSG_STREAM_STOP = 'E',
-	LOGICAL_REP_MSG_STREAM_COMMIT = 'c',
-	LOGICAL_REP_MSG_STREAM_ABORT = 'A',
-	LOGICAL_REP_MSG_STREAM_PREPARE = 'p',
+  LOGICAL_REP_MSG_BEGIN = 'B',
+  LOGICAL_REP_MSG_COMMIT = 'C',
+  LOGICAL_REP_MSG_ORIGIN = 'O',
+  LOGICAL_REP_MSG_INSERT = 'I',
+  LOGICAL_REP_MSG_UPDATE = 'U',
+  LOGICAL_REP_MSG_DELETE = 'D',
+  LOGICAL_REP_MSG_TRUNCATE = 'T',
+  LOGICAL_REP_MSG_RELATION = 'R',
+  LOGICAL_REP_MSG_TYPE = 'Y',
+  LOGICAL_REP_MSG_MESSAGE = 'M',
+  LOGICAL_REP_MSG_BEGIN_PREPARE = 'b',
+  LOGICAL_REP_MSG_PREPARE = 'P',
+  LOGICAL_REP_MSG_COMMIT_PREPARED = 'K',
+  LOGICAL_REP_MSG_ROLLBACK_PREPARED = 'r',
+  LOGICAL_REP_MSG_STREAM_START = 'S',
+  LOGICAL_REP_MSG_STREAM_STOP = 'E',
+  LOGICAL_REP_MSG_STREAM_COMMIT = 'c',
+  LOGICAL_REP_MSG_STREAM_ABORT = 'A',
+  LOGICAL_REP_MSG_STREAM_PREPARE = 'p',
 } LogicalRepMsgType;
 
 /*
@@ -83,59 +83,59 @@ typedef enum LogicalRepMsgType
  */
 typedef struct LogicalRepTupleData
 {
-	/* Array of StringInfos, one per column; some may be unused */
-	StringInfoData *colvalues;
-	/* Array of markers for null/unchanged/text/binary, one per column */
-	char	   *colstatus;
-	/* Length of above arrays */
-	int			ncols;
+  /* Array of StringInfos, one per column; some may be unused */
+  StringInfoData *colvalues;
+  /* Array of markers for null/unchanged/text/binary, one per column */
+  char     *colstatus;
+  /* Length of above arrays */
+  int     ncols;
 } LogicalRepTupleData;
 
 /* Possible values for LogicalRepTupleData.colstatus[colnum] */
 /* These values are also used in the on-the-wire protocol */
-#define LOGICALREP_COLUMN_NULL		'n'
-#define LOGICALREP_COLUMN_UNCHANGED	'u'
-#define LOGICALREP_COLUMN_TEXT		't'
-#define LOGICALREP_COLUMN_BINARY	'b' /* added in PG14 */
+#define LOGICALREP_COLUMN_NULL    'n'
+#define LOGICALREP_COLUMN_UNCHANGED 'u'
+#define LOGICALREP_COLUMN_TEXT    't'
+#define LOGICALREP_COLUMN_BINARY  'b' /* added in PG14 */
 
 typedef uint32 LogicalRepRelId;
 
 /* Relation information */
 typedef struct LogicalRepRelation
 {
-	/* Info coming from the remote side. */
-	LogicalRepRelId remoteid;	/* unique id of the relation */
-	char	   *nspname;		/* schema name */
-	char	   *relname;		/* relation name */
-	int			natts;			/* number of columns */
-	char	  **attnames;		/* column names */
-	Oid		   *atttyps;		/* column types */
-	char		replident;		/* replica identity */
-	char		relkind;		/* remote relation kind */
-	Bitmapset  *attkeys;		/* Bitmap of key columns */
+  /* Info coming from the remote side. */
+  LogicalRepRelId remoteid; /* unique id of the relation */
+  char     *nspname;    /* schema name */
+  char     *relname;    /* relation name */
+  int     natts;      /* number of columns */
+  char    **attnames;   /* column names */
+  Oid      *atttyps;    /* column types */
+  char    replident;    /* replica identity */
+  char    relkind;    /* remote relation kind */
+  Bitmapset  *attkeys;    /* Bitmap of key columns */
 } LogicalRepRelation;
 
 /* Type mapping info */
 typedef struct LogicalRepTyp
 {
-	Oid			remoteid;		/* unique id of the remote type */
-	char	   *nspname;		/* schema name of remote type */
-	char	   *typname;		/* name of the remote type */
+  Oid     remoteid;   /* unique id of the remote type */
+  char     *nspname;    /* schema name of remote type */
+  char     *typname;    /* name of the remote type */
 } LogicalRepTyp;
 
 /* Transaction info */
 typedef struct LogicalRepBeginData
 {
-	XLogRecPtr	final_lsn;
-	TimestampTz committime;
-	TransactionId xid;
+  XLogRecPtr  final_lsn;
+  TimestampTz committime;
+  TransactionId xid;
 } LogicalRepBeginData;
 
 typedef struct LogicalRepCommitData
 {
-	XLogRecPtr	commit_lsn;
-	XLogRecPtr	end_lsn;
-	TimestampTz committime;
+  XLogRecPtr  commit_lsn;
+  XLogRecPtr  end_lsn;
+  TimestampTz committime;
 } LogicalRepCommitData;
 
 /*
@@ -143,11 +143,11 @@ typedef struct LogicalRepCommitData
  */
 typedef struct LogicalRepPreparedTxnData
 {
-	XLogRecPtr	prepare_lsn;
-	XLogRecPtr	end_lsn;
-	TimestampTz prepare_time;
-	TransactionId xid;
-	char		gid[GIDSIZE];
+  XLogRecPtr  prepare_lsn;
+  XLogRecPtr  end_lsn;
+  TimestampTz prepare_time;
+  TransactionId xid;
+  char    gid[GIDSIZE];
 } LogicalRepPreparedTxnData;
 
 /*
@@ -155,11 +155,11 @@ typedef struct LogicalRepPreparedTxnData
  */
 typedef struct LogicalRepCommitPreparedTxnData
 {
-	XLogRecPtr	commit_lsn;
-	XLogRecPtr	end_lsn;
-	TimestampTz commit_time;
-	TransactionId xid;
-	char		gid[GIDSIZE];
+  XLogRecPtr  commit_lsn;
+  XLogRecPtr  end_lsn;
+  TimestampTz commit_time;
+  TransactionId xid;
+  char    gid[GIDSIZE];
 } LogicalRepCommitPreparedTxnData;
 
 /*
@@ -172,12 +172,12 @@ typedef struct LogicalRepCommitPreparedTxnData
  */
 typedef struct LogicalRepRollbackPreparedTxnData
 {
-	XLogRecPtr	prepare_end_lsn;
-	XLogRecPtr	rollback_end_lsn;
-	TimestampTz prepare_time;
-	TimestampTz rollback_time;
-	TransactionId xid;
-	char		gid[GIDSIZE];
+  XLogRecPtr  prepare_end_lsn;
+  XLogRecPtr  rollback_end_lsn;
+  TimestampTz prepare_time;
+  TimestampTz rollback_time;
+  TransactionId xid;
+  char    gid[GIDSIZE];
 } LogicalRepRollbackPreparedTxnData;
 
 /*
@@ -185,96 +185,96 @@ typedef struct LogicalRepRollbackPreparedTxnData
  */
 typedef struct LogicalRepStreamAbortData
 {
-	TransactionId xid;
-	TransactionId subxid;
-	XLogRecPtr	abort_lsn;
-	TimestampTz abort_time;
+  TransactionId xid;
+  TransactionId subxid;
+  XLogRecPtr  abort_lsn;
+  TimestampTz abort_time;
 } LogicalRepStreamAbortData;
 
 extern void logicalrep_write_begin(StringInfo out, ReorderBufferTXN *txn);
 extern void logicalrep_read_begin(StringInfo in,
-								  LogicalRepBeginData *begin_data);
+                                  LogicalRepBeginData *begin_data);
 extern void logicalrep_write_commit(StringInfo out, ReorderBufferTXN *txn,
-									XLogRecPtr commit_lsn);
+                                    XLogRecPtr commit_lsn);
 extern void logicalrep_read_commit(StringInfo in,
-								   LogicalRepCommitData *commit_data);
+                                   LogicalRepCommitData *commit_data);
 extern void logicalrep_write_begin_prepare(StringInfo out, ReorderBufferTXN *txn);
 extern void logicalrep_read_begin_prepare(StringInfo in,
-										  LogicalRepPreparedTxnData *begin_data);
+    LogicalRepPreparedTxnData *begin_data);
 extern void logicalrep_write_prepare(StringInfo out, ReorderBufferTXN *txn,
-									 XLogRecPtr prepare_lsn);
+                                     XLogRecPtr prepare_lsn);
 extern void logicalrep_read_prepare(StringInfo in,
-									LogicalRepPreparedTxnData *prepare_data);
+                                    LogicalRepPreparedTxnData *prepare_data);
 extern void logicalrep_write_commit_prepared(StringInfo out, ReorderBufferTXN *txn,
-											 XLogRecPtr commit_lsn);
+    XLogRecPtr commit_lsn);
 extern void logicalrep_read_commit_prepared(StringInfo in,
-											LogicalRepCommitPreparedTxnData *prepare_data);
+    LogicalRepCommitPreparedTxnData *prepare_data);
 extern void logicalrep_write_rollback_prepared(StringInfo out, ReorderBufferTXN *txn,
-											   XLogRecPtr prepare_end_lsn,
-											   TimestampTz prepare_time);
+    XLogRecPtr prepare_end_lsn,
+    TimestampTz prepare_time);
 extern void logicalrep_read_rollback_prepared(StringInfo in,
-											  LogicalRepRollbackPreparedTxnData *rollback_data);
+    LogicalRepRollbackPreparedTxnData *rollback_data);
 extern void logicalrep_write_stream_prepare(StringInfo out, ReorderBufferTXN *txn,
-											XLogRecPtr prepare_lsn);
+    XLogRecPtr prepare_lsn);
 extern void logicalrep_read_stream_prepare(StringInfo in,
-										   LogicalRepPreparedTxnData *prepare_data);
+    LogicalRepPreparedTxnData *prepare_data);
 
 extern void logicalrep_write_origin(StringInfo out, const char *origin,
-									XLogRecPtr origin_lsn);
+                                    XLogRecPtr origin_lsn);
 extern char *logicalrep_read_origin(StringInfo in, XLogRecPtr *origin_lsn);
 extern void logicalrep_write_insert(StringInfo out, TransactionId xid,
-									Relation rel, TupleTableSlot *newslot,
-									bool binary, Bitmapset *columns,
-									PublishGencolsType include_gencols_type);
+                                    Relation rel, TupleTableSlot *newslot,
+                                    bool binary, Bitmapset *columns,
+                                    PublishGencolsType include_gencols_type);
 extern LogicalRepRelId logicalrep_read_insert(StringInfo in, LogicalRepTupleData *newtup);
 extern void logicalrep_write_update(StringInfo out, TransactionId xid,
-									Relation rel, TupleTableSlot *oldslot,
-									TupleTableSlot *newslot, bool binary,
-									Bitmapset *columns,
-									PublishGencolsType include_gencols_type);
+                                    Relation rel, TupleTableSlot *oldslot,
+                                    TupleTableSlot *newslot, bool binary,
+                                    Bitmapset *columns,
+                                    PublishGencolsType include_gencols_type);
 extern LogicalRepRelId logicalrep_read_update(StringInfo in,
-											  bool *has_oldtuple, LogicalRepTupleData *oldtup,
-											  LogicalRepTupleData *newtup);
+    bool *has_oldtuple, LogicalRepTupleData *oldtup,
+    LogicalRepTupleData *newtup);
 extern void logicalrep_write_delete(StringInfo out, TransactionId xid,
-									Relation rel, TupleTableSlot *oldslot,
-									bool binary, Bitmapset *columns,
-									PublishGencolsType include_gencols_type);
+                                    Relation rel, TupleTableSlot *oldslot,
+                                    bool binary, Bitmapset *columns,
+                                    PublishGencolsType include_gencols_type);
 extern LogicalRepRelId logicalrep_read_delete(StringInfo in,
-											  LogicalRepTupleData *oldtup);
+    LogicalRepTupleData *oldtup);
 extern void logicalrep_write_truncate(StringInfo out, TransactionId xid,
-									  int nrelids, Oid relids[],
-									  bool cascade, bool restart_seqs);
+                                      int nrelids, Oid relids[],
+                                      bool cascade, bool restart_seqs);
 extern List *logicalrep_read_truncate(StringInfo in,
-									  bool *cascade, bool *restart_seqs);
+                                      bool *cascade, bool *restart_seqs);
 extern void logicalrep_write_message(StringInfo out, TransactionId xid, XLogRecPtr lsn,
-									 bool transactional, const char *prefix, Size sz, const char *message);
+                                     bool transactional, const char *prefix, Size sz, const char *message);
 extern void logicalrep_write_rel(StringInfo out, TransactionId xid,
-								 Relation rel, Bitmapset *columns,
-								 PublishGencolsType include_gencols_type);
+                                 Relation rel, Bitmapset *columns,
+                                 PublishGencolsType include_gencols_type);
 extern LogicalRepRelation *logicalrep_read_rel(StringInfo in);
 extern void logicalrep_write_typ(StringInfo out, TransactionId xid,
-								 Oid typoid);
+                                 Oid typoid);
 extern void logicalrep_read_typ(StringInfo in, LogicalRepTyp *ltyp);
 extern void logicalrep_write_stream_start(StringInfo out, TransactionId xid,
-										  bool first_segment);
+    bool first_segment);
 extern TransactionId logicalrep_read_stream_start(StringInfo in,
-												  bool *first_segment);
+    bool *first_segment);
 extern void logicalrep_write_stream_stop(StringInfo out);
 extern void logicalrep_write_stream_commit(StringInfo out, ReorderBufferTXN *txn,
-										   XLogRecPtr commit_lsn);
+    XLogRecPtr commit_lsn);
 extern TransactionId logicalrep_read_stream_commit(StringInfo in,
-												   LogicalRepCommitData *commit_data);
+    LogicalRepCommitData *commit_data);
 extern void logicalrep_write_stream_abort(StringInfo out, TransactionId xid,
-										  TransactionId subxid,
-										  XLogRecPtr abort_lsn,
-										  TimestampTz abort_time,
-										  bool write_abort_info);
+    TransactionId subxid,
+    XLogRecPtr abort_lsn,
+    TimestampTz abort_time,
+    bool write_abort_info);
 extern void logicalrep_read_stream_abort(StringInfo in,
-										 LogicalRepStreamAbortData *abort_data,
-										 bool read_abort_info);
+    LogicalRepStreamAbortData *abort_data,
+    bool read_abort_info);
 extern const char *logicalrep_message_type(LogicalRepMsgType action);
 extern bool logicalrep_should_publish_column(Form_pg_attribute att,
-											 Bitmapset *columns,
-											 PublishGencolsType include_gencols_type);
+    Bitmapset *columns,
+    PublishGencolsType include_gencols_type);
 
-#endif							/* LOGICAL_PROTO_H */
+#endif              /* LOGICAL_PROTO_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * arch-arm.h
- *	  Atomic operations considerations specific to ARM
+ *    Atomic operations considerations specific to ARM
  *
  * Portions Copyright (c) 2013-2025, PostgreSQL Global Development Group
  *

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * stringinfo_mb.c
- *		Multibyte encoding-aware additional StringInfo facilities
+ *    Multibyte encoding-aware additional StringInfo facilities
  *
  * This is separate from common/stringinfo.c so that frontend users
  * of that file need not pull in unnecessary multibyte-encoding support
@@ -13,7 +13,7 @@
  *
  *
  * IDENTIFICATION
- *	  src/backend/utils/mb/stringinfo_mb.c
+ *    src/backend/utils/mb/stringinfo_mb.c
  *
  *-------------------------------------------------------------------------
  */
@@ -33,54 +33,51 @@
 void
 appendStringInfoStringQuoted(StringInfo str, const char *s, int maxlen)
 {
-	char	   *copy = NULL;
-	const char *chunk_search_start,
-			   *chunk_copy_start,
-			   *chunk_end;
-	int			slen;
-	bool		ellipsis;
+  char     *copy = NULL;
+  const char *chunk_search_start,
+        *chunk_copy_start,
+        *chunk_end;
+  int     slen;
+  bool    ellipsis;
 
-	Assert(str != NULL);
+  Assert(str != NULL);
 
-	slen = strlen(s);
-	if (maxlen >= 0 && maxlen < slen)
-	{
-		int			finallen = pg_mbcliplen(s, slen, maxlen);
+  slen = strlen(s);
 
-		copy = pnstrdup(s, finallen);
-		chunk_search_start = copy;
-		chunk_copy_start = copy;
+  if (maxlen >= 0 && maxlen < slen) {
+    int     finallen = pg_mbcliplen(s, slen, maxlen);
 
-		ellipsis = true;
-	}
-	else
-	{
-		chunk_search_start = s;
-		chunk_copy_start = s;
+    copy = pnstrdup(s, finallen);
+    chunk_search_start = copy;
+    chunk_copy_start = copy;
 
-		ellipsis = false;
-	}
+    ellipsis = true;
+  } else {
+    chunk_search_start = s;
+    chunk_copy_start = s;
 
-	appendStringInfoCharMacro(str, '\'');
+    ellipsis = false;
+  }
 
-	while ((chunk_end = strchr(chunk_search_start, '\'')) != NULL)
-	{
-		/* copy including the found delimiting ' */
-		appendBinaryStringInfoNT(str,
-								 chunk_copy_start,
-								 chunk_end - chunk_copy_start + 1);
+  appendStringInfoCharMacro(str, '\'');
 
-		/* in order to double it, include this ' into the next chunk as well */
-		chunk_copy_start = chunk_end;
-		chunk_search_start = chunk_end + 1;
-	}
+  while ((chunk_end = strchr(chunk_search_start, '\'')) != NULL) {
+    /* copy including the found delimiting ' */
+    appendBinaryStringInfoNT(str,
+                             chunk_copy_start,
+                             chunk_end - chunk_copy_start + 1);
 
-	/* copy the last chunk and terminate */
-	if (ellipsis)
-		appendStringInfo(str, "%s...'", chunk_copy_start);
-	else
-		appendStringInfo(str, "%s'", chunk_copy_start);
+    /* in order to double it, include this ' into the next chunk as well */
+    chunk_copy_start = chunk_end;
+    chunk_search_start = chunk_end + 1;
+  }
 
-	if (copy)
-		pfree(copy);
+  /* copy the last chunk and terminate */
+  if (ellipsis)
+    appendStringInfo(str, "%s...'", chunk_copy_start);
+  else
+    appendStringInfo(str, "%s'", chunk_copy_start);
+
+  if (copy)
+    pfree(copy);
 }

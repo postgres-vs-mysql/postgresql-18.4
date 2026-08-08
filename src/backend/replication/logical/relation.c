@@ -1,16 +1,16 @@
 /*-------------------------------------------------------------------------
  * relation.c
- *	   PostgreSQL logical replication relation mapping cache
+ *     PostgreSQL logical replication relation mapping cache
  *
  * Copyright (c) 2016-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/backend/replication/logical/relation.c
+ *    src/backend/replication/logical/relation.c
  *
  * NOTES
- *	  Routines in this file mainly have to do with mapping the properties
- *	  of local replication target relations to the properties of their
- *	  remote counterpart.
+ *    Routines in this file mainly have to do with mapping the properties
+ *    of local replication target relations to the properties of their
+ *    remote counterpart.
  *
  *-------------------------------------------------------------------------
  */
@@ -48,14 +48,13 @@ static HTAB *LogicalRepRelMap = NULL;
  */
 static MemoryContext LogicalRepPartMapContext = NULL;
 static HTAB *LogicalRepPartMap = NULL;
-typedef struct LogicalRepPartMapEntry
-{
-	Oid			partoid;		/* LogicalRepPartMap's key */
-	LogicalRepRelMapEntry relmapentry;
+typedef struct LogicalRepPartMapEntry {
+  Oid     partoid;    /* LogicalRepPartMap's key */
+  LogicalRepRelMapEntry relmapentry;
 } LogicalRepPartMapEntry;
 
-static Oid	FindLogicalRepLocalIndex(Relation localrel, LogicalRepRelation *remoterel,
-									 AttrMap *attrMap);
+static Oid  FindLogicalRepLocalIndex(Relation localrel, LogicalRepRelation *remoterel,
+                                     AttrMap *attrMap);
 
 /*
  * Relcache invalidation callback for our relation map cache.
@@ -63,39 +62,34 @@ static Oid	FindLogicalRepLocalIndex(Relation localrel, LogicalRepRelation *remot
 static void
 logicalrep_relmap_invalidate_cb(Datum arg, Oid reloid)
 {
-	LogicalRepRelMapEntry *entry;
+  LogicalRepRelMapEntry *entry;
 
-	/* Just to be sure. */
-	if (LogicalRepRelMap == NULL)
-		return;
+  /* Just to be sure. */
+  if (LogicalRepRelMap == NULL)
+    return;
 
-	if (reloid != InvalidOid)
-	{
-		HASH_SEQ_STATUS status;
+  if (reloid != InvalidOid) {
+    HASH_SEQ_STATUS status;
 
-		hash_seq_init(&status, LogicalRepRelMap);
+    hash_seq_init(&status, LogicalRepRelMap);
 
-		/* TODO, use inverse lookup hashtable? */
-		while ((entry = (LogicalRepRelMapEntry *) hash_seq_search(&status)) != NULL)
-		{
-			if (entry->localreloid == reloid)
-			{
-				entry->localrelvalid = false;
-				hash_seq_term(&status);
-				break;
-			}
-		}
-	}
-	else
-	{
-		/* invalidate all cache entries */
-		HASH_SEQ_STATUS status;
+    /* TODO, use inverse lookup hashtable? */
+    while ((entry = (LogicalRepRelMapEntry *) hash_seq_search(&status)) != NULL) {
+      if (entry->localreloid == reloid) {
+        entry->localrelvalid = false;
+        hash_seq_term(&status);
+        break;
+      }
+    }
+  } else {
+    /* invalidate all cache entries */
+    HASH_SEQ_STATUS status;
 
-		hash_seq_init(&status, LogicalRepRelMap);
+    hash_seq_init(&status, LogicalRepRelMap);
 
-		while ((entry = (LogicalRepRelMapEntry *) hash_seq_search(&status)) != NULL)
-			entry->localrelvalid = false;
-	}
+    while ((entry = (LogicalRepRelMapEntry *) hash_seq_search(&status)) != NULL)
+      entry->localrelvalid = false;
+  }
 }
 
 /*
@@ -104,25 +98,25 @@ logicalrep_relmap_invalidate_cb(Datum arg, Oid reloid)
 static void
 logicalrep_relmap_init(void)
 {
-	HASHCTL		ctl;
+  HASHCTL   ctl;
 
-	if (!LogicalRepRelMapContext)
-		LogicalRepRelMapContext =
-			AllocSetContextCreate(CacheMemoryContext,
-								  "LogicalRepRelMapContext",
-								  ALLOCSET_DEFAULT_SIZES);
+  if (!LogicalRepRelMapContext)
+    LogicalRepRelMapContext =
+      AllocSetContextCreate(CacheMemoryContext,
+                            "LogicalRepRelMapContext",
+                            ALLOCSET_DEFAULT_SIZES);
 
-	/* Initialize the relation hash table. */
-	ctl.keysize = sizeof(LogicalRepRelId);
-	ctl.entrysize = sizeof(LogicalRepRelMapEntry);
-	ctl.hcxt = LogicalRepRelMapContext;
+  /* Initialize the relation hash table. */
+  ctl.keysize = sizeof(LogicalRepRelId);
+  ctl.entrysize = sizeof(LogicalRepRelMapEntry);
+  ctl.hcxt = LogicalRepRelMapContext;
 
-	LogicalRepRelMap = hash_create("logicalrep relation map cache", 128, &ctl,
-								   HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+  LogicalRepRelMap = hash_create("logicalrep relation map cache", 128, &ctl,
+                                 HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
 
-	/* Watch for invalidation events. */
-	CacheRegisterRelcacheCallback(logicalrep_relmap_invalidate_cb,
-								  (Datum) 0);
+  /* Watch for invalidation events. */
+  CacheRegisterRelcacheCallback(logicalrep_relmap_invalidate_cb,
+                                (Datum) 0);
 }
 
 /*
@@ -131,27 +125,27 @@ logicalrep_relmap_init(void)
 static void
 logicalrep_relmap_free_entry(LogicalRepRelMapEntry *entry)
 {
-	LogicalRepRelation *remoterel;
+  LogicalRepRelation *remoterel;
 
-	remoterel = &entry->remoterel;
+  remoterel = &entry->remoterel;
 
-	pfree(remoterel->nspname);
-	pfree(remoterel->relname);
+  pfree(remoterel->nspname);
+  pfree(remoterel->relname);
 
-	if (remoterel->natts > 0)
-	{
-		int			i;
+  if (remoterel->natts > 0) {
+    int     i;
 
-		for (i = 0; i < remoterel->natts; i++)
-			pfree(remoterel->attnames[i]);
+    for (i = 0; i < remoterel->natts; i++)
+      pfree(remoterel->attnames[i]);
 
-		pfree(remoterel->attnames);
-		pfree(remoterel->atttyps);
-	}
-	bms_free(remoterel->attkeys);
+    pfree(remoterel->attnames);
+    pfree(remoterel->atttyps);
+  }
 
-	if (entry->attrmap)
-		free_attrmap(entry->attrmap);
+  bms_free(remoterel->attkeys);
+
+  if (entry->attrmap)
+    free_attrmap(entry->attrmap);
 }
 
 /*
@@ -163,41 +157,42 @@ logicalrep_relmap_free_entry(LogicalRepRelMapEntry *entry)
 void
 logicalrep_relmap_update(LogicalRepRelation *remoterel)
 {
-	MemoryContext oldctx;
-	LogicalRepRelMapEntry *entry;
-	bool		found;
-	int			i;
+  MemoryContext oldctx;
+  LogicalRepRelMapEntry *entry;
+  bool    found;
+  int     i;
 
-	if (LogicalRepRelMap == NULL)
-		logicalrep_relmap_init();
+  if (LogicalRepRelMap == NULL)
+    logicalrep_relmap_init();
 
-	/*
-	 * HASH_ENTER returns the existing entry if present or creates a new one.
-	 */
-	entry = hash_search(LogicalRepRelMap, &remoterel->remoteid,
-						HASH_ENTER, &found);
+  /*
+   * HASH_ENTER returns the existing entry if present or creates a new one.
+   */
+  entry = hash_search(LogicalRepRelMap, &remoterel->remoteid,
+                      HASH_ENTER, &found);
 
-	if (found)
-		logicalrep_relmap_free_entry(entry);
+  if (found)
+    logicalrep_relmap_free_entry(entry);
 
-	memset(entry, 0, sizeof(LogicalRepRelMapEntry));
+  memset(entry, 0, sizeof(LogicalRepRelMapEntry));
 
-	/* Make cached copy of the data */
-	oldctx = MemoryContextSwitchTo(LogicalRepRelMapContext);
-	entry->remoterel.remoteid = remoterel->remoteid;
-	entry->remoterel.nspname = pstrdup(remoterel->nspname);
-	entry->remoterel.relname = pstrdup(remoterel->relname);
-	entry->remoterel.natts = remoterel->natts;
-	entry->remoterel.attnames = palloc(remoterel->natts * sizeof(char *));
-	entry->remoterel.atttyps = palloc(remoterel->natts * sizeof(Oid));
-	for (i = 0; i < remoterel->natts; i++)
-	{
-		entry->remoterel.attnames[i] = pstrdup(remoterel->attnames[i]);
-		entry->remoterel.atttyps[i] = remoterel->atttyps[i];
-	}
-	entry->remoterel.replident = remoterel->replident;
-	entry->remoterel.attkeys = bms_copy(remoterel->attkeys);
-	MemoryContextSwitchTo(oldctx);
+  /* Make cached copy of the data */
+  oldctx = MemoryContextSwitchTo(LogicalRepRelMapContext);
+  entry->remoterel.remoteid = remoterel->remoteid;
+  entry->remoterel.nspname = pstrdup(remoterel->nspname);
+  entry->remoterel.relname = pstrdup(remoterel->relname);
+  entry->remoterel.natts = remoterel->natts;
+  entry->remoterel.attnames = palloc(remoterel->natts * sizeof(char *));
+  entry->remoterel.atttyps = palloc(remoterel->natts * sizeof(Oid));
+
+  for (i = 0; i < remoterel->natts; i++) {
+    entry->remoterel.attnames[i] = pstrdup(remoterel->attnames[i]);
+    entry->remoterel.atttyps[i] = remoterel->atttyps[i];
+  }
+
+  entry->remoterel.replident = remoterel->replident;
+  entry->remoterel.attkeys = bms_copy(remoterel->attkeys);
+  MemoryContextSwitchTo(oldctx);
 }
 
 /*
@@ -208,15 +203,14 @@ logicalrep_relmap_update(LogicalRepRelation *remoterel)
 static int
 logicalrep_rel_att_by_name(LogicalRepRelation *remoterel, const char *attname)
 {
-	int			i;
+  int     i;
 
-	for (i = 0; i < remoterel->natts; i++)
-	{
-		if (strcmp(remoterel->attnames[i], attname) == 0)
-			return i;
-	}
+  for (i = 0; i < remoterel->natts; i++) {
+    if (strcmp(remoterel->attnames[i], attname) == 0)
+      return i;
+  }
 
-	return -1;
+  return -1;
 }
 
 /*
@@ -226,24 +220,24 @@ logicalrep_rel_att_by_name(LogicalRepRelation *remoterel, const char *attname)
 static char *
 logicalrep_get_attrs_str(LogicalRepRelation *remoterel, Bitmapset *atts)
 {
-	StringInfoData attsbuf;
-	int			attcnt = 0;
-	int			i = -1;
+  StringInfoData attsbuf;
+  int     attcnt = 0;
+  int     i = -1;
 
-	Assert(!bms_is_empty(atts));
+  Assert(!bms_is_empty(atts));
 
-	initStringInfo(&attsbuf);
+  initStringInfo(&attsbuf);
 
-	while ((i = bms_next_member(atts, i)) >= 0)
-	{
-		attcnt++;
-		if (attcnt > 1)
-			appendStringInfoString(&attsbuf, _(", "));
+  while ((i = bms_next_member(atts, i)) >= 0) {
+    attcnt++;
 
-		appendStringInfo(&attsbuf, _("\"%s\""), remoterel->attnames[i]);
-	}
+    if (attcnt > 1)
+      appendStringInfoString(&attsbuf, _(", "));
 
-	return attsbuf.data;
+    appendStringInfo(&attsbuf, _("\"%s\""), remoterel->attnames[i]);
+  }
+
+  return attsbuf.data;
 }
 
 /*
@@ -253,30 +247,30 @@ logicalrep_get_attrs_str(LogicalRepRelation *remoterel, Bitmapset *atts)
  */
 static void
 logicalrep_report_missing_or_gen_attrs(LogicalRepRelation *remoterel,
-									   Bitmapset *missingatts,
-									   Bitmapset *generatedatts)
+                                       Bitmapset *missingatts,
+                                       Bitmapset *generatedatts)
 {
-	if (!bms_is_empty(missingatts))
-		ereport(ERROR,
-				errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-				errmsg_plural("logical replication target relation \"%s.%s\" is missing replicated column: %s",
-							  "logical replication target relation \"%s.%s\" is missing replicated columns: %s",
-							  bms_num_members(missingatts),
-							  remoterel->nspname,
-							  remoterel->relname,
-							  logicalrep_get_attrs_str(remoterel,
-													   missingatts)));
+  if (!bms_is_empty(missingatts))
+    ereport(ERROR,
+            errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+            errmsg_plural("logical replication target relation \"%s.%s\" is missing replicated column: %s",
+                          "logical replication target relation \"%s.%s\" is missing replicated columns: %s",
+                          bms_num_members(missingatts),
+                          remoterel->nspname,
+                          remoterel->relname,
+                          logicalrep_get_attrs_str(remoterel,
+                              missingatts)));
 
-	if (!bms_is_empty(generatedatts))
-		ereport(ERROR,
-				errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-				errmsg_plural("logical replication target relation \"%s.%s\" has incompatible generated column: %s",
-							  "logical replication target relation \"%s.%s\" has incompatible generated columns: %s",
-							  bms_num_members(generatedatts),
-							  remoterel->nspname,
-							  remoterel->relname,
-							  logicalrep_get_attrs_str(remoterel,
-													   generatedatts)));
+  if (!bms_is_empty(generatedatts))
+    ereport(ERROR,
+            errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+            errmsg_plural("logical replication target relation \"%s.%s\" has incompatible generated column: %s",
+                          "logical replication target relation \"%s.%s\" has incompatible generated columns: %s",
+                          bms_num_members(generatedatts),
+                          remoterel->nspname,
+                          remoterel->relname,
+                          logicalrep_get_attrs_str(remoterel,
+                              generatedatts)));
 }
 
 /*
@@ -295,49 +289,48 @@ logicalrep_report_missing_or_gen_attrs(LogicalRepRelation *remoterel,
 static void
 logicalrep_rel_mark_updatable(LogicalRepRelMapEntry *entry)
 {
-	Bitmapset  *idkey;
-	LogicalRepRelation *remoterel = &entry->remoterel;
-	int			i;
+  Bitmapset  *idkey;
+  LogicalRepRelation *remoterel = &entry->remoterel;
+  int     i;
 
-	entry->updatable = true;
+  entry->updatable = true;
 
-	idkey = RelationGetIndexAttrBitmap(entry->localrel,
-									   INDEX_ATTR_BITMAP_IDENTITY_KEY);
-	/* fallback to PK if no replica identity */
-	if (idkey == NULL)
-	{
-		idkey = RelationGetIndexAttrBitmap(entry->localrel,
-										   INDEX_ATTR_BITMAP_PRIMARY_KEY);
+  idkey = RelationGetIndexAttrBitmap(entry->localrel,
+                                     INDEX_ATTR_BITMAP_IDENTITY_KEY);
 
-		/*
-		 * If no replica identity index and no PK, the published table must
-		 * have replica identity FULL.
-		 */
-		if (idkey == NULL && remoterel->replident != REPLICA_IDENTITY_FULL)
-			entry->updatable = false;
-	}
+  /* fallback to PK if no replica identity */
+  if (idkey == NULL) {
+    idkey = RelationGetIndexAttrBitmap(entry->localrel,
+                                       INDEX_ATTR_BITMAP_PRIMARY_KEY);
 
-	i = -1;
-	while ((i = bms_next_member(idkey, i)) >= 0)
-	{
-		int			attnum = i + FirstLowInvalidHeapAttributeNumber;
+    /*
+     * If no replica identity index and no PK, the published table must
+     * have replica identity FULL.
+     */
+    if (idkey == NULL && remoterel->replident != REPLICA_IDENTITY_FULL)
+      entry->updatable = false;
+  }
 
-		if (!AttrNumberIsForUserDefinedAttr(attnum))
-			ereport(ERROR,
-					(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-					 errmsg("logical replication target relation \"%s.%s\" uses "
-							"system columns in REPLICA IDENTITY index",
-							remoterel->nspname, remoterel->relname)));
+  i = -1;
 
-		attnum = AttrNumberGetAttrOffset(attnum);
+  while ((i = bms_next_member(idkey, i)) >= 0) {
+    int     attnum = i + FirstLowInvalidHeapAttributeNumber;
 
-		if (entry->attrmap->attnums[attnum] < 0 ||
-			!bms_is_member(entry->attrmap->attnums[attnum], remoterel->attkeys))
-		{
-			entry->updatable = false;
-			break;
-		}
-	}
+    if (!AttrNumberIsForUserDefinedAttr(attnum))
+      ereport(ERROR,
+              (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+               errmsg("logical replication target relation \"%s.%s\" uses "
+                      "system columns in REPLICA IDENTITY index",
+                      remoterel->nspname, remoterel->relname)));
+
+    attnum = AttrNumberGetAttrOffset(attnum);
+
+    if (entry->attrmap->attnums[attnum] < 0 ||
+        !bms_is_member(entry->attrmap->attnums[attnum], remoterel->attkeys)) {
+      entry->updatable = false;
+      break;
+    }
+  }
 }
 
 /*
@@ -348,153 +341,149 @@ logicalrep_rel_mark_updatable(LogicalRepRelMapEntry *entry)
 LogicalRepRelMapEntry *
 logicalrep_rel_open(LogicalRepRelId remoteid, LOCKMODE lockmode)
 {
-	LogicalRepRelMapEntry *entry;
-	bool		found;
-	LogicalRepRelation *remoterel;
+  LogicalRepRelMapEntry *entry;
+  bool    found;
+  LogicalRepRelation *remoterel;
 
-	if (LogicalRepRelMap == NULL)
-		logicalrep_relmap_init();
+  if (LogicalRepRelMap == NULL)
+    logicalrep_relmap_init();
 
-	/* Search for existing entry. */
-	entry = hash_search(LogicalRepRelMap, &remoteid,
-						HASH_FIND, &found);
+  /* Search for existing entry. */
+  entry = hash_search(LogicalRepRelMap, &remoteid,
+                      HASH_FIND, &found);
 
-	if (!found)
-		elog(ERROR, "no relation map entry for remote relation ID %u",
-			 remoteid);
+  if (!found)
+    elog(ERROR, "no relation map entry for remote relation ID %u",
+         remoteid);
 
-	remoterel = &entry->remoterel;
+  remoterel = &entry->remoterel;
 
-	/* Ensure we don't leak a relcache refcount. */
-	if (entry->localrel)
-		elog(ERROR, "remote relation ID %u is already open", remoteid);
+  /* Ensure we don't leak a relcache refcount. */
+  if (entry->localrel)
+    elog(ERROR, "remote relation ID %u is already open", remoteid);
 
-	/*
-	 * When opening and locking a relation, pending invalidation messages are
-	 * processed which can invalidate the relation.  Hence, if the entry is
-	 * currently considered valid, try to open the local relation by OID and
-	 * see if invalidation ensues.
-	 */
-	if (entry->localrelvalid)
-	{
-		entry->localrel = try_table_open(entry->localreloid, lockmode);
-		if (!entry->localrel)
-		{
-			/* Table was renamed or dropped. */
-			entry->localrelvalid = false;
-		}
-		else if (!entry->localrelvalid)
-		{
-			/* Note we release the no-longer-useful lock here. */
-			table_close(entry->localrel, lockmode);
-			entry->localrel = NULL;
-		}
-	}
+  /*
+   * When opening and locking a relation, pending invalidation messages are
+   * processed which can invalidate the relation.  Hence, if the entry is
+   * currently considered valid, try to open the local relation by OID and
+   * see if invalidation ensues.
+   */
+  if (entry->localrelvalid) {
+    entry->localrel = try_table_open(entry->localreloid, lockmode);
 
-	/*
-	 * If the entry has been marked invalid since we last had lock on it,
-	 * re-open the local relation by name and rebuild all derived data.
-	 */
-	if (!entry->localrelvalid)
-	{
-		Oid			relid;
-		TupleDesc	desc;
-		MemoryContext oldctx;
-		int			i;
-		Bitmapset  *missingatts;
-		Bitmapset  *generatedattrs = NULL;
+    if (!entry->localrel) {
+      /* Table was renamed or dropped. */
+      entry->localrelvalid = false;
+    } else if (!entry->localrelvalid) {
+      /* Note we release the no-longer-useful lock here. */
+      table_close(entry->localrel, lockmode);
+      entry->localrel = NULL;
+    }
+  }
 
-		/* Release the no-longer-useful attrmap, if any. */
-		if (entry->attrmap)
-		{
-			free_attrmap(entry->attrmap);
-			entry->attrmap = NULL;
-		}
+  /*
+   * If the entry has been marked invalid since we last had lock on it,
+   * re-open the local relation by name and rebuild all derived data.
+   */
+  if (!entry->localrelvalid) {
+    Oid     relid;
+    TupleDesc desc;
+    MemoryContext oldctx;
+    int     i;
+    Bitmapset  *missingatts;
+    Bitmapset  *generatedattrs = NULL;
 
-		/* Try to find and lock the relation by name. */
-		relid = RangeVarGetRelid(makeRangeVar(remoterel->nspname,
-											  remoterel->relname, -1),
-								 lockmode, true);
-		if (!OidIsValid(relid))
-			ereport(ERROR,
-					(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-					 errmsg("logical replication target relation \"%s.%s\" does not exist",
-							remoterel->nspname, remoterel->relname)));
-		entry->localrel = table_open(relid, NoLock);
-		entry->localreloid = relid;
+    /* Release the no-longer-useful attrmap, if any. */
+    if (entry->attrmap) {
+      free_attrmap(entry->attrmap);
+      entry->attrmap = NULL;
+    }
 
-		/* Check for supported relkind. */
-		CheckSubscriptionRelkind(entry->localrel->rd_rel->relkind,
-								 remoterel->nspname, remoterel->relname);
+    /* Try to find and lock the relation by name. */
+    relid = RangeVarGetRelid(makeRangeVar(remoterel->nspname,
+                                          remoterel->relname, -1),
+                             lockmode, true);
 
-		/*
-		 * Build the mapping of local attribute numbers to remote attribute
-		 * numbers and validate that we don't miss any replicated columns as
-		 * that would result in potentially unwanted data loss.
-		 */
-		desc = RelationGetDescr(entry->localrel);
-		oldctx = MemoryContextSwitchTo(LogicalRepRelMapContext);
-		entry->attrmap = make_attrmap(desc->natts);
-		MemoryContextSwitchTo(oldctx);
+    if (!OidIsValid(relid))
+      ereport(ERROR,
+              (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+               errmsg("logical replication target relation \"%s.%s\" does not exist",
+                      remoterel->nspname, remoterel->relname)));
 
-		/* check and report missing attrs, if any */
-		missingatts = bms_add_range(NULL, 0, remoterel->natts - 1);
-		for (i = 0; i < desc->natts; i++)
-		{
-			int			attnum;
-			Form_pg_attribute attr = TupleDescAttr(desc, i);
+    entry->localrel = table_open(relid, NoLock);
+    entry->localreloid = relid;
 
-			if (attr->attisdropped)
-			{
-				entry->attrmap->attnums[i] = -1;
-				continue;
-			}
+    /* Check for supported relkind. */
+    CheckSubscriptionRelkind(entry->localrel->rd_rel->relkind,
+                             remoterel->nspname, remoterel->relname);
 
-			attnum = logicalrep_rel_att_by_name(remoterel,
-												NameStr(attr->attname));
+    /*
+     * Build the mapping of local attribute numbers to remote attribute
+     * numbers and validate that we don't miss any replicated columns as
+     * that would result in potentially unwanted data loss.
+     */
+    desc = RelationGetDescr(entry->localrel);
+    oldctx = MemoryContextSwitchTo(LogicalRepRelMapContext);
+    entry->attrmap = make_attrmap(desc->natts);
+    MemoryContextSwitchTo(oldctx);
 
-			entry->attrmap->attnums[i] = attnum;
-			if (attnum >= 0)
-			{
-				/* Remember which subscriber columns are generated. */
-				if (attr->attgenerated)
-					generatedattrs = bms_add_member(generatedattrs, attnum);
+    /* check and report missing attrs, if any */
+    missingatts = bms_add_range(NULL, 0, remoterel->natts - 1);
 
-				missingatts = bms_del_member(missingatts, attnum);
-			}
-		}
+    for (i = 0; i < desc->natts; i++) {
+      int     attnum;
+      Form_pg_attribute attr = TupleDescAttr(desc, i);
 
-		logicalrep_report_missing_or_gen_attrs(remoterel, missingatts,
-											   generatedattrs);
+      if (attr->attisdropped) {
+        entry->attrmap->attnums[i] = -1;
+        continue;
+      }
 
-		/* be tidy */
-		bms_free(generatedattrs);
-		bms_free(missingatts);
+      attnum = logicalrep_rel_att_by_name(remoterel,
+                                          NameStr(attr->attname));
 
-		/*
-		 * Set if the table's replica identity is enough to apply
-		 * update/delete.
-		 */
-		logicalrep_rel_mark_updatable(entry);
+      entry->attrmap->attnums[i] = attnum;
 
-		/*
-		 * Finding a usable index is an infrequent task. It occurs when an
-		 * operation is first performed on the relation, or after invalidation
-		 * of the relation cache entry (such as ANALYZE or CREATE/DROP index
-		 * on the relation).
-		 */
-		entry->localindexoid = FindLogicalRepLocalIndex(entry->localrel, remoterel,
-														entry->attrmap);
+      if (attnum >= 0) {
+        /* Remember which subscriber columns are generated. */
+        if (attr->attgenerated)
+          generatedattrs = bms_add_member(generatedattrs, attnum);
 
-		entry->localrelvalid = true;
-	}
+        missingatts = bms_del_member(missingatts, attnum);
+      }
+    }
 
-	if (entry->state != SUBREL_STATE_READY)
-		entry->state = GetSubscriptionRelState(MySubscription->oid,
-											   entry->localreloid,
-											   &entry->statelsn);
+    logicalrep_report_missing_or_gen_attrs(remoterel, missingatts,
+                                           generatedattrs);
 
-	return entry;
+    /* be tidy */
+    bms_free(generatedattrs);
+    bms_free(missingatts);
+
+    /*
+     * Set if the table's replica identity is enough to apply
+     * update/delete.
+     */
+    logicalrep_rel_mark_updatable(entry);
+
+    /*
+     * Finding a usable index is an infrequent task. It occurs when an
+     * operation is first performed on the relation, or after invalidation
+     * of the relation cache entry (such as ANALYZE or CREATE/DROP index
+     * on the relation).
+     */
+    entry->localindexoid = FindLogicalRepLocalIndex(entry->localrel, remoterel,
+                           entry->attrmap);
+
+    entry->localrelvalid = true;
+  }
+
+  if (entry->state != SUBREL_STATE_READY)
+    entry->state = GetSubscriptionRelState(MySubscription->oid,
+                                           entry->localreloid,
+                                           &entry->statelsn);
+
+  return entry;
 }
 
 /*
@@ -503,8 +492,8 @@ logicalrep_rel_open(LogicalRepRelId remoteid, LOCKMODE lockmode)
 void
 logicalrep_rel_close(LogicalRepRelMapEntry *rel, LOCKMODE lockmode)
 {
-	table_close(rel->localrel, lockmode);
-	rel->localrel = NULL;
+  table_close(rel->localrel, lockmode);
+  rel->localrel = NULL;
 }
 
 /*
@@ -522,39 +511,34 @@ logicalrep_rel_close(LogicalRepRelMapEntry *rel, LOCKMODE lockmode)
 static void
 logicalrep_partmap_invalidate_cb(Datum arg, Oid reloid)
 {
-	LogicalRepPartMapEntry *entry;
+  LogicalRepPartMapEntry *entry;
 
-	/* Just to be sure. */
-	if (LogicalRepPartMap == NULL)
-		return;
+  /* Just to be sure. */
+  if (LogicalRepPartMap == NULL)
+    return;
 
-	if (reloid != InvalidOid)
-	{
-		HASH_SEQ_STATUS status;
+  if (reloid != InvalidOid) {
+    HASH_SEQ_STATUS status;
 
-		hash_seq_init(&status, LogicalRepPartMap);
+    hash_seq_init(&status, LogicalRepPartMap);
 
-		/* TODO, use inverse lookup hashtable? */
-		while ((entry = (LogicalRepPartMapEntry *) hash_seq_search(&status)) != NULL)
-		{
-			if (entry->relmapentry.localreloid == reloid)
-			{
-				entry->relmapentry.localrelvalid = false;
-				hash_seq_term(&status);
-				break;
-			}
-		}
-	}
-	else
-	{
-		/* invalidate all cache entries */
-		HASH_SEQ_STATUS status;
+    /* TODO, use inverse lookup hashtable? */
+    while ((entry = (LogicalRepPartMapEntry *) hash_seq_search(&status)) != NULL) {
+      if (entry->relmapentry.localreloid == reloid) {
+        entry->relmapentry.localrelvalid = false;
+        hash_seq_term(&status);
+        break;
+      }
+    }
+  } else {
+    /* invalidate all cache entries */
+    HASH_SEQ_STATUS status;
 
-		hash_seq_init(&status, LogicalRepPartMap);
+    hash_seq_init(&status, LogicalRepPartMap);
 
-		while ((entry = (LogicalRepPartMapEntry *) hash_seq_search(&status)) != NULL)
-			entry->relmapentry.localrelvalid = false;
-	}
+    while ((entry = (LogicalRepPartMapEntry *) hash_seq_search(&status)) != NULL)
+      entry->relmapentry.localrelvalid = false;
+  }
 }
 
 /*
@@ -570,25 +554,25 @@ logicalrep_partmap_invalidate_cb(Datum arg, Oid reloid)
 void
 logicalrep_partmap_reset_relmap(LogicalRepRelation *remoterel)
 {
-	HASH_SEQ_STATUS status;
-	LogicalRepPartMapEntry *part_entry;
-	LogicalRepRelMapEntry *entry;
+  HASH_SEQ_STATUS status;
+  LogicalRepPartMapEntry *part_entry;
+  LogicalRepRelMapEntry *entry;
 
-	if (LogicalRepPartMap == NULL)
-		return;
+  if (LogicalRepPartMap == NULL)
+    return;
 
-	hash_seq_init(&status, LogicalRepPartMap);
-	while ((part_entry = (LogicalRepPartMapEntry *) hash_seq_search(&status)) != NULL)
-	{
-		entry = &part_entry->relmapentry;
+  hash_seq_init(&status, LogicalRepPartMap);
 
-		if (entry->remoterel.remoteid != remoterel->remoteid)
-			continue;
+  while ((part_entry = (LogicalRepPartMapEntry *) hash_seq_search(&status)) != NULL) {
+    entry = &part_entry->relmapentry;
 
-		logicalrep_relmap_free_entry(entry);
+    if (entry->remoterel.remoteid != remoterel->remoteid)
+      continue;
 
-		memset(entry, 0, sizeof(LogicalRepRelMapEntry));
-	}
+    logicalrep_relmap_free_entry(entry);
+
+    memset(entry, 0, sizeof(LogicalRepRelMapEntry));
+  }
 }
 
 /*
@@ -597,25 +581,25 @@ logicalrep_partmap_reset_relmap(LogicalRepRelation *remoterel)
 static void
 logicalrep_partmap_init(void)
 {
-	HASHCTL		ctl;
+  HASHCTL   ctl;
 
-	if (!LogicalRepPartMapContext)
-		LogicalRepPartMapContext =
-			AllocSetContextCreate(CacheMemoryContext,
-								  "LogicalRepPartMapContext",
-								  ALLOCSET_DEFAULT_SIZES);
+  if (!LogicalRepPartMapContext)
+    LogicalRepPartMapContext =
+      AllocSetContextCreate(CacheMemoryContext,
+                            "LogicalRepPartMapContext",
+                            ALLOCSET_DEFAULT_SIZES);
 
-	/* Initialize the relation hash table. */
-	ctl.keysize = sizeof(Oid);	/* partition OID */
-	ctl.entrysize = sizeof(LogicalRepPartMapEntry);
-	ctl.hcxt = LogicalRepPartMapContext;
+  /* Initialize the relation hash table. */
+  ctl.keysize = sizeof(Oid);  /* partition OID */
+  ctl.entrysize = sizeof(LogicalRepPartMapEntry);
+  ctl.hcxt = LogicalRepPartMapContext;
 
-	LogicalRepPartMap = hash_create("logicalrep partition map cache", 64, &ctl,
-									HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+  LogicalRepPartMap = hash_create("logicalrep partition map cache", 64, &ctl,
+                                  HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
 
-	/* Watch for invalidation events. */
-	CacheRegisterRelcacheCallback(logicalrep_partmap_invalidate_cb,
-								  (Datum) 0);
+  /* Watch for invalidation events. */
+  CacheRegisterRelcacheCallback(logicalrep_partmap_invalidate_cb,
+                                (Datum) 0);
 }
 
 /*
@@ -631,136 +615,130 @@ logicalrep_partmap_init(void)
  */
 LogicalRepRelMapEntry *
 logicalrep_partition_open(LogicalRepRelMapEntry *root,
-						  Relation partrel, AttrMap *map)
+                          Relation partrel, AttrMap *map)
 {
-	LogicalRepRelMapEntry *entry;
-	LogicalRepPartMapEntry *part_entry;
-	LogicalRepRelation *remoterel = &root->remoterel;
-	Oid			partOid = RelationGetRelid(partrel);
-	AttrMap    *attrmap = root->attrmap;
-	bool		found;
-	MemoryContext oldctx;
+  LogicalRepRelMapEntry *entry;
+  LogicalRepPartMapEntry *part_entry;
+  LogicalRepRelation *remoterel = &root->remoterel;
+  Oid     partOid = RelationGetRelid(partrel);
+  AttrMap    *attrmap = root->attrmap;
+  bool    found;
+  MemoryContext oldctx;
 
-	if (LogicalRepPartMap == NULL)
-		logicalrep_partmap_init();
+  if (LogicalRepPartMap == NULL)
+    logicalrep_partmap_init();
 
-	/* Search for existing entry. */
-	part_entry = (LogicalRepPartMapEntry *) hash_search(LogicalRepPartMap,
-														&partOid,
-														HASH_ENTER, &found);
+  /* Search for existing entry. */
+  part_entry = (LogicalRepPartMapEntry *) hash_search(LogicalRepPartMap,
+               &partOid,
+               HASH_ENTER, &found);
 
-	entry = &part_entry->relmapentry;
+  entry = &part_entry->relmapentry;
 
-	/*
-	 * We must always overwrite entry->localrel with the latest partition
-	 * Relation pointer, because the Relation pointed to by the old value may
-	 * have been cleared after the caller would have closed the partition
-	 * relation after the last use of this entry.  Note that localrelvalid is
-	 * only updated by the relcache invalidation callback, so it may still be
-	 * true irrespective of whether the Relation pointed to by localrel has
-	 * been cleared or not.
-	 */
-	if (found && entry->localrelvalid)
-	{
-		entry->localrel = partrel;
-		return entry;
-	}
+  /*
+   * We must always overwrite entry->localrel with the latest partition
+   * Relation pointer, because the Relation pointed to by the old value may
+   * have been cleared after the caller would have closed the partition
+   * relation after the last use of this entry.  Note that localrelvalid is
+   * only updated by the relcache invalidation callback, so it may still be
+   * true irrespective of whether the Relation pointed to by localrel has
+   * been cleared or not.
+   */
+  if (found && entry->localrelvalid) {
+    entry->localrel = partrel;
+    return entry;
+  }
 
-	/* Switch to longer-lived context. */
-	oldctx = MemoryContextSwitchTo(LogicalRepPartMapContext);
+  /* Switch to longer-lived context. */
+  oldctx = MemoryContextSwitchTo(LogicalRepPartMapContext);
 
-	if (!found)
-	{
-		memset(part_entry, 0, sizeof(LogicalRepPartMapEntry));
-		part_entry->partoid = partOid;
-	}
+  if (!found) {
+    memset(part_entry, 0, sizeof(LogicalRepPartMapEntry));
+    part_entry->partoid = partOid;
+  }
 
-	/* Release the no-longer-useful attrmap, if any. */
-	if (entry->attrmap)
-	{
-		free_attrmap(entry->attrmap);
-		entry->attrmap = NULL;
-	}
+  /* Release the no-longer-useful attrmap, if any. */
+  if (entry->attrmap) {
+    free_attrmap(entry->attrmap);
+    entry->attrmap = NULL;
+  }
 
-	if (!entry->remoterel.remoteid)
-	{
-		int			i;
+  if (!entry->remoterel.remoteid) {
+    int     i;
 
-		/* Remote relation is copied as-is from the root entry. */
-		entry->remoterel.remoteid = remoterel->remoteid;
-		entry->remoterel.nspname = pstrdup(remoterel->nspname);
-		entry->remoterel.relname = pstrdup(remoterel->relname);
-		entry->remoterel.natts = remoterel->natts;
-		entry->remoterel.attnames = palloc(remoterel->natts * sizeof(char *));
-		entry->remoterel.atttyps = palloc(remoterel->natts * sizeof(Oid));
-		for (i = 0; i < remoterel->natts; i++)
-		{
-			entry->remoterel.attnames[i] = pstrdup(remoterel->attnames[i]);
-			entry->remoterel.atttyps[i] = remoterel->atttyps[i];
-		}
-		entry->remoterel.replident = remoterel->replident;
-		entry->remoterel.attkeys = bms_copy(remoterel->attkeys);
-	}
+    /* Remote relation is copied as-is from the root entry. */
+    entry->remoterel.remoteid = remoterel->remoteid;
+    entry->remoterel.nspname = pstrdup(remoterel->nspname);
+    entry->remoterel.relname = pstrdup(remoterel->relname);
+    entry->remoterel.natts = remoterel->natts;
+    entry->remoterel.attnames = palloc(remoterel->natts * sizeof(char *));
+    entry->remoterel.atttyps = palloc(remoterel->natts * sizeof(Oid));
 
-	entry->localrel = partrel;
-	entry->localreloid = partOid;
+    for (i = 0; i < remoterel->natts; i++) {
+      entry->remoterel.attnames[i] = pstrdup(remoterel->attnames[i]);
+      entry->remoterel.atttyps[i] = remoterel->atttyps[i];
+    }
 
-	/*
-	 * If the partition's attributes don't match the root relation's, we'll
-	 * need to make a new attrmap which maps partition attribute numbers to
-	 * remoterel's, instead of the original which maps root relation's
-	 * attribute numbers to remoterel's.
-	 *
-	 * Note that 'map' which comes from the tuple routing data structure
-	 * contains 1-based attribute numbers (of the parent relation).  However,
-	 * the map in 'entry', a logical replication data structure, contains
-	 * 0-based attribute numbers (of the remote relation).
-	 */
-	if (map)
-	{
-		AttrNumber	attno;
+    entry->remoterel.replident = remoterel->replident;
+    entry->remoterel.attkeys = bms_copy(remoterel->attkeys);
+  }
 
-		entry->attrmap = make_attrmap(map->maplen);
-		for (attno = 0; attno < entry->attrmap->maplen; attno++)
-		{
-			AttrNumber	root_attno = map->attnums[attno];
+  entry->localrel = partrel;
+  entry->localreloid = partOid;
 
-			/* 0 means it's a dropped attribute.  See comments atop AttrMap. */
-			if (root_attno == 0)
-				entry->attrmap->attnums[attno] = -1;
-			else
-				entry->attrmap->attnums[attno] = attrmap->attnums[root_attno - 1];
-		}
-	}
-	else
-	{
-		/* Lacking copy_attmap, do this the hard way. */
-		entry->attrmap = make_attrmap(attrmap->maplen);
-		memcpy(entry->attrmap->attnums, attrmap->attnums,
-			   attrmap->maplen * sizeof(AttrNumber));
-	}
+  /*
+   * If the partition's attributes don't match the root relation's, we'll
+   * need to make a new attrmap which maps partition attribute numbers to
+   * remoterel's, instead of the original which maps root relation's
+   * attribute numbers to remoterel's.
+   *
+   * Note that 'map' which comes from the tuple routing data structure
+   * contains 1-based attribute numbers (of the parent relation).  However,
+   * the map in 'entry', a logical replication data structure, contains
+   * 0-based attribute numbers (of the remote relation).
+   */
+  if (map) {
+    AttrNumber  attno;
 
-	/* Set if the table's replica identity is enough to apply update/delete. */
-	logicalrep_rel_mark_updatable(entry);
+    entry->attrmap = make_attrmap(map->maplen);
 
-	/* state and statelsn are left set to 0. */
-	MemoryContextSwitchTo(oldctx);
+    for (attno = 0; attno < entry->attrmap->maplen; attno++) {
+      AttrNumber  root_attno = map->attnums[attno];
 
-	/*
-	 * Finding a usable index is an infrequent task. It occurs when an
-	 * operation is first performed on the relation, or after invalidation of
-	 * the relation cache entry (such as ANALYZE or CREATE/DROP index on the
-	 * relation).
-	 *
-	 * We also prefer to run this code on the oldctx so that we do not leak
-	 * anything in the LogicalRepPartMapContext (hence CacheMemoryContext).
-	 */
-	entry->localindexoid = FindLogicalRepLocalIndex(partrel, remoterel,
-													entry->attrmap);
+      /* 0 means it's a dropped attribute.  See comments atop AttrMap. */
+      if (root_attno == 0)
+        entry->attrmap->attnums[attno] = -1;
+      else
+        entry->attrmap->attnums[attno] = attrmap->attnums[root_attno - 1];
+    }
+  } else {
+    /* Lacking copy_attmap, do this the hard way. */
+    entry->attrmap = make_attrmap(attrmap->maplen);
+    memcpy(entry->attrmap->attnums, attrmap->attnums,
+           attrmap->maplen * sizeof(AttrNumber));
+  }
 
-	entry->localrelvalid = true;
+  /* Set if the table's replica identity is enough to apply update/delete. */
+  logicalrep_rel_mark_updatable(entry);
 
-	return entry;
+  /* state and statelsn are left set to 0. */
+  MemoryContextSwitchTo(oldctx);
+
+  /*
+   * Finding a usable index is an infrequent task. It occurs when an
+   * operation is first performed on the relation, or after invalidation of
+   * the relation cache entry (such as ANALYZE or CREATE/DROP index on the
+   * relation).
+   *
+   * We also prefer to run this code on the oldctx so that we do not leak
+   * anything in the LogicalRepPartMapContext (hence CacheMemoryContext).
+   */
+  entry->localindexoid = FindLogicalRepLocalIndex(partrel, remoterel,
+                         entry->attrmap);
+
+  entry->localrelvalid = true;
+
+  return entry;
 }
 
 /*
@@ -775,23 +753,22 @@ logicalrep_partition_open(LogicalRepRelMapEntry *root,
 static Oid
 FindUsableIndexForReplicaIdentityFull(Relation localrel, AttrMap *attrmap)
 {
-	List	   *idxlist = RelationGetIndexList(localrel);
+  List     *idxlist = RelationGetIndexList(localrel);
 
-	foreach_oid(idxoid, idxlist)
-	{
-		bool		isUsableIdx;
-		Relation	idxRel;
+  foreach_oid(idxoid, idxlist) {
+    bool    isUsableIdx;
+    Relation  idxRel;
 
-		idxRel = index_open(idxoid, AccessShareLock);
-		isUsableIdx = IsIndexUsableForReplicaIdentityFull(idxRel, attrmap);
-		index_close(idxRel, AccessShareLock);
+    idxRel = index_open(idxoid, AccessShareLock);
+    isUsableIdx = IsIndexUsableForReplicaIdentityFull(idxRel, attrmap);
+    index_close(idxRel, AccessShareLock);
 
-		/* Return the first eligible index found */
-		if (isUsableIdx)
-			return idxoid;
-	}
+    /* Return the first eligible index found */
+    if (isUsableIdx)
+      return idxoid;
+  }
 
-	return InvalidOid;
+  return InvalidOid;
 }
 
 /*
@@ -820,66 +797,67 @@ FindUsableIndexForReplicaIdentityFull(Relation localrel, AttrMap *attrmap)
 bool
 IsIndexUsableForReplicaIdentityFull(Relation idxrel, AttrMap *attrmap)
 {
-	AttrNumber	keycol;
-	oidvector  *indclass;
+  AttrNumber  keycol;
+  oidvector  *indclass;
 
-	/* The index must not be a partial index */
-	if (!heap_attisnull(idxrel->rd_indextuple, Anum_pg_index_indpred, NULL))
-		return false;
+  /* The index must not be a partial index */
+  if (!heap_attisnull(idxrel->rd_indextuple, Anum_pg_index_indpred, NULL))
+    return false;
 
-	Assert(idxrel->rd_index->indnatts >= 1);
+  Assert(idxrel->rd_index->indnatts >= 1);
 
-	indclass = (oidvector *) DatumGetPointer(SysCacheGetAttrNotNull(INDEXRELID,
-																	idxrel->rd_indextuple,
-																	Anum_pg_index_indclass));
+  indclass = (oidvector *) DatumGetPointer(SysCacheGetAttrNotNull(INDEXRELID,
+             idxrel->rd_indextuple,
+             Anum_pg_index_indclass));
 
-	/* Ensure that the index has a valid equal strategy for each key column */
-	for (int i = 0; i < idxrel->rd_index->indnkeyatts; i++)
-	{
-		Oid			opfamily;
+  /* Ensure that the index has a valid equal strategy for each key column */
+  for (int i = 0; i < idxrel->rd_index->indnkeyatts; i++) {
+    Oid     opfamily;
 
-		opfamily = get_opclass_family(indclass->values[i]);
-		if (IndexAmTranslateCompareType(COMPARE_EQ, idxrel->rd_rel->relam, opfamily, true) == InvalidStrategy)
-			return false;
-	}
+    opfamily = get_opclass_family(indclass->values[i]);
 
-	/*
-	 * For indexes other than PK and REPLICA IDENTITY, we need to match the
-	 * local and remote tuples.  The equality routine tuples_equal() cannot
-	 * accept a data type where the type cache cannot provide an equality
-	 * operator.
-	 */
-	for (int i = 0; i < idxrel->rd_att->natts; i++)
-	{
-		TypeCacheEntry *typentry;
+    if (IndexAmTranslateCompareType(COMPARE_EQ, idxrel->rd_rel->relam, opfamily, true) == InvalidStrategy)
+      return false;
+  }
 
-		typentry = lookup_type_cache(TupleDescAttr(idxrel->rd_att, i)->atttypid, TYPECACHE_EQ_OPR_FINFO);
-		if (!OidIsValid(typentry->eq_opr_finfo.fn_oid))
-			return false;
-	}
+  /*
+   * For indexes other than PK and REPLICA IDENTITY, we need to match the
+   * local and remote tuples.  The equality routine tuples_equal() cannot
+   * accept a data type where the type cache cannot provide an equality
+   * operator.
+   */
+  for (int i = 0; i < idxrel->rd_att->natts; i++) {
+    TypeCacheEntry *typentry;
 
-	/* The leftmost index field must not be an expression */
-	keycol = idxrel->rd_index->indkey.values[0];
-	if (!AttributeNumberIsValid(keycol))
-		return false;
+    typentry = lookup_type_cache(TupleDescAttr(idxrel->rd_att, i)->atttypid, TYPECACHE_EQ_OPR_FINFO);
 
-	/*
-	 * And the leftmost index field must reference the remote relation column.
-	 * This is because if it doesn't, the sequential scan is favorable over
-	 * index scan in most cases.
-	 */
-	if (attrmap->maplen <= AttrNumberGetAttrOffset(keycol) ||
-		attrmap->attnums[AttrNumberGetAttrOffset(keycol)] < 0)
-		return false;
+    if (!OidIsValid(typentry->eq_opr_finfo.fn_oid))
+      return false;
+  }
 
-	/*
-	 * The given index access method must implement "amgettuple", which will
-	 * be used later to fetch the tuples.  See RelationFindReplTupleByIndex().
-	 */
-	if (GetIndexAmRoutineByAmId(idxrel->rd_rel->relam, false)->amgettuple == NULL)
-		return false;
+  /* The leftmost index field must not be an expression */
+  keycol = idxrel->rd_index->indkey.values[0];
 
-	return true;
+  if (!AttributeNumberIsValid(keycol))
+    return false;
+
+  /*
+   * And the leftmost index field must reference the remote relation column.
+   * This is because if it doesn't, the sequential scan is favorable over
+   * index scan in most cases.
+   */
+  if (attrmap->maplen <= AttrNumberGetAttrOffset(keycol) ||
+      attrmap->attnums[AttrNumberGetAttrOffset(keycol)] < 0)
+    return false;
+
+  /*
+   * The given index access method must implement "amgettuple", which will
+   * be used later to fetch the tuples.  See RelationFindReplTupleByIndex().
+   */
+  if (GetIndexAmRoutineByAmId(idxrel->rd_rel->relam, false)->amgettuple == NULL)
+    return false;
+
+  return true;
 }
 
 /*
@@ -890,14 +868,14 @@ IsIndexUsableForReplicaIdentityFull(Relation idxrel, AttrMap *attrmap)
 Oid
 GetRelationIdentityOrPK(Relation rel)
 {
-	Oid			idxoid;
+  Oid     idxoid;
 
-	idxoid = RelationGetReplicaIndex(rel);
+  idxoid = RelationGetReplicaIndex(rel);
 
-	if (!OidIsValid(idxoid))
-		idxoid = RelationGetPrimaryKeyIndex(rel, false);
+  if (!OidIsValid(idxoid))
+    idxoid = RelationGetPrimaryKeyIndex(rel, false);
 
-	return idxoid;
+  return idxoid;
 }
 
 /*
@@ -906,43 +884,43 @@ GetRelationIdentityOrPK(Relation rel)
  */
 static Oid
 FindLogicalRepLocalIndex(Relation localrel, LogicalRepRelation *remoterel,
-						 AttrMap *attrMap)
+                         AttrMap *attrMap)
 {
-	Oid			idxoid;
+  Oid     idxoid;
 
-	/*
-	 * We never need index oid for partitioned tables, always rely on leaf
-	 * partition's index.
-	 */
-	if (localrel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
-		return InvalidOid;
+  /*
+   * We never need index oid for partitioned tables, always rely on leaf
+   * partition's index.
+   */
+  if (localrel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
+    return InvalidOid;
 
-	/*
-	 * Simple case, we already have a primary key or a replica identity index.
-	 */
-	idxoid = GetRelationIdentityOrPK(localrel);
-	if (OidIsValid(idxoid))
-		return idxoid;
+  /*
+   * Simple case, we already have a primary key or a replica identity index.
+   */
+  idxoid = GetRelationIdentityOrPK(localrel);
 
-	if (remoterel->replident == REPLICA_IDENTITY_FULL)
-	{
-		/*
-		 * We are looking for one more opportunity for using an index. If
-		 * there are any indexes defined on the local relation, try to pick a
-		 * suitable index.
-		 *
-		 * The index selection safely assumes that all the columns are going
-		 * to be available for the index scan given that remote relation has
-		 * replica identity full.
-		 *
-		 * Note that we are not using the planner to find the cheapest method
-		 * to scan the relation as that would require us to either use lower
-		 * level planner functions which would be a maintenance burden in the
-		 * long run or use the full-fledged planner which could cause
-		 * overhead.
-		 */
-		return FindUsableIndexForReplicaIdentityFull(localrel, attrMap);
-	}
+  if (OidIsValid(idxoid))
+    return idxoid;
 
-	return InvalidOid;
+  if (remoterel->replident == REPLICA_IDENTITY_FULL) {
+    /*
+     * We are looking for one more opportunity for using an index. If
+     * there are any indexes defined on the local relation, try to pick a
+     * suitable index.
+     *
+     * The index selection safely assumes that all the columns are going
+     * to be available for the index scan given that remote relation has
+     * replica identity full.
+     *
+     * Note that we are not using the planner to find the cheapest method
+     * to scan the relation as that would require us to either use lower
+     * level planner functions which would be a maintenance burden in the
+     * long run or use the full-fledged planner which could cause
+     * overhead.
+     */
+    return FindUsableIndexForReplicaIdentityFull(localrel, attrMap);
+  }
+
+  return InvalidOid;
 }

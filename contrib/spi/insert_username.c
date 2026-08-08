@@ -15,8 +15,8 @@
 #include "utils/rel.h"
 
 PG_MODULE_MAGIC_EXT(
-					.name = "insert_username",
-					.version = PG_VERSION
+  .name = "insert_username",
+  .version = PG_VERSION
 );
 
 PG_FUNCTION_INFO_V1(insert_username);
@@ -24,72 +24,75 @@ PG_FUNCTION_INFO_V1(insert_username);
 Datum
 insert_username(PG_FUNCTION_ARGS)
 {
-	TriggerData *trigdata = (TriggerData *) fcinfo->context;
-	Trigger    *trigger;		/* to get trigger name */
-	int			nargs;			/* # of arguments */
-	Datum		newval;			/* new value of column */
-	bool		newnull;		/* null flag */
-	char	  **args;			/* arguments */
-	char	   *relname;		/* triggered relation name */
-	Relation	rel;			/* triggered relation */
-	HeapTuple	rettuple = NULL;
-	TupleDesc	tupdesc;		/* tuple description */
-	int			attnum;
+  TriggerData *trigdata = (TriggerData *) fcinfo->context;
+  Trigger    *trigger;    /* to get trigger name */
+  int     nargs;      /* # of arguments */
+  Datum   newval;     /* new value of column */
+  bool    newnull;    /* null flag */
+  char    **args;     /* arguments */
+  char     *relname;    /* triggered relation name */
+  Relation  rel;      /* triggered relation */
+  HeapTuple rettuple = NULL;
+  TupleDesc tupdesc;    /* tuple description */
+  int     attnum;
 
-	/* sanity checks from autoinc.c */
-	if (!CALLED_AS_TRIGGER(fcinfo))
-		/* internal error */
-		elog(ERROR, "insert_username: not fired by trigger manager");
-	if (!TRIGGER_FIRED_FOR_ROW(trigdata->tg_event))
-		/* internal error */
-		elog(ERROR, "insert_username: must be fired for row");
-	if (!TRIGGER_FIRED_BEFORE(trigdata->tg_event))
-		/* internal error */
-		elog(ERROR, "insert_username: must be fired before event");
+  /* sanity checks from autoinc.c */
+  if (!CALLED_AS_TRIGGER(fcinfo))
+    /* internal error */
+    elog(ERROR, "insert_username: not fired by trigger manager");
 
-	if (TRIGGER_FIRED_BY_INSERT(trigdata->tg_event))
-		rettuple = trigdata->tg_trigtuple;
-	else if (TRIGGER_FIRED_BY_UPDATE(trigdata->tg_event))
-		rettuple = trigdata->tg_newtuple;
-	else
-		/* internal error */
-		elog(ERROR, "insert_username: cannot process DELETE events");
+  if (!TRIGGER_FIRED_FOR_ROW(trigdata->tg_event))
+    /* internal error */
+    elog(ERROR, "insert_username: must be fired for row");
 
-	rel = trigdata->tg_relation;
-	relname = SPI_getrelname(rel);
+  if (!TRIGGER_FIRED_BEFORE(trigdata->tg_event))
+    /* internal error */
+    elog(ERROR, "insert_username: must be fired before event");
 
-	trigger = trigdata->tg_trigger;
+  if (TRIGGER_FIRED_BY_INSERT(trigdata->tg_event))
+    rettuple = trigdata->tg_trigtuple;
+  else if (TRIGGER_FIRED_BY_UPDATE(trigdata->tg_event))
+    rettuple = trigdata->tg_newtuple;
+  else
+    /* internal error */
+    elog(ERROR, "insert_username: cannot process DELETE events");
 
-	nargs = trigger->tgnargs;
-	if (nargs != 1)
-		/* internal error */
-		elog(ERROR, "insert_username (%s): one argument was expected", relname);
+  rel = trigdata->tg_relation;
+  relname = SPI_getrelname(rel);
 
-	args = trigger->tgargs;
-	tupdesc = rel->rd_att;
+  trigger = trigdata->tg_trigger;
 
-	attnum = SPI_fnumber(tupdesc, args[0]);
+  nargs = trigger->tgnargs;
 
-	if (attnum <= 0)
-		ereport(ERROR,
-				(errcode(ERRCODE_TRIGGERED_ACTION_EXCEPTION),
-				 errmsg("\"%s\" has no attribute \"%s\"", relname, args[0])));
+  if (nargs != 1)
+    /* internal error */
+    elog(ERROR, "insert_username (%s): one argument was expected", relname);
 
-	if (SPI_gettypeid(tupdesc, attnum) != TEXTOID)
-		ereport(ERROR,
-				(errcode(ERRCODE_TRIGGERED_ACTION_EXCEPTION),
-				 errmsg("attribute \"%s\" of \"%s\" must be type TEXT",
-						args[0], relname)));
+  args = trigger->tgargs;
+  tupdesc = rel->rd_att;
 
-	/* create fields containing name */
-	newval = CStringGetTextDatum(GetUserNameFromId(GetUserId(), false));
-	newnull = false;
+  attnum = SPI_fnumber(tupdesc, args[0]);
 
-	/* construct new tuple */
-	rettuple = heap_modify_tuple_by_cols(rettuple, tupdesc,
-										 1, &attnum, &newval, &newnull);
+  if (attnum <= 0)
+    ereport(ERROR,
+            (errcode(ERRCODE_TRIGGERED_ACTION_EXCEPTION),
+             errmsg("\"%s\" has no attribute \"%s\"", relname, args[0])));
 
-	pfree(relname);
+  if (SPI_gettypeid(tupdesc, attnum) != TEXTOID)
+    ereport(ERROR,
+            (errcode(ERRCODE_TRIGGERED_ACTION_EXCEPTION),
+             errmsg("attribute \"%s\" of \"%s\" must be type TEXT",
+                    args[0], relname)));
 
-	return PointerGetDatum(rettuple);
+  /* create fields containing name */
+  newval = CStringGetTextDatum(GetUserNameFromId(GetUserId(), false));
+  newnull = false;
+
+  /* construct new tuple */
+  rettuple = heap_modify_tuple_by_cols(rettuple, tupdesc,
+                                       1, &attnum, &newval, &newnull);
+
+  pfree(relname);
+
+  return PointerGetDatum(rettuple);
 }

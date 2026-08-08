@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * buffile.h
- *	  Management of large buffered temporary files.
+ *    Management of large buffered temporary files.
  *
  * The BufFile routines provide a partial replacement for stdio atop
  * virtual file descriptors managed by fd.c.  Currently they only support
@@ -42,18 +42,18 @@ pg_nodiscard extern size_t BufFileRead(BufFile *file, void *ptr, size_t size);
 extern void BufFileReadExact(BufFile *file, void *ptr, size_t size);
 extern size_t BufFileReadMaybeEOF(BufFile *file, void *ptr, size_t size, bool eofOK);
 extern void BufFileWrite(BufFile *file, const void *ptr, size_t size);
-extern int	BufFileSeek(BufFile *file, int fileno, off_t offset, int whence);
+extern int  BufFileSeek(BufFile *file, int fileno, off_t offset, int whence);
 extern void BufFileTell(BufFile *file, int *fileno, off_t *offset);
-extern int	BufFileSeekBlock(BufFile *file, int64 blknum);
+extern int  BufFileSeekBlock(BufFile *file, int64 blknum);
 extern int64 BufFileSize(BufFile *file);
 extern int64 BufFileAppend(BufFile *target, BufFile *source);
 
 extern BufFile *BufFileCreateFileSet(FileSet *fileset, const char *name);
 extern void BufFileExportFileSet(BufFile *file);
 extern BufFile *BufFileOpenFileSet(FileSet *fileset, const char *name,
-								   int mode, bool missing_ok);
+                                   int mode, bool missing_ok);
 extern void BufFileDeleteFileSet(FileSet *fileset, const char *name,
-								 bool missing_ok);
+                                 bool missing_ok);
 extern void BufFileTruncateFileSet(BufFile *file, int fileno, off_t offset);
 
-#endif							/* BUFFILE_H */
+#endif              /* BUFFILE_H */

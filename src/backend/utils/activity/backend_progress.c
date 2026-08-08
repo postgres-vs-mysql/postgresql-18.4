@@ -1,11 +1,11 @@
 /* ----------
  * backend_progress.c
  *
- *	Command progress reporting infrastructure.
+ *  Command progress reporting infrastructure.
  *
- *	Copyright (c) 2001-2025, PostgreSQL Global Development Group
+ *  Copyright (c) 2001-2025, PostgreSQL Global Development Group
  *
- *	src/backend/utils/activity/backend_progress.c
+ *  src/backend/utils/activity/backend_progress.c
  * ----------
  */
 #include "postgres.h"
@@ -26,16 +26,16 @@
 void
 pgstat_progress_start_command(ProgressCommandType cmdtype, Oid relid)
 {
-	volatile PgBackendStatus *beentry = MyBEEntry;
+  volatile PgBackendStatus *beentry = MyBEEntry;
 
-	if (!beentry || !pgstat_track_activities)
-		return;
+  if (!beentry || !pgstat_track_activities)
+    return;
 
-	PGSTAT_BEGIN_WRITE_ACTIVITY(beentry);
-	beentry->st_progress_command = cmdtype;
-	beentry->st_progress_command_target = relid;
-	MemSet(&beentry->st_progress_param, 0, sizeof(beentry->st_progress_param));
-	PGSTAT_END_WRITE_ACTIVITY(beentry);
+  PGSTAT_BEGIN_WRITE_ACTIVITY(beentry);
+  beentry->st_progress_command = cmdtype;
+  beentry->st_progress_command_target = relid;
+  MemSet(&beentry->st_progress_param, 0, sizeof(beentry->st_progress_param));
+  PGSTAT_END_WRITE_ACTIVITY(beentry);
 }
 
 /*-----------
@@ -47,16 +47,16 @@ pgstat_progress_start_command(ProgressCommandType cmdtype, Oid relid)
 void
 pgstat_progress_update_param(int index, int64 val)
 {
-	volatile PgBackendStatus *beentry = MyBEEntry;
+  volatile PgBackendStatus *beentry = MyBEEntry;
 
-	Assert(index >= 0 && index < PGSTAT_NUM_PROGRESS_PARAM);
+  Assert(index >= 0 && index < PGSTAT_NUM_PROGRESS_PARAM);
 
-	if (!beentry || !pgstat_track_activities)
-		return;
+  if (!beentry || !pgstat_track_activities)
+    return;
 
-	PGSTAT_BEGIN_WRITE_ACTIVITY(beentry);
-	beentry->st_progress_param[index] = val;
-	PGSTAT_END_WRITE_ACTIVITY(beentry);
+  PGSTAT_BEGIN_WRITE_ACTIVITY(beentry);
+  beentry->st_progress_param[index] = val;
+  PGSTAT_END_WRITE_ACTIVITY(beentry);
 }
 
 /*-----------
@@ -68,16 +68,16 @@ pgstat_progress_update_param(int index, int64 val)
 void
 pgstat_progress_incr_param(int index, int64 incr)
 {
-	volatile PgBackendStatus *beentry = MyBEEntry;
+  volatile PgBackendStatus *beentry = MyBEEntry;
 
-	Assert(index >= 0 && index < PGSTAT_NUM_PROGRESS_PARAM);
+  Assert(index >= 0 && index < PGSTAT_NUM_PROGRESS_PARAM);
 
-	if (!beentry || !pgstat_track_activities)
-		return;
+  if (!beentry || !pgstat_track_activities)
+    return;
 
-	PGSTAT_BEGIN_WRITE_ACTIVITY(beentry);
-	beentry->st_progress_param[index] += incr;
-	PGSTAT_END_WRITE_ACTIVITY(beentry);
+  PGSTAT_BEGIN_WRITE_ACTIVITY(beentry);
+  beentry->st_progress_param[index] += incr;
+  PGSTAT_END_WRITE_ACTIVITY(beentry);
 }
 
 /*-----------
@@ -90,24 +90,22 @@ pgstat_progress_incr_param(int index, int64 incr)
 void
 pgstat_progress_parallel_incr_param(int index, int64 incr)
 {
-	/*
-	 * Parallel workers notify a leader through a PqMsg_Progress message to
-	 * update progress, passing the progress index and incremented value.
-	 * Leaders can just call pgstat_progress_incr_param directly.
-	 */
-	if (IsParallelWorker())
-	{
-		static StringInfoData progress_message;
+  /*
+   * Parallel workers notify a leader through a PqMsg_Progress message to
+   * update progress, passing the progress index and incremented value.
+   * Leaders can just call pgstat_progress_incr_param directly.
+   */
+  if (IsParallelWorker()) {
+    static StringInfoData progress_message;
 
-		initStringInfo(&progress_message);
+    initStringInfo(&progress_message);
 
-		pq_beginmessage(&progress_message, PqMsg_Progress);
-		pq_sendint32(&progress_message, index);
-		pq_sendint64(&progress_message, incr);
-		pq_endmessage(&progress_message);
-	}
-	else
-		pgstat_progress_incr_param(index, incr);
+    pq_beginmessage(&progress_message, PqMsg_Progress);
+    pq_sendint32(&progress_message, index);
+    pq_sendint64(&progress_message, incr);
+    pq_endmessage(&progress_message);
+  } else
+    pgstat_progress_incr_param(index, incr);
 }
 
 /*-----------
@@ -119,24 +117,23 @@ pgstat_progress_parallel_incr_param(int index, int64 incr)
  */
 void
 pgstat_progress_update_multi_param(int nparam, const int *index,
-								   const int64 *val)
+                                   const int64 *val)
 {
-	volatile PgBackendStatus *beentry = MyBEEntry;
-	int			i;
+  volatile PgBackendStatus *beentry = MyBEEntry;
+  int     i;
 
-	if (!beentry || !pgstat_track_activities || nparam == 0)
-		return;
+  if (!beentry || !pgstat_track_activities || nparam == 0)
+    return;
 
-	PGSTAT_BEGIN_WRITE_ACTIVITY(beentry);
+  PGSTAT_BEGIN_WRITE_ACTIVITY(beentry);
 
-	for (i = 0; i < nparam; ++i)
-	{
-		Assert(index[i] >= 0 && index[i] < PGSTAT_NUM_PROGRESS_PARAM);
+  for (i = 0; i < nparam; ++i) {
+    Assert(index[i] >= 0 && index[i] < PGSTAT_NUM_PROGRESS_PARAM);
 
-		beentry->st_progress_param[index[i]] = val[i];
-	}
+    beentry->st_progress_param[index[i]] = val[i];
+  }
 
-	PGSTAT_END_WRITE_ACTIVITY(beentry);
+  PGSTAT_END_WRITE_ACTIVITY(beentry);
 }
 
 /*-----------
@@ -149,16 +146,16 @@ pgstat_progress_update_multi_param(int nparam, const int *index,
 void
 pgstat_progress_end_command(void)
 {
-	volatile PgBackendStatus *beentry = MyBEEntry;
+  volatile PgBackendStatus *beentry = MyBEEntry;
 
-	if (!beentry || !pgstat_track_activities)
-		return;
+  if (!beentry || !pgstat_track_activities)
+    return;
 
-	if (beentry->st_progress_command == PROGRESS_COMMAND_INVALID)
-		return;
+  if (beentry->st_progress_command == PROGRESS_COMMAND_INVALID)
+    return;
 
-	PGSTAT_BEGIN_WRITE_ACTIVITY(beentry);
-	beentry->st_progress_command = PROGRESS_COMMAND_INVALID;
-	beentry->st_progress_command_target = InvalidOid;
-	PGSTAT_END_WRITE_ACTIVITY(beentry);
+  PGSTAT_BEGIN_WRITE_ACTIVITY(beentry);
+  beentry->st_progress_command = PROGRESS_COMMAND_INVALID;
+  beentry->st_progress_command_target = InvalidOid;
+  PGSTAT_END_WRITE_ACTIVITY(beentry);
 }

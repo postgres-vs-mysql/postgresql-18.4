@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_cast.h
- *	  definition of the "type casts" system catalog (pg_cast)
+ *    definition of the "type casts" system catalog (pg_cast)
  *
  * As of Postgres 8.0, pg_cast describes not only type coercion functions
  * but also length coercion functions.
@@ -12,8 +12,8 @@
  * src/include/catalog/pg_cast.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -22,36 +22,37 @@
 
 #include "catalog/dependency.h"
 #include "catalog/genbki.h"
-#include "catalog/pg_cast_d.h"	/* IWYU pragma: export */
+#include "catalog/pg_cast_d.h"  /* IWYU pragma: export */
 
 /* ----------------
- *		pg_cast definition.  cpp turns this into
- *		typedef struct FormData_pg_cast
+ *    pg_cast definition.  cpp turns this into
+ *    typedef struct FormData_pg_cast
  * ----------------
  */
-CATALOG(pg_cast,2605,CastRelationId)
+CATALOG(pg_cast, 2605, CastRelationId)
 {
-	Oid			oid;			/* oid */
+  Oid     oid;      /* oid */
 
-	/* source datatype for cast */
-	Oid			castsource BKI_LOOKUP(pg_type);
+  /* source datatype for cast */
+  Oid     castsource BKI_LOOKUP(pg_type);
 
-	/* destination datatype for cast */
-	Oid			casttarget BKI_LOOKUP(pg_type);
+  /* destination datatype for cast */
+  Oid     casttarget BKI_LOOKUP(pg_type);
 
-	/* cast function; 0 = binary coercible */
-	Oid			castfunc BKI_LOOKUP_OPT(pg_proc);
+  /* cast function; 0 = binary coercible */
+  Oid     castfunc BKI_LOOKUP_OPT(pg_proc);
 
-	/* contexts in which cast can be used */
-	char		castcontext;
+  /* contexts in which cast can be used */
+  char    castcontext;
 
-	/* cast method */
-	char		castmethod;
-} FormData_pg_cast;
+  /* cast method */
+  char    castmethod;
+}
+FormData_pg_cast;
 
 /* ----------------
- *		Form_pg_cast corresponds to a pointer to a tuple with
- *		the format of pg_cast relation.
+ *    Form_pg_cast corresponds to a pointer to a tuple with
+ *    the format of pg_cast relation.
  * ----------------
  */
 typedef FormData_pg_cast *Form_pg_cast;
@@ -74,10 +75,10 @@ MAKE_SYSCACHE(CASTSOURCETARGET, pg_cast_source_target_index, 256);
 
 typedef enum CoercionCodes
 {
-	COERCION_CODE_IMPLICIT = 'i',	/* coercion in context of expression */
-	COERCION_CODE_ASSIGNMENT = 'a', /* coercion in context of assignment */
-	COERCION_CODE_EXPLICIT = 'e',	/* explicit cast operation */
-}			CoercionCodes;
+  COERCION_CODE_IMPLICIT = 'i', /* coercion in context of expression */
+  COERCION_CODE_ASSIGNMENT = 'a', /* coercion in context of assignment */
+  COERCION_CODE_EXPLICIT = 'e', /* explicit cast operation */
+}     CoercionCodes;
 
 /*
  * The allowable values for pg_cast.castmethod are specified by this enum.
@@ -86,21 +87,21 @@ typedef enum CoercionCodes
  */
 typedef enum CoercionMethod
 {
-	COERCION_METHOD_FUNCTION = 'f', /* use a function */
-	COERCION_METHOD_BINARY = 'b',	/* types are binary-compatible */
-	COERCION_METHOD_INOUT = 'i',	/* use input/output functions */
-}			CoercionMethod;
+  COERCION_METHOD_FUNCTION = 'f', /* use a function */
+  COERCION_METHOD_BINARY = 'b', /* types are binary-compatible */
+  COERCION_METHOD_INOUT = 'i',  /* use input/output functions */
+}     CoercionMethod;
 
-#endif							/* EXPOSE_TO_CLIENT_CODE */
+#endif              /* EXPOSE_TO_CLIENT_CODE */
 
 
 extern ObjectAddress CastCreate(Oid sourcetypeid,
-								Oid targettypeid,
-								Oid funcid,
-								Oid incastid,
-								Oid outcastid,
-								char castcontext,
-								char castmethod,
-								DependencyType behavior);
+                                Oid targettypeid,
+                                Oid funcid,
+                                Oid incastid,
+                                Oid outcastid,
+                                char castcontext,
+                                char castmethod,
+                                DependencyType behavior);
 
-#endif							/* PG_CAST_H */
+#endif              /* PG_CAST_H */

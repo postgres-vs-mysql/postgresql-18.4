@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * cmptype.h
- *	  POSTGRES compare type definitions.
+ *    POSTGRES compare type definitions.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -30,15 +30,15 @@
  */
 typedef enum CompareType
 {
-	COMPARE_INVALID = 0,
-	COMPARE_LT = 1,				/* BTLessStrategyNumber */
-	COMPARE_LE = 2,				/* BTLessEqualStrategyNumber */
-	COMPARE_EQ = 3,				/* BTEqualStrategyNumber */
-	COMPARE_GE = 4,				/* BTGreaterEqualStrategyNumber */
-	COMPARE_GT = 5,				/* BTGreaterStrategyNumber */
-	COMPARE_NE = 6,				/* no such btree strategy */
-	COMPARE_OVERLAP,
-	COMPARE_CONTAINED_BY,
+  COMPARE_INVALID = 0,
+  COMPARE_LT = 1,       /* BTLessStrategyNumber */
+  COMPARE_LE = 2,       /* BTLessEqualStrategyNumber */
+  COMPARE_EQ = 3,       /* BTEqualStrategyNumber */
+  COMPARE_GE = 4,       /* BTGreaterEqualStrategyNumber */
+  COMPARE_GT = 5,       /* BTGreaterStrategyNumber */
+  COMPARE_NE = 6,       /* no such btree strategy */
+  COMPARE_OVERLAP,
+  COMPARE_CONTAINED_BY,
 } CompareType;
 
-#endif							/* CMPTYPE_H */
+#endif              /* CMPTYPE_H */

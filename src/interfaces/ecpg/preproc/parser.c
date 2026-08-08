@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * parser.c
- *		Main entry point/driver for PostgreSQL grammar
+ *    Main entry point/driver for PostgreSQL grammar
  *
  * This should match src/backend/parser/parser.c, except that we do not
  * need to bother with re-entrant interfaces.
@@ -14,7 +14,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/interfaces/ecpg/preproc/parser.c
+ *    src/interfaces/ecpg/preproc/parser.c
  *
  *-------------------------------------------------------------------------
  */
@@ -25,13 +25,13 @@
 #include "preproc.h"
 
 
-static bool have_lookahead;		/* is lookahead info valid? */
-static int	lookahead_token;	/* one-token lookahead */
-static YYSTYPE lookahead_yylval;	/* yylval for lookahead token */
-static YYLTYPE lookahead_yylloc;	/* yylloc for lookahead token */
-static char *lookahead_yytext;	/* start current token */
+static bool have_lookahead;   /* is lookahead info valid? */
+static int  lookahead_token;  /* one-token lookahead */
+static YYSTYPE lookahead_yylval;  /* yylval for lookahead token */
+static YYLTYPE lookahead_yylloc;  /* yylloc for lookahead token */
+static char *lookahead_yytext;  /* start current token */
 
-static int	base_yylex_location(void);
+static int  base_yylex_location(void);
 static bool check_uescapechar(unsigned char escape);
 static bool ecpg_isspace(char ch);
 
@@ -56,170 +56,175 @@ static bool ecpg_isspace(char ch);
 int
 filtered_base_yylex(void)
 {
-	int			cur_token;
-	int			next_token;
-	YYSTYPE		cur_yylval;
-	YYLTYPE		cur_yylloc;
-	char	   *cur_yytext;
+  int     cur_token;
+  int     next_token;
+  YYSTYPE   cur_yylval;
+  YYLTYPE   cur_yylloc;
+  char     *cur_yytext;
 
-	/* Get next token --- we might already have it */
-	if (have_lookahead)
-	{
-		cur_token = lookahead_token;
-		base_yylval = lookahead_yylval;
-		base_yylloc = lookahead_yylloc;
-		base_yytext = lookahead_yytext;
-		have_lookahead = false;
-	}
-	else
-		cur_token = base_yylex_location();
+  /* Get next token --- we might already have it */
+  if (have_lookahead) {
+    cur_token = lookahead_token;
+    base_yylval = lookahead_yylval;
+    base_yylloc = lookahead_yylloc;
+    base_yytext = lookahead_yytext;
+    have_lookahead = false;
+  } else
+    cur_token = base_yylex_location();
 
-	/*
-	 * If this token isn't one that requires lookahead, just return it.
-	 */
-	switch (cur_token)
-	{
-		case FORMAT:
-		case NOT:
-		case NULLS_P:
-		case WITH:
-		case WITHOUT:
-		case UIDENT:
-		case USCONST:
-			break;
-		default:
-			return cur_token;
-	}
+  /*
+   * If this token isn't one that requires lookahead, just return it.
+   */
+  switch (cur_token) {
+    case FORMAT:
+    case NOT:
+    case NULLS_P:
+    case WITH:
+    case WITHOUT:
+    case UIDENT:
+    case USCONST:
+      break;
 
-	/* Save and restore lexer output variables around the call */
-	cur_yylval = base_yylval;
-	cur_yylloc = base_yylloc;
-	cur_yytext = base_yytext;
+    default:
+      return cur_token;
+  }
 
-	/* Get next token, saving outputs into lookahead variables */
-	next_token = base_yylex_location();
+  /* Save and restore lexer output variables around the call */
+  cur_yylval = base_yylval;
+  cur_yylloc = base_yylloc;
+  cur_yytext = base_yytext;
 
-	lookahead_token = next_token;
-	lookahead_yylval = base_yylval;
-	lookahead_yylloc = base_yylloc;
-	lookahead_yytext = base_yytext;
+  /* Get next token, saving outputs into lookahead variables */
+  next_token = base_yylex_location();
 
-	base_yylval = cur_yylval;
-	base_yylloc = cur_yylloc;
-	base_yytext = cur_yytext;
+  lookahead_token = next_token;
+  lookahead_yylval = base_yylval;
+  lookahead_yylloc = base_yylloc;
+  lookahead_yytext = base_yytext;
 
-	have_lookahead = true;
+  base_yylval = cur_yylval;
+  base_yylloc = cur_yylloc;
+  base_yytext = cur_yytext;
 
-	/* Replace cur_token if needed, based on lookahead */
-	switch (cur_token)
-	{
-		case FORMAT:
-			/* Replace FORMAT by FORMAT_LA if it's followed by JSON */
-			switch (next_token)
-			{
-				case JSON:
-					cur_token = FORMAT_LA;
-					break;
-			}
-			break;
+  have_lookahead = true;
 
-		case NOT:
-			/* Replace NOT by NOT_LA if it's followed by BETWEEN, IN, etc */
-			switch (next_token)
-			{
-				case BETWEEN:
-				case IN_P:
-				case LIKE:
-				case ILIKE:
-				case SIMILAR:
-					cur_token = NOT_LA;
-					break;
-			}
-			break;
+  /* Replace cur_token if needed, based on lookahead */
+  switch (cur_token) {
+    case FORMAT:
 
-		case NULLS_P:
-			/* Replace NULLS_P by NULLS_LA if it's followed by FIRST or LAST */
-			switch (next_token)
-			{
-				case FIRST_P:
-				case LAST_P:
-					cur_token = NULLS_LA;
-					break;
-			}
-			break;
+      /* Replace FORMAT by FORMAT_LA if it's followed by JSON */
+      switch (next_token) {
+        case JSON:
+          cur_token = FORMAT_LA;
+          break;
+      }
 
-		case WITH:
-			/* Replace WITH by WITH_LA if it's followed by TIME or ORDINALITY */
-			switch (next_token)
-			{
-				case TIME:
-				case ORDINALITY:
-					cur_token = WITH_LA;
-					break;
-			}
-			break;
+      break;
 
-		case WITHOUT:
-			/* Replace WITHOUT by WITHOUT_LA if it's followed by TIME */
-			switch (next_token)
-			{
-				case TIME:
-					cur_token = WITHOUT_LA;
-					break;
-			}
-			break;
-		case UIDENT:
-		case USCONST:
-			/* Look ahead for UESCAPE */
-			if (next_token == UESCAPE)
-			{
-				/* Yup, so get third token, which had better be SCONST */
-				const char *escstr;
+    case NOT:
 
-				/*
-				 * Again save and restore lexer output variables around the
-				 * call
-				 */
-				cur_yylval = base_yylval;
-				cur_yylloc = base_yylloc;
-				cur_yytext = base_yytext;
+      /* Replace NOT by NOT_LA if it's followed by BETWEEN, IN, etc */
+      switch (next_token) {
+        case BETWEEN:
+        case IN_P:
+        case LIKE:
+        case ILIKE:
+        case SIMILAR:
+          cur_token = NOT_LA;
+          break;
+      }
 
-				/* Get third token */
-				next_token = base_yylex_location();
+      break;
 
-				if (next_token != SCONST)
-					mmerror(PARSE_ERROR, ET_ERROR, "UESCAPE must be followed by a simple string literal");
+    case NULLS_P:
 
-				/*
-				 * Save and check escape string, which the scanner returns
-				 * with quotes
-				 */
-				escstr = base_yylval.str;
-				if (strlen(escstr) != 3 || !check_uescapechar(escstr[1]))
-					mmerror(PARSE_ERROR, ET_ERROR, "invalid Unicode escape character");
+      /* Replace NULLS_P by NULLS_LA if it's followed by FIRST or LAST */
+      switch (next_token) {
+        case FIRST_P:
+        case LAST_P:
+          cur_token = NULLS_LA;
+          break;
+      }
 
-				base_yylval = cur_yylval;
-				base_yylloc = cur_yylloc;
-				base_yytext = cur_yytext;
+      break;
 
-				/* Combine 3 tokens into 1 */
-				base_yylval.str = make3_str(base_yylval.str,
-											" UESCAPE ",
-											escstr);
-				base_yylloc = loc_strdup(base_yylval.str);
+    case WITH:
 
-				/* Clear have_lookahead, thereby consuming all three tokens */
-				have_lookahead = false;
-			}
+      /* Replace WITH by WITH_LA if it's followed by TIME or ORDINALITY */
+      switch (next_token) {
+        case TIME:
+        case ORDINALITY:
+          cur_token = WITH_LA;
+          break;
+      }
 
-			if (cur_token == UIDENT)
-				cur_token = IDENT;
-			else if (cur_token == USCONST)
-				cur_token = SCONST;
-			break;
-	}
+      break;
 
-	return cur_token;
+    case WITHOUT:
+
+      /* Replace WITHOUT by WITHOUT_LA if it's followed by TIME */
+      switch (next_token) {
+        case TIME:
+          cur_token = WITHOUT_LA;
+          break;
+      }
+
+      break;
+
+    case UIDENT:
+    case USCONST:
+
+      /* Look ahead for UESCAPE */
+      if (next_token == UESCAPE) {
+        /* Yup, so get third token, which had better be SCONST */
+        const char *escstr;
+
+        /*
+         * Again save and restore lexer output variables around the
+         * call
+         */
+        cur_yylval = base_yylval;
+        cur_yylloc = base_yylloc;
+        cur_yytext = base_yytext;
+
+        /* Get third token */
+        next_token = base_yylex_location();
+
+        if (next_token != SCONST)
+          mmerror(PARSE_ERROR, ET_ERROR, "UESCAPE must be followed by a simple string literal");
+
+        /*
+         * Save and check escape string, which the scanner returns
+         * with quotes
+         */
+        escstr = base_yylval.str;
+
+        if (strlen(escstr) != 3 || !check_uescapechar(escstr[1]))
+          mmerror(PARSE_ERROR, ET_ERROR, "invalid Unicode escape character");
+
+        base_yylval = cur_yylval;
+        base_yylloc = cur_yylloc;
+        base_yytext = cur_yytext;
+
+        /* Combine 3 tokens into 1 */
+        base_yylval.str = make3_str(base_yylval.str,
+                                    " UESCAPE ",
+                                    escstr);
+        base_yylloc = loc_strdup(base_yylval.str);
+
+        /* Clear have_lookahead, thereby consuming all three tokens */
+        have_lookahead = false;
+      }
+
+      if (cur_token == UIDENT)
+        cur_token = IDENT;
+      else if (cur_token == USCONST)
+        cur_token = SCONST;
+
+      break;
+  }
+
+  return cur_token;
 }
 
 /*
@@ -238,38 +243,40 @@ filtered_base_yylex(void)
 static int
 base_yylex_location(void)
 {
-	int			token = base_yylex();
+  int     token = base_yylex();
 
-	switch (token)
-	{
-			/* List a token here if pgc.l assigns to base_yylval.str for it */
-		case Op:
-		case CSTRING:
-		case CPP_LINE:
-		case CVARIABLE:
-		case BCONST:
-		case SCONST:
-		case USCONST:
-		case XCONST:
-		case FCONST:
-		case IDENT:
-		case UIDENT:
-		case IP:
-			/* Duplicate the <str> value */
-			base_yylloc = loc_strdup(base_yylval.str);
-			break;
-		default:
-			/* Else just use the input, i.e., yytext */
-			base_yylloc = loc_strdup(base_yytext);
-			/* Apply an ASCII-only downcasing */
-			for (unsigned char *ptr = (unsigned char *) base_yylloc; *ptr; ptr++)
-			{
-				if (*ptr >= 'A' && *ptr <= 'Z')
-					*ptr += 'a' - 'A';
-			}
-			break;
-	}
-	return token;
+  switch (token) {
+    /* List a token here if pgc.l assigns to base_yylval.str for it */
+    case Op:
+    case CSTRING:
+    case CPP_LINE:
+    case CVARIABLE:
+    case BCONST:
+    case SCONST:
+    case USCONST:
+    case XCONST:
+    case FCONST:
+    case IDENT:
+    case UIDENT:
+    case IP:
+      /* Duplicate the <str> value */
+      base_yylloc = loc_strdup(base_yylval.str);
+      break;
+
+    default:
+      /* Else just use the input, i.e., yytext */
+      base_yylloc = loc_strdup(base_yytext);
+
+      /* Apply an ASCII-only downcasing */
+      for (unsigned char *ptr = (unsigned char *) base_yylloc; *ptr; ptr++) {
+        if (*ptr >= 'A' && *ptr <= 'Z')
+          *ptr += 'a' - 'A';
+      }
+
+      break;
+  }
+
+  return token;
 }
 
 /*
@@ -281,14 +288,14 @@ base_yylex_location(void)
 static bool
 check_uescapechar(unsigned char escape)
 {
-	if (isxdigit(escape)
-		|| escape == '+'
-		|| escape == '\''
-		|| escape == '"'
-		|| ecpg_isspace(escape))
-		return false;
-	else
-		return true;
+  if (isxdigit(escape)
+      || escape == '+'
+      || escape == '\''
+      || escape == '"'
+      || ecpg_isspace(escape))
+    return false;
+  else
+    return true;
 }
 
 /*
@@ -297,11 +304,12 @@ check_uescapechar(unsigned char escape)
 static bool
 ecpg_isspace(char ch)
 {
-	if (ch == ' ' ||
-		ch == '\t' ||
-		ch == '\n' ||
-		ch == '\r' ||
-		ch == '\f')
-		return true;
-	return false;
+  if (ch == ' ' ||
+      ch == '\t' ||
+      ch == '\n' ||
+      ch == '\r' ||
+      ch == '\f')
+    return true;
+
+  return false;
 }

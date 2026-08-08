@@ -19,6 +19,6 @@ extern PGresult *executeQuery(PGconn *conn, const char *query, bool echo);
 extern void executeCommand(PGconn *conn, const char *query, bool echo);
 
 extern bool executeMaintenanceCommand(PGconn *conn, const char *query,
-									  bool echo);
+                                      bool echo);
 
-#endif							/* QUERY_UTILS_H */
+#endif              /* QUERY_UTILS_H */

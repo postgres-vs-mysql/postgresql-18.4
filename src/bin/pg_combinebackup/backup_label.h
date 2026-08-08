@@ -19,12 +19,12 @@
 struct manifest_writer;
 
 extern void parse_backup_label(char *filename, StringInfo buf,
-							   TimeLineID *start_tli,
-							   XLogRecPtr *start_lsn,
-							   TimeLineID *previous_tli,
-							   XLogRecPtr *previous_lsn);
+                               TimeLineID *start_tli,
+                               XLogRecPtr *start_lsn,
+                               TimeLineID *previous_tli,
+                               XLogRecPtr *previous_lsn);
 extern void write_backup_label(char *output_directory, StringInfo buf,
-							   pg_checksum_type checksum_type,
-							   struct manifest_writer *mwriter);
+                               pg_checksum_type checksum_type,
+                               struct manifest_writer *mwriter);
 
-#endif							/* BACKUP_LABEL_H */
+#endif              /* BACKUP_LABEL_H */

@@ -20,16 +20,16 @@ extern bool describeTablespaces(const char *pattern, bool verbose);
 
 /* \df, \dfa, \dfn, \dft, \dfw, etc. */
 extern bool describeFunctions(const char *functypes, const char *func_pattern,
-							  char **arg_patterns, int num_arg_patterns,
-							  bool verbose, bool showSystem);
+                              char **arg_patterns, int num_arg_patterns,
+                              bool verbose, bool showSystem);
 
 /* \dT */
 extern bool describeTypes(const char *pattern, bool verbose, bool showSystem);
 
 /* \do */
 extern bool describeOperators(const char *oper_pattern,
-							  char **arg_patterns, int num_arg_patterns,
-							  bool verbose, bool showSystem);
+                              char **arg_patterns, int num_arg_patterns,
+                              bool verbose, bool showSystem);
 
 /* \du, \dg */
 extern bool describeRoles(const char *pattern, bool verbose, bool showSystem);
@@ -81,7 +81,7 @@ extern bool listConversions(const char *pattern, bool verbose, bool showSystem);
 
 /* \dconfig */
 extern bool describeConfigurationParameters(const char *pattern, bool verbose,
-											bool showSystem);
+    bool showSystem);
 
 /* \dC */
 extern bool listCasts(const char *pattern, bool verbose);
@@ -120,33 +120,33 @@ extern bool listExtendedStats(const char *pattern);
 extern bool listEventTriggers(const char *pattern, bool verbose);
 
 /* \dRp */
-bool		listPublications(const char *pattern);
+bool    listPublications(const char *pattern);
 
 /* \dRp+ */
-bool		describePublications(const char *pattern);
+bool    describePublications(const char *pattern);
 
 /* \dRs */
-bool		describeSubscriptions(const char *pattern, bool verbose);
+bool    describeSubscriptions(const char *pattern, bool verbose);
 
 /* \dAc */
 extern bool listOperatorClasses(const char *access_method_pattern,
-								const char *type_pattern,
-								bool verbose);
+                                const char *type_pattern,
+                                bool verbose);
 
 /* \dAf */
 extern bool listOperatorFamilies(const char *access_method_pattern,
-								 const char *type_pattern,
-								 bool verbose);
+                                 const char *type_pattern,
+                                 bool verbose);
 
 /* \dAo */
 extern bool listOpFamilyOperators(const char *access_method_pattern,
-								  const char *family_pattern, bool verbose);
+                                  const char *family_pattern, bool verbose);
 
 /* \dAp */
 extern bool listOpFamilyFunctions(const char *access_method_pattern,
-								  const char *family_pattern, bool verbose);
+                                  const char *family_pattern, bool verbose);
 
 /* \dl or \lo_list */
 extern bool listLargeObjects(bool verbose);
 
-#endif							/* DESCRIBE_H */
+#endif              /* DESCRIBE_H */

@@ -37,6 +37,6 @@
 #undef X509_NAME
 #endif
 
-#endif							/* ENABLE_GSS */
+#endif              /* ENABLE_GSS */
 
-#endif							/* PG_GSSAPI_H */
+#endif              /* PG_GSSAPI_H */

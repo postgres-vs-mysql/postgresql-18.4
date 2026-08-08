@@ -1,8 +1,8 @@
 /*-------------------------------------------------------------------------
  *
  * pg_lsn.h
- *		Declarations for operations on log sequence numbers (LSNs) of
- *		PostgreSQL.
+ *    Declarations for operations on log sequence numbers (LSNs) of
+ *    PostgreSQL.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -21,18 +21,18 @@
 static inline XLogRecPtr
 DatumGetLSN(Datum X)
 {
-	return (XLogRecPtr) DatumGetInt64(X);
+  return (XLogRecPtr) DatumGetInt64(X);
 }
 
 static inline Datum
 LSNGetDatum(XLogRecPtr X)
 {
-	return Int64GetDatum((int64) X);
+  return Int64GetDatum((int64) X);
 }
 
-#define PG_GETARG_LSN(n)	 DatumGetLSN(PG_GETARG_DATUM(n))
-#define PG_RETURN_LSN(x)	 return LSNGetDatum(x)
+#define PG_GETARG_LSN(n)   DatumGetLSN(PG_GETARG_DATUM(n))
+#define PG_RETURN_LSN(x)   return LSNGetDatum(x)
 
 extern XLogRecPtr pg_lsn_in_internal(const char *str, bool *have_error);
 
-#endif							/* PG_LSN_H */
+#endif              /* PG_LSN_H */

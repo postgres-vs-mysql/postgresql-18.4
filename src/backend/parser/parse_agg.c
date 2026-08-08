@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * parse_agg.c
- *	  handle aggregates and window functions in parser
+ *    handle aggregates and window functions in parser
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/backend/parser/parse_agg.c
+ *    src/backend/parser/parse_agg.c
  *
  *-------------------------------------------------------------------------
  */
@@ -33,51 +33,49 @@
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
 
-typedef struct
-{
-	ParseState *pstate;
-	int			min_varlevel;
-	int			min_agglevel;
-	int			min_ctelevel;
-	RangeTblEntry *min_cte;
-	int			sublevels_up;
+typedef struct {
+  ParseState *pstate;
+  int     min_varlevel;
+  int     min_agglevel;
+  int     min_ctelevel;
+  RangeTblEntry *min_cte;
+  int     sublevels_up;
 } check_agg_arguments_context;
 
-typedef struct
-{
-	ParseState *pstate;
-	Query	   *qry;
-	bool		hasJoinRTEs;
-	List	   *groupClauses;
-	List	   *groupClauseCommonVars;
-	List	   *gset_common;
-	bool		have_non_var_grouping;
-	List	  **func_grouped_rels;
-	int			sublevels_up;
-	bool		in_agg_direct_args;
+typedef struct {
+  ParseState *pstate;
+  Query    *qry;
+  bool    hasJoinRTEs;
+  List     *groupClauses;
+  List     *groupClauseCommonVars;
+  List     *gset_common;
+  bool    have_non_var_grouping;
+  List    **func_grouped_rels;
+  int     sublevels_up;
+  bool    in_agg_direct_args;
 } substitute_grouped_columns_context;
 
-static int	check_agg_arguments(ParseState *pstate,
-								List *directargs,
-								List *args,
-								Expr *filter,
-								int agglocation);
+static int  check_agg_arguments(ParseState *pstate,
+                                List *directargs,
+                                List *args,
+                                Expr *filter,
+                                int agglocation);
 static bool check_agg_arguments_walker(Node *node,
-									   check_agg_arguments_context *context);
+                                       check_agg_arguments_context *context);
 static Node *substitute_grouped_columns(Node *node, ParseState *pstate, Query *qry,
-										List *groupClauses, List *groupClauseCommonVars,
-										List *gset_common,
-										bool have_non_var_grouping,
-										List **func_grouped_rels);
+                                        List *groupClauses, List *groupClauseCommonVars,
+                                        List *gset_common,
+                                        bool have_non_var_grouping,
+                                        List **func_grouped_rels);
 static Node *substitute_grouped_columns_mutator(Node *node,
-												substitute_grouped_columns_context *context);
+    substitute_grouped_columns_context *context);
 static void finalize_grouping_exprs(Node *node, ParseState *pstate, Query *qry,
-									List *groupClauses, bool hasJoinRTEs,
-									bool have_non_var_grouping);
+                                    List *groupClauses, bool hasJoinRTEs,
+                                    bool have_non_var_grouping);
 static bool finalize_grouping_exprs_walker(Node *node,
-										   substitute_grouped_columns_context *context);
+    substitute_grouped_columns_context *context);
 static Var *buildGroupedVar(int attnum, Index ressortgroupref,
-							substitute_grouped_columns_context *context);
+                            substitute_grouped_columns_context *context);
 static void check_agglevels_and_constraints(ParseState *pstate, Node *expr);
 static List *expand_groupingset_node(GroupingSet *gs);
 static Node *make_agg_arg(Oid argtype, Oid argcollation);
@@ -85,7 +83,7 @@ static Node *make_agg_arg(Oid argtype, Oid argcollation);
 
 /*
  * transformAggregateCall -
- *		Finish initial transformation of an aggregate call
+ *    Finish initial transformation of an aggregate call
  *
  * parse_func.c has recognized the function as an aggregate, and has set up
  * all the fields of the Aggref except aggargtypes, aggdirectargs, args,
@@ -110,156 +108,149 @@ static Node *make_agg_arg(Oid argtype, Oid argcollation);
  */
 void
 transformAggregateCall(ParseState *pstate, Aggref *agg,
-					   List *args, List *aggorder, bool agg_distinct)
+                       List *args, List *aggorder, bool agg_distinct)
 {
-	List	   *argtypes = NIL;
-	List	   *tlist = NIL;
-	List	   *torder = NIL;
-	List	   *tdistinct = NIL;
-	AttrNumber	attno = 1;
-	int			save_next_resno;
-	ListCell   *lc;
+  List     *argtypes = NIL;
+  List     *tlist = NIL;
+  List     *torder = NIL;
+  List     *tdistinct = NIL;
+  AttrNumber  attno = 1;
+  int     save_next_resno;
+  ListCell   *lc;
 
-	if (AGGKIND_IS_ORDERED_SET(agg->aggkind))
-	{
-		/*
-		 * For an ordered-set agg, the args list includes direct args and
-		 * aggregated args; we must split them apart.
-		 */
-		int			numDirectArgs = list_length(args) - list_length(aggorder);
-		List	   *aargs;
-		ListCell   *lc2;
+  if (AGGKIND_IS_ORDERED_SET(agg->aggkind)) {
+    /*
+     * For an ordered-set agg, the args list includes direct args and
+     * aggregated args; we must split them apart.
+     */
+    int     numDirectArgs = list_length(args) - list_length(aggorder);
+    List     *aargs;
+    ListCell   *lc2;
 
-		Assert(numDirectArgs >= 0);
+    Assert(numDirectArgs >= 0);
 
-		aargs = list_copy_tail(args, numDirectArgs);
-		agg->aggdirectargs = list_truncate(args, numDirectArgs);
+    aargs = list_copy_tail(args, numDirectArgs);
+    agg->aggdirectargs = list_truncate(args, numDirectArgs);
 
-		/*
-		 * Build a tlist from the aggregated args, and make a sortlist entry
-		 * for each one.  Note that the expressions in the SortBy nodes are
-		 * ignored (they are the raw versions of the transformed args); we are
-		 * just looking at the sort information in the SortBy nodes.
-		 */
-		forboth(lc, aargs, lc2, aggorder)
-		{
-			Expr	   *arg = (Expr *) lfirst(lc);
-			SortBy	   *sortby = (SortBy *) lfirst(lc2);
-			TargetEntry *tle;
+    /*
+     * Build a tlist from the aggregated args, and make a sortlist entry
+     * for each one.  Note that the expressions in the SortBy nodes are
+     * ignored (they are the raw versions of the transformed args); we are
+     * just looking at the sort information in the SortBy nodes.
+     */
+    forboth(lc, aargs, lc2, aggorder) {
+      Expr     *arg = (Expr *) lfirst(lc);
+      SortBy     *sortby = (SortBy *) lfirst(lc2);
+      TargetEntry *tle;
 
-			/* We don't bother to assign column names to the entries */
-			tle = makeTargetEntry(arg, attno++, NULL, false);
-			tlist = lappend(tlist, tle);
+      /* We don't bother to assign column names to the entries */
+      tle = makeTargetEntry(arg, attno++, NULL, false);
+      tlist = lappend(tlist, tle);
 
-			torder = addTargetToSortList(pstate, tle,
-										 torder, tlist, sortby);
-		}
+      torder = addTargetToSortList(pstate, tle,
+                                   torder, tlist, sortby);
+    }
 
-		/* Never any DISTINCT in an ordered-set agg */
-		Assert(!agg_distinct);
-	}
-	else
-	{
-		/* Regular aggregate, so it has no direct args */
-		agg->aggdirectargs = NIL;
+    /* Never any DISTINCT in an ordered-set agg */
+    Assert(!agg_distinct);
+  } else {
+    /* Regular aggregate, so it has no direct args */
+    agg->aggdirectargs = NIL;
 
-		/*
-		 * Transform the plain list of Exprs into a targetlist.
-		 */
-		foreach(lc, args)
-		{
-			Expr	   *arg = (Expr *) lfirst(lc);
-			TargetEntry *tle;
+    /*
+     * Transform the plain list of Exprs into a targetlist.
+     */
+    foreach(lc, args) {
+      Expr     *arg = (Expr *) lfirst(lc);
+      TargetEntry *tle;
 
-			/* We don't bother to assign column names to the entries */
-			tle = makeTargetEntry(arg, attno++, NULL, false);
-			tlist = lappend(tlist, tle);
-		}
+      /* We don't bother to assign column names to the entries */
+      tle = makeTargetEntry(arg, attno++, NULL, false);
+      tlist = lappend(tlist, tle);
+    }
 
-		/*
-		 * If we have an ORDER BY, transform it.  This will add columns to the
-		 * tlist if they appear in ORDER BY but weren't already in the arg
-		 * list.  They will be marked resjunk = true so we can tell them apart
-		 * from regular aggregate arguments later.
-		 *
-		 * We need to mess with p_next_resno since it will be used to number
-		 * any new targetlist entries.
-		 */
-		save_next_resno = pstate->p_next_resno;
-		pstate->p_next_resno = attno;
+    /*
+     * If we have an ORDER BY, transform it.  This will add columns to the
+     * tlist if they appear in ORDER BY but weren't already in the arg
+     * list.  They will be marked resjunk = true so we can tell them apart
+     * from regular aggregate arguments later.
+     *
+     * We need to mess with p_next_resno since it will be used to number
+     * any new targetlist entries.
+     */
+    save_next_resno = pstate->p_next_resno;
+    pstate->p_next_resno = attno;
 
-		torder = transformSortClause(pstate,
-									 aggorder,
-									 &tlist,
-									 EXPR_KIND_ORDER_BY,
-									 true /* force SQL99 rules */ );
+    torder = transformSortClause(pstate,
+                                 aggorder,
+                                 &tlist,
+                                 EXPR_KIND_ORDER_BY,
+                                 true /* force SQL99 rules */ );
 
-		/*
-		 * If we have DISTINCT, transform that to produce a distinctList.
-		 */
-		if (agg_distinct)
-		{
-			tdistinct = transformDistinctClause(pstate, &tlist, torder, true);
+    /*
+     * If we have DISTINCT, transform that to produce a distinctList.
+     */
+    if (agg_distinct) {
+      tdistinct = transformDistinctClause(pstate, &tlist, torder, true);
 
-			/*
-			 * Remove this check if executor support for hashed distinct for
-			 * aggregates is ever added.
-			 */
-			foreach(lc, tdistinct)
-			{
-				SortGroupClause *sortcl = (SortGroupClause *) lfirst(lc);
+      /*
+       * Remove this check if executor support for hashed distinct for
+       * aggregates is ever added.
+       */
+      foreach(lc, tdistinct) {
+        SortGroupClause *sortcl = (SortGroupClause *) lfirst(lc);
 
-				if (!OidIsValid(sortcl->sortop))
-				{
-					Node	   *expr = get_sortgroupclause_expr(sortcl, tlist);
+        if (!OidIsValid(sortcl->sortop)) {
+          Node     *expr = get_sortgroupclause_expr(sortcl, tlist);
 
-					ereport(ERROR,
-							(errcode(ERRCODE_UNDEFINED_FUNCTION),
-							 errmsg("could not identify an ordering operator for type %s",
-									format_type_be(exprType(expr))),
-							 errdetail("Aggregates with DISTINCT must be able to sort their inputs."),
-							 parser_errposition(pstate, exprLocation(expr))));
-				}
-			}
-		}
+          ereport(ERROR,
+                  (errcode(ERRCODE_UNDEFINED_FUNCTION),
+                   errmsg("could not identify an ordering operator for type %s",
+                          format_type_be(exprType(expr))),
+                   errdetail("Aggregates with DISTINCT must be able to sort their inputs."),
+                   parser_errposition(pstate, exprLocation(expr))));
+        }
+      }
+    }
 
-		pstate->p_next_resno = save_next_resno;
-	}
+    pstate->p_next_resno = save_next_resno;
+  }
 
-	/* Update the Aggref with the transformation results */
-	agg->args = tlist;
-	agg->aggorder = torder;
-	agg->aggdistinct = tdistinct;
+  /* Update the Aggref with the transformation results */
+  agg->args = tlist;
+  agg->aggorder = torder;
+  agg->aggdistinct = tdistinct;
 
-	/*
-	 * Now build the aggargtypes list with the type OIDs of the direct and
-	 * aggregated args, ignoring any resjunk entries that might have been
-	 * added by ORDER BY/DISTINCT processing.  We can't do this earlier
-	 * because said processing can modify some args' data types, in particular
-	 * by resolving previously-unresolved "unknown" literals.
-	 */
-	foreach(lc, agg->aggdirectargs)
-	{
-		Expr	   *arg = (Expr *) lfirst(lc);
+  /*
+   * Now build the aggargtypes list with the type OIDs of the direct and
+   * aggregated args, ignoring any resjunk entries that might have been
+   * added by ORDER BY/DISTINCT processing.  We can't do this earlier
+   * because said processing can modify some args' data types, in particular
+   * by resolving previously-unresolved "unknown" literals.
+   */
+  foreach(lc, agg->aggdirectargs) {
+    Expr     *arg = (Expr *) lfirst(lc);
 
-		argtypes = lappend_oid(argtypes, exprType((Node *) arg));
-	}
-	foreach(lc, tlist)
-	{
-		TargetEntry *tle = (TargetEntry *) lfirst(lc);
+    argtypes = lappend_oid(argtypes, exprType((Node *) arg));
+  }
 
-		if (tle->resjunk)
-			continue;			/* ignore junk */
-		argtypes = lappend_oid(argtypes, exprType((Node *) tle->expr));
-	}
-	agg->aggargtypes = argtypes;
+  foreach(lc, tlist) {
+    TargetEntry *tle = (TargetEntry *) lfirst(lc);
 
-	check_agglevels_and_constraints(pstate, (Node *) agg);
+    if (tle->resjunk)
+      continue;     /* ignore junk */
+
+    argtypes = lappend_oid(argtypes, exprType((Node *) tle->expr));
+  }
+
+  agg->aggargtypes = argtypes;
+
+  check_agglevels_and_constraints(pstate, (Node *) agg);
 }
 
 /*
  * transformGroupingFunc
- *		Transform a GROUPING expression
+ *    Transform a GROUPING expression
  *
  * GROUPING() behaves very like an aggregate.  Processing of levels and nesting
  * is done as for aggregates.  We set p_hasAggs for these expressions too.
@@ -267,34 +258,33 @@ transformAggregateCall(ParseState *pstate, Aggref *agg,
 Node *
 transformGroupingFunc(ParseState *pstate, GroupingFunc *p)
 {
-	ListCell   *lc;
-	List	   *args = p->args;
-	List	   *result_list = NIL;
-	GroupingFunc *result = makeNode(GroupingFunc);
+  ListCell   *lc;
+  List     *args = p->args;
+  List     *result_list = NIL;
+  GroupingFunc *result = makeNode(GroupingFunc);
 
-	if (list_length(args) > 31)
-		ereport(ERROR,
-				(errcode(ERRCODE_TOO_MANY_ARGUMENTS),
-				 errmsg("GROUPING must have fewer than 32 arguments"),
-				 parser_errposition(pstate, p->location)));
+  if (list_length(args) > 31)
+    ereport(ERROR,
+            (errcode(ERRCODE_TOO_MANY_ARGUMENTS),
+             errmsg("GROUPING must have fewer than 32 arguments"),
+             parser_errposition(pstate, p->location)));
 
-	foreach(lc, args)
-	{
-		Node	   *current_result;
+  foreach(lc, args) {
+    Node     *current_result;
 
-		current_result = transformExpr(pstate, (Node *) lfirst(lc), pstate->p_expr_kind);
+    current_result = transformExpr(pstate, (Node *) lfirst(lc), pstate->p_expr_kind);
 
-		/* acceptability of expressions is checked later */
+    /* acceptability of expressions is checked later */
 
-		result_list = lappend(result_list, current_result);
-	}
+    result_list = lappend(result_list, current_result);
+  }
 
-	result->args = result_list;
-	result->location = p->location;
+  result->args = result_list;
+  result->location = p->location;
 
-	check_agglevels_and_constraints(pstate, (Node *) result);
+  check_agglevels_and_constraints(pstate, (Node *) result);
 
-	return (Node *) result;
+  return (Node *) result;
 }
 
 /*
@@ -306,321 +296,351 @@ transformGroupingFunc(ParseState *pstate, GroupingFunc *p)
 static void
 check_agglevels_and_constraints(ParseState *pstate, Node *expr)
 {
-	List	   *directargs = NIL;
-	List	   *args = NIL;
-	Expr	   *filter = NULL;
-	int			min_varlevel;
-	int			location = -1;
-	Index	   *p_levelsup;
-	const char *err;
-	bool		errkind;
-	bool		isAgg = IsA(expr, Aggref);
+  List     *directargs = NIL;
+  List     *args = NIL;
+  Expr     *filter = NULL;
+  int     min_varlevel;
+  int     location = -1;
+  Index    *p_levelsup;
+  const char *err;
+  bool    errkind;
+  bool    isAgg = IsA(expr, Aggref);
 
-	if (isAgg)
-	{
-		Aggref	   *agg = (Aggref *) expr;
+  if (isAgg) {
+    Aggref     *agg = (Aggref *) expr;
 
-		directargs = agg->aggdirectargs;
-		args = agg->args;
-		filter = agg->aggfilter;
-		location = agg->location;
-		p_levelsup = &agg->agglevelsup;
-	}
-	else
-	{
-		GroupingFunc *grp = (GroupingFunc *) expr;
+    directargs = agg->aggdirectargs;
+    args = agg->args;
+    filter = agg->aggfilter;
+    location = agg->location;
+    p_levelsup = &agg->agglevelsup;
+  } else {
+    GroupingFunc *grp = (GroupingFunc *) expr;
 
-		args = grp->args;
-		location = grp->location;
-		p_levelsup = &grp->agglevelsup;
-	}
+    args = grp->args;
+    location = grp->location;
+    p_levelsup = &grp->agglevelsup;
+  }
 
-	/*
-	 * Check the arguments to compute the aggregate's level and detect
-	 * improper nesting.
-	 */
-	min_varlevel = check_agg_arguments(pstate,
-									   directargs,
-									   args,
-									   filter,
-									   location);
+  /*
+   * Check the arguments to compute the aggregate's level and detect
+   * improper nesting.
+   */
+  min_varlevel = check_agg_arguments(pstate,
+                                     directargs,
+                                     args,
+                                     filter,
+                                     location);
 
-	*p_levelsup = min_varlevel;
+  *p_levelsup = min_varlevel;
 
-	/* Mark the correct pstate level as having aggregates */
-	while (min_varlevel-- > 0)
-		pstate = pstate->parentParseState;
-	pstate->p_hasAggs = true;
+  /* Mark the correct pstate level as having aggregates */
+  while (min_varlevel-- > 0)
+    pstate = pstate->parentParseState;
 
-	/*
-	 * Check to see if the aggregate function is in an invalid place within
-	 * its aggregation query.
-	 *
-	 * For brevity we support two schemes for reporting an error here: set
-	 * "err" to a custom message, or set "errkind" true if the error context
-	 * is sufficiently identified by what ParseExprKindName will return, *and*
-	 * what it will return is just a SQL keyword.  (Otherwise, use a custom
-	 * message to avoid creating translation problems.)
-	 */
-	err = NULL;
-	errkind = false;
-	switch (pstate->p_expr_kind)
-	{
-		case EXPR_KIND_NONE:
-			Assert(false);		/* can't happen */
-			break;
-		case EXPR_KIND_OTHER:
+  pstate->p_hasAggs = true;
 
-			/*
-			 * Accept aggregate/grouping here; caller must throw error if
-			 * wanted
-			 */
-			break;
-		case EXPR_KIND_JOIN_ON:
-		case EXPR_KIND_JOIN_USING:
-			if (isAgg)
-				err = _("aggregate functions are not allowed in JOIN conditions");
-			else
-				err = _("grouping operations are not allowed in JOIN conditions");
+  /*
+   * Check to see if the aggregate function is in an invalid place within
+   * its aggregation query.
+   *
+   * For brevity we support two schemes for reporting an error here: set
+   * "err" to a custom message, or set "errkind" true if the error context
+   * is sufficiently identified by what ParseExprKindName will return, *and*
+   * what it will return is just a SQL keyword.  (Otherwise, use a custom
+   * message to avoid creating translation problems.)
+   */
+  err = NULL;
+  errkind = false;
 
-			break;
-		case EXPR_KIND_FROM_SUBSELECT:
+  switch (pstate->p_expr_kind) {
+    case EXPR_KIND_NONE:
+      Assert(false);    /* can't happen */
+      break;
 
-			/*
-			 * Aggregate/grouping scope rules make it worth being explicit
-			 * here
-			 */
-			if (isAgg)
-				err = _("aggregate functions are not allowed in FROM clause of their own query level");
-			else
-				err = _("grouping operations are not allowed in FROM clause of their own query level");
+    case EXPR_KIND_OTHER:
 
-			break;
-		case EXPR_KIND_FROM_FUNCTION:
-			if (isAgg)
-				err = _("aggregate functions are not allowed in functions in FROM");
-			else
-				err = _("grouping operations are not allowed in functions in FROM");
+      /*
+       * Accept aggregate/grouping here; caller must throw error if
+       * wanted
+       */
+      break;
 
-			break;
-		case EXPR_KIND_WHERE:
-			errkind = true;
-			break;
-		case EXPR_KIND_POLICY:
-			if (isAgg)
-				err = _("aggregate functions are not allowed in policy expressions");
-			else
-				err = _("grouping operations are not allowed in policy expressions");
+    case EXPR_KIND_JOIN_ON:
+    case EXPR_KIND_JOIN_USING:
+      if (isAgg)
+        err = _("aggregate functions are not allowed in JOIN conditions");
+      else
+        err = _("grouping operations are not allowed in JOIN conditions");
 
-			break;
-		case EXPR_KIND_HAVING:
-			/* okay */
-			break;
-		case EXPR_KIND_FILTER:
-			errkind = true;
-			break;
-		case EXPR_KIND_WINDOW_PARTITION:
-			/* okay */
-			break;
-		case EXPR_KIND_WINDOW_ORDER:
-			/* okay */
-			break;
-		case EXPR_KIND_WINDOW_FRAME_RANGE:
-			if (isAgg)
-				err = _("aggregate functions are not allowed in window RANGE");
-			else
-				err = _("grouping operations are not allowed in window RANGE");
+      break;
 
-			break;
-		case EXPR_KIND_WINDOW_FRAME_ROWS:
-			if (isAgg)
-				err = _("aggregate functions are not allowed in window ROWS");
-			else
-				err = _("grouping operations are not allowed in window ROWS");
+    case EXPR_KIND_FROM_SUBSELECT:
 
-			break;
-		case EXPR_KIND_WINDOW_FRAME_GROUPS:
-			if (isAgg)
-				err = _("aggregate functions are not allowed in window GROUPS");
-			else
-				err = _("grouping operations are not allowed in window GROUPS");
+      /*
+       * Aggregate/grouping scope rules make it worth being explicit
+       * here
+       */
+      if (isAgg)
+        err = _("aggregate functions are not allowed in FROM clause of their own query level");
+      else
+        err = _("grouping operations are not allowed in FROM clause of their own query level");
 
-			break;
-		case EXPR_KIND_SELECT_TARGET:
-			/* okay */
-			break;
-		case EXPR_KIND_INSERT_TARGET:
-		case EXPR_KIND_UPDATE_SOURCE:
-		case EXPR_KIND_UPDATE_TARGET:
-			errkind = true;
-			break;
-		case EXPR_KIND_MERGE_WHEN:
-			if (isAgg)
-				err = _("aggregate functions are not allowed in MERGE WHEN conditions");
-			else
-				err = _("grouping operations are not allowed in MERGE WHEN conditions");
+      break;
 
-			break;
-		case EXPR_KIND_GROUP_BY:
-			errkind = true;
-			break;
-		case EXPR_KIND_ORDER_BY:
-			/* okay */
-			break;
-		case EXPR_KIND_DISTINCT_ON:
-			/* okay */
-			break;
-		case EXPR_KIND_LIMIT:
-		case EXPR_KIND_OFFSET:
-			errkind = true;
-			break;
-		case EXPR_KIND_RETURNING:
-		case EXPR_KIND_MERGE_RETURNING:
-			errkind = true;
-			break;
-		case EXPR_KIND_VALUES:
-		case EXPR_KIND_VALUES_SINGLE:
-			errkind = true;
-			break;
-		case EXPR_KIND_CHECK_CONSTRAINT:
-		case EXPR_KIND_DOMAIN_CHECK:
-			if (isAgg)
-				err = _("aggregate functions are not allowed in check constraints");
-			else
-				err = _("grouping operations are not allowed in check constraints");
+    case EXPR_KIND_FROM_FUNCTION:
+      if (isAgg)
+        err = _("aggregate functions are not allowed in functions in FROM");
+      else
+        err = _("grouping operations are not allowed in functions in FROM");
 
-			break;
-		case EXPR_KIND_COLUMN_DEFAULT:
-		case EXPR_KIND_FUNCTION_DEFAULT:
+      break;
 
-			if (isAgg)
-				err = _("aggregate functions are not allowed in DEFAULT expressions");
-			else
-				err = _("grouping operations are not allowed in DEFAULT expressions");
+    case EXPR_KIND_WHERE:
+      errkind = true;
+      break;
 
-			break;
-		case EXPR_KIND_INDEX_EXPRESSION:
-			if (isAgg)
-				err = _("aggregate functions are not allowed in index expressions");
-			else
-				err = _("grouping operations are not allowed in index expressions");
+    case EXPR_KIND_POLICY:
+      if (isAgg)
+        err = _("aggregate functions are not allowed in policy expressions");
+      else
+        err = _("grouping operations are not allowed in policy expressions");
 
-			break;
-		case EXPR_KIND_INDEX_PREDICATE:
-			if (isAgg)
-				err = _("aggregate functions are not allowed in index predicates");
-			else
-				err = _("grouping operations are not allowed in index predicates");
+      break;
 
-			break;
-		case EXPR_KIND_STATS_EXPRESSION:
-			if (isAgg)
-				err = _("aggregate functions are not allowed in statistics expressions");
-			else
-				err = _("grouping operations are not allowed in statistics expressions");
+    case EXPR_KIND_HAVING:
+      /* okay */
+      break;
 
-			break;
-		case EXPR_KIND_ALTER_COL_TRANSFORM:
-			if (isAgg)
-				err = _("aggregate functions are not allowed in transform expressions");
-			else
-				err = _("grouping operations are not allowed in transform expressions");
+    case EXPR_KIND_FILTER:
+      errkind = true;
+      break;
 
-			break;
-		case EXPR_KIND_EXECUTE_PARAMETER:
-			if (isAgg)
-				err = _("aggregate functions are not allowed in EXECUTE parameters");
-			else
-				err = _("grouping operations are not allowed in EXECUTE parameters");
+    case EXPR_KIND_WINDOW_PARTITION:
+      /* okay */
+      break;
 
-			break;
-		case EXPR_KIND_TRIGGER_WHEN:
-			if (isAgg)
-				err = _("aggregate functions are not allowed in trigger WHEN conditions");
-			else
-				err = _("grouping operations are not allowed in trigger WHEN conditions");
+    case EXPR_KIND_WINDOW_ORDER:
+      /* okay */
+      break;
 
-			break;
-		case EXPR_KIND_PARTITION_BOUND:
-			if (isAgg)
-				err = _("aggregate functions are not allowed in partition bound");
-			else
-				err = _("grouping operations are not allowed in partition bound");
+    case EXPR_KIND_WINDOW_FRAME_RANGE:
+      if (isAgg)
+        err = _("aggregate functions are not allowed in window RANGE");
+      else
+        err = _("grouping operations are not allowed in window RANGE");
 
-			break;
-		case EXPR_KIND_PARTITION_EXPRESSION:
-			if (isAgg)
-				err = _("aggregate functions are not allowed in partition key expressions");
-			else
-				err = _("grouping operations are not allowed in partition key expressions");
+      break;
 
-			break;
-		case EXPR_KIND_GENERATED_COLUMN:
+    case EXPR_KIND_WINDOW_FRAME_ROWS:
+      if (isAgg)
+        err = _("aggregate functions are not allowed in window ROWS");
+      else
+        err = _("grouping operations are not allowed in window ROWS");
 
-			if (isAgg)
-				err = _("aggregate functions are not allowed in column generation expressions");
-			else
-				err = _("grouping operations are not allowed in column generation expressions");
+      break;
 
-			break;
+    case EXPR_KIND_WINDOW_FRAME_GROUPS:
+      if (isAgg)
+        err = _("aggregate functions are not allowed in window GROUPS");
+      else
+        err = _("grouping operations are not allowed in window GROUPS");
 
-		case EXPR_KIND_CALL_ARGUMENT:
-			if (isAgg)
-				err = _("aggregate functions are not allowed in CALL arguments");
-			else
-				err = _("grouping operations are not allowed in CALL arguments");
+      break;
 
-			break;
+    case EXPR_KIND_SELECT_TARGET:
+      /* okay */
+      break;
 
-		case EXPR_KIND_COPY_WHERE:
-			if (isAgg)
-				err = _("aggregate functions are not allowed in COPY FROM WHERE conditions");
-			else
-				err = _("grouping operations are not allowed in COPY FROM WHERE conditions");
+    case EXPR_KIND_INSERT_TARGET:
+    case EXPR_KIND_UPDATE_SOURCE:
+    case EXPR_KIND_UPDATE_TARGET:
+      errkind = true;
+      break;
 
-			break;
+    case EXPR_KIND_MERGE_WHEN:
+      if (isAgg)
+        err = _("aggregate functions are not allowed in MERGE WHEN conditions");
+      else
+        err = _("grouping operations are not allowed in MERGE WHEN conditions");
 
-		case EXPR_KIND_CYCLE_MARK:
-			errkind = true;
-			break;
+      break;
 
-			/*
-			 * There is intentionally no default: case here, so that the
-			 * compiler will warn if we add a new ParseExprKind without
-			 * extending this switch.  If we do see an unrecognized value at
-			 * runtime, the behavior will be the same as for EXPR_KIND_OTHER,
-			 * which is sane anyway.
-			 */
-	}
+    case EXPR_KIND_GROUP_BY:
+      errkind = true;
+      break;
 
-	if (err)
-		ereport(ERROR,
-				(errcode(ERRCODE_GROUPING_ERROR),
-				 errmsg_internal("%s", err),
-				 parser_errposition(pstate, location)));
+    case EXPR_KIND_ORDER_BY:
+      /* okay */
+      break;
 
-	if (errkind)
-	{
-		if (isAgg)
-			/* translator: %s is name of a SQL construct, eg GROUP BY */
-			err = _("aggregate functions are not allowed in %s");
-		else
-			/* translator: %s is name of a SQL construct, eg GROUP BY */
-			err = _("grouping operations are not allowed in %s");
+    case EXPR_KIND_DISTINCT_ON:
+      /* okay */
+      break;
 
-		ereport(ERROR,
-				(errcode(ERRCODE_GROUPING_ERROR),
-				 errmsg_internal(err,
-								 ParseExprKindName(pstate->p_expr_kind)),
-				 parser_errposition(pstate, location)));
-	}
+    case EXPR_KIND_LIMIT:
+    case EXPR_KIND_OFFSET:
+      errkind = true;
+      break;
+
+    case EXPR_KIND_RETURNING:
+    case EXPR_KIND_MERGE_RETURNING:
+      errkind = true;
+      break;
+
+    case EXPR_KIND_VALUES:
+    case EXPR_KIND_VALUES_SINGLE:
+      errkind = true;
+      break;
+
+    case EXPR_KIND_CHECK_CONSTRAINT:
+    case EXPR_KIND_DOMAIN_CHECK:
+      if (isAgg)
+        err = _("aggregate functions are not allowed in check constraints");
+      else
+        err = _("grouping operations are not allowed in check constraints");
+
+      break;
+
+    case EXPR_KIND_COLUMN_DEFAULT:
+    case EXPR_KIND_FUNCTION_DEFAULT:
+
+      if (isAgg)
+        err = _("aggregate functions are not allowed in DEFAULT expressions");
+      else
+        err = _("grouping operations are not allowed in DEFAULT expressions");
+
+      break;
+
+    case EXPR_KIND_INDEX_EXPRESSION:
+      if (isAgg)
+        err = _("aggregate functions are not allowed in index expressions");
+      else
+        err = _("grouping operations are not allowed in index expressions");
+
+      break;
+
+    case EXPR_KIND_INDEX_PREDICATE:
+      if (isAgg)
+        err = _("aggregate functions are not allowed in index predicates");
+      else
+        err = _("grouping operations are not allowed in index predicates");
+
+      break;
+
+    case EXPR_KIND_STATS_EXPRESSION:
+      if (isAgg)
+        err = _("aggregate functions are not allowed in statistics expressions");
+      else
+        err = _("grouping operations are not allowed in statistics expressions");
+
+      break;
+
+    case EXPR_KIND_ALTER_COL_TRANSFORM:
+      if (isAgg)
+        err = _("aggregate functions are not allowed in transform expressions");
+      else
+        err = _("grouping operations are not allowed in transform expressions");
+
+      break;
+
+    case EXPR_KIND_EXECUTE_PARAMETER:
+      if (isAgg)
+        err = _("aggregate functions are not allowed in EXECUTE parameters");
+      else
+        err = _("grouping operations are not allowed in EXECUTE parameters");
+
+      break;
+
+    case EXPR_KIND_TRIGGER_WHEN:
+      if (isAgg)
+        err = _("aggregate functions are not allowed in trigger WHEN conditions");
+      else
+        err = _("grouping operations are not allowed in trigger WHEN conditions");
+
+      break;
+
+    case EXPR_KIND_PARTITION_BOUND:
+      if (isAgg)
+        err = _("aggregate functions are not allowed in partition bound");
+      else
+        err = _("grouping operations are not allowed in partition bound");
+
+      break;
+
+    case EXPR_KIND_PARTITION_EXPRESSION:
+      if (isAgg)
+        err = _("aggregate functions are not allowed in partition key expressions");
+      else
+        err = _("grouping operations are not allowed in partition key expressions");
+
+      break;
+
+    case EXPR_KIND_GENERATED_COLUMN:
+
+      if (isAgg)
+        err = _("aggregate functions are not allowed in column generation expressions");
+      else
+        err = _("grouping operations are not allowed in column generation expressions");
+
+      break;
+
+    case EXPR_KIND_CALL_ARGUMENT:
+      if (isAgg)
+        err = _("aggregate functions are not allowed in CALL arguments");
+      else
+        err = _("grouping operations are not allowed in CALL arguments");
+
+      break;
+
+    case EXPR_KIND_COPY_WHERE:
+      if (isAgg)
+        err = _("aggregate functions are not allowed in COPY FROM WHERE conditions");
+      else
+        err = _("grouping operations are not allowed in COPY FROM WHERE conditions");
+
+      break;
+
+    case EXPR_KIND_CYCLE_MARK:
+      errkind = true;
+      break;
+
+      /*
+       * There is intentionally no default: case here, so that the
+       * compiler will warn if we add a new ParseExprKind without
+       * extending this switch.  If we do see an unrecognized value at
+       * runtime, the behavior will be the same as for EXPR_KIND_OTHER,
+       * which is sane anyway.
+       */
+  }
+
+  if (err)
+    ereport(ERROR,
+            (errcode(ERRCODE_GROUPING_ERROR),
+             errmsg_internal("%s", err),
+             parser_errposition(pstate, location)));
+
+  if (errkind) {
+    if (isAgg)
+      /* translator: %s is name of a SQL construct, eg GROUP BY */
+      err = _("aggregate functions are not allowed in %s");
+    else
+      /* translator: %s is name of a SQL construct, eg GROUP BY */
+      err = _("grouping operations are not allowed in %s");
+
+    ereport(ERROR,
+            (errcode(ERRCODE_GROUPING_ERROR),
+             errmsg_internal(err,
+                             ParseExprKindName(pstate->p_expr_kind)),
+             parser_errposition(pstate, location)));
+  }
 }
 
 /*
  * check_agg_arguments
- *	  Scan the arguments of an aggregate function to determine the
- *	  aggregate's semantic level (zero is the current select's level,
- *	  one is its parent, etc).
+ *    Scan the arguments of an aggregate function to determine the
+ *    aggregate's semantic level (zero is the current select's level,
+ *    one is its parent, etc).
  *
  * The aggregate's level is the same as the level of the lowest-level variable
  * or aggregate in its aggregated arguments (including any ORDER BY columns)
@@ -643,229 +663,232 @@ check_agglevels_and_constraints(ParseState *pstate, Node *expr)
  */
 static int
 check_agg_arguments(ParseState *pstate,
-					List *directargs,
-					List *args,
-					Expr *filter,
-					int agglocation)
+                    List *directargs,
+                    List *args,
+                    Expr *filter,
+                    int agglocation)
 {
-	int			agglevel;
-	check_agg_arguments_context context;
+  int     agglevel;
+  check_agg_arguments_context context;
 
-	context.pstate = pstate;
-	context.min_varlevel = -1;	/* signifies nothing found yet */
-	context.min_agglevel = -1;
-	context.min_ctelevel = -1;
-	context.min_cte = NULL;
-	context.sublevels_up = 0;
+  context.pstate = pstate;
+  context.min_varlevel = -1;  /* signifies nothing found yet */
+  context.min_agglevel = -1;
+  context.min_ctelevel = -1;
+  context.min_cte = NULL;
+  context.sublevels_up = 0;
 
-	(void) check_agg_arguments_walker((Node *) args, &context);
-	(void) check_agg_arguments_walker((Node *) filter, &context);
+  (void) check_agg_arguments_walker((Node *) args, &context);
+  (void) check_agg_arguments_walker((Node *) filter, &context);
 
-	/*
-	 * If we found no vars nor aggs at all, it's a level-zero aggregate;
-	 * otherwise, its level is the minimum of vars or aggs.
-	 */
-	if (context.min_varlevel < 0)
-	{
-		if (context.min_agglevel < 0)
-			agglevel = 0;
-		else
-			agglevel = context.min_agglevel;
-	}
-	else if (context.min_agglevel < 0)
-		agglevel = context.min_varlevel;
-	else
-		agglevel = Min(context.min_varlevel, context.min_agglevel);
+  /*
+   * If we found no vars nor aggs at all, it's a level-zero aggregate;
+   * otherwise, its level is the minimum of vars or aggs.
+   */
+  if (context.min_varlevel < 0) {
+    if (context.min_agglevel < 0)
+      agglevel = 0;
+    else
+      agglevel = context.min_agglevel;
+  } else if (context.min_agglevel < 0)
+    agglevel = context.min_varlevel;
+  else
+    agglevel = Min(context.min_varlevel, context.min_agglevel);
 
-	/*
-	 * If there's a nested aggregate of the same semantic level, complain.
-	 */
-	if (agglevel == context.min_agglevel)
-	{
-		int			aggloc;
+  /*
+   * If there's a nested aggregate of the same semantic level, complain.
+   */
+  if (agglevel == context.min_agglevel) {
+    int     aggloc;
 
-		aggloc = locate_agg_of_level((Node *) args, agglevel);
-		if (aggloc < 0)
-			aggloc = locate_agg_of_level((Node *) filter, agglevel);
-		ereport(ERROR,
-				(errcode(ERRCODE_GROUPING_ERROR),
-				 errmsg("aggregate function calls cannot be nested"),
-				 parser_errposition(pstate, aggloc)));
-	}
+    aggloc = locate_agg_of_level((Node *) args, agglevel);
 
-	/*
-	 * If there's a non-local CTE that's below the aggregate's semantic level,
-	 * complain.  It's not quite clear what we should do to fix up such a case
-	 * (treating the CTE reference like a Var seems wrong), and it's also
-	 * unclear whether there is a real-world use for such cases.
-	 */
-	if (context.min_ctelevel >= 0 && context.min_ctelevel < agglevel)
-		ereport(ERROR,
-				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("outer-level aggregate cannot use a nested CTE"),
-				 errdetail("CTE \"%s\" is below the aggregate's semantic level.",
-						   context.min_cte->eref->aliasname),
-				 parser_errposition(pstate, agglocation)));
+    if (aggloc < 0)
+      aggloc = locate_agg_of_level((Node *) filter, agglevel);
 
-	/*
-	 * Now check for vars/aggs in the direct arguments, and throw error if
-	 * needed.  Note that we allow a Var of the agg's semantic level, but not
-	 * an Agg of that level.  In principle such Aggs could probably be
-	 * supported, but it would create an ordering dependency among the
-	 * aggregates at execution time.  Since the case appears neither to be
-	 * required by spec nor particularly useful, we just treat it as a
-	 * nested-aggregate situation.
-	 */
-	if (directargs)
-	{
-		context.min_varlevel = -1;
-		context.min_agglevel = -1;
-		context.min_ctelevel = -1;
-		(void) check_agg_arguments_walker((Node *) directargs, &context);
-		if (context.min_varlevel >= 0 && context.min_varlevel < agglevel)
-			ereport(ERROR,
-					(errcode(ERRCODE_GROUPING_ERROR),
-					 errmsg("outer-level aggregate cannot contain a lower-level variable in its direct arguments"),
-					 parser_errposition(pstate,
-										locate_var_of_level((Node *) directargs,
-															context.min_varlevel))));
-		if (context.min_agglevel >= 0 && context.min_agglevel <= agglevel)
-			ereport(ERROR,
-					(errcode(ERRCODE_GROUPING_ERROR),
-					 errmsg("aggregate function calls cannot be nested"),
-					 parser_errposition(pstate,
-										locate_agg_of_level((Node *) directargs,
-															context.min_agglevel))));
-		if (context.min_ctelevel >= 0 && context.min_ctelevel < agglevel)
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("outer-level aggregate cannot use a nested CTE"),
-					 errdetail("CTE \"%s\" is below the aggregate's semantic level.",
-							   context.min_cte->eref->aliasname),
-					 parser_errposition(pstate, agglocation)));
-	}
-	return agglevel;
+    ereport(ERROR,
+            (errcode(ERRCODE_GROUPING_ERROR),
+             errmsg("aggregate function calls cannot be nested"),
+             parser_errposition(pstate, aggloc)));
+  }
+
+  /*
+   * If there's a non-local CTE that's below the aggregate's semantic level,
+   * complain.  It's not quite clear what we should do to fix up such a case
+   * (treating the CTE reference like a Var seems wrong), and it's also
+   * unclear whether there is a real-world use for such cases.
+   */
+  if (context.min_ctelevel >= 0 && context.min_ctelevel < agglevel)
+    ereport(ERROR,
+            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+             errmsg("outer-level aggregate cannot use a nested CTE"),
+             errdetail("CTE \"%s\" is below the aggregate's semantic level.",
+                       context.min_cte->eref->aliasname),
+             parser_errposition(pstate, agglocation)));
+
+  /*
+   * Now check for vars/aggs in the direct arguments, and throw error if
+   * needed.  Note that we allow a Var of the agg's semantic level, but not
+   * an Agg of that level.  In principle such Aggs could probably be
+   * supported, but it would create an ordering dependency among the
+   * aggregates at execution time.  Since the case appears neither to be
+   * required by spec nor particularly useful, we just treat it as a
+   * nested-aggregate situation.
+   */
+  if (directargs) {
+    context.min_varlevel = -1;
+    context.min_agglevel = -1;
+    context.min_ctelevel = -1;
+    (void) check_agg_arguments_walker((Node *) directargs, &context);
+
+    if (context.min_varlevel >= 0 && context.min_varlevel < agglevel)
+      ereport(ERROR,
+              (errcode(ERRCODE_GROUPING_ERROR),
+               errmsg("outer-level aggregate cannot contain a lower-level variable in its direct arguments"),
+               parser_errposition(pstate,
+                                  locate_var_of_level((Node *) directargs,
+                                      context.min_varlevel))));
+
+    if (context.min_agglevel >= 0 && context.min_agglevel <= agglevel)
+      ereport(ERROR,
+              (errcode(ERRCODE_GROUPING_ERROR),
+               errmsg("aggregate function calls cannot be nested"),
+               parser_errposition(pstate,
+                                  locate_agg_of_level((Node *) directargs,
+                                      context.min_agglevel))));
+
+    if (context.min_ctelevel >= 0 && context.min_ctelevel < agglevel)
+      ereport(ERROR,
+              (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+               errmsg("outer-level aggregate cannot use a nested CTE"),
+               errdetail("CTE \"%s\" is below the aggregate's semantic level.",
+                         context.min_cte->eref->aliasname),
+               parser_errposition(pstate, agglocation)));
+  }
+
+  return agglevel;
 }
 
 static bool
 check_agg_arguments_walker(Node *node,
-						   check_agg_arguments_context *context)
+                           check_agg_arguments_context *context)
 {
-	if (node == NULL)
-		return false;
-	if (IsA(node, Var))
-	{
-		int			varlevelsup = ((Var *) node)->varlevelsup;
+  if (node == NULL)
+    return false;
 
-		/* convert levelsup to frame of reference of original query */
-		varlevelsup -= context->sublevels_up;
-		/* ignore local vars of subqueries */
-		if (varlevelsup >= 0)
-		{
-			if (context->min_varlevel < 0 ||
-				context->min_varlevel > varlevelsup)
-				context->min_varlevel = varlevelsup;
-		}
-		return false;
-	}
-	if (IsA(node, Aggref))
-	{
-		int			agglevelsup = ((Aggref *) node)->agglevelsup;
+  if (IsA(node, Var)) {
+    int     varlevelsup = ((Var *) node)->varlevelsup;
 
-		/* convert levelsup to frame of reference of original query */
-		agglevelsup -= context->sublevels_up;
-		/* ignore local aggs of subqueries */
-		if (agglevelsup >= 0)
-		{
-			if (context->min_agglevel < 0 ||
-				context->min_agglevel > agglevelsup)
-				context->min_agglevel = agglevelsup;
-		}
-		/* Continue and descend into subtree */
-	}
-	if (IsA(node, GroupingFunc))
-	{
-		int			agglevelsup = ((GroupingFunc *) node)->agglevelsup;
+    /* convert levelsup to frame of reference of original query */
+    varlevelsup -= context->sublevels_up;
 
-		/* convert levelsup to frame of reference of original query */
-		agglevelsup -= context->sublevels_up;
-		/* ignore local aggs of subqueries */
-		if (agglevelsup >= 0)
-		{
-			if (context->min_agglevel < 0 ||
-				context->min_agglevel > agglevelsup)
-				context->min_agglevel = agglevelsup;
-		}
-		/* Continue and descend into subtree */
-	}
+    /* ignore local vars of subqueries */
+    if (varlevelsup >= 0) {
+      if (context->min_varlevel < 0 ||
+          context->min_varlevel > varlevelsup)
+        context->min_varlevel = varlevelsup;
+    }
 
-	/*
-	 * SRFs and window functions can be rejected immediately, unless we are
-	 * within a sub-select within the aggregate's arguments; in that case
-	 * they're OK.
-	 */
-	if (context->sublevels_up == 0)
-	{
-		if ((IsA(node, FuncExpr) && ((FuncExpr *) node)->funcretset) ||
-			(IsA(node, OpExpr) && ((OpExpr *) node)->opretset))
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("aggregate function calls cannot contain set-returning function calls"),
-					 errhint("You might be able to move the set-returning function into a LATERAL FROM item."),
-					 parser_errposition(context->pstate, exprLocation(node))));
-		if (IsA(node, WindowFunc))
-			ereport(ERROR,
-					(errcode(ERRCODE_GROUPING_ERROR),
-					 errmsg("aggregate function calls cannot contain window function calls"),
-					 parser_errposition(context->pstate,
-										((WindowFunc *) node)->location)));
-	}
+    return false;
+  }
 
-	if (IsA(node, RangeTblEntry))
-	{
-		RangeTblEntry *rte = (RangeTblEntry *) node;
+  if (IsA(node, Aggref)) {
+    int     agglevelsup = ((Aggref *) node)->agglevelsup;
 
-		if (rte->rtekind == RTE_CTE)
-		{
-			int			ctelevelsup = rte->ctelevelsup;
+    /* convert levelsup to frame of reference of original query */
+    agglevelsup -= context->sublevels_up;
 
-			/* convert levelsup to frame of reference of original query */
-			ctelevelsup -= context->sublevels_up;
-			/* ignore local CTEs of subqueries */
-			if (ctelevelsup >= 0)
-			{
-				if (context->min_ctelevel < 0 ||
-					context->min_ctelevel > ctelevelsup)
-				{
-					context->min_ctelevel = ctelevelsup;
-					context->min_cte = rte;
-				}
-			}
-		}
-		return false;			/* allow range_table_walker to continue */
-	}
-	if (IsA(node, Query))
-	{
-		/* Recurse into subselects */
-		bool		result;
+    /* ignore local aggs of subqueries */
+    if (agglevelsup >= 0) {
+      if (context->min_agglevel < 0 ||
+          context->min_agglevel > agglevelsup)
+        context->min_agglevel = agglevelsup;
+    }
 
-		context->sublevels_up++;
-		result = query_tree_walker((Query *) node,
-								   check_agg_arguments_walker,
-								   context,
-								   QTW_EXAMINE_RTES_BEFORE);
-		context->sublevels_up--;
-		return result;
-	}
+    /* Continue and descend into subtree */
+  }
 
-	return expression_tree_walker(node,
-								  check_agg_arguments_walker,
-								  context);
+  if (IsA(node, GroupingFunc)) {
+    int     agglevelsup = ((GroupingFunc *) node)->agglevelsup;
+
+    /* convert levelsup to frame of reference of original query */
+    agglevelsup -= context->sublevels_up;
+
+    /* ignore local aggs of subqueries */
+    if (agglevelsup >= 0) {
+      if (context->min_agglevel < 0 ||
+          context->min_agglevel > agglevelsup)
+        context->min_agglevel = agglevelsup;
+    }
+
+    /* Continue and descend into subtree */
+  }
+
+  /*
+   * SRFs and window functions can be rejected immediately, unless we are
+   * within a sub-select within the aggregate's arguments; in that case
+   * they're OK.
+   */
+  if (context->sublevels_up == 0) {
+    if ((IsA(node, FuncExpr) && ((FuncExpr *) node)->funcretset) ||
+        (IsA(node, OpExpr) && ((OpExpr *) node)->opretset))
+      ereport(ERROR,
+              (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+               errmsg("aggregate function calls cannot contain set-returning function calls"),
+               errhint("You might be able to move the set-returning function into a LATERAL FROM item."),
+               parser_errposition(context->pstate, exprLocation(node))));
+
+    if (IsA(node, WindowFunc))
+      ereport(ERROR,
+              (errcode(ERRCODE_GROUPING_ERROR),
+               errmsg("aggregate function calls cannot contain window function calls"),
+               parser_errposition(context->pstate,
+                                  ((WindowFunc *) node)->location)));
+  }
+
+  if (IsA(node, RangeTblEntry)) {
+    RangeTblEntry *rte = (RangeTblEntry *) node;
+
+    if (rte->rtekind == RTE_CTE) {
+      int     ctelevelsup = rte->ctelevelsup;
+
+      /* convert levelsup to frame of reference of original query */
+      ctelevelsup -= context->sublevels_up;
+
+      /* ignore local CTEs of subqueries */
+      if (ctelevelsup >= 0) {
+        if (context->min_ctelevel < 0 ||
+            context->min_ctelevel > ctelevelsup) {
+          context->min_ctelevel = ctelevelsup;
+          context->min_cte = rte;
+        }
+      }
+    }
+
+    return false;     /* allow range_table_walker to continue */
+  }
+
+  if (IsA(node, Query)) {
+    /* Recurse into subselects */
+    bool    result;
+
+    context->sublevels_up++;
+    result = query_tree_walker((Query *) node,
+                               check_agg_arguments_walker,
+                               context,
+                               QTW_EXAMINE_RTES_BEFORE);
+    context->sublevels_up--;
+    return result;
+  }
+
+  return expression_tree_walker(node,
+                                check_agg_arguments_walker,
+                                context);
 }
 
 /*
  * transformWindowFuncCall -
- *		Finish initial transformation of a window function call
+ *    Finish initial transformation of a window function call
  *
  * parse_func.c has recognized the function as a window function, and has set
  * up all the fields of the WindowFunc except winref.  Here we must (1) add
@@ -876,471 +899,499 @@ check_agg_arguments_walker(Node *node,
  */
 void
 transformWindowFuncCall(ParseState *pstate, WindowFunc *wfunc,
-						WindowDef *windef)
+                        WindowDef *windef)
 {
-	const char *err;
-	bool		errkind;
+  const char *err;
+  bool    errkind;
 
-	/*
-	 * A window function call can't contain another one (but aggs are OK). XXX
-	 * is this required by spec, or just an unimplemented feature?
-	 *
-	 * Note: we don't need to check the filter expression here, because the
-	 * context checks done below and in transformAggregateCall would have
-	 * already rejected any window funcs or aggs within the filter.
-	 */
-	if (pstate->p_hasWindowFuncs &&
-		contain_windowfuncs((Node *) wfunc->args))
-		ereport(ERROR,
-				(errcode(ERRCODE_WINDOWING_ERROR),
-				 errmsg("window function calls cannot be nested"),
-				 parser_errposition(pstate,
-									locate_windowfunc((Node *) wfunc->args))));
+  /*
+   * A window function call can't contain another one (but aggs are OK). XXX
+   * is this required by spec, or just an unimplemented feature?
+   *
+   * Note: we don't need to check the filter expression here, because the
+   * context checks done below and in transformAggregateCall would have
+   * already rejected any window funcs or aggs within the filter.
+   */
+  if (pstate->p_hasWindowFuncs &&
+      contain_windowfuncs((Node *) wfunc->args))
+    ereport(ERROR,
+            (errcode(ERRCODE_WINDOWING_ERROR),
+             errmsg("window function calls cannot be nested"),
+             parser_errposition(pstate,
+                                locate_windowfunc((Node *) wfunc->args))));
 
-	/*
-	 * Check to see if the window function is in an invalid place within the
-	 * query.
-	 *
-	 * For brevity we support two schemes for reporting an error here: set
-	 * "err" to a custom message, or set "errkind" true if the error context
-	 * is sufficiently identified by what ParseExprKindName will return, *and*
-	 * what it will return is just a SQL keyword.  (Otherwise, use a custom
-	 * message to avoid creating translation problems.)
-	 */
-	err = NULL;
-	errkind = false;
-	switch (pstate->p_expr_kind)
-	{
-		case EXPR_KIND_NONE:
-			Assert(false);		/* can't happen */
-			break;
-		case EXPR_KIND_OTHER:
-			/* Accept window func here; caller must throw error if wanted */
-			break;
-		case EXPR_KIND_JOIN_ON:
-		case EXPR_KIND_JOIN_USING:
-			err = _("window functions are not allowed in JOIN conditions");
-			break;
-		case EXPR_KIND_FROM_SUBSELECT:
-			/* can't get here, but just in case, throw an error */
-			errkind = true;
-			break;
-		case EXPR_KIND_FROM_FUNCTION:
-			err = _("window functions are not allowed in functions in FROM");
-			break;
-		case EXPR_KIND_WHERE:
-			errkind = true;
-			break;
-		case EXPR_KIND_POLICY:
-			err = _("window functions are not allowed in policy expressions");
-			break;
-		case EXPR_KIND_HAVING:
-			errkind = true;
-			break;
-		case EXPR_KIND_FILTER:
-			errkind = true;
-			break;
-		case EXPR_KIND_WINDOW_PARTITION:
-		case EXPR_KIND_WINDOW_ORDER:
-		case EXPR_KIND_WINDOW_FRAME_RANGE:
-		case EXPR_KIND_WINDOW_FRAME_ROWS:
-		case EXPR_KIND_WINDOW_FRAME_GROUPS:
-			err = _("window functions are not allowed in window definitions");
-			break;
-		case EXPR_KIND_SELECT_TARGET:
-			/* okay */
-			break;
-		case EXPR_KIND_INSERT_TARGET:
-		case EXPR_KIND_UPDATE_SOURCE:
-		case EXPR_KIND_UPDATE_TARGET:
-			errkind = true;
-			break;
-		case EXPR_KIND_MERGE_WHEN:
-			err = _("window functions are not allowed in MERGE WHEN conditions");
-			break;
-		case EXPR_KIND_GROUP_BY:
-			errkind = true;
-			break;
-		case EXPR_KIND_ORDER_BY:
-			/* okay */
-			break;
-		case EXPR_KIND_DISTINCT_ON:
-			/* okay */
-			break;
-		case EXPR_KIND_LIMIT:
-		case EXPR_KIND_OFFSET:
-			errkind = true;
-			break;
-		case EXPR_KIND_RETURNING:
-		case EXPR_KIND_MERGE_RETURNING:
-			errkind = true;
-			break;
-		case EXPR_KIND_VALUES:
-		case EXPR_KIND_VALUES_SINGLE:
-			errkind = true;
-			break;
-		case EXPR_KIND_CHECK_CONSTRAINT:
-		case EXPR_KIND_DOMAIN_CHECK:
-			err = _("window functions are not allowed in check constraints");
-			break;
-		case EXPR_KIND_COLUMN_DEFAULT:
-		case EXPR_KIND_FUNCTION_DEFAULT:
-			err = _("window functions are not allowed in DEFAULT expressions");
-			break;
-		case EXPR_KIND_INDEX_EXPRESSION:
-			err = _("window functions are not allowed in index expressions");
-			break;
-		case EXPR_KIND_STATS_EXPRESSION:
-			err = _("window functions are not allowed in statistics expressions");
-			break;
-		case EXPR_KIND_INDEX_PREDICATE:
-			err = _("window functions are not allowed in index predicates");
-			break;
-		case EXPR_KIND_ALTER_COL_TRANSFORM:
-			err = _("window functions are not allowed in transform expressions");
-			break;
-		case EXPR_KIND_EXECUTE_PARAMETER:
-			err = _("window functions are not allowed in EXECUTE parameters");
-			break;
-		case EXPR_KIND_TRIGGER_WHEN:
-			err = _("window functions are not allowed in trigger WHEN conditions");
-			break;
-		case EXPR_KIND_PARTITION_BOUND:
-			err = _("window functions are not allowed in partition bound");
-			break;
-		case EXPR_KIND_PARTITION_EXPRESSION:
-			err = _("window functions are not allowed in partition key expressions");
-			break;
-		case EXPR_KIND_CALL_ARGUMENT:
-			err = _("window functions are not allowed in CALL arguments");
-			break;
-		case EXPR_KIND_COPY_WHERE:
-			err = _("window functions are not allowed in COPY FROM WHERE conditions");
-			break;
-		case EXPR_KIND_GENERATED_COLUMN:
-			err = _("window functions are not allowed in column generation expressions");
-			break;
-		case EXPR_KIND_CYCLE_MARK:
-			errkind = true;
-			break;
+  /*
+   * Check to see if the window function is in an invalid place within the
+   * query.
+   *
+   * For brevity we support two schemes for reporting an error here: set
+   * "err" to a custom message, or set "errkind" true if the error context
+   * is sufficiently identified by what ParseExprKindName will return, *and*
+   * what it will return is just a SQL keyword.  (Otherwise, use a custom
+   * message to avoid creating translation problems.)
+   */
+  err = NULL;
+  errkind = false;
 
-			/*
-			 * There is intentionally no default: case here, so that the
-			 * compiler will warn if we add a new ParseExprKind without
-			 * extending this switch.  If we do see an unrecognized value at
-			 * runtime, the behavior will be the same as for EXPR_KIND_OTHER,
-			 * which is sane anyway.
-			 */
-	}
-	if (err)
-		ereport(ERROR,
-				(errcode(ERRCODE_WINDOWING_ERROR),
-				 errmsg_internal("%s", err),
-				 parser_errposition(pstate, wfunc->location)));
-	if (errkind)
-		ereport(ERROR,
-				(errcode(ERRCODE_WINDOWING_ERROR),
-		/* translator: %s is name of a SQL construct, eg GROUP BY */
-				 errmsg("window functions are not allowed in %s",
-						ParseExprKindName(pstate->p_expr_kind)),
-				 parser_errposition(pstate, wfunc->location)));
+  switch (pstate->p_expr_kind) {
+    case EXPR_KIND_NONE:
+      Assert(false);    /* can't happen */
+      break;
 
-	/*
-	 * If the OVER clause just specifies a window name, find that WINDOW
-	 * clause (which had better be present).  Otherwise, try to match all the
-	 * properties of the OVER clause, and make a new entry in the p_windowdefs
-	 * list if no luck.
-	 */
-	if (windef->name)
-	{
-		Index		winref = 0;
-		ListCell   *lc;
+    case EXPR_KIND_OTHER:
+      /* Accept window func here; caller must throw error if wanted */
+      break;
 
-		Assert(windef->refname == NULL &&
-			   windef->partitionClause == NIL &&
-			   windef->orderClause == NIL &&
-			   windef->frameOptions == FRAMEOPTION_DEFAULTS);
+    case EXPR_KIND_JOIN_ON:
+    case EXPR_KIND_JOIN_USING:
+      err = _("window functions are not allowed in JOIN conditions");
+      break;
 
-		foreach(lc, pstate->p_windowdefs)
-		{
-			WindowDef  *refwin = (WindowDef *) lfirst(lc);
+    case EXPR_KIND_FROM_SUBSELECT:
+      /* can't get here, but just in case, throw an error */
+      errkind = true;
+      break;
 
-			winref++;
-			if (refwin->name && strcmp(refwin->name, windef->name) == 0)
-			{
-				wfunc->winref = winref;
-				break;
-			}
-		}
-		if (lc == NULL)			/* didn't find it? */
-			ereport(ERROR,
-					(errcode(ERRCODE_UNDEFINED_OBJECT),
-					 errmsg("window \"%s\" does not exist", windef->name),
-					 parser_errposition(pstate, windef->location)));
-	}
-	else
-	{
-		Index		winref = 0;
-		ListCell   *lc;
+    case EXPR_KIND_FROM_FUNCTION:
+      err = _("window functions are not allowed in functions in FROM");
+      break;
 
-		foreach(lc, pstate->p_windowdefs)
-		{
-			WindowDef  *refwin = (WindowDef *) lfirst(lc);
+    case EXPR_KIND_WHERE:
+      errkind = true;
+      break;
 
-			winref++;
-			if (refwin->refname && windef->refname &&
-				strcmp(refwin->refname, windef->refname) == 0)
-				 /* matched on refname */ ;
-			else if (!refwin->refname && !windef->refname)
-				 /* matched, no refname */ ;
-			else
-				continue;
+    case EXPR_KIND_POLICY:
+      err = _("window functions are not allowed in policy expressions");
+      break;
 
-			/*
-			 * Also see similar de-duplication code in optimize_window_clauses
-			 */
-			if (equal(refwin->partitionClause, windef->partitionClause) &&
-				equal(refwin->orderClause, windef->orderClause) &&
-				refwin->frameOptions == windef->frameOptions &&
-				equal(refwin->startOffset, windef->startOffset) &&
-				equal(refwin->endOffset, windef->endOffset))
-			{
-				/* found a duplicate window specification */
-				wfunc->winref = winref;
-				break;
-			}
-		}
-		if (lc == NULL)			/* didn't find it? */
-		{
-			pstate->p_windowdefs = lappend(pstate->p_windowdefs, windef);
-			wfunc->winref = list_length(pstate->p_windowdefs);
-		}
-	}
+    case EXPR_KIND_HAVING:
+      errkind = true;
+      break;
 
-	pstate->p_hasWindowFuncs = true;
+    case EXPR_KIND_FILTER:
+      errkind = true;
+      break;
+
+    case EXPR_KIND_WINDOW_PARTITION:
+    case EXPR_KIND_WINDOW_ORDER:
+    case EXPR_KIND_WINDOW_FRAME_RANGE:
+    case EXPR_KIND_WINDOW_FRAME_ROWS:
+    case EXPR_KIND_WINDOW_FRAME_GROUPS:
+      err = _("window functions are not allowed in window definitions");
+      break;
+
+    case EXPR_KIND_SELECT_TARGET:
+      /* okay */
+      break;
+
+    case EXPR_KIND_INSERT_TARGET:
+    case EXPR_KIND_UPDATE_SOURCE:
+    case EXPR_KIND_UPDATE_TARGET:
+      errkind = true;
+      break;
+
+    case EXPR_KIND_MERGE_WHEN:
+      err = _("window functions are not allowed in MERGE WHEN conditions");
+      break;
+
+    case EXPR_KIND_GROUP_BY:
+      errkind = true;
+      break;
+
+    case EXPR_KIND_ORDER_BY:
+      /* okay */
+      break;
+
+    case EXPR_KIND_DISTINCT_ON:
+      /* okay */
+      break;
+
+    case EXPR_KIND_LIMIT:
+    case EXPR_KIND_OFFSET:
+      errkind = true;
+      break;
+
+    case EXPR_KIND_RETURNING:
+    case EXPR_KIND_MERGE_RETURNING:
+      errkind = true;
+      break;
+
+    case EXPR_KIND_VALUES:
+    case EXPR_KIND_VALUES_SINGLE:
+      errkind = true;
+      break;
+
+    case EXPR_KIND_CHECK_CONSTRAINT:
+    case EXPR_KIND_DOMAIN_CHECK:
+      err = _("window functions are not allowed in check constraints");
+      break;
+
+    case EXPR_KIND_COLUMN_DEFAULT:
+    case EXPR_KIND_FUNCTION_DEFAULT:
+      err = _("window functions are not allowed in DEFAULT expressions");
+      break;
+
+    case EXPR_KIND_INDEX_EXPRESSION:
+      err = _("window functions are not allowed in index expressions");
+      break;
+
+    case EXPR_KIND_STATS_EXPRESSION:
+      err = _("window functions are not allowed in statistics expressions");
+      break;
+
+    case EXPR_KIND_INDEX_PREDICATE:
+      err = _("window functions are not allowed in index predicates");
+      break;
+
+    case EXPR_KIND_ALTER_COL_TRANSFORM:
+      err = _("window functions are not allowed in transform expressions");
+      break;
+
+    case EXPR_KIND_EXECUTE_PARAMETER:
+      err = _("window functions are not allowed in EXECUTE parameters");
+      break;
+
+    case EXPR_KIND_TRIGGER_WHEN:
+      err = _("window functions are not allowed in trigger WHEN conditions");
+      break;
+
+    case EXPR_KIND_PARTITION_BOUND:
+      err = _("window functions are not allowed in partition bound");
+      break;
+
+    case EXPR_KIND_PARTITION_EXPRESSION:
+      err = _("window functions are not allowed in partition key expressions");
+      break;
+
+    case EXPR_KIND_CALL_ARGUMENT:
+      err = _("window functions are not allowed in CALL arguments");
+      break;
+
+    case EXPR_KIND_COPY_WHERE:
+      err = _("window functions are not allowed in COPY FROM WHERE conditions");
+      break;
+
+    case EXPR_KIND_GENERATED_COLUMN:
+      err = _("window functions are not allowed in column generation expressions");
+      break;
+
+    case EXPR_KIND_CYCLE_MARK:
+      errkind = true;
+      break;
+
+      /*
+       * There is intentionally no default: case here, so that the
+       * compiler will warn if we add a new ParseExprKind without
+       * extending this switch.  If we do see an unrecognized value at
+       * runtime, the behavior will be the same as for EXPR_KIND_OTHER,
+       * which is sane anyway.
+       */
+  }
+
+  if (err)
+    ereport(ERROR,
+            (errcode(ERRCODE_WINDOWING_ERROR),
+             errmsg_internal("%s", err),
+             parser_errposition(pstate, wfunc->location)));
+
+  if (errkind)
+    ereport(ERROR,
+            (errcode(ERRCODE_WINDOWING_ERROR),
+             /* translator: %s is name of a SQL construct, eg GROUP BY */
+             errmsg("window functions are not allowed in %s",
+                    ParseExprKindName(pstate->p_expr_kind)),
+             parser_errposition(pstate, wfunc->location)));
+
+  /*
+   * If the OVER clause just specifies a window name, find that WINDOW
+   * clause (which had better be present).  Otherwise, try to match all the
+   * properties of the OVER clause, and make a new entry in the p_windowdefs
+   * list if no luck.
+   */
+  if (windef->name) {
+    Index   winref = 0;
+    ListCell   *lc;
+
+    Assert(windef->refname == NULL &&
+           windef->partitionClause == NIL &&
+           windef->orderClause == NIL &&
+           windef->frameOptions == FRAMEOPTION_DEFAULTS);
+
+    foreach(lc, pstate->p_windowdefs) {
+      WindowDef  *refwin = (WindowDef *) lfirst(lc);
+
+      winref++;
+
+      if (refwin->name && strcmp(refwin->name, windef->name) == 0) {
+        wfunc->winref = winref;
+        break;
+      }
+    }
+
+    if (lc == NULL)     /* didn't find it? */
+      ereport(ERROR,
+              (errcode(ERRCODE_UNDEFINED_OBJECT),
+               errmsg("window \"%s\" does not exist", windef->name),
+               parser_errposition(pstate, windef->location)));
+  } else {
+    Index   winref = 0;
+    ListCell   *lc;
+
+    foreach(lc, pstate->p_windowdefs) {
+      WindowDef  *refwin = (WindowDef *) lfirst(lc);
+
+      winref++;
+
+      if (refwin->refname && windef->refname &&
+          strcmp(refwin->refname, windef->refname) == 0)
+        /* matched on refname */ ;
+      else if (!refwin->refname && !windef->refname)
+        /* matched, no refname */ ;
+      else
+        continue;
+
+      /*
+       * Also see similar de-duplication code in optimize_window_clauses
+       */
+      if (equal(refwin->partitionClause, windef->partitionClause) &&
+          equal(refwin->orderClause, windef->orderClause) &&
+          refwin->frameOptions == windef->frameOptions &&
+          equal(refwin->startOffset, windef->startOffset) &&
+          equal(refwin->endOffset, windef->endOffset)) {
+        /* found a duplicate window specification */
+        wfunc->winref = winref;
+        break;
+      }
+    }
+
+    if (lc == NULL) {   /* didn't find it? */
+      pstate->p_windowdefs = lappend(pstate->p_windowdefs, windef);
+      wfunc->winref = list_length(pstate->p_windowdefs);
+    }
+  }
+
+  pstate->p_hasWindowFuncs = true;
 }
 
 /*
  * parseCheckAggregates
- *	Check for aggregates where they shouldn't be and improper grouping, and
- *	replace grouped variables in the targetlist and HAVING clause with Vars
- *	that reference the RTE_GROUP RTE.
- *	This function should be called after the target list and qualifications
- *	are finalized.
+ *  Check for aggregates where they shouldn't be and improper grouping, and
+ *  replace grouped variables in the targetlist and HAVING clause with Vars
+ *  that reference the RTE_GROUP RTE.
+ *  This function should be called after the target list and qualifications
+ *  are finalized.
  *
- *	Misplaced aggregates are now mostly detected in transformAggregateCall,
- *	but it seems more robust to check for aggregates in recursive queries
- *	only after everything is finalized.  In any case it's hard to detect
- *	improper grouping on-the-fly, so we have to make another pass over the
- *	query for that.
+ *  Misplaced aggregates are now mostly detected in transformAggregateCall,
+ *  but it seems more robust to check for aggregates in recursive queries
+ *  only after everything is finalized.  In any case it's hard to detect
+ *  improper grouping on-the-fly, so we have to make another pass over the
+ *  query for that.
  */
 void
 parseCheckAggregates(ParseState *pstate, Query *qry)
 {
-	List	   *gset_common = NIL;
-	List	   *groupClauses = NIL;
-	List	   *groupClauseCommonVars = NIL;
-	bool		have_non_var_grouping;
-	List	   *func_grouped_rels = NIL;
-	ListCell   *l;
-	bool		hasJoinRTEs;
-	bool		hasSelfRefRTEs;
-	Node	   *clause;
+  List     *gset_common = NIL;
+  List     *groupClauses = NIL;
+  List     *groupClauseCommonVars = NIL;
+  bool    have_non_var_grouping;
+  List     *func_grouped_rels = NIL;
+  ListCell   *l;
+  bool    hasJoinRTEs;
+  bool    hasSelfRefRTEs;
+  Node     *clause;
 
-	/* This should only be called if we found aggregates or grouping */
-	Assert(pstate->p_hasAggs || qry->groupClause || qry->havingQual || qry->groupingSets);
+  /* This should only be called if we found aggregates or grouping */
+  Assert(pstate->p_hasAggs || qry->groupClause || qry->havingQual || qry->groupingSets);
 
-	/*
-	 * If we have grouping sets, expand them and find the intersection of all
-	 * sets.
-	 */
-	if (qry->groupingSets)
-	{
-		/*
-		 * The limit of 4096 is arbitrary and exists simply to avoid resource
-		 * issues from pathological constructs.
-		 */
-		List	   *gsets = expand_grouping_sets(qry->groupingSets, qry->groupDistinct, 4096);
+  /*
+   * If we have grouping sets, expand them and find the intersection of all
+   * sets.
+   */
+  if (qry->groupingSets) {
+    /*
+     * The limit of 4096 is arbitrary and exists simply to avoid resource
+     * issues from pathological constructs.
+     */
+    List     *gsets = expand_grouping_sets(qry->groupingSets, qry->groupDistinct, 4096);
 
-		if (!gsets)
-			ereport(ERROR,
-					(errcode(ERRCODE_STATEMENT_TOO_COMPLEX),
-					 errmsg("too many grouping sets present (maximum 4096)"),
-					 parser_errposition(pstate,
-										qry->groupClause
-										? exprLocation((Node *) qry->groupClause)
-										: exprLocation((Node *) qry->groupingSets))));
+    if (!gsets)
+      ereport(ERROR,
+              (errcode(ERRCODE_STATEMENT_TOO_COMPLEX),
+               errmsg("too many grouping sets present (maximum 4096)"),
+               parser_errposition(pstate,
+                                  qry->groupClause
+                                  ? exprLocation((Node *) qry->groupClause)
+                                  : exprLocation((Node *) qry->groupingSets))));
 
-		/*
-		 * The intersection will often be empty, so help things along by
-		 * seeding the intersect with the smallest set.
-		 */
-		gset_common = linitial(gsets);
+    /*
+     * The intersection will often be empty, so help things along by
+     * seeding the intersect with the smallest set.
+     */
+    gset_common = linitial(gsets);
 
-		if (gset_common)
-		{
-			for_each_from(l, gsets, 1)
-			{
-				gset_common = list_intersection_int(gset_common, lfirst(l));
-				if (!gset_common)
-					break;
-			}
-		}
+    if (gset_common) {
+      for_each_from(l, gsets, 1) {
+        gset_common = list_intersection_int(gset_common, lfirst(l));
 
-		/*
-		 * If there was only one grouping set in the expansion, AND if the
-		 * groupClause is non-empty (meaning that the grouping set is not
-		 * empty either), then we can ditch the grouping set and pretend we
-		 * just had a normal GROUP BY.
-		 */
-		if (list_length(gsets) == 1 && qry->groupClause)
-			qry->groupingSets = NIL;
-	}
+        if (!gset_common)
+          break;
+      }
+    }
 
-	/*
-	 * Scan the range table to see if there are JOIN or self-reference CTE
-	 * entries.  We'll need this info below.
-	 */
-	hasJoinRTEs = hasSelfRefRTEs = false;
-	foreach(l, pstate->p_rtable)
-	{
-		RangeTblEntry *rte = (RangeTblEntry *) lfirst(l);
+    /*
+     * If there was only one grouping set in the expansion, AND if the
+     * groupClause is non-empty (meaning that the grouping set is not
+     * empty either), then we can ditch the grouping set and pretend we
+     * just had a normal GROUP BY.
+     */
+    if (list_length(gsets) == 1 && qry->groupClause)
+      qry->groupingSets = NIL;
+  }
 
-		if (rte->rtekind == RTE_JOIN)
-			hasJoinRTEs = true;
-		else if (rte->rtekind == RTE_CTE && rte->self_reference)
-			hasSelfRefRTEs = true;
-	}
+  /*
+   * Scan the range table to see if there are JOIN or self-reference CTE
+   * entries.  We'll need this info below.
+   */
+  hasJoinRTEs = hasSelfRefRTEs = false;
 
-	/*
-	 * Build a list of the acceptable GROUP BY expressions to save in the
-	 * RTE_GROUP RTE, and for use by substitute_grouped_columns().
-	 *
-	 * We get the TLE, not just the expr, because GROUPING wants to know the
-	 * sortgroupref.
-	 */
-	foreach(l, qry->groupClause)
-	{
-		SortGroupClause *grpcl = (SortGroupClause *) lfirst(l);
-		TargetEntry *expr;
+  foreach(l, pstate->p_rtable) {
+    RangeTblEntry *rte = (RangeTblEntry *) lfirst(l);
 
-		expr = get_sortgroupclause_tle(grpcl, qry->targetList);
-		if (expr == NULL)
-			continue;			/* probably cannot happen */
+    if (rte->rtekind == RTE_JOIN)
+      hasJoinRTEs = true;
+    else if (rte->rtekind == RTE_CTE && rte->self_reference)
+      hasSelfRefRTEs = true;
+  }
 
-		groupClauses = lappend(groupClauses, expr);
-	}
+  /*
+   * Build a list of the acceptable GROUP BY expressions to save in the
+   * RTE_GROUP RTE, and for use by substitute_grouped_columns().
+   *
+   * We get the TLE, not just the expr, because GROUPING wants to know the
+   * sortgroupref.
+   */
+  foreach(l, qry->groupClause) {
+    SortGroupClause *grpcl = (SortGroupClause *) lfirst(l);
+    TargetEntry *expr;
 
-	/*
-	 * If there are any acceptable GROUP BY expressions, build an RTE and
-	 * nsitem for the result of the grouping step.  (It's important to do this
-	 * before flattening join alias vars in groupClauses, because the RTE
-	 * should preserve any alias vars that were in the input.)
-	 */
-	if (groupClauses)
-	{
-		pstate->p_grouping_nsitem =
-			addRangeTableEntryForGroup(pstate, groupClauses);
+    expr = get_sortgroupclause_tle(grpcl, qry->targetList);
 
-		/* Set qry->rtable again in case it was previously NIL */
-		qry->rtable = pstate->p_rtable;
-		/* Mark the Query as having RTE_GROUP RTE */
-		qry->hasGroupRTE = true;
-	}
+    if (expr == NULL)
+      continue;     /* probably cannot happen */
 
-	/*
-	 * If there are join alias vars involved, we have to flatten them to the
-	 * underlying vars, so that aliased and unaliased vars will be correctly
-	 * taken as equal.  We can skip the expense of doing this if no rangetable
-	 * entries are RTE_JOIN kind.
-	 */
-	if (hasJoinRTEs)
-		groupClauses = (List *) flatten_join_alias_vars(NULL, qry,
-														(Node *) groupClauses);
+    groupClauses = lappend(groupClauses, expr);
+  }
 
-	/*
-	 * Detect whether any of the grouping expressions aren't simple Vars; if
-	 * they're all Vars then we don't have to work so hard in the recursive
-	 * scans.  (Note we have to flatten aliases before this.)
-	 *
-	 * Track Vars that are included in all grouping sets separately in
-	 * groupClauseCommonVars, since these are the only ones we can use to
-	 * check for functional dependencies.
-	 */
-	have_non_var_grouping = false;
-	foreach(l, groupClauses)
-	{
-		TargetEntry *tle = lfirst(l);
+  /*
+   * If there are any acceptable GROUP BY expressions, build an RTE and
+   * nsitem for the result of the grouping step.  (It's important to do this
+   * before flattening join alias vars in groupClauses, because the RTE
+   * should preserve any alias vars that were in the input.)
+   */
+  if (groupClauses) {
+    pstate->p_grouping_nsitem =
+      addRangeTableEntryForGroup(pstate, groupClauses);
 
-		if (!IsA(tle->expr, Var))
-		{
-			have_non_var_grouping = true;
-		}
-		else if (!qry->groupingSets ||
-				 list_member_int(gset_common, tle->ressortgroupref))
-		{
-			groupClauseCommonVars = lappend(groupClauseCommonVars, tle->expr);
-		}
-	}
+    /* Set qry->rtable again in case it was previously NIL */
+    qry->rtable = pstate->p_rtable;
+    /* Mark the Query as having RTE_GROUP RTE */
+    qry->hasGroupRTE = true;
+  }
 
-	/*
-	 * Replace grouped variables in the targetlist and HAVING clause with Vars
-	 * that reference the RTE_GROUP RTE.  Emit an error message if we find any
-	 * ungrouped variables.
-	 *
-	 * Note: because we check resjunk tlist elements as well as regular ones,
-	 * this will also find ungrouped variables that came from ORDER BY and
-	 * WINDOW clauses.  For that matter, it's also going to examine the
-	 * grouping expressions themselves --- but they'll all pass the test ...
-	 *
-	 * We also finalize GROUPING expressions, but for that we need to traverse
-	 * the original (unflattened) clause in order to modify nodes.
-	 */
-	clause = (Node *) qry->targetList;
-	finalize_grouping_exprs(clause, pstate, qry,
-							groupClauses, hasJoinRTEs,
-							have_non_var_grouping);
-	if (hasJoinRTEs)
-		clause = flatten_join_alias_vars(NULL, qry, clause);
-	qry->targetList = (List *)
-		substitute_grouped_columns(clause, pstate, qry,
-								   groupClauses, groupClauseCommonVars,
-								   gset_common,
-								   have_non_var_grouping,
-								   &func_grouped_rels);
+  /*
+   * If there are join alias vars involved, we have to flatten them to the
+   * underlying vars, so that aliased and unaliased vars will be correctly
+   * taken as equal.  We can skip the expense of doing this if no rangetable
+   * entries are RTE_JOIN kind.
+   */
+  if (hasJoinRTEs)
+    groupClauses = (List *) flatten_join_alias_vars(NULL, qry,
+                   (Node *) groupClauses);
 
-	clause = (Node *) qry->havingQual;
-	finalize_grouping_exprs(clause, pstate, qry,
-							groupClauses, hasJoinRTEs,
-							have_non_var_grouping);
-	if (hasJoinRTEs)
-		clause = flatten_join_alias_vars(NULL, qry, clause);
-	qry->havingQual =
-		substitute_grouped_columns(clause, pstate, qry,
-								   groupClauses, groupClauseCommonVars,
-								   gset_common,
-								   have_non_var_grouping,
-								   &func_grouped_rels);
+  /*
+   * Detect whether any of the grouping expressions aren't simple Vars; if
+   * they're all Vars then we don't have to work so hard in the recursive
+   * scans.  (Note we have to flatten aliases before this.)
+   *
+   * Track Vars that are included in all grouping sets separately in
+   * groupClauseCommonVars, since these are the only ones we can use to
+   * check for functional dependencies.
+   */
+  have_non_var_grouping = false;
 
-	/*
-	 * Per spec, aggregates can't appear in a recursive term.
-	 */
-	if (pstate->p_hasAggs && hasSelfRefRTEs)
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_RECURSION),
-				 errmsg("aggregate functions are not allowed in a recursive query's recursive term"),
-				 parser_errposition(pstate,
-									locate_agg_of_level((Node *) qry, 0))));
+  foreach(l, groupClauses) {
+    TargetEntry *tle = lfirst(l);
+
+    if (!IsA(tle->expr, Var)) {
+      have_non_var_grouping = true;
+    } else if (!qry->groupingSets ||
+               list_member_int(gset_common, tle->ressortgroupref)) {
+      groupClauseCommonVars = lappend(groupClauseCommonVars, tle->expr);
+    }
+  }
+
+  /*
+   * Replace grouped variables in the targetlist and HAVING clause with Vars
+   * that reference the RTE_GROUP RTE.  Emit an error message if we find any
+   * ungrouped variables.
+   *
+   * Note: because we check resjunk tlist elements as well as regular ones,
+   * this will also find ungrouped variables that came from ORDER BY and
+   * WINDOW clauses.  For that matter, it's also going to examine the
+   * grouping expressions themselves --- but they'll all pass the test ...
+   *
+   * We also finalize GROUPING expressions, but for that we need to traverse
+   * the original (unflattened) clause in order to modify nodes.
+   */
+  clause = (Node *) qry->targetList;
+  finalize_grouping_exprs(clause, pstate, qry,
+                          groupClauses, hasJoinRTEs,
+                          have_non_var_grouping);
+
+  if (hasJoinRTEs)
+    clause = flatten_join_alias_vars(NULL, qry, clause);
+
+  qry->targetList = (List *)
+                    substitute_grouped_columns(clause, pstate, qry,
+                        groupClauses, groupClauseCommonVars,
+                        gset_common,
+                        have_non_var_grouping,
+                        &func_grouped_rels);
+
+  clause = (Node *) qry->havingQual;
+  finalize_grouping_exprs(clause, pstate, qry,
+                          groupClauses, hasJoinRTEs,
+                          have_non_var_grouping);
+
+  if (hasJoinRTEs)
+    clause = flatten_join_alias_vars(NULL, qry, clause);
+
+  qry->havingQual =
+    substitute_grouped_columns(clause, pstate, qry,
+                               groupClauses, groupClauseCommonVars,
+                               gset_common,
+                               have_non_var_grouping,
+                               &func_grouped_rels);
+
+  /*
+   * Per spec, aggregates can't appear in a recursive term.
+   */
+  if (pstate->p_hasAggs && hasSelfRefRTEs)
+    ereport(ERROR,
+            (errcode(ERRCODE_INVALID_RECURSION),
+             errmsg("aggregate functions are not allowed in a recursive query's recursive term"),
+             parser_errposition(pstate,
+                                locate_agg_of_level((Node *) qry, 0))));
 }
 
 /*
  * substitute_grouped_columns -
- *	  Scan the given expression tree for grouped variables (variables that
- *	  are listed in the groupClauses list) and replace them with Vars that
- *	  reference the RTE_GROUP RTE.  Emit a suitable error message if any
- *	  ungrouped variables (variables that are not listed in the groupClauses
- *	  list and are not within the arguments of aggregate functions) are
- *	  found.
+ *    Scan the given expression tree for grouped variables (variables that
+ *    are listed in the groupClauses list) and replace them with Vars that
+ *    reference the RTE_GROUP RTE.  Emit a suitable error message if any
+ *    ungrouped variables (variables that are not listed in the groupClauses
+ *    list and are not within the arguments of aggregate functions) are
+ *    found.
  *
  * NOTE: we assume that the given clause has been transformed suitably for
  * parser output.  This means we can use expression_tree_mutator.
@@ -1348,243 +1399,235 @@ parseCheckAggregates(ParseState *pstate, Query *qry)
  * NOTE: we recognize grouping expressions in the main query, but only
  * grouping Vars in subqueries.  For example, this will be rejected,
  * although it could be allowed:
- *		SELECT
- *			(SELECT x FROM bar where y = (foo.a + foo.b))
- *		FROM foo
- *		GROUP BY a + b;
+ *    SELECT
+ *      (SELECT x FROM bar where y = (foo.a + foo.b))
+ *    FROM foo
+ *    GROUP BY a + b;
  * The difficulty is the need to account for different sublevels_up.
  * This appears to require a whole custom version of equal(), which is
  * way more pain than the feature seems worth.
  */
 static Node *
 substitute_grouped_columns(Node *node, ParseState *pstate, Query *qry,
-						   List *groupClauses, List *groupClauseCommonVars,
-						   List *gset_common,
-						   bool have_non_var_grouping,
-						   List **func_grouped_rels)
+                           List *groupClauses, List *groupClauseCommonVars,
+                           List *gset_common,
+                           bool have_non_var_grouping,
+                           List **func_grouped_rels)
 {
-	substitute_grouped_columns_context context;
+  substitute_grouped_columns_context context;
 
-	context.pstate = pstate;
-	context.qry = qry;
-	context.hasJoinRTEs = false;	/* assume caller flattened join Vars */
-	context.groupClauses = groupClauses;
-	context.groupClauseCommonVars = groupClauseCommonVars;
-	context.gset_common = gset_common;
-	context.have_non_var_grouping = have_non_var_grouping;
-	context.func_grouped_rels = func_grouped_rels;
-	context.sublevels_up = 0;
-	context.in_agg_direct_args = false;
-	return substitute_grouped_columns_mutator(node, &context);
+  context.pstate = pstate;
+  context.qry = qry;
+  context.hasJoinRTEs = false;  /* assume caller flattened join Vars */
+  context.groupClauses = groupClauses;
+  context.groupClauseCommonVars = groupClauseCommonVars;
+  context.gset_common = gset_common;
+  context.have_non_var_grouping = have_non_var_grouping;
+  context.func_grouped_rels = func_grouped_rels;
+  context.sublevels_up = 0;
+  context.in_agg_direct_args = false;
+  return substitute_grouped_columns_mutator(node, &context);
 }
 
 static Node *
 substitute_grouped_columns_mutator(Node *node,
-								   substitute_grouped_columns_context *context)
+                                   substitute_grouped_columns_context *context)
 {
-	ListCell   *gl;
+  ListCell   *gl;
 
-	if (node == NULL)
-		return NULL;
+  if (node == NULL)
+    return NULL;
 
-	if (IsA(node, Aggref))
-	{
-		Aggref	   *agg = (Aggref *) node;
+  if (IsA(node, Aggref)) {
+    Aggref     *agg = (Aggref *) node;
 
-		if ((int) agg->agglevelsup == context->sublevels_up)
-		{
-			/*
-			 * If we find an aggregate call of the original level, do not
-			 * recurse into its normal arguments, ORDER BY arguments, or
-			 * filter; grouped vars there do not need to be replaced and
-			 * ungrouped vars there are not an error.  But we should check
-			 * direct arguments as though they weren't in an aggregate.  We
-			 * set a special flag in the context to help produce a useful
-			 * error message for ungrouped vars in direct arguments.
-			 */
-			agg = copyObject(agg);
+    if ((int) agg->agglevelsup == context->sublevels_up) {
+      /*
+       * If we find an aggregate call of the original level, do not
+       * recurse into its normal arguments, ORDER BY arguments, or
+       * filter; grouped vars there do not need to be replaced and
+       * ungrouped vars there are not an error.  But we should check
+       * direct arguments as though they weren't in an aggregate.  We
+       * set a special flag in the context to help produce a useful
+       * error message for ungrouped vars in direct arguments.
+       */
+      agg = copyObject(agg);
 
-			Assert(!context->in_agg_direct_args);
-			context->in_agg_direct_args = true;
-			agg->aggdirectargs = (List *)
-				substitute_grouped_columns_mutator((Node *) agg->aggdirectargs,
-												   context);
-			context->in_agg_direct_args = false;
-			return (Node *) agg;
-		}
+      Assert(!context->in_agg_direct_args);
+      context->in_agg_direct_args = true;
+      agg->aggdirectargs = (List *)
+                           substitute_grouped_columns_mutator((Node *) agg->aggdirectargs,
+                               context);
+      context->in_agg_direct_args = false;
+      return (Node *) agg;
+    }
 
-		/*
-		 * We can skip recursing into aggregates of higher levels altogether,
-		 * since they could not possibly contain Vars of concern to us (see
-		 * transformAggregateCall).  We do need to look at aggregates of lower
-		 * levels, however.
-		 */
-		if ((int) agg->agglevelsup > context->sublevels_up)
-			return node;
-	}
+    /*
+     * We can skip recursing into aggregates of higher levels altogether,
+     * since they could not possibly contain Vars of concern to us (see
+     * transformAggregateCall).  We do need to look at aggregates of lower
+     * levels, however.
+     */
+    if ((int) agg->agglevelsup > context->sublevels_up)
+      return node;
+  }
 
-	if (IsA(node, GroupingFunc))
-	{
-		GroupingFunc *grp = (GroupingFunc *) node;
+  if (IsA(node, GroupingFunc)) {
+    GroupingFunc *grp = (GroupingFunc *) node;
 
-		/* handled GroupingFunc separately, no need to recheck at this level */
+    /* handled GroupingFunc separately, no need to recheck at this level */
 
-		if ((int) grp->agglevelsup >= context->sublevels_up)
-			return node;
-	}
+    if ((int) grp->agglevelsup >= context->sublevels_up)
+      return node;
+  }
 
-	/*
-	 * If we have any GROUP BY items that are not simple Vars, check to see if
-	 * subexpression as a whole matches any GROUP BY item. We need to do this
-	 * at every recursion level so that we recognize GROUPed-BY expressions
-	 * before reaching variables within them. But this only works at the outer
-	 * query level, as noted above.
-	 */
-	if (context->have_non_var_grouping && context->sublevels_up == 0)
-	{
-		int			attnum = 0;
+  /*
+   * If we have any GROUP BY items that are not simple Vars, check to see if
+   * subexpression as a whole matches any GROUP BY item. We need to do this
+   * at every recursion level so that we recognize GROUPed-BY expressions
+   * before reaching variables within them. But this only works at the outer
+   * query level, as noted above.
+   */
+  if (context->have_non_var_grouping && context->sublevels_up == 0) {
+    int     attnum = 0;
 
-		foreach(gl, context->groupClauses)
-		{
-			TargetEntry *tle = (TargetEntry *) lfirst(gl);
+    foreach(gl, context->groupClauses) {
+      TargetEntry *tle = (TargetEntry *) lfirst(gl);
 
-			attnum++;
-			if (equal(node, tle->expr))
-			{
-				/* acceptable, replace it with a GROUP Var */
-				return (Node *) buildGroupedVar(attnum,
-												tle->ressortgroupref,
-												context);
-			}
-		}
-	}
+      attnum++;
 
-	/*
-	 * Constants are always acceptable.  We have to do this after we checked
-	 * the subexpression as a whole for a match, because it is possible that
-	 * we have GROUP BY items that are constants, and the constants would
-	 * become not so constant after the grouping step.
-	 */
-	if (IsA(node, Const) ||
-		IsA(node, Param))
-		return node;
+      if (equal(node, tle->expr)) {
+        /* acceptable, replace it with a GROUP Var */
+        return (Node *) buildGroupedVar(attnum,
+                                        tle->ressortgroupref,
+                                        context);
+      }
+    }
+  }
 
-	/*
-	 * If we have an ungrouped Var of the original query level, we have a
-	 * failure.  Vars below the original query level are not a problem, and
-	 * neither are Vars from above it.  (If such Vars are ungrouped as far as
-	 * their own query level is concerned, that's someone else's problem...)
-	 */
-	if (IsA(node, Var))
-	{
-		Var		   *var = (Var *) node;
-		RangeTblEntry *rte;
-		char	   *attname;
+  /*
+   * Constants are always acceptable.  We have to do this after we checked
+   * the subexpression as a whole for a match, because it is possible that
+   * we have GROUP BY items that are constants, and the constants would
+   * become not so constant after the grouping step.
+   */
+  if (IsA(node, Const) ||
+      IsA(node, Param))
+    return node;
 
-		if (var->varlevelsup != context->sublevels_up)
-			return node;		/* it's not local to my query, ignore */
+  /*
+   * If we have an ungrouped Var of the original query level, we have a
+   * failure.  Vars below the original query level are not a problem, and
+   * neither are Vars from above it.  (If such Vars are ungrouped as far as
+   * their own query level is concerned, that's someone else's problem...)
+   */
+  if (IsA(node, Var)) {
+    Var      *var = (Var *) node;
+    RangeTblEntry *rte;
+    char     *attname;
 
-		/*
-		 * Check for a match, if we didn't do it above.
-		 */
-		if (!context->have_non_var_grouping || context->sublevels_up != 0)
-		{
-			int			attnum = 0;
+    if (var->varlevelsup != context->sublevels_up)
+      return node;    /* it's not local to my query, ignore */
 
-			foreach(gl, context->groupClauses)
-			{
-				TargetEntry *tle = (TargetEntry *) lfirst(gl);
-				Var		   *gvar = (Var *) tle->expr;
+    /*
+     * Check for a match, if we didn't do it above.
+     */
+    if (!context->have_non_var_grouping || context->sublevels_up != 0) {
+      int     attnum = 0;
 
-				attnum++;
-				if (IsA(gvar, Var) &&
-					gvar->varno == var->varno &&
-					gvar->varattno == var->varattno &&
-					gvar->varlevelsup == 0)
-				{
-					/* acceptable, replace it with a GROUP Var */
-					return (Node *) buildGroupedVar(attnum,
-													tle->ressortgroupref,
-													context);
-				}
-			}
-		}
+      foreach(gl, context->groupClauses) {
+        TargetEntry *tle = (TargetEntry *) lfirst(gl);
+        Var      *gvar = (Var *) tle->expr;
 
-		/*
-		 * Check whether the Var is known functionally dependent on the GROUP
-		 * BY columns.  If so, we can allow the Var to be used, because the
-		 * grouping is really a no-op for this table.  However, this deduction
-		 * depends on one or more constraints of the table, so we have to add
-		 * those constraints to the query's constraintDeps list, because it's
-		 * not semantically valid anymore if the constraint(s) get dropped.
-		 * (Therefore, this check must be the last-ditch effort before raising
-		 * error: we don't want to add dependencies unnecessarily.)
-		 *
-		 * Because this is a pretty expensive check, and will have the same
-		 * outcome for all columns of a table, we remember which RTEs we've
-		 * already proven functional dependency for in the func_grouped_rels
-		 * list.  This test also prevents us from adding duplicate entries to
-		 * the constraintDeps list.
-		 */
-		if (list_member_int(*context->func_grouped_rels, var->varno))
-			return node;		/* previously proven acceptable */
+        attnum++;
 
-		Assert(var->varno > 0 &&
-			   (int) var->varno <= list_length(context->pstate->p_rtable));
-		rte = rt_fetch(var->varno, context->pstate->p_rtable);
-		if (rte->rtekind == RTE_RELATION)
-		{
-			if (check_functional_grouping(rte->relid,
-										  var->varno,
-										  0,
-										  context->groupClauseCommonVars,
-										  &context->qry->constraintDeps))
-			{
-				*context->func_grouped_rels =
-					lappend_int(*context->func_grouped_rels, var->varno);
-				return node;	/* acceptable */
-			}
-		}
+        if (IsA(gvar, Var) &&
+            gvar->varno == var->varno &&
+            gvar->varattno == var->varattno &&
+            gvar->varlevelsup == 0) {
+          /* acceptable, replace it with a GROUP Var */
+          return (Node *) buildGroupedVar(attnum,
+                                          tle->ressortgroupref,
+                                          context);
+        }
+      }
+    }
 
-		/* Found an ungrouped local variable; generate error message */
-		attname = get_rte_attribute_name(rte, var->varattno);
-		if (context->sublevels_up == 0)
-			ereport(ERROR,
-					(errcode(ERRCODE_GROUPING_ERROR),
-					 errmsg("column \"%s.%s\" must appear in the GROUP BY clause or be used in an aggregate function",
-							rte->eref->aliasname, attname),
-					 context->in_agg_direct_args ?
-					 errdetail("Direct arguments of an ordered-set aggregate must use only grouped columns.") : 0,
-					 parser_errposition(context->pstate, var->location)));
-		else
-			ereport(ERROR,
-					(errcode(ERRCODE_GROUPING_ERROR),
-					 errmsg("subquery uses ungrouped column \"%s.%s\" from outer query",
-							rte->eref->aliasname, attname),
-					 parser_errposition(context->pstate, var->location)));
-	}
+    /*
+     * Check whether the Var is known functionally dependent on the GROUP
+     * BY columns.  If so, we can allow the Var to be used, because the
+     * grouping is really a no-op for this table.  However, this deduction
+     * depends on one or more constraints of the table, so we have to add
+     * those constraints to the query's constraintDeps list, because it's
+     * not semantically valid anymore if the constraint(s) get dropped.
+     * (Therefore, this check must be the last-ditch effort before raising
+     * error: we don't want to add dependencies unnecessarily.)
+     *
+     * Because this is a pretty expensive check, and will have the same
+     * outcome for all columns of a table, we remember which RTEs we've
+     * already proven functional dependency for in the func_grouped_rels
+     * list.  This test also prevents us from adding duplicate entries to
+     * the constraintDeps list.
+     */
+    if (list_member_int(*context->func_grouped_rels, var->varno))
+      return node;    /* previously proven acceptable */
 
-	if (IsA(node, Query))
-	{
-		/* Recurse into subselects */
-		Query	   *newnode;
+    Assert(var->varno > 0 &&
+           (int) var->varno <= list_length(context->pstate->p_rtable));
+    rte = rt_fetch(var->varno, context->pstate->p_rtable);
 
-		context->sublevels_up++;
-		newnode = query_tree_mutator((Query *) node,
-									 substitute_grouped_columns_mutator,
-									 context,
-									 0);
-		context->sublevels_up--;
-		return (Node *) newnode;
-	}
-	return expression_tree_mutator(node, substitute_grouped_columns_mutator,
-								   context);
+    if (rte->rtekind == RTE_RELATION) {
+      if (check_functional_grouping(rte->relid,
+                                    var->varno,
+                                    0,
+                                    context->groupClauseCommonVars,
+                                    &context->qry->constraintDeps)) {
+        *context->func_grouped_rels =
+          lappend_int(*context->func_grouped_rels, var->varno);
+        return node;  /* acceptable */
+      }
+    }
+
+    /* Found an ungrouped local variable; generate error message */
+    attname = get_rte_attribute_name(rte, var->varattno);
+
+    if (context->sublevels_up == 0)
+      ereport(ERROR,
+              (errcode(ERRCODE_GROUPING_ERROR),
+               errmsg("column \"%s.%s\" must appear in the GROUP BY clause or be used in an aggregate function",
+                      rte->eref->aliasname, attname),
+               context->in_agg_direct_args ?
+               errdetail("Direct arguments of an ordered-set aggregate must use only grouped columns.") : 0,
+               parser_errposition(context->pstate, var->location)));
+    else
+      ereport(ERROR,
+              (errcode(ERRCODE_GROUPING_ERROR),
+               errmsg("subquery uses ungrouped column \"%s.%s\" from outer query",
+                      rte->eref->aliasname, attname),
+               parser_errposition(context->pstate, var->location)));
+  }
+
+  if (IsA(node, Query)) {
+    /* Recurse into subselects */
+    Query    *newnode;
+
+    context->sublevels_up++;
+    newnode = query_tree_mutator((Query *) node,
+                                 substitute_grouped_columns_mutator,
+                                 context,
+                                 0);
+    context->sublevels_up--;
+    return (Node *) newnode;
+  }
+
+  return expression_tree_mutator(node, substitute_grouped_columns_mutator,
+                                 context);
 }
 
 /*
  * finalize_grouping_exprs -
- *	  Scan the given expression tree for GROUPING() and related calls,
- *	  and validate and process their arguments.
+ *    Scan the given expression tree for GROUPING() and related calls,
+ *    and validate and process their arguments.
  *
  * This is split out from substitute_grouped_columns above because it needs
  * to modify the nodes (which it does in-place, not via a mutator) while
@@ -1594,197 +1637,185 @@ substitute_grouped_columns_mutator(Node *node,
  */
 static void
 finalize_grouping_exprs(Node *node, ParseState *pstate, Query *qry,
-						List *groupClauses, bool hasJoinRTEs,
-						bool have_non_var_grouping)
+                        List *groupClauses, bool hasJoinRTEs,
+                        bool have_non_var_grouping)
 {
-	substitute_grouped_columns_context context;
+  substitute_grouped_columns_context context;
 
-	context.pstate = pstate;
-	context.qry = qry;
-	context.hasJoinRTEs = hasJoinRTEs;
-	context.groupClauses = groupClauses;
-	context.groupClauseCommonVars = NIL;
-	context.gset_common = NIL;
-	context.have_non_var_grouping = have_non_var_grouping;
-	context.func_grouped_rels = NULL;
-	context.sublevels_up = 0;
-	context.in_agg_direct_args = false;
-	finalize_grouping_exprs_walker(node, &context);
+  context.pstate = pstate;
+  context.qry = qry;
+  context.hasJoinRTEs = hasJoinRTEs;
+  context.groupClauses = groupClauses;
+  context.groupClauseCommonVars = NIL;
+  context.gset_common = NIL;
+  context.have_non_var_grouping = have_non_var_grouping;
+  context.func_grouped_rels = NULL;
+  context.sublevels_up = 0;
+  context.in_agg_direct_args = false;
+  finalize_grouping_exprs_walker(node, &context);
 }
 
 static bool
 finalize_grouping_exprs_walker(Node *node,
-							   substitute_grouped_columns_context *context)
+                               substitute_grouped_columns_context *context)
 {
-	ListCell   *gl;
+  ListCell   *gl;
 
-	if (node == NULL)
-		return false;
-	if (IsA(node, Const) ||
-		IsA(node, Param))
-		return false;			/* constants are always acceptable */
+  if (node == NULL)
+    return false;
 
-	if (IsA(node, Aggref))
-	{
-		Aggref	   *agg = (Aggref *) node;
+  if (IsA(node, Const) ||
+      IsA(node, Param))
+    return false;     /* constants are always acceptable */
 
-		if ((int) agg->agglevelsup == context->sublevels_up)
-		{
-			/*
-			 * If we find an aggregate call of the original level, do not
-			 * recurse into its normal arguments, ORDER BY arguments, or
-			 * filter; GROUPING exprs of this level are not allowed there. But
-			 * check direct arguments as though they weren't in an aggregate.
-			 */
-			bool		result;
+  if (IsA(node, Aggref)) {
+    Aggref     *agg = (Aggref *) node;
 
-			Assert(!context->in_agg_direct_args);
-			context->in_agg_direct_args = true;
-			result = finalize_grouping_exprs_walker((Node *) agg->aggdirectargs,
-													context);
-			context->in_agg_direct_args = false;
-			return result;
-		}
+    if ((int) agg->agglevelsup == context->sublevels_up) {
+      /*
+       * If we find an aggregate call of the original level, do not
+       * recurse into its normal arguments, ORDER BY arguments, or
+       * filter; GROUPING exprs of this level are not allowed there. But
+       * check direct arguments as though they weren't in an aggregate.
+       */
+      bool    result;
 
-		/*
-		 * We can skip recursing into aggregates of higher levels altogether,
-		 * since they could not possibly contain exprs of concern to us (see
-		 * transformAggregateCall).  We do need to look at aggregates of lower
-		 * levels, however.
-		 */
-		if ((int) agg->agglevelsup > context->sublevels_up)
-			return false;
-	}
+      Assert(!context->in_agg_direct_args);
+      context->in_agg_direct_args = true;
+      result = finalize_grouping_exprs_walker((Node *) agg->aggdirectargs,
+                                              context);
+      context->in_agg_direct_args = false;
+      return result;
+    }
 
-	if (IsA(node, GroupingFunc))
-	{
-		GroupingFunc *grp = (GroupingFunc *) node;
+    /*
+     * We can skip recursing into aggregates of higher levels altogether,
+     * since they could not possibly contain exprs of concern to us (see
+     * transformAggregateCall).  We do need to look at aggregates of lower
+     * levels, however.
+     */
+    if ((int) agg->agglevelsup > context->sublevels_up)
+      return false;
+  }
 
-		/*
-		 * We only need to check GroupingFunc nodes at the exact level to
-		 * which they belong, since they cannot mix levels in arguments.
-		 */
+  if (IsA(node, GroupingFunc)) {
+    GroupingFunc *grp = (GroupingFunc *) node;
 
-		if ((int) grp->agglevelsup == context->sublevels_up)
-		{
-			ListCell   *lc;
-			List	   *ref_list = NIL;
+    /*
+     * We only need to check GroupingFunc nodes at the exact level to
+     * which they belong, since they cannot mix levels in arguments.
+     */
 
-			foreach(lc, grp->args)
-			{
-				Node	   *expr = lfirst(lc);
-				Index		ref = 0;
+    if ((int) grp->agglevelsup == context->sublevels_up) {
+      ListCell   *lc;
+      List     *ref_list = NIL;
 
-				if (context->hasJoinRTEs)
-					expr = flatten_join_alias_vars(NULL, context->qry, expr);
+      foreach(lc, grp->args) {
+        Node     *expr = lfirst(lc);
+        Index   ref = 0;
 
-				/*
-				 * Each expression must match a grouping entry at the current
-				 * query level. Unlike the general expression case, we don't
-				 * allow functional dependencies or outer references.
-				 */
+        if (context->hasJoinRTEs)
+          expr = flatten_join_alias_vars(NULL, context->qry, expr);
 
-				if (IsA(expr, Var))
-				{
-					Var		   *var = (Var *) expr;
+        /*
+         * Each expression must match a grouping entry at the current
+         * query level. Unlike the general expression case, we don't
+         * allow functional dependencies or outer references.
+         */
 
-					if (var->varlevelsup == context->sublevels_up)
-					{
-						foreach(gl, context->groupClauses)
-						{
-							TargetEntry *tle = lfirst(gl);
-							Var		   *gvar = (Var *) tle->expr;
+        if (IsA(expr, Var)) {
+          Var      *var = (Var *) expr;
 
-							if (IsA(gvar, Var) &&
-								gvar->varno == var->varno &&
-								gvar->varattno == var->varattno &&
-								gvar->varlevelsup == 0)
-							{
-								ref = tle->ressortgroupref;
-								break;
-							}
-						}
-					}
-				}
-				else if (context->have_non_var_grouping &&
-						 context->sublevels_up == 0)
-				{
-					foreach(gl, context->groupClauses)
-					{
-						TargetEntry *tle = lfirst(gl);
+          if (var->varlevelsup == context->sublevels_up) {
+            foreach(gl, context->groupClauses) {
+              TargetEntry *tle = lfirst(gl);
+              Var      *gvar = (Var *) tle->expr;
 
-						if (equal(expr, tle->expr))
-						{
-							ref = tle->ressortgroupref;
-							break;
-						}
-					}
-				}
+              if (IsA(gvar, Var) &&
+                  gvar->varno == var->varno &&
+                  gvar->varattno == var->varattno &&
+                  gvar->varlevelsup == 0) {
+                ref = tle->ressortgroupref;
+                break;
+              }
+            }
+          }
+        } else if (context->have_non_var_grouping &&
+                   context->sublevels_up == 0) {
+          foreach(gl, context->groupClauses) {
+            TargetEntry *tle = lfirst(gl);
 
-				if (ref == 0)
-					ereport(ERROR,
-							(errcode(ERRCODE_GROUPING_ERROR),
-							 errmsg("arguments to GROUPING must be grouping expressions of the associated query level"),
-							 parser_errposition(context->pstate,
-												exprLocation(expr))));
+            if (equal(expr, tle->expr)) {
+              ref = tle->ressortgroupref;
+              break;
+            }
+          }
+        }
 
-				ref_list = lappend_int(ref_list, ref);
-			}
+        if (ref == 0)
+          ereport(ERROR,
+                  (errcode(ERRCODE_GROUPING_ERROR),
+                   errmsg("arguments to GROUPING must be grouping expressions of the associated query level"),
+                   parser_errposition(context->pstate,
+                                      exprLocation(expr))));
 
-			grp->refs = ref_list;
-		}
+        ref_list = lappend_int(ref_list, ref);
+      }
 
-		if ((int) grp->agglevelsup > context->sublevels_up)
-			return false;
-	}
+      grp->refs = ref_list;
+    }
 
-	if (IsA(node, Query))
-	{
-		/* Recurse into subselects */
-		bool		result;
+    if ((int) grp->agglevelsup > context->sublevels_up)
+      return false;
+  }
 
-		context->sublevels_up++;
-		result = query_tree_walker((Query *) node,
-								   finalize_grouping_exprs_walker,
-								   context,
-								   0);
-		context->sublevels_up--;
-		return result;
-	}
-	return expression_tree_walker(node, finalize_grouping_exprs_walker,
-								  context);
+  if (IsA(node, Query)) {
+    /* Recurse into subselects */
+    bool    result;
+
+    context->sublevels_up++;
+    result = query_tree_walker((Query *) node,
+                               finalize_grouping_exprs_walker,
+                               context,
+                               0);
+    context->sublevels_up--;
+    return result;
+  }
+
+  return expression_tree_walker(node, finalize_grouping_exprs_walker,
+                                context);
 }
 
 /*
  * buildGroupedVar -
- *	  build a Var node that references the RTE_GROUP RTE
+ *    build a Var node that references the RTE_GROUP RTE
  */
 static Var *
 buildGroupedVar(int attnum, Index ressortgroupref,
-				substitute_grouped_columns_context *context)
+                substitute_grouped_columns_context *context)
 {
-	Var		   *var;
-	ParseNamespaceItem *grouping_nsitem = context->pstate->p_grouping_nsitem;
-	ParseNamespaceColumn *nscol = grouping_nsitem->p_nscolumns + attnum - 1;
+  Var      *var;
+  ParseNamespaceItem *grouping_nsitem = context->pstate->p_grouping_nsitem;
+  ParseNamespaceColumn *nscol = grouping_nsitem->p_nscolumns + attnum - 1;
 
-	Assert(nscol->p_varno == grouping_nsitem->p_rtindex);
-	Assert(nscol->p_varattno == attnum);
-	var = makeVar(nscol->p_varno,
-				  nscol->p_varattno,
-				  nscol->p_vartype,
-				  nscol->p_vartypmod,
-				  nscol->p_varcollid,
-				  context->sublevels_up);
-	/* makeVar doesn't offer parameters for these, so set by hand: */
-	var->varnosyn = nscol->p_varnosyn;
-	var->varattnosyn = nscol->p_varattnosyn;
+  Assert(nscol->p_varno == grouping_nsitem->p_rtindex);
+  Assert(nscol->p_varattno == attnum);
+  var = makeVar(nscol->p_varno,
+                nscol->p_varattno,
+                nscol->p_vartype,
+                nscol->p_vartypmod,
+                nscol->p_varcollid,
+                context->sublevels_up);
+  /* makeVar doesn't offer parameters for these, so set by hand: */
+  var->varnosyn = nscol->p_varnosyn;
+  var->varattnosyn = nscol->p_varattnosyn;
 
-	if (context->qry->groupingSets &&
-		!list_member_int(context->gset_common, ressortgroupref))
-		var->varnullingrels =
-			bms_add_member(var->varnullingrels, grouping_nsitem->p_rtindex);
+  if (context->qry->groupingSets &&
+      !list_member_int(context->gset_common, ressortgroupref))
+    var->varnullingrels =
+      bms_add_member(var->varnullingrels, grouping_nsitem->p_rtindex);
 
-	return var;
+  return var;
 }
 
 
@@ -1802,140 +1833,130 @@ buildGroupedVar(int attnum, Index ressortgroupref,
 static List *
 expand_groupingset_node(GroupingSet *gs)
 {
-	List	   *result = NIL;
+  List     *result = NIL;
 
-	switch (gs->kind)
-	{
-		case GROUPING_SET_EMPTY:
-			result = list_make1(NIL);
-			break;
+  switch (gs->kind) {
+    case GROUPING_SET_EMPTY:
+      result = list_make1(NIL);
+      break;
 
-		case GROUPING_SET_SIMPLE:
-			result = list_make1(gs->content);
-			break;
+    case GROUPING_SET_SIMPLE:
+      result = list_make1(gs->content);
+      break;
 
-		case GROUPING_SET_ROLLUP:
-			{
-				List	   *rollup_val = gs->content;
-				ListCell   *lc;
-				int			curgroup_size = list_length(gs->content);
+    case GROUPING_SET_ROLLUP: {
+      List     *rollup_val = gs->content;
+      ListCell   *lc;
+      int     curgroup_size = list_length(gs->content);
 
-				while (curgroup_size > 0)
-				{
-					List	   *current_result = NIL;
-					int			i = curgroup_size;
+      while (curgroup_size > 0) {
+        List     *current_result = NIL;
+        int     i = curgroup_size;
 
-					foreach(lc, rollup_val)
-					{
-						GroupingSet *gs_current = (GroupingSet *) lfirst(lc);
+        foreach(lc, rollup_val) {
+          GroupingSet *gs_current = (GroupingSet *) lfirst(lc);
 
-						Assert(gs_current->kind == GROUPING_SET_SIMPLE);
+          Assert(gs_current->kind == GROUPING_SET_SIMPLE);
 
-						current_result = list_concat(current_result,
-													 gs_current->content);
+          current_result = list_concat(current_result,
+                                       gs_current->content);
 
-						/* If we are done with making the current group, break */
-						if (--i == 0)
-							break;
-					}
+          /* If we are done with making the current group, break */
+          if (--i == 0)
+            break;
+        }
 
-					result = lappend(result, current_result);
-					--curgroup_size;
-				}
+        result = lappend(result, current_result);
+        --curgroup_size;
+      }
 
-				result = lappend(result, NIL);
-			}
-			break;
+      result = lappend(result, NIL);
+    }
+    break;
 
-		case GROUPING_SET_CUBE:
-			{
-				List	   *cube_list = gs->content;
-				int			number_bits = list_length(cube_list);
-				uint32		num_sets;
-				uint32		i;
+    case GROUPING_SET_CUBE: {
+      List     *cube_list = gs->content;
+      int     number_bits = list_length(cube_list);
+      uint32    num_sets;
+      uint32    i;
 
-				/* parser should cap this much lower */
-				Assert(number_bits < 31);
+      /* parser should cap this much lower */
+      Assert(number_bits < 31);
 
-				num_sets = (1U << number_bits);
+      num_sets = (1U << number_bits);
 
-				for (i = 0; i < num_sets; i++)
-				{
-					List	   *current_result = NIL;
-					ListCell   *lc;
-					uint32		mask = 1U;
+      for (i = 0; i < num_sets; i++) {
+        List     *current_result = NIL;
+        ListCell   *lc;
+        uint32    mask = 1U;
 
-					foreach(lc, cube_list)
-					{
-						GroupingSet *gs_current = (GroupingSet *) lfirst(lc);
+        foreach(lc, cube_list) {
+          GroupingSet *gs_current = (GroupingSet *) lfirst(lc);
 
-						Assert(gs_current->kind == GROUPING_SET_SIMPLE);
+          Assert(gs_current->kind == GROUPING_SET_SIMPLE);
 
-						if (mask & i)
-							current_result = list_concat(current_result,
-														 gs_current->content);
+          if (mask & i)
+            current_result = list_concat(current_result,
+                                         gs_current->content);
 
-						mask <<= 1;
-					}
+          mask <<= 1;
+        }
 
-					result = lappend(result, current_result);
-				}
-			}
-			break;
+        result = lappend(result, current_result);
+      }
+    }
+    break;
 
-		case GROUPING_SET_SETS:
-			{
-				ListCell   *lc;
+    case GROUPING_SET_SETS: {
+      ListCell   *lc;
 
-				foreach(lc, gs->content)
-				{
-					List	   *current_result = expand_groupingset_node(lfirst(lc));
+      foreach(lc, gs->content) {
+        List     *current_result = expand_groupingset_node(lfirst(lc));
 
-					result = list_concat(result, current_result);
-				}
-			}
-			break;
-	}
+        result = list_concat(result, current_result);
+      }
+    }
+    break;
+  }
 
-	return result;
+  return result;
 }
 
 /* list_sort comparator to sort sub-lists by length */
 static int
 cmp_list_len_asc(const ListCell *a, const ListCell *b)
 {
-	int			la = list_length((const List *) lfirst(a));
-	int			lb = list_length((const List *) lfirst(b));
+  int     la = list_length((const List *) lfirst(a));
+  int     lb = list_length((const List *) lfirst(b));
 
-	return pg_cmp_s32(la, lb);
+  return pg_cmp_s32(la, lb);
 }
 
 /* list_sort comparator to sort sub-lists by length and contents */
 static int
 cmp_list_len_contents_asc(const ListCell *a, const ListCell *b)
 {
-	int			res = cmp_list_len_asc(a, b);
+  int     res = cmp_list_len_asc(a, b);
 
-	if (res == 0)
-	{
-		List	   *la = (List *) lfirst(a);
-		List	   *lb = (List *) lfirst(b);
-		ListCell   *lca;
-		ListCell   *lcb;
+  if (res == 0) {
+    List     *la = (List *) lfirst(a);
+    List     *lb = (List *) lfirst(b);
+    ListCell   *lca;
+    ListCell   *lcb;
 
-		forboth(lca, la, lcb, lb)
-		{
-			int			va = lfirst_int(lca);
-			int			vb = lfirst_int(lcb);
+    forboth(lca, la, lcb, lb) {
+      int     va = lfirst_int(lca);
+      int     vb = lfirst_int(lcb);
 
-			if (va > vb)
-				return 1;
-			if (va < vb)
-				return -1;
-		}
-	}
+      if (va > vb)
+        return 1;
 
-	return res;
+      if (va < vb)
+        return -1;
+    }
+  }
+
+  return res;
 }
 
 /*
@@ -1948,94 +1969,88 @@ cmp_list_len_contents_asc(const ListCell *a, const ListCell *b)
 List *
 expand_grouping_sets(List *groupingSets, bool groupDistinct, int limit)
 {
-	List	   *expanded_groups = NIL;
-	List	   *result = NIL;
-	double		numsets = 1;
-	ListCell   *lc;
+  List     *expanded_groups = NIL;
+  List     *result = NIL;
+  double    numsets = 1;
+  ListCell   *lc;
 
-	if (groupingSets == NIL)
-		return NIL;
+  if (groupingSets == NIL)
+    return NIL;
 
-	foreach(lc, groupingSets)
-	{
-		List	   *current_result = NIL;
-		GroupingSet *gs = lfirst(lc);
+  foreach(lc, groupingSets) {
+    List     *current_result = NIL;
+    GroupingSet *gs = lfirst(lc);
 
-		current_result = expand_groupingset_node(gs);
+    current_result = expand_groupingset_node(gs);
 
-		Assert(current_result != NIL);
+    Assert(current_result != NIL);
 
-		numsets *= list_length(current_result);
+    numsets *= list_length(current_result);
 
-		if (limit >= 0 && numsets > limit)
-			return NIL;
+    if (limit >= 0 && numsets > limit)
+      return NIL;
 
-		expanded_groups = lappend(expanded_groups, current_result);
-	}
+    expanded_groups = lappend(expanded_groups, current_result);
+  }
 
-	/*
-	 * Do cartesian product between sublists of expanded_groups. While at it,
-	 * remove any duplicate elements from individual grouping sets (we must
-	 * NOT change the number of sets though)
-	 */
+  /*
+   * Do cartesian product between sublists of expanded_groups. While at it,
+   * remove any duplicate elements from individual grouping sets (we must
+   * NOT change the number of sets though)
+   */
 
-	foreach(lc, (List *) linitial(expanded_groups))
-	{
-		result = lappend(result, list_union_int(NIL, (List *) lfirst(lc)));
-	}
+  foreach(lc, (List *) linitial(expanded_groups)) {
+    result = lappend(result, list_union_int(NIL, (List *) lfirst(lc)));
+  }
 
-	for_each_from(lc, expanded_groups, 1)
-	{
-		List	   *p = lfirst(lc);
-		List	   *new_result = NIL;
-		ListCell   *lc2;
+  for_each_from(lc, expanded_groups, 1) {
+    List     *p = lfirst(lc);
+    List     *new_result = NIL;
+    ListCell   *lc2;
 
-		foreach(lc2, result)
-		{
-			List	   *q = lfirst(lc2);
-			ListCell   *lc3;
+    foreach(lc2, result) {
+      List     *q = lfirst(lc2);
+      ListCell   *lc3;
 
-			foreach(lc3, p)
-			{
-				new_result = lappend(new_result,
-									 list_union_int(q, (List *) lfirst(lc3)));
-			}
-		}
-		result = new_result;
-	}
+      foreach(lc3, p) {
+        new_result = lappend(new_result,
+                             list_union_int(q, (List *) lfirst(lc3)));
+      }
+    }
 
-	/* Now sort the lists by length and deduplicate if necessary */
-	if (!groupDistinct || list_length(result) < 2)
-		list_sort(result, cmp_list_len_asc);
-	else
-	{
-		ListCell   *cell;
-		List	   *prev;
+    result = new_result;
+  }
 
-		/* Sort each groupset individually */
-		foreach(cell, result)
-			list_sort(lfirst(cell), list_int_cmp);
+  /* Now sort the lists by length and deduplicate if necessary */
+  if (!groupDistinct || list_length(result) < 2)
+    list_sort(result, cmp_list_len_asc);
+  else {
+    ListCell   *cell;
+    List     *prev;
 
-		/* Now sort the list of groupsets by length and contents */
-		list_sort(result, cmp_list_len_contents_asc);
+    /* Sort each groupset individually */
+    foreach(cell, result)
+      list_sort(lfirst(cell), list_int_cmp);
 
-		/* Finally, remove duplicates */
-		prev = linitial(result);
-		for_each_from(cell, result, 1)
-		{
-			if (equal(lfirst(cell), prev))
-				result = foreach_delete_current(result, cell);
-			else
-				prev = lfirst(cell);
-		}
-	}
+    /* Now sort the list of groupsets by length and contents */
+    list_sort(result, cmp_list_len_contents_asc);
 
-	return result;
+    /* Finally, remove duplicates */
+    prev = linitial(result);
+    for_each_from(cell, result, 1) {
+      if (equal(lfirst(cell), prev))
+        result = foreach_delete_current(result, cell);
+      else
+        prev = lfirst(cell);
+    }
+  }
+
+  return result;
 }
 
 /*
  * get_aggregate_argtypes
- *	Identify the specific datatypes passed to an aggregate call.
+ *  Identify the specific datatypes passed to an aggregate call.
  *
  * Given an Aggref, extract the actual datatypes of the input arguments.
  * The input datatypes are reported in a way that matches up with the
@@ -2051,22 +2066,21 @@ expand_grouping_sets(List *groupingSets, bool groupDistinct, int limit)
 int
 get_aggregate_argtypes(Aggref *aggref, Oid *inputTypes)
 {
-	int			numArguments = 0;
-	ListCell   *lc;
+  int     numArguments = 0;
+  ListCell   *lc;
 
-	Assert(list_length(aggref->aggargtypes) <= FUNC_MAX_ARGS);
+  Assert(list_length(aggref->aggargtypes) <= FUNC_MAX_ARGS);
 
-	foreach(lc, aggref->aggargtypes)
-	{
-		inputTypes[numArguments++] = lfirst_oid(lc);
-	}
+  foreach(lc, aggref->aggargtypes) {
+    inputTypes[numArguments++] = lfirst_oid(lc);
+  }
 
-	return numArguments;
+  return numArguments;
 }
 
 /*
  * resolve_aggregate_transtype
- *	Identify the transition state value's datatype for an aggregate call.
+ *  Identify the transition state value's datatype for an aggregate call.
  *
  * This function resolves a polymorphic aggregate's state datatype.
  * It must be passed the aggtranstype from the aggregate's catalog entry,
@@ -2076,76 +2090,77 @@ get_aggregate_argtypes(Aggref *aggref, Oid *inputTypes)
  */
 Oid
 resolve_aggregate_transtype(Oid aggfuncid,
-							Oid aggtranstype,
-							Oid *inputTypes,
-							int numArguments)
+                            Oid aggtranstype,
+                            Oid *inputTypes,
+                            int numArguments)
 {
-	/* resolve actual type of transition state, if polymorphic */
-	if (IsPolymorphicType(aggtranstype))
-	{
-		/* have to fetch the agg's declared input types... */
-		Oid		   *declaredArgTypes;
-		int			agg_nargs;
+  /* resolve actual type of transition state, if polymorphic */
+  if (IsPolymorphicType(aggtranstype)) {
+    /* have to fetch the agg's declared input types... */
+    Oid      *declaredArgTypes;
+    int     agg_nargs;
 
-		(void) get_func_signature(aggfuncid, &declaredArgTypes, &agg_nargs);
+    (void) get_func_signature(aggfuncid, &declaredArgTypes, &agg_nargs);
 
-		/*
-		 * VARIADIC ANY aggs could have more actual than declared args, but
-		 * such extra args can't affect polymorphic type resolution.
-		 */
-		Assert(agg_nargs <= numArguments);
+    /*
+     * VARIADIC ANY aggs could have more actual than declared args, but
+     * such extra args can't affect polymorphic type resolution.
+     */
+    Assert(agg_nargs <= numArguments);
 
-		aggtranstype = enforce_generic_type_consistency(inputTypes,
-														declaredArgTypes,
-														agg_nargs,
-														aggtranstype,
-														false);
-		pfree(declaredArgTypes);
-	}
-	return aggtranstype;
+    aggtranstype = enforce_generic_type_consistency(inputTypes,
+                   declaredArgTypes,
+                   agg_nargs,
+                   aggtranstype,
+                   false);
+    pfree(declaredArgTypes);
+  }
+
+  return aggtranstype;
 }
 
 /*
  * agg_args_support_sendreceive
- *		Returns true if all non-byval types of aggref's args have send and
- *		receive functions.
+ *    Returns true if all non-byval types of aggref's args have send and
+ *    receive functions.
  */
 bool
 agg_args_support_sendreceive(Aggref *aggref)
 {
-	ListCell   *lc;
+  ListCell   *lc;
 
-	foreach(lc, aggref->args)
-	{
-		HeapTuple	typeTuple;
-		Form_pg_type pt;
-		TargetEntry *tle = (TargetEntry *) lfirst(lc);
-		Oid			type = exprType((Node *) tle->expr);
+  foreach(lc, aggref->args) {
+    HeapTuple typeTuple;
+    Form_pg_type pt;
+    TargetEntry *tle = (TargetEntry *) lfirst(lc);
+    Oid     type = exprType((Node *) tle->expr);
 
-		/*
-		 * RECORD is a special case: it has typsend/typreceive functions, but
-		 * record_recv only works if passed the correct typmod to identify the
-		 * specific anonymous record type.  array_agg_deserialize cannot do
-		 * that, so we have to disclaim support for the case.
-		 */
-		if (type == RECORDOID)
-			return false;
+    /*
+     * RECORD is a special case: it has typsend/typreceive functions, but
+     * record_recv only works if passed the correct typmod to identify the
+     * specific anonymous record type.  array_agg_deserialize cannot do
+     * that, so we have to disclaim support for the case.
+     */
+    if (type == RECORDOID)
+      return false;
 
-		typeTuple = SearchSysCache1(TYPEOID, ObjectIdGetDatum(type));
-		if (!HeapTupleIsValid(typeTuple))
-			elog(ERROR, "cache lookup failed for type %u", type);
+    typeTuple = SearchSysCache1(TYPEOID, ObjectIdGetDatum(type));
 
-		pt = (Form_pg_type) GETSTRUCT(typeTuple);
+    if (!HeapTupleIsValid(typeTuple))
+      elog(ERROR, "cache lookup failed for type %u", type);
 
-		if (!pt->typbyval &&
-			(!OidIsValid(pt->typsend) || !OidIsValid(pt->typreceive)))
-		{
-			ReleaseSysCache(typeTuple);
-			return false;
-		}
-		ReleaseSysCache(typeTuple);
-	}
-	return true;
+    pt = (Form_pg_type) GETSTRUCT(typeTuple);
+
+    if (!pt->typbyval &&
+        (!OidIsValid(pt->typsend) || !OidIsValid(pt->typreceive))) {
+      ReleaseSysCache(typeTuple);
+      return false;
+    }
+
+    ReleaseSysCache(typeTuple);
+  }
+
+  return true;
 }
 
 /*
@@ -2179,59 +2194,55 @@ agg_args_support_sendreceive(Aggref *aggref)
  */
 void
 build_aggregate_transfn_expr(Oid *agg_input_types,
-							 int agg_num_inputs,
-							 int agg_num_direct_inputs,
-							 bool agg_variadic,
-							 Oid agg_state_type,
-							 Oid agg_input_collation,
-							 Oid transfn_oid,
-							 Oid invtransfn_oid,
-							 Expr **transfnexpr,
-							 Expr **invtransfnexpr)
+                             int agg_num_inputs,
+                             int agg_num_direct_inputs,
+                             bool agg_variadic,
+                             Oid agg_state_type,
+                             Oid agg_input_collation,
+                             Oid transfn_oid,
+                             Oid invtransfn_oid,
+                             Expr **transfnexpr,
+                             Expr **invtransfnexpr)
 {
-	List	   *args;
-	FuncExpr   *fexpr;
-	int			i;
+  List     *args;
+  FuncExpr   *fexpr;
+  int     i;
 
-	/*
-	 * Build arg list to use in the transfn FuncExpr node.
-	 */
-	args = list_make1(make_agg_arg(agg_state_type, agg_input_collation));
+  /*
+   * Build arg list to use in the transfn FuncExpr node.
+   */
+  args = list_make1(make_agg_arg(agg_state_type, agg_input_collation));
 
-	for (i = agg_num_direct_inputs; i < agg_num_inputs; i++)
-	{
-		args = lappend(args,
-					   make_agg_arg(agg_input_types[i], agg_input_collation));
-	}
+  for (i = agg_num_direct_inputs; i < agg_num_inputs; i++) {
+    args = lappend(args,
+                   make_agg_arg(agg_input_types[i], agg_input_collation));
+  }
 
-	fexpr = makeFuncExpr(transfn_oid,
-						 agg_state_type,
-						 args,
-						 InvalidOid,
-						 agg_input_collation,
-						 COERCE_EXPLICIT_CALL);
-	fexpr->funcvariadic = agg_variadic;
-	*transfnexpr = (Expr *) fexpr;
+  fexpr = makeFuncExpr(transfn_oid,
+                       agg_state_type,
+                       args,
+                       InvalidOid,
+                       agg_input_collation,
+                       COERCE_EXPLICIT_CALL);
+  fexpr->funcvariadic = agg_variadic;
+  *transfnexpr = (Expr *) fexpr;
 
-	/*
-	 * Build invtransfn expression if requested, with same args as transfn
-	 */
-	if (invtransfnexpr != NULL)
-	{
-		if (OidIsValid(invtransfn_oid))
-		{
-			fexpr = makeFuncExpr(invtransfn_oid,
-								 agg_state_type,
-								 args,
-								 InvalidOid,
-								 agg_input_collation,
-								 COERCE_EXPLICIT_CALL);
-			fexpr->funcvariadic = agg_variadic;
-			*invtransfnexpr = (Expr *) fexpr;
-		}
-		else
-			*invtransfnexpr = NULL;
-	}
+  /*
+   * Build invtransfn expression if requested, with same args as transfn
+   */
+  if (invtransfnexpr != NULL) {
+    if (OidIsValid(invtransfn_oid)) {
+      fexpr = makeFuncExpr(invtransfn_oid,
+                           agg_state_type,
+                           args,
+                           InvalidOid,
+                           agg_input_collation,
+                           COERCE_EXPLICIT_CALL);
+      fexpr->funcvariadic = agg_variadic;
+      *invtransfnexpr = (Expr *) fexpr;
+    } else
+      *invtransfnexpr = NULL;
+  }
 }
 
 /*
@@ -2240,21 +2251,21 @@ build_aggregate_transfn_expr(Oid *agg_input_types,
  */
 void
 build_aggregate_serialfn_expr(Oid serialfn_oid,
-							  Expr **serialfnexpr)
+                              Expr **serialfnexpr)
 {
-	List	   *args;
-	FuncExpr   *fexpr;
+  List     *args;
+  FuncExpr   *fexpr;
 
-	/* serialfn always takes INTERNAL and returns BYTEA */
-	args = list_make1(make_agg_arg(INTERNALOID, InvalidOid));
+  /* serialfn always takes INTERNAL and returns BYTEA */
+  args = list_make1(make_agg_arg(INTERNALOID, InvalidOid));
 
-	fexpr = makeFuncExpr(serialfn_oid,
-						 BYTEAOID,
-						 args,
-						 InvalidOid,
-						 InvalidOid,
-						 COERCE_EXPLICIT_CALL);
-	*serialfnexpr = (Expr *) fexpr;
+  fexpr = makeFuncExpr(serialfn_oid,
+                       BYTEAOID,
+                       args,
+                       InvalidOid,
+                       InvalidOid,
+                       COERCE_EXPLICIT_CALL);
+  *serialfnexpr = (Expr *) fexpr;
 }
 
 /*
@@ -2263,22 +2274,22 @@ build_aggregate_serialfn_expr(Oid serialfn_oid,
  */
 void
 build_aggregate_deserialfn_expr(Oid deserialfn_oid,
-								Expr **deserialfnexpr)
+                                Expr **deserialfnexpr)
 {
-	List	   *args;
-	FuncExpr   *fexpr;
+  List     *args;
+  FuncExpr   *fexpr;
 
-	/* deserialfn always takes BYTEA, INTERNAL and returns INTERNAL */
-	args = list_make2(make_agg_arg(BYTEAOID, InvalidOid),
-					  make_agg_arg(INTERNALOID, InvalidOid));
+  /* deserialfn always takes BYTEA, INTERNAL and returns INTERNAL */
+  args = list_make2(make_agg_arg(BYTEAOID, InvalidOid),
+                    make_agg_arg(INTERNALOID, InvalidOid));
 
-	fexpr = makeFuncExpr(deserialfn_oid,
-						 INTERNALOID,
-						 args,
-						 InvalidOid,
-						 InvalidOid,
-						 COERCE_EXPLICIT_CALL);
-	*deserialfnexpr = (Expr *) fexpr;
+  fexpr = makeFuncExpr(deserialfn_oid,
+                       INTERNALOID,
+                       args,
+                       InvalidOid,
+                       InvalidOid,
+                       COERCE_EXPLICIT_CALL);
+  *deserialfnexpr = (Expr *) fexpr;
 }
 
 /*
@@ -2287,35 +2298,34 @@ build_aggregate_deserialfn_expr(Oid deserialfn_oid,
  */
 void
 build_aggregate_finalfn_expr(Oid *agg_input_types,
-							 int num_finalfn_inputs,
-							 Oid agg_state_type,
-							 Oid agg_result_type,
-							 Oid agg_input_collation,
-							 Oid finalfn_oid,
-							 Expr **finalfnexpr)
+                             int num_finalfn_inputs,
+                             Oid agg_state_type,
+                             Oid agg_result_type,
+                             Oid agg_input_collation,
+                             Oid finalfn_oid,
+                             Expr **finalfnexpr)
 {
-	List	   *args;
-	int			i;
+  List     *args;
+  int     i;
 
-	/*
-	 * Build expr tree for final function
-	 */
-	args = list_make1(make_agg_arg(agg_state_type, agg_input_collation));
+  /*
+   * Build expr tree for final function
+   */
+  args = list_make1(make_agg_arg(agg_state_type, agg_input_collation));
 
-	/* finalfn may take additional args, which match agg's input types */
-	for (i = 0; i < num_finalfn_inputs - 1; i++)
-	{
-		args = lappend(args,
-					   make_agg_arg(agg_input_types[i], agg_input_collation));
-	}
+  /* finalfn may take additional args, which match agg's input types */
+  for (i = 0; i < num_finalfn_inputs - 1; i++) {
+    args = lappend(args,
+                   make_agg_arg(agg_input_types[i], agg_input_collation));
+  }
 
-	*finalfnexpr = (Expr *) makeFuncExpr(finalfn_oid,
-										 agg_result_type,
-										 args,
-										 InvalidOid,
-										 agg_input_collation,
-										 COERCE_EXPLICIT_CALL);
-	/* finalfn is currently never treated as variadic */
+  *finalfnexpr = (Expr *) makeFuncExpr(finalfn_oid,
+                                       agg_result_type,
+                                       args,
+                                       InvalidOid,
+                                       agg_input_collation,
+                                       COERCE_EXPLICIT_CALL);
+  /* finalfn is currently never treated as variadic */
 }
 
 /*
@@ -2328,13 +2338,13 @@ build_aggregate_finalfn_expr(Oid *agg_input_types,
 static Node *
 make_agg_arg(Oid argtype, Oid argcollation)
 {
-	Param	   *argp = makeNode(Param);
+  Param    *argp = makeNode(Param);
 
-	argp->paramkind = PARAM_EXEC;
-	argp->paramid = -1;
-	argp->paramtype = argtype;
-	argp->paramtypmod = -1;
-	argp->paramcollid = argcollation;
-	argp->location = -1;
-	return (Node *) argp;
+  argp->paramkind = PARAM_EXEC;
+  argp->paramid = -1;
+  argp->paramtype = argtype;
+  argp->paramtypmod = -1;
+  argp->paramcollid = argcollation;
+  argp->location = -1;
+  return (Node *) argp;
 }

@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * ts_utils.c
- *		various support functions
+ *    various support functions
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  *
  *
  * IDENTIFICATION
- *	  src/backend/tsearch/ts_utils.c
+ *    src/backend/tsearch/ts_utils.c
  *
  *-------------------------------------------------------------------------
  */
@@ -32,32 +32,32 @@
  */
 char *
 get_tsearch_config_filename(const char *basename,
-							const char *extension)
+                            const char *extension)
 {
-	char		sharepath[MAXPGPATH];
-	char	   *result;
+  char    sharepath[MAXPGPATH];
+  char     *result;
 
-	/*
-	 * We limit the basename to contain a-z, 0-9, and underscores.  This may
-	 * be overly restrictive, but we don't want to allow access to anything
-	 * outside the tsearch_data directory, so for instance '/' *must* be
-	 * rejected, and on some platforms '\' and ':' are risky as well. Allowing
-	 * uppercase might result in incompatible behavior between case-sensitive
-	 * and case-insensitive filesystems, and non-ASCII characters create other
-	 * interesting risks, so on the whole a tight policy seems best.
-	 */
-	if (strspn(basename, "abcdefghijklmnopqrstuvwxyz0123456789_") != strlen(basename))
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("invalid text search configuration file name \"%s\"",
-						basename)));
+  /*
+   * We limit the basename to contain a-z, 0-9, and underscores.  This may
+   * be overly restrictive, but we don't want to allow access to anything
+   * outside the tsearch_data directory, so for instance '/' *must* be
+   * rejected, and on some platforms '\' and ':' are risky as well. Allowing
+   * uppercase might result in incompatible behavior between case-sensitive
+   * and case-insensitive filesystems, and non-ASCII characters create other
+   * interesting risks, so on the whole a tight policy seems best.
+   */
+  if (strspn(basename, "abcdefghijklmnopqrstuvwxyz0123456789_") != strlen(basename))
+    ereport(ERROR,
+            (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+             errmsg("invalid text search configuration file name \"%s\"",
+                    basename)));
 
-	get_share_path(my_exec_path, sharepath);
-	result = palloc(MAXPGPATH);
-	snprintf(result, MAXPGPATH, "%s/tsearch_data/%s.%s",
-			 sharepath, basename, extension);
+  get_share_path(my_exec_path, sharepath);
+  result = palloc(MAXPGPATH);
+  snprintf(result, MAXPGPATH, "%s/tsearch_data/%s.%s",
+           sharepath, basename, extension);
 
-	return result;
+  return result;
 }
 
 /*
@@ -68,79 +68,73 @@ get_tsearch_config_filename(const char *basename,
 void
 readstoplist(const char *fname, StopList *s, char *(*wordop) (const char *, size_t, Oid))
 {
-	char	  **stop = NULL;
+  char    **stop = NULL;
 
-	s->len = 0;
-	if (fname && *fname)
-	{
-		char	   *filename = get_tsearch_config_filename(fname, "stop");
-		tsearch_readline_state trst;
-		char	   *line;
-		int			reallen = 0;
+  s->len = 0;
 
-		if (!tsearch_readline_begin(&trst, filename))
-			ereport(ERROR,
-					(errcode(ERRCODE_CONFIG_FILE_ERROR),
-					 errmsg("could not open stop-word file \"%s\": %m",
-							filename)));
+  if (fname && *fname) {
+    char     *filename = get_tsearch_config_filename(fname, "stop");
+    tsearch_readline_state trst;
+    char     *line;
+    int     reallen = 0;
 
-		while ((line = tsearch_readline(&trst)) != NULL)
-		{
-			char	   *pbuf = line;
+    if (!tsearch_readline_begin(&trst, filename))
+      ereport(ERROR,
+              (errcode(ERRCODE_CONFIG_FILE_ERROR),
+               errmsg("could not open stop-word file \"%s\": %m",
+                      filename)));
 
-			/* Trim trailing space */
-			while (*pbuf && !isspace((unsigned char) *pbuf))
-				pbuf += pg_mblen_cstr(pbuf);
-			*pbuf = '\0';
+    while ((line = tsearch_readline(&trst)) != NULL) {
+      char     *pbuf = line;
 
-			/* Skip empty lines */
-			if (*line == '\0')
-			{
-				pfree(line);
-				continue;
-			}
+      /* Trim trailing space */
+      while (*pbuf && !isspace((unsigned char) *pbuf))
+        pbuf += pg_mblen_cstr(pbuf);
 
-			if (s->len >= reallen)
-			{
-				if (reallen == 0)
-				{
-					reallen = 64;
-					stop = (char **) palloc(sizeof(char *) * reallen);
-				}
-				else
-				{
-					reallen *= 2;
-					stop = (char **) repalloc(stop, sizeof(char *) * reallen);
-				}
-			}
+      *pbuf = '\0';
 
-			if (wordop)
-			{
-				stop[s->len] = wordop(line, strlen(line), DEFAULT_COLLATION_OID);
-				if (stop[s->len] != line)
-					pfree(line);
-			}
-			else
-				stop[s->len] = line;
+      /* Skip empty lines */
+      if (*line == '\0') {
+        pfree(line);
+        continue;
+      }
 
-			(s->len)++;
-		}
+      if (s->len >= reallen) {
+        if (reallen == 0) {
+          reallen = 64;
+          stop = (char **) palloc(sizeof(char *) * reallen);
+        } else {
+          reallen *= 2;
+          stop = (char **) repalloc(stop, sizeof(char *) * reallen);
+        }
+      }
 
-		tsearch_readline_end(&trst);
-		pfree(filename);
-	}
+      if (wordop) {
+        stop[s->len] = wordop(line, strlen(line), DEFAULT_COLLATION_OID);
 
-	s->stop = stop;
+        if (stop[s->len] != line)
+          pfree(line);
+      } else
+        stop[s->len] = line;
 
-	/* Sort to allow binary searching */
-	if (s->stop && s->len > 0)
-		qsort(s->stop, s->len, sizeof(char *), pg_qsort_strcmp);
+      (s->len)++;
+    }
+
+    tsearch_readline_end(&trst);
+    pfree(filename);
+  }
+
+  s->stop = stop;
+
+  /* Sort to allow binary searching */
+  if (s->stop && s->len > 0)
+    qsort(s->stop, s->len, sizeof(char *), pg_qsort_strcmp);
 }
 
 bool
 searchstoplist(StopList *s, char *key)
 {
-	return (s->stop && s->len > 0 &&
-			bsearch(&key, s->stop, s->len,
-					sizeof(char *), pg_qsort_strcmp));
+  return (s->stop && s->len > 0 &&
+          bsearch(&key, s->stop, s->len,
+                  sizeof(char *), pg_qsort_strcmp));
 }

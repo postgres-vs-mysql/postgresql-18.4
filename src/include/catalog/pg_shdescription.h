@@ -1,8 +1,8 @@
 /*-------------------------------------------------------------------------
  *
  * pg_shdescription.h
- *	  definition of the "shared description" system catalog
- *	  (pg_shdescription)
+ *    definition of the "shared description" system catalog
+ *    (pg_shdescription)
  *
  * Because the contents of this table are taken from the *.dat files
  * of other catalogs, there is no pg_shdescription.dat file. The initial
@@ -22,8 +22,8 @@
  * src/include/catalog/pg_shdescription.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -34,23 +34,23 @@
 #include "catalog/pg_shdescription_d.h" /* IWYU pragma: export */
 
 /* ----------------
- *		pg_shdescription definition.    cpp turns this into
- *		typedef struct FormData_pg_shdescription
+ *    pg_shdescription definition.    cpp turns this into
+ *    typedef struct FormData_pg_shdescription
  * ----------------
  */
-CATALOG(pg_shdescription,2396,SharedDescriptionRelationId) BKI_SHARED_RELATION
+CATALOG(pg_shdescription, 2396, SharedDescriptionRelationId) BKI_SHARED_RELATION
 {
-	Oid			objoid;			/* OID of object itself */
-	Oid			classoid;		/* OID of table containing object */
+  Oid     objoid;     /* OID of object itself */
+  Oid     classoid;   /* OID of table containing object */
 
-#ifdef CATALOG_VARLEN			/* variable-length fields start here */
-	text		description BKI_FORCE_NOT_NULL; /* description of object */
+#ifdef CATALOG_VARLEN     /* variable-length fields start here */
+  text    description BKI_FORCE_NOT_NULL; /* description of object */
 #endif
 } FormData_pg_shdescription;
 
 /* ----------------
- *		Form_pg_shdescription corresponds to a pointer to a tuple with
- *		the format of pg_shdescription relation.
+ *    Form_pg_shdescription corresponds to a pointer to a tuple with
+ *    the format of pg_shdescription relation.
  * ----------------
  */
 typedef FormData_pg_shdescription * Form_pg_shdescription;
@@ -62,4 +62,4 @@ DECLARE_UNIQUE_INDEX_PKEY(pg_shdescription_o_c_index, 2397, SharedDescriptionObj
 /* We do not use BKI_LOOKUP here because it causes problems for genbki.pl */
 DECLARE_FOREIGN_KEY((classoid), pg_class, (oid));
 
-#endif							/* PG_SHDESCRIPTION_H */
+#endif              /* PG_SHDESCRIPTION_H */

@@ -1,17 +1,17 @@
 /*-------------------------------------------------------------------------
  *
  * fastpath.c
- *	  routines to handle function requests from the frontend
+ *    routines to handle function requests from the frontend
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/backend/tcop/fastpath.c
+ *    src/backend/tcop/fastpath.c
  *
  * NOTES
- *	  This cruft is the server side of PQfn.
+ *    This cruft is the server side of PQfn.
  *
  *-------------------------------------------------------------------------
  */
@@ -45,68 +45,60 @@
  * in the FmgrInfo struct.  So, forget about caching and just repeat the
  * syscache fetches on each usage.  They're not *that* expensive.
  */
-struct fp_info
-{
-	Oid			funcid;
-	FmgrInfo	flinfo;			/* function lookup info for funcid */
-	Oid			namespace;		/* other stuff from pg_proc */
-	Oid			rettype;
-	Oid			argtypes[FUNC_MAX_ARGS];
-	char		fname[NAMEDATALEN]; /* function name for logging */
+struct fp_info {
+  Oid     funcid;
+  FmgrInfo  flinfo;     /* function lookup info for funcid */
+  Oid     namespace;    /* other stuff from pg_proc */
+  Oid     rettype;
+  Oid     argtypes[FUNC_MAX_ARGS];
+  char    fname[NAMEDATALEN]; /* function name for logging */
 };
 
 
 static int16 parse_fcall_arguments(StringInfo msgBuf, struct fp_info *fip,
-								   FunctionCallInfo fcinfo);
+                                   FunctionCallInfo fcinfo);
 
 /* ----------------
- *		SendFunctionResult
+ *    SendFunctionResult
  * ----------------
  */
 static void
 SendFunctionResult(Datum retval, bool isnull, Oid rettype, int16 format)
 {
-	StringInfoData buf;
+  StringInfoData buf;
 
-	pq_beginmessage(&buf, PqMsg_FunctionCallResponse);
+  pq_beginmessage(&buf, PqMsg_FunctionCallResponse);
 
-	if (isnull)
-	{
-		pq_sendint32(&buf, -1);
-	}
-	else
-	{
-		if (format == 0)
-		{
-			Oid			typoutput;
-			bool		typisvarlena;
-			char	   *outputstr;
+  if (isnull) {
+    pq_sendint32(&buf, -1);
+  } else {
+    if (format == 0) {
+      Oid     typoutput;
+      bool    typisvarlena;
+      char     *outputstr;
 
-			getTypeOutputInfo(rettype, &typoutput, &typisvarlena);
-			outputstr = OidOutputFunctionCall(typoutput, retval);
-			pq_sendcountedtext(&buf, outputstr, strlen(outputstr));
-			pfree(outputstr);
-		}
-		else if (format == 1)
-		{
-			Oid			typsend;
-			bool		typisvarlena;
-			bytea	   *outputbytes;
+      getTypeOutputInfo(rettype, &typoutput, &typisvarlena);
+      outputstr = OidOutputFunctionCall(typoutput, retval);
+      pq_sendcountedtext(&buf, outputstr, strlen(outputstr));
+      pfree(outputstr);
+    } else if (format == 1) {
+      Oid     typsend;
+      bool    typisvarlena;
+      bytea    *outputbytes;
 
-			getTypeBinaryOutputInfo(rettype, &typsend, &typisvarlena);
-			outputbytes = OidSendFunctionCall(typsend, retval);
-			pq_sendint32(&buf, VARSIZE(outputbytes) - VARHDRSZ);
-			pq_sendbytes(&buf, VARDATA(outputbytes),
-						 VARSIZE(outputbytes) - VARHDRSZ);
-			pfree(outputbytes);
-		}
-		else
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("unsupported format code: %d", format)));
-	}
+      getTypeBinaryOutputInfo(rettype, &typsend, &typisvarlena);
+      outputbytes = OidSendFunctionCall(typsend, retval);
+      pq_sendint32(&buf, VARSIZE(outputbytes) - VARHDRSZ);
+      pq_sendbytes(&buf, VARDATA(outputbytes),
+                   VARSIZE(outputbytes) - VARHDRSZ);
+      pfree(outputbytes);
+    } else
+      ereport(ERROR,
+              (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+               errmsg("unsupported format code: %d", format)));
+  }
 
-	pq_endmessage(&buf);
+  pq_endmessage(&buf);
 }
 
 /*
@@ -118,54 +110,56 @@ SendFunctionResult(Datum retval, bool isnull, Oid rettype, int16 format)
 static void
 fetch_fp_info(Oid func_id, struct fp_info *fip)
 {
-	HeapTuple	func_htp;
-	Form_pg_proc pp;
+  HeapTuple func_htp;
+  Form_pg_proc pp;
 
-	Assert(fip != NULL);
+  Assert(fip != NULL);
 
-	/*
-	 * Since the validity of this structure is determined by whether the
-	 * funcid is OK, we clear the funcid here.  It must not be set to the
-	 * correct value until we are about to return with a good struct fp_info,
-	 * since we can be interrupted (i.e., with an ereport(ERROR, ...)) at any
-	 * time.  [No longer really an issue since we don't save the struct
-	 * fp_info across transactions anymore, but keep it anyway.]
-	 */
-	MemSet(fip, 0, sizeof(struct fp_info));
-	fip->funcid = InvalidOid;
+  /*
+   * Since the validity of this structure is determined by whether the
+   * funcid is OK, we clear the funcid here.  It must not be set to the
+   * correct value until we are about to return with a good struct fp_info,
+   * since we can be interrupted (i.e., with an ereport(ERROR, ...)) at any
+   * time.  [No longer really an issue since we don't save the struct
+   * fp_info across transactions anymore, but keep it anyway.]
+   */
+  MemSet(fip, 0, sizeof(struct fp_info));
+  fip->funcid = InvalidOid;
 
-	func_htp = SearchSysCache1(PROCOID, ObjectIdGetDatum(func_id));
-	if (!HeapTupleIsValid(func_htp))
-		ereport(ERROR,
-				(errcode(ERRCODE_UNDEFINED_FUNCTION),
-				 errmsg("function with OID %u does not exist", func_id)));
-	pp = (Form_pg_proc) GETSTRUCT(func_htp);
+  func_htp = SearchSysCache1(PROCOID, ObjectIdGetDatum(func_id));
 
-	/* reject pg_proc entries that are unsafe to call via fastpath */
-	if (pp->prokind != PROKIND_FUNCTION || pp->proretset)
-		ereport(ERROR,
-				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("cannot call function \"%s\" via fastpath interface",
-						NameStr(pp->proname))));
+  if (!HeapTupleIsValid(func_htp))
+    ereport(ERROR,
+            (errcode(ERRCODE_UNDEFINED_FUNCTION),
+             errmsg("function with OID %u does not exist", func_id)));
 
-	/* watch out for catalog entries with more than FUNC_MAX_ARGS args */
-	if (pp->pronargs > FUNC_MAX_ARGS)
-		elog(ERROR, "function %s has more than %d arguments",
-			 NameStr(pp->proname), FUNC_MAX_ARGS);
+  pp = (Form_pg_proc) GETSTRUCT(func_htp);
 
-	fip->namespace = pp->pronamespace;
-	fip->rettype = pp->prorettype;
-	memcpy(fip->argtypes, pp->proargtypes.values, pp->pronargs * sizeof(Oid));
-	strlcpy(fip->fname, NameStr(pp->proname), NAMEDATALEN);
+  /* reject pg_proc entries that are unsafe to call via fastpath */
+  if (pp->prokind != PROKIND_FUNCTION || pp->proretset)
+    ereport(ERROR,
+            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+             errmsg("cannot call function \"%s\" via fastpath interface",
+                    NameStr(pp->proname))));
 
-	ReleaseSysCache(func_htp);
+  /* watch out for catalog entries with more than FUNC_MAX_ARGS args */
+  if (pp->pronargs > FUNC_MAX_ARGS)
+    elog(ERROR, "function %s has more than %d arguments",
+         NameStr(pp->proname), FUNC_MAX_ARGS);
 
-	fmgr_info(func_id, &fip->flinfo);
+  fip->namespace = pp->pronamespace;
+  fip->rettype = pp->prorettype;
+  memcpy(fip->argtypes, pp->proargtypes.values, pp->pronargs * sizeof(Oid));
+  strlcpy(fip->fname, NameStr(pp->proname), NAMEDATALEN);
 
-	/*
-	 * This must be last!
-	 */
-	fip->funcid = func_id;
+  ReleaseSysCache(func_htp);
+
+  fmgr_info(func_id, &fip->flinfo);
+
+  /*
+   * This must be last!
+   */
+  fip->funcid = func_id;
 }
 
 
@@ -176,8 +170,8 @@ fetch_fp_info(Oid func_id, struct fp_info *fip)
  * This corresponds to the libpq protocol symbol "F".
  *
  * INPUT:
- *		postgres.c has already read the message body and will pass it in
- *		msgBuf.
+ *    postgres.c has already read the message body and will pass it in
+ *    msgBuf.
  *
  * Note: palloc()s done here and in the called function do not need to be
  * cleaned up explicitly.  We are called from PostgresMain() in the
@@ -187,136 +181,134 @@ fetch_fp_info(Oid func_id, struct fp_info *fip)
 void
 HandleFunctionRequest(StringInfo msgBuf)
 {
-	LOCAL_FCINFO(fcinfo, FUNC_MAX_ARGS);
-	Oid			fid;
-	AclResult	aclresult;
-	int16		rformat;
-	Datum		retval;
-	struct fp_info my_fp;
-	struct fp_info *fip;
-	bool		callit;
-	bool		was_logged = false;
-	char		msec_str[32];
+  LOCAL_FCINFO(fcinfo, FUNC_MAX_ARGS);
+  Oid     fid;
+  AclResult aclresult;
+  int16   rformat;
+  Datum   retval;
+  struct fp_info my_fp;
+  struct fp_info *fip;
+  bool    callit;
+  bool    was_logged = false;
+  char    msec_str[32];
 
-	/*
-	 * We only accept COMMIT/ABORT if we are in an aborted transaction, and
-	 * COMMIT/ABORT cannot be executed through the fastpath interface.
-	 */
-	if (IsAbortedTransactionBlockState())
-		ereport(ERROR,
-				(errcode(ERRCODE_IN_FAILED_SQL_TRANSACTION),
-				 errmsg("current transaction is aborted, "
-						"commands ignored until end of transaction block")));
+  /*
+   * We only accept COMMIT/ABORT if we are in an aborted transaction, and
+   * COMMIT/ABORT cannot be executed through the fastpath interface.
+   */
+  if (IsAbortedTransactionBlockState())
+    ereport(ERROR,
+            (errcode(ERRCODE_IN_FAILED_SQL_TRANSACTION),
+             errmsg("current transaction is aborted, "
+                    "commands ignored until end of transaction block")));
 
-	/*
-	 * Now that we know we are in a valid transaction, set snapshot in case
-	 * needed by function itself or one of the datatype I/O routines.
-	 */
-	PushActiveSnapshot(GetTransactionSnapshot());
+  /*
+   * Now that we know we are in a valid transaction, set snapshot in case
+   * needed by function itself or one of the datatype I/O routines.
+   */
+  PushActiveSnapshot(GetTransactionSnapshot());
 
-	/*
-	 * Begin parsing the buffer contents.
-	 */
-	fid = (Oid) pq_getmsgint(msgBuf, 4);	/* function oid */
+  /*
+   * Begin parsing the buffer contents.
+   */
+  fid = (Oid) pq_getmsgint(msgBuf, 4);  /* function oid */
 
-	/*
-	 * There used to be a lame attempt at caching lookup info here. Now we
-	 * just do the lookups on every call.
-	 */
-	fip = &my_fp;
-	fetch_fp_info(fid, fip);
+  /*
+   * There used to be a lame attempt at caching lookup info here. Now we
+   * just do the lookups on every call.
+   */
+  fip = &my_fp;
+  fetch_fp_info(fid, fip);
 
-	/* Log as soon as we have the function OID and name */
-	if (log_statement == LOGSTMT_ALL)
-	{
-		ereport(LOG,
-				(errmsg("fastpath function call: \"%s\" (OID %u)",
-						fip->fname, fid)));
-		was_logged = true;
-	}
+  /* Log as soon as we have the function OID and name */
+  if (log_statement == LOGSTMT_ALL) {
+    ereport(LOG,
+            (errmsg("fastpath function call: \"%s\" (OID %u)",
+                    fip->fname, fid)));
+    was_logged = true;
+  }
 
-	/*
-	 * Check permission to access and call function.  Since we didn't go
-	 * through a normal name lookup, we need to check schema usage too.
-	 */
-	aclresult = object_aclcheck(NamespaceRelationId, fip->namespace, GetUserId(), ACL_USAGE);
-	if (aclresult != ACLCHECK_OK)
-		aclcheck_error(aclresult, OBJECT_SCHEMA,
-					   get_namespace_name(fip->namespace));
-	InvokeNamespaceSearchHook(fip->namespace, true);
+  /*
+   * Check permission to access and call function.  Since we didn't go
+   * through a normal name lookup, we need to check schema usage too.
+   */
+  aclresult = object_aclcheck(NamespaceRelationId, fip->namespace, GetUserId(), ACL_USAGE);
 
-	aclresult = object_aclcheck(ProcedureRelationId, fid, GetUserId(), ACL_EXECUTE);
-	if (aclresult != ACLCHECK_OK)
-		aclcheck_error(aclresult, OBJECT_FUNCTION,
-					   get_func_name(fid));
-	InvokeFunctionExecuteHook(fid);
+  if (aclresult != ACLCHECK_OK)
+    aclcheck_error(aclresult, OBJECT_SCHEMA,
+                   get_namespace_name(fip->namespace));
 
-	/*
-	 * Prepare function call info block and insert arguments.
-	 *
-	 * Note: for now we pass collation = InvalidOid, so collation-sensitive
-	 * functions can't be called this way.  Perhaps we should pass
-	 * DEFAULT_COLLATION_OID, instead?
-	 */
-	InitFunctionCallInfoData(*fcinfo, &fip->flinfo, 0, InvalidOid, NULL, NULL);
+  InvokeNamespaceSearchHook(fip->namespace, true);
 
-	rformat = parse_fcall_arguments(msgBuf, fip, fcinfo);
+  aclresult = object_aclcheck(ProcedureRelationId, fid, GetUserId(), ACL_EXECUTE);
 
-	/* Verify we reached the end of the message where expected. */
-	pq_getmsgend(msgBuf);
+  if (aclresult != ACLCHECK_OK)
+    aclcheck_error(aclresult, OBJECT_FUNCTION,
+                   get_func_name(fid));
 
-	/*
-	 * If func is strict, must not call it for null args.
-	 */
-	callit = true;
-	if (fip->flinfo.fn_strict)
-	{
-		int			i;
+  InvokeFunctionExecuteHook(fid);
 
-		for (i = 0; i < fcinfo->nargs; i++)
-		{
-			if (fcinfo->args[i].isnull)
-			{
-				callit = false;
-				break;
-			}
-		}
-	}
+  /*
+   * Prepare function call info block and insert arguments.
+   *
+   * Note: for now we pass collation = InvalidOid, so collation-sensitive
+   * functions can't be called this way.  Perhaps we should pass
+   * DEFAULT_COLLATION_OID, instead?
+   */
+  InitFunctionCallInfoData(*fcinfo, &fip->flinfo, 0, InvalidOid, NULL, NULL);
 
-	if (callit)
-	{
-		/* Okay, do it ... */
-		retval = FunctionCallInvoke(fcinfo);
-	}
-	else
-	{
-		fcinfo->isnull = true;
-		retval = (Datum) 0;
-	}
+  rformat = parse_fcall_arguments(msgBuf, fip, fcinfo);
 
-	/* ensure we do at least one CHECK_FOR_INTERRUPTS per function call */
-	CHECK_FOR_INTERRUPTS();
+  /* Verify we reached the end of the message where expected. */
+  pq_getmsgend(msgBuf);
 
-	SendFunctionResult(retval, fcinfo->isnull, fip->rettype, rformat);
+  /*
+   * If func is strict, must not call it for null args.
+   */
+  callit = true;
 
-	/* We no longer need the snapshot */
-	PopActiveSnapshot();
+  if (fip->flinfo.fn_strict) {
+    int     i;
 
-	/*
-	 * Emit duration logging if appropriate.
-	 */
-	switch (check_log_duration(msec_str, was_logged))
-	{
-		case 1:
-			ereport(LOG,
-					(errmsg("duration: %s ms", msec_str)));
-			break;
-		case 2:
-			ereport(LOG,
-					(errmsg("duration: %s ms  fastpath function call: \"%s\" (OID %u)",
-							msec_str, fip->fname, fid)));
-			break;
-	}
+    for (i = 0; i < fcinfo->nargs; i++) {
+      if (fcinfo->args[i].isnull) {
+        callit = false;
+        break;
+      }
+    }
+  }
+
+  if (callit) {
+    /* Okay, do it ... */
+    retval = FunctionCallInvoke(fcinfo);
+  } else {
+    fcinfo->isnull = true;
+    retval = (Datum) 0;
+  }
+
+  /* ensure we do at least one CHECK_FOR_INTERRUPTS per function call */
+  CHECK_FOR_INTERRUPTS();
+
+  SendFunctionResult(retval, fcinfo->isnull, fip->rettype, rformat);
+
+  /* We no longer need the snapshot */
+  PopActiveSnapshot();
+
+  /*
+   * Emit duration logging if appropriate.
+   */
+  switch (check_log_duration(msec_str, was_logged)) {
+    case 1:
+      ereport(LOG,
+              (errmsg("duration: %s ms", msec_str)));
+      break;
+
+    case 2:
+      ereport(LOG,
+              (errmsg("duration: %s ms  fastpath function call: \"%s\" (OID %u)",
+                      msec_str, fip->fname, fid)));
+      break;
+  }
 }
 
 /*
@@ -327,132 +319,128 @@ HandleFunctionRequest(StringInfo msgBuf)
  */
 static int16
 parse_fcall_arguments(StringInfo msgBuf, struct fp_info *fip,
-					  FunctionCallInfo fcinfo)
+                      FunctionCallInfo fcinfo)
 {
-	int			nargs;
-	int			i;
-	int			numAFormats;
-	int16	   *aformats = NULL;
-	StringInfoData abuf;
+  int     nargs;
+  int     i;
+  int     numAFormats;
+  int16    *aformats = NULL;
+  StringInfoData abuf;
 
-	/* Get the argument format codes */
-	numAFormats = pq_getmsgint(msgBuf, 2);
-	if (numAFormats > 0)
-	{
-		aformats = (int16 *) palloc(numAFormats * sizeof(int16));
-		for (i = 0; i < numAFormats; i++)
-			aformats[i] = pq_getmsgint(msgBuf, 2);
-	}
+  /* Get the argument format codes */
+  numAFormats = pq_getmsgint(msgBuf, 2);
 
-	nargs = pq_getmsgint(msgBuf, 2);	/* # of arguments */
+  if (numAFormats > 0) {
+    aformats = (int16 *) palloc(numAFormats * sizeof(int16));
 
-	if (fip->flinfo.fn_nargs != nargs || nargs > FUNC_MAX_ARGS)
-		ereport(ERROR,
-				(errcode(ERRCODE_PROTOCOL_VIOLATION),
-				 errmsg("function call message contains %d arguments but function requires %d",
-						nargs, fip->flinfo.fn_nargs)));
+    for (i = 0; i < numAFormats; i++)
+      aformats[i] = pq_getmsgint(msgBuf, 2);
+  }
 
-	fcinfo->nargs = nargs;
+  nargs = pq_getmsgint(msgBuf, 2);  /* # of arguments */
 
-	if (numAFormats > 1 && numAFormats != nargs)
-		ereport(ERROR,
-				(errcode(ERRCODE_PROTOCOL_VIOLATION),
-				 errmsg("function call message contains %d argument formats but %d arguments",
-						numAFormats, nargs)));
+  if (fip->flinfo.fn_nargs != nargs || nargs > FUNC_MAX_ARGS)
+    ereport(ERROR,
+            (errcode(ERRCODE_PROTOCOL_VIOLATION),
+             errmsg("function call message contains %d arguments but function requires %d",
+                    nargs, fip->flinfo.fn_nargs)));
 
-	initStringInfo(&abuf);
+  fcinfo->nargs = nargs;
 
-	/*
-	 * Copy supplied arguments into arg vector.
-	 */
-	for (i = 0; i < nargs; ++i)
-	{
-		int			argsize;
-		int16		aformat;
+  if (numAFormats > 1 && numAFormats != nargs)
+    ereport(ERROR,
+            (errcode(ERRCODE_PROTOCOL_VIOLATION),
+             errmsg("function call message contains %d argument formats but %d arguments",
+                    numAFormats, nargs)));
 
-		argsize = pq_getmsgint(msgBuf, 4);
-		if (argsize == -1)
-		{
-			fcinfo->args[i].isnull = true;
-		}
-		else
-		{
-			fcinfo->args[i].isnull = false;
-			if (argsize < 0)
-				ereport(ERROR,
-						(errcode(ERRCODE_PROTOCOL_VIOLATION),
-						 errmsg("invalid argument size %d in function call message",
-								argsize)));
+  initStringInfo(&abuf);
 
-			/* Reset abuf to empty, and insert raw data into it */
-			resetStringInfo(&abuf);
-			appendBinaryStringInfo(&abuf,
-								   pq_getmsgbytes(msgBuf, argsize),
-								   argsize);
-		}
+  /*
+   * Copy supplied arguments into arg vector.
+   */
+  for (i = 0; i < nargs; ++i) {
+    int     argsize;
+    int16   aformat;
 
-		if (numAFormats > 1)
-			aformat = aformats[i];
-		else if (numAFormats > 0)
-			aformat = aformats[0];
-		else
-			aformat = 0;		/* default = text */
+    argsize = pq_getmsgint(msgBuf, 4);
 
-		if (aformat == 0)
-		{
-			Oid			typinput;
-			Oid			typioparam;
-			char	   *pstring;
+    if (argsize == -1) {
+      fcinfo->args[i].isnull = true;
+    } else {
+      fcinfo->args[i].isnull = false;
 
-			getTypeInputInfo(fip->argtypes[i], &typinput, &typioparam);
+      if (argsize < 0)
+        ereport(ERROR,
+                (errcode(ERRCODE_PROTOCOL_VIOLATION),
+                 errmsg("invalid argument size %d in function call message",
+                        argsize)));
 
-			/*
-			 * Since stringinfo.c keeps a trailing null in place even for
-			 * binary data, the contents of abuf are a valid C string.  We
-			 * have to do encoding conversion before calling the typinput
-			 * routine, though.
-			 */
-			if (argsize == -1)
-				pstring = NULL;
-			else
-				pstring = pg_client_to_server(abuf.data, argsize);
+      /* Reset abuf to empty, and insert raw data into it */
+      resetStringInfo(&abuf);
+      appendBinaryStringInfo(&abuf,
+                             pq_getmsgbytes(msgBuf, argsize),
+                             argsize);
+    }
 
-			fcinfo->args[i].value = OidInputFunctionCall(typinput, pstring,
-														 typioparam, -1);
-			/* Free result of encoding conversion, if any */
-			if (pstring && pstring != abuf.data)
-				pfree(pstring);
-		}
-		else if (aformat == 1)
-		{
-			Oid			typreceive;
-			Oid			typioparam;
-			StringInfo	bufptr;
+    if (numAFormats > 1)
+      aformat = aformats[i];
+    else if (numAFormats > 0)
+      aformat = aformats[0];
+    else
+      aformat = 0;    /* default = text */
 
-			/* Call the argument type's binary input converter */
-			getTypeBinaryInputInfo(fip->argtypes[i], &typreceive, &typioparam);
+    if (aformat == 0) {
+      Oid     typinput;
+      Oid     typioparam;
+      char     *pstring;
 
-			if (argsize == -1)
-				bufptr = NULL;
-			else
-				bufptr = &abuf;
+      getTypeInputInfo(fip->argtypes[i], &typinput, &typioparam);
 
-			fcinfo->args[i].value = OidReceiveFunctionCall(typreceive, bufptr,
-														   typioparam, -1);
+      /*
+       * Since stringinfo.c keeps a trailing null in place even for
+       * binary data, the contents of abuf are a valid C string.  We
+       * have to do encoding conversion before calling the typinput
+       * routine, though.
+       */
+      if (argsize == -1)
+        pstring = NULL;
+      else
+        pstring = pg_client_to_server(abuf.data, argsize);
 
-			/* Trouble if it didn't eat the whole buffer */
-			if (argsize != -1 && abuf.cursor != abuf.len)
-				ereport(ERROR,
-						(errcode(ERRCODE_INVALID_BINARY_REPRESENTATION),
-						 errmsg("incorrect binary data format in function argument %d",
-								i + 1)));
-		}
-		else
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("unsupported format code: %d", aformat)));
-	}
+      fcinfo->args[i].value = OidInputFunctionCall(typinput, pstring,
+                              typioparam, -1);
 
-	/* Return result format code */
-	return (int16) pq_getmsgint(msgBuf, 2);
+      /* Free result of encoding conversion, if any */
+      if (pstring && pstring != abuf.data)
+        pfree(pstring);
+    } else if (aformat == 1) {
+      Oid     typreceive;
+      Oid     typioparam;
+      StringInfo  bufptr;
+
+      /* Call the argument type's binary input converter */
+      getTypeBinaryInputInfo(fip->argtypes[i], &typreceive, &typioparam);
+
+      if (argsize == -1)
+        bufptr = NULL;
+      else
+        bufptr = &abuf;
+
+      fcinfo->args[i].value = OidReceiveFunctionCall(typreceive, bufptr,
+                              typioparam, -1);
+
+      /* Trouble if it didn't eat the whole buffer */
+      if (argsize != -1 && abuf.cursor != abuf.len)
+        ereport(ERROR,
+                (errcode(ERRCODE_INVALID_BINARY_REPRESENTATION),
+                 errmsg("incorrect binary data format in function argument %d",
+                        i + 1)));
+    } else
+      ereport(ERROR,
+              (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+               errmsg("unsupported format code: %d", aformat)));
+  }
+
+  /* Return result format code */
+  return (int16) pq_getmsgint(msgBuf, 2);
 }

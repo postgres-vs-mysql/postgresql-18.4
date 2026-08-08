@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * ts_locale.c
- *		locale compatibility layer for tsearch
+ *    locale compatibility layer for tsearch
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  *
  *
  * IDENTIFICATION
- *	  src/backend/tsearch/ts_locale.c
+ *    src/backend/tsearch/ts_locale.c
  *
  *-------------------------------------------------------------------------
  */
@@ -36,32 +36,32 @@ static void tsearch_readline_callback(void *arg);
 int \
 t_is##character_class##_with_len(const char *ptr, int mblen) \
 { \
-	int			clen = pg_mblen_with_len(ptr, mblen); \
-	wchar_t		character[WC_BUF_LEN]; \
-	pg_locale_t mylocale = 0;	/* TODO */ \
-	if (clen == 1 || database_ctype_is_c) \
-		return is##character_class(TOUCHAR(ptr)); \
-	char2wchar(character, WC_BUF_LEN, ptr, clen, mylocale); \
-	return isw##character_class((wint_t) character[0]); \
+  int     clen = pg_mblen_with_len(ptr, mblen); \
+  wchar_t   character[WC_BUF_LEN]; \
+  pg_locale_t mylocale = 0; /* TODO */ \
+  if (clen == 1 || database_ctype_is_c) \
+    return is##character_class(TOUCHAR(ptr)); \
+  char2wchar(character, WC_BUF_LEN, ptr, clen, mylocale); \
+  return isw##character_class((wint_t) character[0]); \
 } \
 \
 /* ptr shall point to a NUL-terminated string */ \
 int \
 t_is##character_class##_cstr(const char *ptr) \
 { \
-	return t_is##character_class##_with_len(ptr, pg_mblen_cstr(ptr)); \
+  return t_is##character_class##_with_len(ptr, pg_mblen_cstr(ptr)); \
 } \
 /* ptr shall point to a string with pre-validated encoding */ \
 int \
 t_is##character_class##_unbounded(const char *ptr) \
 { \
-	return t_is##character_class##_with_len(ptr, pg_mblen_unbounded(ptr)); \
+  return t_is##character_class##_with_len(ptr, pg_mblen_unbounded(ptr)); \
 } \
 /* historical name for _unbounded */ \
 int \
 t_is##character_class(const char *ptr) \
 { \
-	return t_is##character_class##_unbounded(ptr); \
+  return t_is##character_class##_unbounded(ptr); \
 }
 
 GENERATE_T_ISCLASS_DEF(alnum)
@@ -74,16 +74,16 @@ GENERATE_T_ISCLASS_DEF(alpha)
  *
  * Expected usage is:
  *
- *		tsearch_readline_state trst;
+ *    tsearch_readline_state trst;
  *
- *		if (!tsearch_readline_begin(&trst, filename))
- *			ereport(ERROR,
- *					(errcode(ERRCODE_CONFIG_FILE_ERROR),
- *					 errmsg("could not open stop-word file \"%s\": %m",
- *							filename)));
- *		while ((line = tsearch_readline(&trst)) != NULL)
- *			process line;
- *		tsearch_readline_end(&trst);
+ *    if (!tsearch_readline_begin(&trst, filename))
+ *      ereport(ERROR,
+ *          (errcode(ERRCODE_CONFIG_FILE_ERROR),
+ *           errmsg("could not open stop-word file \"%s\": %m",
+ *              filename)));
+ *    while ((line = tsearch_readline(&trst)) != NULL)
+ *      process line;
+ *    tsearch_readline_end(&trst);
  *
  * Note that the caller supplies the ereport() for file open failure;
  * this is so that a custom message can be provided.  The filename string
@@ -92,20 +92,21 @@ GENERATE_T_ISCLASS_DEF(alpha)
  */
 bool
 tsearch_readline_begin(tsearch_readline_state *stp,
-					   const char *filename)
+                       const char *filename)
 {
-	if ((stp->fp = AllocateFile(filename, "r")) == NULL)
-		return false;
-	stp->filename = filename;
-	stp->lineno = 0;
-	initStringInfo(&stp->buf);
-	stp->curline = NULL;
-	/* Setup error traceback support for ereport() */
-	stp->cb.callback = tsearch_readline_callback;
-	stp->cb.arg = stp;
-	stp->cb.previous = error_context_stack;
-	error_context_stack = &stp->cb;
-	return true;
+  if ((stp->fp = AllocateFile(filename, "r")) == NULL)
+    return false;
+
+  stp->filename = filename;
+  stp->lineno = 0;
+  initStringInfo(&stp->buf);
+  stp->curline = NULL;
+  /* Setup error traceback support for ereport() */
+  stp->cb.callback = tsearch_readline_callback;
+  stp->cb.arg = stp;
+  stp->cb.previous = error_context_stack;
+  error_context_stack = &stp->cb;
+  return true;
 }
 
 /*
@@ -116,43 +117,43 @@ tsearch_readline_begin(tsearch_readline_state *stp,
 char *
 tsearch_readline(tsearch_readline_state *stp)
 {
-	char	   *recoded;
+  char     *recoded;
 
-	/* Advance line number to use in error reports */
-	stp->lineno++;
+  /* Advance line number to use in error reports */
+  stp->lineno++;
 
-	/* Clear curline, it's no longer relevant */
-	if (stp->curline)
-	{
-		if (stp->curline != stp->buf.data)
-			pfree(stp->curline);
-		stp->curline = NULL;
-	}
+  /* Clear curline, it's no longer relevant */
+  if (stp->curline) {
+    if (stp->curline != stp->buf.data)
+      pfree(stp->curline);
 
-	/* Collect next line, if there is one */
-	if (!pg_get_line_buf(stp->fp, &stp->buf))
-		return NULL;
+    stp->curline = NULL;
+  }
 
-	/* Validate the input as UTF-8, then convert to DB encoding if needed */
-	recoded = pg_any_to_server(stp->buf.data, stp->buf.len, PG_UTF8);
+  /* Collect next line, if there is one */
+  if (!pg_get_line_buf(stp->fp, &stp->buf))
+    return NULL;
 
-	/* Save the correctly-encoded string for possible error reports */
-	stp->curline = recoded;		/* might be equal to buf.data */
+  /* Validate the input as UTF-8, then convert to DB encoding if needed */
+  recoded = pg_any_to_server(stp->buf.data, stp->buf.len, PG_UTF8);
 
-	/*
-	 * We always return a freshly pstrdup'd string.  This is clearly necessary
-	 * if pg_any_to_server() returned buf.data, and we need a second copy even
-	 * if encoding conversion did occur.  The caller is entitled to pfree the
-	 * returned string at any time, which would leave curline pointing to
-	 * recycled storage, causing problems if an error occurs after that point.
-	 * (It's preferable to return the result of pstrdup instead of the output
-	 * of pg_any_to_server, because the conversion result tends to be
-	 * over-allocated.  Since callers might save the result string directly
-	 * into a long-lived dictionary structure, we don't want it to be a larger
-	 * palloc chunk than necessary.  We'll reclaim the conversion result on
-	 * the next call.)
-	 */
-	return pstrdup(recoded);
+  /* Save the correctly-encoded string for possible error reports */
+  stp->curline = recoded;   /* might be equal to buf.data */
+
+  /*
+   * We always return a freshly pstrdup'd string.  This is clearly necessary
+   * if pg_any_to_server() returned buf.data, and we need a second copy even
+   * if encoding conversion did occur.  The caller is entitled to pfree the
+   * returned string at any time, which would leave curline pointing to
+   * recycled storage, causing problems if an error occurs after that point.
+   * (It's preferable to return the result of pstrdup instead of the output
+   * of pg_any_to_server, because the conversion result tends to be
+   * over-allocated.  Since callers might save the result string directly
+   * into a long-lived dictionary structure, we don't want it to be a larger
+   * palloc chunk than necessary.  We'll reclaim the conversion result on
+   * the next call.)
+   */
+  return pstrdup(recoded);
 }
 
 /*
@@ -161,20 +162,20 @@ tsearch_readline(tsearch_readline_state *stp)
 void
 tsearch_readline_end(tsearch_readline_state *stp)
 {
-	/* Suppress use of curline in any error reported below */
-	if (stp->curline)
-	{
-		if (stp->curline != stp->buf.data)
-			pfree(stp->curline);
-		stp->curline = NULL;
-	}
+  /* Suppress use of curline in any error reported below */
+  if (stp->curline) {
+    if (stp->curline != stp->buf.data)
+      pfree(stp->curline);
 
-	/* Release other resources */
-	pfree(stp->buf.data);
-	FreeFile(stp->fp);
+    stp->curline = NULL;
+  }
 
-	/* Pop the error context stack */
-	error_context_stack = stp->cb.previous;
+  /* Release other resources */
+  pfree(stp->buf.data);
+  FreeFile(stp->fp);
+
+  /* Pop the error context stack */
+  error_context_stack = stp->cb.previous;
 }
 
 /*
@@ -184,21 +185,21 @@ tsearch_readline_end(tsearch_readline_state *stp)
 static void
 tsearch_readline_callback(void *arg)
 {
-	tsearch_readline_state *stp = (tsearch_readline_state *) arg;
+  tsearch_readline_state *stp = (tsearch_readline_state *) arg;
 
-	/*
-	 * We can't include the text of the config line for errors that occur
-	 * during tsearch_readline() itself.  The major cause of such errors is
-	 * encoding violations, and we daren't try to print error messages
-	 * containing badly-encoded data.
-	 */
-	if (stp->curline)
-		errcontext("line %d of configuration file \"%s\": \"%s\"",
-				   stp->lineno,
-				   stp->filename,
-				   stp->curline);
-	else
-		errcontext("line %d of configuration file \"%s\"",
-				   stp->lineno,
-				   stp->filename);
+  /*
+   * We can't include the text of the config line for errors that occur
+   * during tsearch_readline() itself.  The major cause of such errors is
+   * encoding violations, and we daren't try to print error messages
+   * containing badly-encoded data.
+   */
+  if (stp->curline)
+    errcontext("line %d of configuration file \"%s\": \"%s\"",
+               stp->lineno,
+               stp->filename,
+               stp->curline);
+  else
+    errcontext("line %d of configuration file \"%s\"",
+               stp->lineno,
+               stp->filename);
 }

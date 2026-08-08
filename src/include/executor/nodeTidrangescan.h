@@ -17,8 +17,8 @@
 #include "nodes/execnodes.h"
 
 extern TidRangeScanState *ExecInitTidRangeScan(TidRangeScan *node,
-											   EState *estate, int eflags);
+    EState *estate, int eflags);
 extern void ExecEndTidRangeScan(TidRangeScanState *node);
 extern void ExecReScanTidRangeScan(TidRangeScanState *node);
 
-#endif							/* NODETIDRANGESCAN_H */
+#endif              /* NODETIDRANGESCAN_H */

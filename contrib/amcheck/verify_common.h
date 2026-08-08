@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * amcheck.h
- *		Shared routines for amcheck verifications.
+ *    Shared routines for amcheck verifications.
  *
  * Copyright (c) 2016-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  contrib/amcheck/amcheck.h
+ *    contrib/amcheck/amcheck.h
  *
  *-------------------------------------------------------------------------
  */
@@ -19,13 +19,13 @@
 /* Typedefs for callback functions for amcheck_lock_relation_and_check */
 typedef void (*IndexCheckableCallback) (Relation index);
 typedef void (*IndexDoCheckCallback) (Relation rel,
-									  Relation heaprel,
-									  void *state,
-									  bool readonly);
+                                      Relation heaprel,
+                                      void *state,
+                                      bool readonly);
 
 extern void amcheck_lock_relation_and_check(Oid indrelid,
-											Oid am_id,
-											IndexDoCheckCallback check,
-											LOCKMODE lockmode, void *state);
+    Oid am_id,
+    IndexDoCheckCallback check,
+    LOCKMODE lockmode, void *state);
 
 extern bool index_checkable(Relation rel, Oid am_id);

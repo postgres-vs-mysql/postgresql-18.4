@@ -1,8 +1,8 @@
 /*-------------------------------------------------------------------------
  *
  * pg_ts_config_map.h
- *	  definition of the system catalog for text search token mappings
- *	  (pg_ts_config_map)
+ *    definition of the system catalog for text search token mappings
+ *    (pg_ts_config_map)
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -11,8 +11,8 @@
  * src/include/catalog/pg_ts_config_map.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -23,24 +23,25 @@
 #include "catalog/pg_ts_config_map_d.h"
 
 /* ----------------
- *		pg_ts_config_map definition.  cpp turns this into
- *		typedef struct FormData_pg_ts_config_map
+ *    pg_ts_config_map definition.  cpp turns this into
+ *    typedef struct FormData_pg_ts_config_map
  * ----------------
  */
-CATALOG(pg_ts_config_map,3603,TSConfigMapRelationId)
+CATALOG(pg_ts_config_map, 3603, TSConfigMapRelationId)
 {
-	/* OID of configuration owning this entry */
-	Oid			mapcfg BKI_LOOKUP(pg_ts_config);
+  /* OID of configuration owning this entry */
+  Oid     mapcfg BKI_LOOKUP(pg_ts_config);
 
-	/* token type from parser */
-	int32		maptokentype;
+  /* token type from parser */
+  int32   maptokentype;
 
-	/* order in which to consult dictionaries */
-	int32		mapseqno;
+  /* order in which to consult dictionaries */
+  int32   mapseqno;
 
-	/* dictionary to consult */
-	Oid			mapdict BKI_LOOKUP(pg_ts_dict);
-} FormData_pg_ts_config_map;
+  /* dictionary to consult */
+  Oid     mapdict BKI_LOOKUP(pg_ts_dict);
+}
+FormData_pg_ts_config_map;
 
 typedef FormData_pg_ts_config_map *Form_pg_ts_config_map;
 
@@ -48,4 +49,4 @@ DECLARE_UNIQUE_INDEX_PKEY(pg_ts_config_map_index, 3609, TSConfigMapIndexId, pg_t
 
 MAKE_SYSCACHE(TSCONFIGMAP, pg_ts_config_map_index, 2);
 
-#endif							/* PG_TS_CONFIG_MAP_H */
+#endif              /* PG_TS_CONFIG_MAP_H */

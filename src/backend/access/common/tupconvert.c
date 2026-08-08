@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * tupconvert.c
- *	  Tuple conversion support.
+ *    Tuple conversion support.
  *
  * These functions provide conversion between rowtypes that are logically
  * equivalent but might have columns in a different order or different sets of
@@ -12,7 +12,7 @@
  *
  *
  * IDENTIFICATION
- *	  src/backend/access/common/tupconvert.c
+ *    src/backend/access/common/tupconvert.c
  *
  *-------------------------------------------------------------------------
  */
@@ -57,63 +57,61 @@
  */
 TupleConversionMap *
 convert_tuples_by_position(TupleDesc indesc,
-						   TupleDesc outdesc,
-						   const char *msg)
+                           TupleDesc outdesc,
+                           const char *msg)
 {
-	TupleConversionMap *map;
-	int			n;
-	AttrMap    *attrMap;
+  TupleConversionMap *map;
+  int     n;
+  AttrMap    *attrMap;
 
-	/* Verify compatibility and prepare attribute-number map */
-	attrMap = build_attrmap_by_position(indesc, outdesc, msg);
+  /* Verify compatibility and prepare attribute-number map */
+  attrMap = build_attrmap_by_position(indesc, outdesc, msg);
 
-	if (attrMap == NULL)
-	{
-		/* runtime conversion is not needed */
-		return NULL;
-	}
+  if (attrMap == NULL) {
+    /* runtime conversion is not needed */
+    return NULL;
+  }
 
-	/* Prepare the map structure */
-	map = (TupleConversionMap *) palloc(sizeof(TupleConversionMap));
-	map->indesc = indesc;
-	map->outdesc = outdesc;
-	map->attrMap = attrMap;
-	/* preallocate workspace for Datum arrays */
-	n = outdesc->natts + 1;		/* +1 for NULL */
-	map->outvalues = (Datum *) palloc(n * sizeof(Datum));
-	map->outisnull = (bool *) palloc(n * sizeof(bool));
-	n = indesc->natts + 1;		/* +1 for NULL */
-	map->invalues = (Datum *) palloc(n * sizeof(Datum));
-	map->inisnull = (bool *) palloc(n * sizeof(bool));
-	map->invalues[0] = (Datum) 0;	/* set up the NULL entry */
-	map->inisnull[0] = true;
+  /* Prepare the map structure */
+  map = (TupleConversionMap *) palloc(sizeof(TupleConversionMap));
+  map->indesc = indesc;
+  map->outdesc = outdesc;
+  map->attrMap = attrMap;
+  /* preallocate workspace for Datum arrays */
+  n = outdesc->natts + 1;   /* +1 for NULL */
+  map->outvalues = (Datum *) palloc(n * sizeof(Datum));
+  map->outisnull = (bool *) palloc(n * sizeof(bool));
+  n = indesc->natts + 1;    /* +1 for NULL */
+  map->invalues = (Datum *) palloc(n * sizeof(Datum));
+  map->inisnull = (bool *) palloc(n * sizeof(bool));
+  map->invalues[0] = (Datum) 0; /* set up the NULL entry */
+  map->inisnull[0] = true;
 
-	return map;
+  return map;
 }
 
 /*
  * Set up for tuple conversion, matching input and output columns by name.
- * (Dropped columns are ignored in both input and output.)	This is intended
+ * (Dropped columns are ignored in both input and output.)  This is intended
  * for use when the rowtypes are related by inheritance, so we expect an exact
  * match of both type and typmod.  The error messages will be a bit unhelpful
  * unless both rowtypes are named composite types.
  */
 TupleConversionMap *
 convert_tuples_by_name(TupleDesc indesc,
-					   TupleDesc outdesc)
+                       TupleDesc outdesc)
 {
-	AttrMap    *attrMap;
+  AttrMap    *attrMap;
 
-	/* Verify compatibility and prepare attribute-number map */
-	attrMap = build_attrmap_by_name_if_req(indesc, outdesc, false);
+  /* Verify compatibility and prepare attribute-number map */
+  attrMap = build_attrmap_by_name_if_req(indesc, outdesc, false);
 
-	if (attrMap == NULL)
-	{
-		/* runtime conversion is not needed */
-		return NULL;
-	}
+  if (attrMap == NULL) {
+    /* runtime conversion is not needed */
+    return NULL;
+  }
 
-	return convert_tuples_by_name_attrmap(indesc, outdesc, attrMap);
+  return convert_tuples_by_name_attrmap(indesc, outdesc, attrMap);
 }
 
 /*
@@ -122,29 +120,29 @@ convert_tuples_by_name(TupleDesc indesc,
  */
 TupleConversionMap *
 convert_tuples_by_name_attrmap(TupleDesc indesc,
-							   TupleDesc outdesc,
-							   AttrMap *attrMap)
+                               TupleDesc outdesc,
+                               AttrMap *attrMap)
 {
-	int			n = outdesc->natts;
-	TupleConversionMap *map;
+  int     n = outdesc->natts;
+  TupleConversionMap *map;
 
-	Assert(attrMap != NULL);
+  Assert(attrMap != NULL);
 
-	/* Prepare the map structure */
-	map = (TupleConversionMap *) palloc(sizeof(TupleConversionMap));
-	map->indesc = indesc;
-	map->outdesc = outdesc;
-	map->attrMap = attrMap;
-	/* preallocate workspace for Datum arrays */
-	map->outvalues = (Datum *) palloc(n * sizeof(Datum));
-	map->outisnull = (bool *) palloc(n * sizeof(bool));
-	n = indesc->natts + 1;		/* +1 for NULL */
-	map->invalues = (Datum *) palloc(n * sizeof(Datum));
-	map->inisnull = (bool *) palloc(n * sizeof(bool));
-	map->invalues[0] = (Datum) 0;	/* set up the NULL entry */
-	map->inisnull[0] = true;
+  /* Prepare the map structure */
+  map = (TupleConversionMap *) palloc(sizeof(TupleConversionMap));
+  map->indesc = indesc;
+  map->outdesc = outdesc;
+  map->attrMap = attrMap;
+  /* preallocate workspace for Datum arrays */
+  map->outvalues = (Datum *) palloc(n * sizeof(Datum));
+  map->outisnull = (bool *) palloc(n * sizeof(bool));
+  n = indesc->natts + 1;    /* +1 for NULL */
+  map->invalues = (Datum *) palloc(n * sizeof(Datum));
+  map->inisnull = (bool *) palloc(n * sizeof(bool));
+  map->invalues[0] = (Datum) 0; /* set up the NULL entry */
+  map->inisnull[0] = true;
 
-	return map;
+  return map;
 }
 
 /*
@@ -153,36 +151,36 @@ convert_tuples_by_name_attrmap(TupleDesc indesc,
 HeapTuple
 execute_attr_map_tuple(HeapTuple tuple, TupleConversionMap *map)
 {
-	AttrMap    *attrMap = map->attrMap;
-	Datum	   *invalues = map->invalues;
-	bool	   *inisnull = map->inisnull;
-	Datum	   *outvalues = map->outvalues;
-	bool	   *outisnull = map->outisnull;
-	int			i;
+  AttrMap    *attrMap = map->attrMap;
+  Datum    *invalues = map->invalues;
+  bool     *inisnull = map->inisnull;
+  Datum    *outvalues = map->outvalues;
+  bool     *outisnull = map->outisnull;
+  int     i;
 
-	/*
-	 * Extract all the values of the old tuple, offsetting the arrays so that
-	 * invalues[0] is left NULL and invalues[1] is the first source attribute;
-	 * this exactly matches the numbering convention in attrMap.
-	 */
-	heap_deform_tuple(tuple, map->indesc, invalues + 1, inisnull + 1);
+  /*
+   * Extract all the values of the old tuple, offsetting the arrays so that
+   * invalues[0] is left NULL and invalues[1] is the first source attribute;
+   * this exactly matches the numbering convention in attrMap.
+   */
+  heap_deform_tuple(tuple, map->indesc, invalues + 1, inisnull + 1);
 
-	/*
-	 * Transpose into proper fields of the new tuple.
-	 */
-	Assert(attrMap->maplen == map->outdesc->natts);
-	for (i = 0; i < attrMap->maplen; i++)
-	{
-		int			j = attrMap->attnums[i];
+  /*
+   * Transpose into proper fields of the new tuple.
+   */
+  Assert(attrMap->maplen == map->outdesc->natts);
 
-		outvalues[i] = invalues[j];
-		outisnull[i] = inisnull[j];
-	}
+  for (i = 0; i < attrMap->maplen; i++) {
+    int     j = attrMap->attnums[i];
 
-	/*
-	 * Now form the new tuple.
-	 */
-	return heap_form_tuple(map->outdesc, outvalues, outisnull);
+    outvalues[i] = invalues[j];
+    outisnull[i] = inisnull[j];
+  }
+
+  /*
+   * Now form the new tuple.
+   */
+  return heap_form_tuple(map->outdesc, outvalues, outisnull);
 }
 
 /*
@@ -190,55 +188,51 @@ execute_attr_map_tuple(HeapTuple tuple, TupleConversionMap *map)
  */
 TupleTableSlot *
 execute_attr_map_slot(AttrMap *attrMap,
-					  TupleTableSlot *in_slot,
-					  TupleTableSlot *out_slot)
+                      TupleTableSlot *in_slot,
+                      TupleTableSlot *out_slot)
 {
-	Datum	   *invalues;
-	bool	   *inisnull;
-	Datum	   *outvalues;
-	bool	   *outisnull;
-	int			outnatts;
-	int			i;
+  Datum    *invalues;
+  bool     *inisnull;
+  Datum    *outvalues;
+  bool     *outisnull;
+  int     outnatts;
+  int     i;
 
-	/* Sanity checks */
-	Assert(in_slot->tts_tupleDescriptor != NULL &&
-		   out_slot->tts_tupleDescriptor != NULL);
-	Assert(in_slot->tts_values != NULL && out_slot->tts_values != NULL);
+  /* Sanity checks */
+  Assert(in_slot->tts_tupleDescriptor != NULL &&
+         out_slot->tts_tupleDescriptor != NULL);
+  Assert(in_slot->tts_values != NULL && out_slot->tts_values != NULL);
 
-	outnatts = out_slot->tts_tupleDescriptor->natts;
+  outnatts = out_slot->tts_tupleDescriptor->natts;
 
-	/* Extract all the values of the in slot. */
-	slot_getallattrs(in_slot);
+  /* Extract all the values of the in slot. */
+  slot_getallattrs(in_slot);
 
-	/* Before doing the mapping, clear any old contents from the out slot */
-	ExecClearTuple(out_slot);
+  /* Before doing the mapping, clear any old contents from the out slot */
+  ExecClearTuple(out_slot);
 
-	invalues = in_slot->tts_values;
-	inisnull = in_slot->tts_isnull;
-	outvalues = out_slot->tts_values;
-	outisnull = out_slot->tts_isnull;
+  invalues = in_slot->tts_values;
+  inisnull = in_slot->tts_isnull;
+  outvalues = out_slot->tts_values;
+  outisnull = out_slot->tts_isnull;
 
-	/* Transpose into proper fields of the out slot. */
-	for (i = 0; i < outnatts; i++)
-	{
-		int			j = attrMap->attnums[i] - 1;
+  /* Transpose into proper fields of the out slot. */
+  for (i = 0; i < outnatts; i++) {
+    int     j = attrMap->attnums[i] - 1;
 
-		/* attrMap->attnums[i] == 0 means it's a NULL datum. */
-		if (j == -1)
-		{
-			outvalues[i] = (Datum) 0;
-			outisnull[i] = true;
-		}
-		else
-		{
-			outvalues[i] = invalues[j];
-			outisnull[i] = inisnull[j];
-		}
-	}
+    /* attrMap->attnums[i] == 0 means it's a NULL datum. */
+    if (j == -1) {
+      outvalues[i] = (Datum) 0;
+      outisnull[i] = true;
+    } else {
+      outvalues[i] = invalues[j];
+      outisnull[i] = inisnull[j];
+    }
+  }
 
-	ExecStoreVirtualTuple(out_slot);
+  ExecStoreVirtualTuple(out_slot);
 
-	return out_slot;
+  return out_slot;
 }
 
 /*
@@ -251,45 +245,41 @@ execute_attr_map_slot(AttrMap *attrMap,
 Bitmapset *
 execute_attr_map_cols(AttrMap *attrMap, Bitmapset *in_cols)
 {
-	Bitmapset  *out_cols;
-	int			out_attnum;
+  Bitmapset  *out_cols;
+  int     out_attnum;
 
-	/* fast path for the common trivial case */
-	if (in_cols == NULL)
-		return NULL;
+  /* fast path for the common trivial case */
+  if (in_cols == NULL)
+    return NULL;
 
-	/*
-	 * For each output column, check which input column it corresponds to.
-	 */
-	out_cols = NULL;
+  /*
+   * For each output column, check which input column it corresponds to.
+   */
+  out_cols = NULL;
 
-	for (out_attnum = FirstLowInvalidHeapAttributeNumber;
-		 out_attnum <= attrMap->maplen;
-		 out_attnum++)
-	{
-		int			in_attnum;
+  for (out_attnum = FirstLowInvalidHeapAttributeNumber;
+       out_attnum <= attrMap->maplen;
+       out_attnum++) {
+    int     in_attnum;
 
-		if (out_attnum < 0)
-		{
-			/* System column. No mapping. */
-			in_attnum = out_attnum;
-		}
-		else if (out_attnum == 0)
-			continue;
-		else
-		{
-			/* normal user column */
-			in_attnum = attrMap->attnums[out_attnum - 1];
+    if (out_attnum < 0) {
+      /* System column. No mapping. */
+      in_attnum = out_attnum;
+    } else if (out_attnum == 0)
+      continue;
+    else {
+      /* normal user column */
+      in_attnum = attrMap->attnums[out_attnum - 1];
 
-			if (in_attnum == 0)
-				continue;
-		}
+      if (in_attnum == 0)
+        continue;
+    }
 
-		if (bms_is_member(in_attnum - FirstLowInvalidHeapAttributeNumber, in_cols))
-			out_cols = bms_add_member(out_cols, out_attnum - FirstLowInvalidHeapAttributeNumber);
-	}
+    if (bms_is_member(in_attnum - FirstLowInvalidHeapAttributeNumber, in_cols))
+      out_cols = bms_add_member(out_cols, out_attnum - FirstLowInvalidHeapAttributeNumber);
+  }
 
-	return out_cols;
+  return out_cols;
 }
 
 /*
@@ -298,11 +288,11 @@ execute_attr_map_cols(AttrMap *attrMap, Bitmapset *in_cols)
 void
 free_conversion_map(TupleConversionMap *map)
 {
-	/* indesc and outdesc are not ours to free */
-	free_attrmap(map->attrMap);
-	pfree(map->invalues);
-	pfree(map->inisnull);
-	pfree(map->outvalues);
-	pfree(map->outisnull);
-	pfree(map);
+  /* indesc and outdesc are not ours to free */
+  free_attrmap(map->attrMap);
+  pfree(map->invalues);
+  pfree(map->inisnull);
+  pfree(map->outvalues);
+  pfree(map->outisnull);
+  pfree(map);
 }

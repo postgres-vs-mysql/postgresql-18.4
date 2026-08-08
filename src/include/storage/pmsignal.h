@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pmsignal.h
- *	  routines for signaling between the postmaster and its child processes
+ *    routines for signaling between the postmaster and its child processes
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -32,16 +32,16 @@
  */
 typedef enum
 {
-	PMSIGNAL_RECOVERY_STARTED,	/* recovery has started */
-	PMSIGNAL_RECOVERY_CONSISTENT,	/* recovery has reached consistent state */
-	PMSIGNAL_BEGIN_HOT_STANDBY, /* begin Hot Standby */
-	PMSIGNAL_ROTATE_LOGFILE,	/* send SIGUSR1 to syslogger to rotate logfile */
-	PMSIGNAL_START_AUTOVAC_LAUNCHER,	/* start an autovacuum launcher */
-	PMSIGNAL_START_AUTOVAC_WORKER,	/* start an autovacuum worker */
-	PMSIGNAL_BACKGROUND_WORKER_CHANGE,	/* background worker state change */
-	PMSIGNAL_START_WALRECEIVER, /* start a walreceiver */
-	PMSIGNAL_ADVANCE_STATE_MACHINE, /* advance postmaster's state machine */
-	PMSIGNAL_XLOG_IS_SHUTDOWN,	/* ShutdownXLOG() completed */
+  PMSIGNAL_RECOVERY_STARTED,  /* recovery has started */
+  PMSIGNAL_RECOVERY_CONSISTENT, /* recovery has reached consistent state */
+  PMSIGNAL_BEGIN_HOT_STANDBY, /* begin Hot Standby */
+  PMSIGNAL_ROTATE_LOGFILE,  /* send SIGUSR1 to syslogger to rotate logfile */
+  PMSIGNAL_START_AUTOVAC_LAUNCHER,  /* start an autovacuum launcher */
+  PMSIGNAL_START_AUTOVAC_WORKER,  /* start an autovacuum worker */
+  PMSIGNAL_BACKGROUND_WORKER_CHANGE,  /* background worker state change */
+  PMSIGNAL_START_WALRECEIVER, /* start a walreceiver */
+  PMSIGNAL_ADVANCE_STATE_MACHINE, /* advance postmaster's state machine */
+  PMSIGNAL_XLOG_IS_SHUTDOWN,  /* ShutdownXLOG() completed */
 } PMSignalReason;
 
 #define NUM_PMSIGNALS (PMSIGNAL_XLOG_IS_SHUTDOWN+1)
@@ -51,9 +51,9 @@ typedef enum
  */
 typedef enum
 {
-	PMQUIT_NOT_SENT = 0,		/* postmaster hasn't sent SIGQUIT */
-	PMQUIT_FOR_CRASH,			/* some other backend bought the farm */
-	PMQUIT_FOR_STOP,			/* immediate stop was commanded */
+  PMQUIT_NOT_SENT = 0,    /* postmaster hasn't sent SIGQUIT */
+  PMQUIT_FOR_CRASH,     /* some other backend bought the farm */
+  PMQUIT_FOR_STOP,      /* immediate stop was commanded */
 } QuitSignalReason;
 
 /* PMSignalData is an opaque struct, details known only within pmsignal.c */
@@ -89,7 +89,7 @@ extern void PostmasterDeathSignalInit(void);
  * cheaper in usual case that the postmaster is alive.
  */
 #if (defined(HAVE_SYS_PRCTL_H) && defined(PR_SET_PDEATHSIG)) || \
-	(defined(HAVE_SYS_PROCCTL_H) && defined(PROC_PDEATHSIG_CTL))
+  (defined(HAVE_SYS_PROCCTL_H) && defined(PROC_PDEATHSIG_CTL))
 #define USE_POSTMASTER_DEATH_SIGNAL
 #endif
 
@@ -99,12 +99,13 @@ extern PGDLLIMPORT volatile sig_atomic_t postmaster_possibly_dead;
 static inline bool
 PostmasterIsAlive(void)
 {
-	if (likely(!postmaster_possibly_dead))
-		return true;
-	return PostmasterIsAliveInternal();
+  if (likely(!postmaster_possibly_dead))
+    return true;
+
+  return PostmasterIsAliveInternal();
 }
 #else
 #define PostmasterIsAlive() PostmasterIsAliveInternal()
 #endif
 
-#endif							/* PMSIGNAL_H */
+#endif              /* PMSIGNAL_H */

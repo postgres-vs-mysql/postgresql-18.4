@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * startup.h
- *	  Exports from postmaster/startup.c.
+ *    Exports from postmaster/startup.c.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  *
@@ -16,12 +16,12 @@
  * Log the startup progress message if a timer has expired.
  */
 #define ereport_startup_progress(msg, ...) \
-	do { \
-		long    secs; \
-		int     usecs; \
-		if (has_startup_progress_timeout_expired(&secs, &usecs)) \
-			ereport(LOG, errmsg(msg, secs, (usecs / 10000),  __VA_ARGS__ )); \
-	} while(0)
+  do { \
+    long    secs; \
+    int     usecs; \
+    if (has_startup_progress_timeout_expired(&secs, &usecs)) \
+      ereport(LOG, errmsg(msg, secs, (usecs / 10000),  __VA_ARGS__ )); \
+  } while(0)
 
 extern PGDLLIMPORT int log_startup_progress_interval;
 
@@ -38,4 +38,4 @@ extern void begin_startup_progress_phase(void);
 extern void startup_progress_timeout_handler(void);
 extern bool has_startup_progress_timeout_expired(long *secs, int *usecs);
 
-#endif							/* _STARTUP_H */
+#endif              /* _STARTUP_H */

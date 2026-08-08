@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * walsender.h
- *	  Exports from replication/walsender.c.
+ *    Exports from replication/walsender.c.
  *
  * Portions Copyright (c) 2010-2025, PostgreSQL Global Development Group
  *
@@ -19,9 +19,9 @@
  */
 typedef enum
 {
-	CRS_EXPORT_SNAPSHOT,
-	CRS_NOEXPORT_SNAPSHOT,
-	CRS_USE_SNAPSHOT,
+  CRS_EXPORT_SNAPSHOT,
+  CRS_NOEXPORT_SNAPSHOT,
+  CRS_USE_SNAPSHOT,
 } CRSSnapshotAction;
 
 /* global state */
@@ -56,7 +56,7 @@ extern void WalSndRqstFileReload(void);
  * while holding contended locks.
  */
 #define WalSndWakeupRequest() \
-	do { wake_wal_senders = true; } while (0)
+  do { wake_wal_senders = true; } while (0)
 
 /*
  * wakeup walsenders if there is work to be done
@@ -64,12 +64,13 @@ extern void WalSndRqstFileReload(void);
 static inline void
 WalSndWakeupProcessRequests(bool physical, bool logical)
 {
-	if (wake_wal_senders)
-	{
-		wake_wal_senders = false;
-		if (max_wal_senders > 0)
-			WalSndWakeup(physical, logical);
-	}
+  if (wake_wal_senders)
+  {
+    wake_wal_senders = false;
+
+    if (max_wal_senders > 0)
+      WalSndWakeup(physical, logical);
+  }
 }
 
-#endif							/* _WALSENDER_H */
+#endif              /* _WALSENDER_H */

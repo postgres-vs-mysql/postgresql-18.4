@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * rewriteSearchCycle.h
- *		Support for rewriting SEARCH and CYCLE clauses.
+ *    Support for rewriting SEARCH and CYCLE clauses.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -18,4 +18,4 @@
 
 extern CommonTableExpr *rewriteSearchAndCycle(CommonTableExpr *cte);
 
-#endif							/* REWRITESEARCHCYCLE_H */
+#endif              /* REWRITESEARCHCYCLE_H */

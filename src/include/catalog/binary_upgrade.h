@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * binary_upgrade.h
- *	  variables used for binary upgrades
+ *    variables used for binary upgrades
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -35,4 +35,4 @@ extern PGDLLIMPORT Oid binary_upgrade_next_pg_authid_oid;
 
 extern PGDLLIMPORT bool binary_upgrade_record_init_privs;
 
-#endif							/* BINARY_UPGRADE_H */
+#endif              /* BINARY_UPGRADE_H */

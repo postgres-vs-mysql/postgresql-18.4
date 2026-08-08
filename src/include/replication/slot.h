@@ -1,6 +1,6 @@
 /*-------------------------------------------------------------------------
  * slot.h
- *	   Replication slot management.
+ *     Replication slot management.
  *
  * Copyright (c) 2012-2025, PostgreSQL Global Development Group
  *
@@ -35,9 +35,9 @@
  */
 typedef enum ReplicationSlotPersistency
 {
-	RS_PERSISTENT,
-	RS_EPHEMERAL,
-	RS_TEMPORARY,
+  RS_PERSISTENT,
+  RS_EPHEMERAL,
+  RS_TEMPORARY,
 } ReplicationSlotPersistency;
 
 /*
@@ -50,90 +50,90 @@ typedef enum ReplicationSlotPersistency
  */
 typedef enum ReplicationSlotInvalidationCause
 {
-	RS_INVAL_NONE = 0,
-	/* required WAL has been removed */
-	RS_INVAL_WAL_REMOVED = (1 << 0),
-	/* required rows have been removed */
-	RS_INVAL_HORIZON = (1 << 1),
-	/* wal_level insufficient for slot */
-	RS_INVAL_WAL_LEVEL = (1 << 2),
-	/* idle slot timeout has occurred */
-	RS_INVAL_IDLE_TIMEOUT = (1 << 3),
+  RS_INVAL_NONE = 0,
+  /* required WAL has been removed */
+  RS_INVAL_WAL_REMOVED = (1 << 0),
+  /* required rows have been removed */
+  RS_INVAL_HORIZON = (1 << 1),
+  /* wal_level insufficient for slot */
+  RS_INVAL_WAL_LEVEL = (1 << 2),
+  /* idle slot timeout has occurred */
+  RS_INVAL_IDLE_TIMEOUT = (1 << 3),
 } ReplicationSlotInvalidationCause;
 
 /* Maximum number of invalidation causes */
-#define	RS_INVAL_MAX_CAUSES 4
+#define RS_INVAL_MAX_CAUSES 4
 
 /*
  * On-Disk data of a replication slot, preserved across restarts.
  */
 typedef struct ReplicationSlotPersistentData
 {
-	/* The slot's identifier */
-	NameData	name;
+  /* The slot's identifier */
+  NameData  name;
 
-	/* database the slot is active on */
-	Oid			database;
+  /* database the slot is active on */
+  Oid     database;
 
-	/*
-	 * The slot's behaviour when being dropped (or restored after a crash).
-	 */
-	ReplicationSlotPersistency persistency;
+  /*
+   * The slot's behaviour when being dropped (or restored after a crash).
+   */
+  ReplicationSlotPersistency persistency;
 
-	/*
-	 * xmin horizon for data
-	 *
-	 * NB: This may represent a value that hasn't been written to disk yet;
-	 * see notes for effective_xmin, below.
-	 */
-	TransactionId xmin;
+  /*
+   * xmin horizon for data
+   *
+   * NB: This may represent a value that hasn't been written to disk yet;
+   * see notes for effective_xmin, below.
+   */
+  TransactionId xmin;
 
-	/*
-	 * xmin horizon for catalog tuples
-	 *
-	 * NB: This may represent a value that hasn't been written to disk yet;
-	 * see notes for effective_xmin, below.
-	 */
-	TransactionId catalog_xmin;
+  /*
+   * xmin horizon for catalog tuples
+   *
+   * NB: This may represent a value that hasn't been written to disk yet;
+   * see notes for effective_xmin, below.
+   */
+  TransactionId catalog_xmin;
 
-	/* oldest LSN that might be required by this replication slot */
-	XLogRecPtr	restart_lsn;
+  /* oldest LSN that might be required by this replication slot */
+  XLogRecPtr  restart_lsn;
 
-	/* RS_INVAL_NONE if valid, or the reason for having been invalidated */
-	ReplicationSlotInvalidationCause invalidated;
+  /* RS_INVAL_NONE if valid, or the reason for having been invalidated */
+  ReplicationSlotInvalidationCause invalidated;
 
-	/*
-	 * Oldest LSN that the client has acked receipt for.  This is used as the
-	 * start_lsn point in case the client doesn't specify one, and also as a
-	 * safety measure to jump forwards in case the client specifies a
-	 * start_lsn that's further in the past than this value.
-	 */
-	XLogRecPtr	confirmed_flush;
+  /*
+   * Oldest LSN that the client has acked receipt for.  This is used as the
+   * start_lsn point in case the client doesn't specify one, and also as a
+   * safety measure to jump forwards in case the client specifies a
+   * start_lsn that's further in the past than this value.
+   */
+  XLogRecPtr  confirmed_flush;
 
-	/*
-	 * LSN at which we enabled two_phase commit for this slot or LSN at which
-	 * we found a consistent point at the time of slot creation.
-	 */
-	XLogRecPtr	two_phase_at;
+  /*
+   * LSN at which we enabled two_phase commit for this slot or LSN at which
+   * we found a consistent point at the time of slot creation.
+   */
+  XLogRecPtr  two_phase_at;
 
-	/*
-	 * Allow decoding of prepared transactions?
-	 */
-	bool		two_phase;
+  /*
+   * Allow decoding of prepared transactions?
+   */
+  bool    two_phase;
 
-	/* plugin name */
-	NameData	plugin;
+  /* plugin name */
+  NameData  plugin;
 
-	/*
-	 * Was this slot synchronized from the primary server?
-	 */
-	char		synced;
+  /*
+   * Was this slot synchronized from the primary server?
+   */
+  char    synced;
 
-	/*
-	 * Is this a failover slot (sync candidate for standbys)? Only relevant
-	 * for logical slots on the primary server.
-	 */
-	bool		failover;
+  /*
+   * Is this a failover slot (sync candidate for standbys)? Only relevant
+   * for logical slots on the primary server.
+   */
+  bool    failover;
 } ReplicationSlotPersistentData;
 
 /*
@@ -154,74 +154,74 @@ typedef struct ReplicationSlotPersistentData
  */
 typedef struct ReplicationSlot
 {
-	/* lock, on same cacheline as effective_xmin */
-	slock_t		mutex;
+  /* lock, on same cacheline as effective_xmin */
+  slock_t   mutex;
 
-	/* is this slot defined */
-	bool		in_use;
+  /* is this slot defined */
+  bool    in_use;
 
-	/* Who is streaming out changes for this slot? 0 in unused slots. */
-	pid_t		active_pid;
+  /* Who is streaming out changes for this slot? 0 in unused slots. */
+  pid_t   active_pid;
 
-	/* any outstanding modifications? */
-	bool		just_dirtied;
-	bool		dirty;
+  /* any outstanding modifications? */
+  bool    just_dirtied;
+  bool    dirty;
 
-	/*
-	 * For logical decoding, it's extremely important that we never remove any
-	 * data that's still needed for decoding purposes, even after a crash;
-	 * otherwise, decoding will produce wrong answers.  Ordinary streaming
-	 * replication also needs to prevent old row versions from being removed
-	 * too soon, but the worst consequence we might encounter there is
-	 * unwanted query cancellations on the standby.  Thus, for logical
-	 * decoding, this value represents the latest xmin that has actually been
-	 * written to disk, whereas for streaming replication, it's just the same
-	 * as the persistent value (data.xmin).
-	 */
-	TransactionId effective_xmin;
-	TransactionId effective_catalog_xmin;
+  /*
+   * For logical decoding, it's extremely important that we never remove any
+   * data that's still needed for decoding purposes, even after a crash;
+   * otherwise, decoding will produce wrong answers.  Ordinary streaming
+   * replication also needs to prevent old row versions from being removed
+   * too soon, but the worst consequence we might encounter there is
+   * unwanted query cancellations on the standby.  Thus, for logical
+   * decoding, this value represents the latest xmin that has actually been
+   * written to disk, whereas for streaming replication, it's just the same
+   * as the persistent value (data.xmin).
+   */
+  TransactionId effective_xmin;
+  TransactionId effective_catalog_xmin;
 
-	/* data surviving shutdowns and crashes */
-	ReplicationSlotPersistentData data;
+  /* data surviving shutdowns and crashes */
+  ReplicationSlotPersistentData data;
 
-	/* is somebody performing io on this slot? */
-	LWLock		io_in_progress_lock;
+  /* is somebody performing io on this slot? */
+  LWLock    io_in_progress_lock;
 
-	/* Condition variable signaled when active_pid changes */
-	ConditionVariable active_cv;
+  /* Condition variable signaled when active_pid changes */
+  ConditionVariable active_cv;
 
-	/* all the remaining data is only used for logical slots */
+  /* all the remaining data is only used for logical slots */
 
-	/*
-	 * When the client has confirmed flushes >= candidate_xmin_lsn we can
-	 * advance the catalog xmin.  When restart_valid has been passed,
-	 * restart_lsn can be increased.
-	 */
-	TransactionId candidate_catalog_xmin;
-	XLogRecPtr	candidate_xmin_lsn;
-	XLogRecPtr	candidate_restart_valid;
-	XLogRecPtr	candidate_restart_lsn;
+  /*
+   * When the client has confirmed flushes >= candidate_xmin_lsn we can
+   * advance the catalog xmin.  When restart_valid has been passed,
+   * restart_lsn can be increased.
+   */
+  TransactionId candidate_catalog_xmin;
+  XLogRecPtr  candidate_xmin_lsn;
+  XLogRecPtr  candidate_restart_valid;
+  XLogRecPtr  candidate_restart_lsn;
 
-	/*
-	 * This value tracks the last confirmed_flush LSN flushed which is used
-	 * during a shutdown checkpoint to decide if logical's slot data should be
-	 * forcibly flushed or not.
-	 */
-	XLogRecPtr	last_saved_confirmed_flush;
+  /*
+   * This value tracks the last confirmed_flush LSN flushed which is used
+   * during a shutdown checkpoint to decide if logical's slot data should be
+   * forcibly flushed or not.
+   */
+  XLogRecPtr  last_saved_confirmed_flush;
 
-	/*
-	 * The time when the slot became inactive. For synced slots on a standby
-	 * server, it represents the time when slot synchronization was most
-	 * recently stopped.
-	 */
-	TimestampTz inactive_since;
+  /*
+   * The time when the slot became inactive. For synced slots on a standby
+   * server, it represents the time when slot synchronization was most
+   * recently stopped.
+   */
+  TimestampTz inactive_since;
 
-	/*
-	 * Latest restart_lsn that has been flushed to disk. For persistent slots
-	 * the flushed LSN should be taken into account when calculating the
-	 * oldest LSN for WAL segments removal.
-	 */
-	XLogRecPtr	last_saved_restart_lsn;
+  /*
+   * Latest restart_lsn that has been flushed to disk. For persistent slots
+   * the flushed LSN should be taken into account when calculating the
+   * oldest LSN for WAL segments removal.
+   */
+  XLogRecPtr  last_saved_restart_lsn;
 
 } ReplicationSlot;
 
@@ -233,11 +233,11 @@ typedef struct ReplicationSlot
  */
 typedef struct ReplicationSlotCtlData
 {
-	/*
-	 * This array should be declared [FLEXIBLE_ARRAY_MEMBER], but for some
-	 * reason you can't do that in an otherwise-empty struct.
-	 */
-	ReplicationSlot replication_slots[1];
+  /*
+   * This array should be declared [FLEXIBLE_ARRAY_MEMBER], but for some
+   * reason you can't do that in an otherwise-empty struct.
+   */
+  ReplicationSlot replication_slots[1];
 } ReplicationSlotCtlData;
 
 /*
@@ -245,16 +245,16 @@ typedef struct ReplicationSlotCtlData
  */
 static inline void
 ReplicationSlotSetInactiveSince(ReplicationSlot *s, TimestampTz ts,
-								bool acquire_lock)
+                                bool acquire_lock)
 {
-	if (acquire_lock)
-		SpinLockAcquire(&s->mutex);
+  if (acquire_lock)
+    SpinLockAcquire(&s->mutex);
 
-	if (s->data.invalidated == RS_INVAL_NONE)
-		s->inactive_since = ts;
+  if (s->data.invalidated == RS_INVAL_NONE)
+    s->inactive_since = ts;
 
-	if (acquire_lock)
-		SpinLockRelease(&s->mutex);
+  if (acquire_lock)
+    SpinLockRelease(&s->mutex);
 }
 
 /*
@@ -274,17 +274,17 @@ extern void ReplicationSlotsShmemInit(void);
 
 /* management of individual slots */
 extern void ReplicationSlotCreate(const char *name, bool db_specific,
-								  ReplicationSlotPersistency persistency,
-								  bool two_phase, bool failover,
-								  bool synced);
+                                  ReplicationSlotPersistency persistency,
+                                  bool two_phase, bool failover,
+                                  bool synced);
 extern void ReplicationSlotPersist(void);
 extern void ReplicationSlotDrop(const char *name, bool nowait);
 extern void ReplicationSlotDropAcquired(void);
 extern void ReplicationSlotAlter(const char *name, const bool *failover,
-								 const bool *two_phase);
+                                 const bool *two_phase);
 
 extern void ReplicationSlotAcquire(const char *name, bool nowait,
-								   bool error_if_invalid);
+                                   bool error_if_invalid);
 extern void ReplicationSlotRelease(void);
 extern void ReplicationSlotCleanup(bool synced_only);
 extern void ReplicationSlotSave(void);
@@ -294,7 +294,7 @@ extern void ReplicationSlotMarkDirty(void);
 extern void ReplicationSlotInitialize(void);
 extern bool ReplicationSlotValidateName(const char *name, int elevel);
 extern bool ReplicationSlotValidateNameInternal(const char *name,
-												int *err_code, char **err_msg, char **err_hint);
+    int *err_code, char **err_msg, char **err_hint);
 extern void ReplicationSlotReserveWal(void);
 extern void ReplicationSlotsComputeRequiredXmin(bool already_locked);
 extern void ReplicationSlotsComputeRequiredLSN(void);
@@ -302,11 +302,11 @@ extern XLogRecPtr ReplicationSlotsComputeLogicalRestartLSN(void);
 extern bool ReplicationSlotsCountDBSlots(Oid dboid, int *nslots, int *nactive);
 extern void ReplicationSlotsDropDBSlots(Oid dboid);
 extern bool InvalidateObsoleteReplicationSlots(uint32 possible_causes,
-											   XLogSegNo oldestSegno,
-											   Oid dboid,
-											   TransactionId snapshotConflictHorizon);
+    XLogSegNo oldestSegno,
+    Oid dboid,
+    TransactionId snapshotConflictHorizon);
 extern ReplicationSlot *SearchNamedReplicationSlot(const char *name, bool need_lock);
-extern int	ReplicationSlotIndex(ReplicationSlot *slot);
+extern int  ReplicationSlotIndex(ReplicationSlot *slot);
 extern bool ReplicationSlotName(int index, Name name);
 extern void ReplicationSlotNameForTablesync(Oid suboid, Oid relid, char *syncslotname, Size szslot);
 extern void ReplicationSlotDropAtPubNode(WalReceiverConn *wrconn, char *slotname, bool missing_ok);
@@ -317,11 +317,11 @@ extern void CheckPointReplicationSlots(bool is_shutdown);
 extern void CheckSlotRequirements(void);
 extern void CheckSlotPermissions(void);
 extern ReplicationSlotInvalidationCause
-			GetSlotInvalidationCause(const char *cause_name);
+GetSlotInvalidationCause(const char *cause_name);
 extern const char *GetSlotInvalidationCauseName(ReplicationSlotInvalidationCause cause);
 
 extern bool SlotExistsInSyncStandbySlots(const char *slot_name);
 extern bool StandbySlotsHaveCaughtup(XLogRecPtr wait_for_lsn, int elevel);
 extern void WaitForStandbyConfirmation(XLogRecPtr wait_for_lsn);
 
-#endif							/* SLOT_H */
+#endif              /* SLOT_H */

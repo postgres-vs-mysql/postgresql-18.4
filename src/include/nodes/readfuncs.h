@@ -1,8 +1,8 @@
 /*-------------------------------------------------------------------------
  *
  * readfuncs.h
- *	  header file for read.c and readfuncs.c. These functions are internal
- *	  to the stringToNode interface and should not be used by anyone else.
+ *    header file for read.c and readfuncs.c. These functions are internal
+ *    to the stringToNode interface and should not be used by anyone else.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -35,4 +35,4 @@ extern void *nodeRead(const char *token, int tok_len);
  */
 extern Node *parseNodeString(void);
 
-#endif							/* READFUNCS_H */
+#endif              /* READFUNCS_H */

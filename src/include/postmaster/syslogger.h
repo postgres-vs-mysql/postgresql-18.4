@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * syslogger.h
- *	  Exports from postmaster/syslogger.c.
+ *    Exports from postmaster/syslogger.c.
  *
  * Copyright (c) 2004-2025, PostgreSQL Global Development Group
  *
@@ -12,7 +12,7 @@
 #ifndef _SYSLOGGER_H
 #define _SYSLOGGER_H
 
-#include <limits.h>				/* for PIPE_BUF */
+#include <limits.h>       /* for PIPE_BUF */
 
 
 /*
@@ -36,35 +36,35 @@
 #else
 #define PIPE_CHUNK_SIZE  ((int) PIPE_BUF)
 #endif
-#else							/* not defined */
+#else             /* not defined */
 /* POSIX says the value of PIPE_BUF must be at least 512, so use that */
 #define PIPE_CHUNK_SIZE  512
 #endif
 
 typedef struct
 {
-	char		nuls[2];		/* always \0\0 */
-	uint16		len;			/* size of this chunk (counts data only) */
-	int32		pid;			/* writer's pid */
-	bits8		flags;			/* bitmask of PIPE_PROTO_* */
-	char		data[FLEXIBLE_ARRAY_MEMBER];	/* data payload starts here */
+  char    nuls[2];    /* always \0\0 */
+  uint16    len;      /* size of this chunk (counts data only) */
+  int32   pid;      /* writer's pid */
+  bits8   flags;      /* bitmask of PIPE_PROTO_* */
+  char    data[FLEXIBLE_ARRAY_MEMBER];  /* data payload starts here */
 } PipeProtoHeader;
 
 typedef union
 {
-	PipeProtoHeader proto;
-	char		filler[PIPE_CHUNK_SIZE];
+  PipeProtoHeader proto;
+  char    filler[PIPE_CHUNK_SIZE];
 } PipeProtoChunk;
 
 #define PIPE_HEADER_SIZE  offsetof(PipeProtoHeader, data)
 #define PIPE_MAX_PAYLOAD  ((int) (PIPE_CHUNK_SIZE - PIPE_HEADER_SIZE))
 
 /* flag bits for PipeProtoHeader->flags */
-#define PIPE_PROTO_IS_LAST	0x01	/* last chunk of message? */
+#define PIPE_PROTO_IS_LAST  0x01  /* last chunk of message? */
 /* log destinations */
-#define PIPE_PROTO_DEST_STDERR	0x10
-#define PIPE_PROTO_DEST_CSVLOG	0x20
-#define PIPE_PROTO_DEST_JSONLOG	0x40
+#define PIPE_PROTO_DEST_STDERR  0x10
+#define PIPE_PROTO_DEST_CSVLOG  0x20
+#define PIPE_PROTO_DEST_JSONLOG 0x40
 
 /* GUC options */
 extern PGDLLIMPORT bool Logging_collector;
@@ -86,7 +86,7 @@ extern PGDLLIMPORT HANDLE syslogPipe[2];
 #endif
 
 
-extern int	SysLogger_Start(int child_slot);
+extern int  SysLogger_Start(int child_slot);
 
 extern void write_syslogger_file(const char *buffer, int count, int destination);
 
@@ -102,4 +102,4 @@ extern void RemoveLogrotateSignalFiles(void);
 #define LOG_METAINFO_DATAFILE  "current_logfiles"
 #define LOG_METAINFO_DATAFILE_TMP  LOG_METAINFO_DATAFILE ".tmp"
 
-#endif							/* _SYSLOGGER_H */
+#endif              /* _SYSLOGGER_H */

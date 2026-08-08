@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * subscriptioncmds.h
- *	  prototypes for subscriptioncmds.c.
+ *    prototypes for subscriptioncmds.c.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -19,7 +19,7 @@
 #include "parser/parse_node.h"
 
 extern ObjectAddress CreateSubscription(ParseState *pstate, CreateSubscriptionStmt *stmt,
-										bool isTopLevel);
+                                        bool isTopLevel);
 extern ObjectAddress AlterSubscription(ParseState *pstate, AlterSubscriptionStmt *stmt, bool isTopLevel);
 extern void DropSubscription(DropSubscriptionStmt *stmt, bool isTopLevel);
 
@@ -28,4 +28,4 @@ extern void AlterSubscriptionOwner_oid(Oid subid, Oid newOwnerId);
 
 extern char defGetStreamingMode(DefElem *def);
 
-#endif							/* SUBSCRIPTIONCMDS_H */
+#endif              /* SUBSCRIPTIONCMDS_H */

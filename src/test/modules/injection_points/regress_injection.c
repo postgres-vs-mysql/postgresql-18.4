@@ -1,13 +1,13 @@
 /*--------------------------------------------------------------------------
  *
  * regress_injection.c
- *		Functions supporting test-specific subject matter.
+ *    Functions supporting test-specific subject matter.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *		src/test/modules/injection_points/regress_injection.c
+ *    src/test/modules/injection_points/regress_injection.c
  *
  * -------------------------------------------------------------------------
  */
@@ -41,38 +41,38 @@ PG_FUNCTION_INFO_V1(removable_cutoff);
 Datum
 removable_cutoff(PG_FUNCTION_ARGS)
 {
-	Relation	rel = NULL;
-	TransactionId xid;
-	FullTransactionId next_fxid_before,
-				next_fxid;
+  Relation  rel = NULL;
+  TransactionId xid;
+  FullTransactionId next_fxid_before,
+                    next_fxid;
 
-	/* could take other relkinds callee takes, but we've not yet needed it */
-	if (!PG_ARGISNULL(0))
-		rel = table_open(PG_GETARG_OID(0), AccessShareLock);
+  /* could take other relkinds callee takes, but we've not yet needed it */
+  if (!PG_ARGISNULL(0))
+    rel = table_open(PG_GETARG_OID(0), AccessShareLock);
 
-	if (rel != NULL && !rel->rd_rel->relisshared && autovacuum_start_daemon)
-		elog(WARNING,
-			 "removable_cutoff(non-shared-rel) can move backward under autovacuum=on");
+  if (rel != NULL && !rel->rd_rel->relisshared && autovacuum_start_daemon)
+    elog(WARNING,
+         "removable_cutoff(non-shared-rel) can move backward under autovacuum=on");
 
-	/*
-	 * No lock or snapshot necessarily prevents oldestXid from advancing past
-	 * "xid" while this function runs.  That concerns us only in that we must
-	 * not ascribe "xid" to the wrong epoch.  (That may never arise in
-	 * isolation testing, but let's set a good example.)  As a crude solution,
-	 * retry until nextXid doesn't change.
-	 */
-	next_fxid = ReadNextFullTransactionId();
-	do
-	{
-		CHECK_FOR_INTERRUPTS();
-		next_fxid_before = next_fxid;
-		xid = GetOldestNonRemovableTransactionId(rel);
-		next_fxid = ReadNextFullTransactionId();
-	} while (!FullTransactionIdEquals(next_fxid, next_fxid_before));
+  /*
+   * No lock or snapshot necessarily prevents oldestXid from advancing past
+   * "xid" while this function runs.  That concerns us only in that we must
+   * not ascribe "xid" to the wrong epoch.  (That may never arise in
+   * isolation testing, but let's set a good example.)  As a crude solution,
+   * retry until nextXid doesn't change.
+   */
+  next_fxid = ReadNextFullTransactionId();
 
-	if (rel)
-		table_close(rel, AccessShareLock);
+  do {
+    CHECK_FOR_INTERRUPTS();
+    next_fxid_before = next_fxid;
+    xid = GetOldestNonRemovableTransactionId(rel);
+    next_fxid = ReadNextFullTransactionId();
+  } while (!FullTransactionIdEquals(next_fxid, next_fxid_before));
 
-	PG_RETURN_FULLTRANSACTIONID(FullTransactionIdFromAllowableAt(next_fxid,
-																 xid));
+  if (rel)
+    table_close(rel, AccessShareLock);
+
+  PG_RETURN_FULLTRANSACTIONID(FullTransactionIdFromAllowableAt(next_fxid,
+                              xid));
 }

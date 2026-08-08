@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * tupdesc_details.h
- *	  POSTGRES tuple descriptor definitions we can't include everywhere
+ *    POSTGRES tuple descriptor definitions we can't include everywhere
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -21,8 +21,8 @@
  */
 typedef struct AttrMissing
 {
-	bool		am_present;		/* true if non-NULL missing value exists */
-	Datum		am_value;		/* value when attribute is missing */
+  bool    am_present;   /* true if non-NULL missing value exists */
+  Datum   am_value;   /* value when attribute is missing */
 } AttrMissing;
 
-#endif							/* TUPDESC_DETAILS_H */
+#endif              /* TUPDESC_DETAILS_H */

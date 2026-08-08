@@ -1,8 +1,8 @@
 /*-------------------------------------------------------------------------
  *
  * tstoreReceiver.c
- *	  An implementation of DestReceiver that stores the result tuples in
- *	  a Tuplestore.
+ *    An implementation of DestReceiver that stores the result tuples in
+ *    a Tuplestore.
  *
  * Optionally, we can force detoasting (but not decompression) of out-of-line
  * toasted values.  This is to support cursors WITH HOLD, which must retain
@@ -15,7 +15,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/executor/tstoreReceiver.c
+ *    src/backend/executor/tstoreReceiver.c
  *
  *-------------------------------------------------------------------------
  */
@@ -27,20 +27,19 @@
 #include "executor/tstoreReceiver.h"
 
 
-typedef struct
-{
-	DestReceiver pub;
-	/* parameters: */
-	Tuplestorestate *tstore;	/* where to put the data */
-	MemoryContext cxt;			/* context containing tstore */
-	bool		detoast;		/* were we told to detoast? */
-	TupleDesc	target_tupdesc; /* target tupdesc, or NULL if none */
-	const char *map_failure_msg;	/* tupdesc mapping failure message */
-	/* workspace: */
-	Datum	   *outvalues;		/* values array for result tuple */
-	Datum	   *tofree;			/* temp values to be pfree'd */
-	TupleConversionMap *tupmap; /* conversion map, if needed */
-	TupleTableSlot *mapslot;	/* slot for mapped tuples */
+typedef struct {
+  DestReceiver pub;
+  /* parameters: */
+  Tuplestorestate *tstore;  /* where to put the data */
+  MemoryContext cxt;      /* context containing tstore */
+  bool    detoast;    /* were we told to detoast? */
+  TupleDesc target_tupdesc; /* target tupdesc, or NULL if none */
+  const char *map_failure_msg;  /* tupdesc mapping failure message */
+  /* workspace: */
+  Datum    *outvalues;    /* values array for result tuple */
+  Datum    *tofree;     /* temp values to be pfree'd */
+  TupleConversionMap *tupmap; /* conversion map, if needed */
+  TupleTableSlot *mapslot;  /* slot for mapped tuples */
 } TStoreState;
 
 
@@ -55,63 +54,56 @@ static bool tstoreReceiveSlot_tupmap(TupleTableSlot *slot, DestReceiver *self);
 static void
 tstoreStartupReceiver(DestReceiver *self, int operation, TupleDesc typeinfo)
 {
-	TStoreState *myState = (TStoreState *) self;
-	bool		needtoast = false;
-	int			natts = typeinfo->natts;
-	int			i;
+  TStoreState *myState = (TStoreState *) self;
+  bool    needtoast = false;
+  int     natts = typeinfo->natts;
+  int     i;
 
-	/* Check if any columns require detoast work */
-	if (myState->detoast)
-	{
-		for (i = 0; i < natts; i++)
-		{
-			CompactAttribute *attr = TupleDescCompactAttr(typeinfo, i);
+  /* Check if any columns require detoast work */
+  if (myState->detoast) {
+    for (i = 0; i < natts; i++) {
+      CompactAttribute *attr = TupleDescCompactAttr(typeinfo, i);
 
-			if (attr->attisdropped)
-				continue;
-			if (attr->attlen == -1)
-			{
-				needtoast = true;
-				break;
-			}
-		}
-	}
+      if (attr->attisdropped)
+        continue;
 
-	/* Check if tuple conversion is needed */
-	if (myState->target_tupdesc)
-		myState->tupmap = convert_tuples_by_position(typeinfo,
-													 myState->target_tupdesc,
-													 myState->map_failure_msg);
-	else
-		myState->tupmap = NULL;
+      if (attr->attlen == -1) {
+        needtoast = true;
+        break;
+      }
+    }
+  }
 
-	/* Set up appropriate callback */
-	if (needtoast)
-	{
-		Assert(!myState->tupmap);
-		myState->pub.receiveSlot = tstoreReceiveSlot_detoast;
-		/* Create workspace */
-		myState->outvalues = (Datum *)
-			MemoryContextAlloc(myState->cxt, natts * sizeof(Datum));
-		myState->tofree = (Datum *)
-			MemoryContextAlloc(myState->cxt, natts * sizeof(Datum));
-		myState->mapslot = NULL;
-	}
-	else if (myState->tupmap)
-	{
-		myState->pub.receiveSlot = tstoreReceiveSlot_tupmap;
-		myState->outvalues = NULL;
-		myState->tofree = NULL;
-		myState->mapslot = MakeSingleTupleTableSlot(myState->target_tupdesc,
-													&TTSOpsVirtual);
-	}
-	else
-	{
-		myState->pub.receiveSlot = tstoreReceiveSlot_notoast;
-		myState->outvalues = NULL;
-		myState->tofree = NULL;
-		myState->mapslot = NULL;
-	}
+  /* Check if tuple conversion is needed */
+  if (myState->target_tupdesc)
+    myState->tupmap = convert_tuples_by_position(typeinfo,
+                      myState->target_tupdesc,
+                      myState->map_failure_msg);
+  else
+    myState->tupmap = NULL;
+
+  /* Set up appropriate callback */
+  if (needtoast) {
+    Assert(!myState->tupmap);
+    myState->pub.receiveSlot = tstoreReceiveSlot_detoast;
+    /* Create workspace */
+    myState->outvalues = (Datum *)
+                         MemoryContextAlloc(myState->cxt, natts * sizeof(Datum));
+    myState->tofree = (Datum *)
+                      MemoryContextAlloc(myState->cxt, natts * sizeof(Datum));
+    myState->mapslot = NULL;
+  } else if (myState->tupmap) {
+    myState->pub.receiveSlot = tstoreReceiveSlot_tupmap;
+    myState->outvalues = NULL;
+    myState->tofree = NULL;
+    myState->mapslot = MakeSingleTupleTableSlot(myState->target_tupdesc,
+                       &TTSOpsVirtual);
+  } else {
+    myState->pub.receiveSlot = tstoreReceiveSlot_notoast;
+    myState->outvalues = NULL;
+    myState->tofree = NULL;
+    myState->mapslot = NULL;
+  }
 }
 
 /*
@@ -121,11 +113,11 @@ tstoreStartupReceiver(DestReceiver *self, int operation, TupleDesc typeinfo)
 static bool
 tstoreReceiveSlot_notoast(TupleTableSlot *slot, DestReceiver *self)
 {
-	TStoreState *myState = (TStoreState *) self;
+  TStoreState *myState = (TStoreState *) self;
 
-	tuplestore_puttupleslot(myState->tstore, slot);
+  tuplestore_puttupleslot(myState->tstore, slot);
 
-	return true;
+  return true;
 }
 
 /*
@@ -135,53 +127,51 @@ tstoreReceiveSlot_notoast(TupleTableSlot *slot, DestReceiver *self)
 static bool
 tstoreReceiveSlot_detoast(TupleTableSlot *slot, DestReceiver *self)
 {
-	TStoreState *myState = (TStoreState *) self;
-	TupleDesc	typeinfo = slot->tts_tupleDescriptor;
-	int			natts = typeinfo->natts;
-	int			nfree;
-	int			i;
-	MemoryContext oldcxt;
+  TStoreState *myState = (TStoreState *) self;
+  TupleDesc typeinfo = slot->tts_tupleDescriptor;
+  int     natts = typeinfo->natts;
+  int     nfree;
+  int     i;
+  MemoryContext oldcxt;
 
-	/* Make sure the tuple is fully deconstructed */
-	slot_getallattrs(slot);
+  /* Make sure the tuple is fully deconstructed */
+  slot_getallattrs(slot);
 
-	/*
-	 * Fetch back any out-of-line datums.  We build the new datums array in
-	 * myState->outvalues[] (but we can re-use the slot's isnull array). Also,
-	 * remember the fetched values to free afterwards.
-	 */
-	nfree = 0;
-	for (i = 0; i < natts; i++)
-	{
-		Datum		val = slot->tts_values[i];
-		CompactAttribute *attr = TupleDescCompactAttr(typeinfo, i);
+  /*
+   * Fetch back any out-of-line datums.  We build the new datums array in
+   * myState->outvalues[] (but we can re-use the slot's isnull array). Also,
+   * remember the fetched values to free afterwards.
+   */
+  nfree = 0;
 
-		if (!attr->attisdropped && attr->attlen == -1 && !slot->tts_isnull[i])
-		{
-			if (VARATT_IS_EXTERNAL(DatumGetPointer(val)))
-			{
-				val = PointerGetDatum(detoast_external_attr((struct varlena *)
-															DatumGetPointer(val)));
-				myState->tofree[nfree++] = val;
-			}
-		}
+  for (i = 0; i < natts; i++) {
+    Datum   val = slot->tts_values[i];
+    CompactAttribute *attr = TupleDescCompactAttr(typeinfo, i);
 
-		myState->outvalues[i] = val;
-	}
+    if (!attr->attisdropped && attr->attlen == -1 && !slot->tts_isnull[i]) {
+      if (VARATT_IS_EXTERNAL(DatumGetPointer(val))) {
+        val = PointerGetDatum(detoast_external_attr((struct varlena *)
+                              DatumGetPointer(val)));
+        myState->tofree[nfree++] = val;
+      }
+    }
 
-	/*
-	 * Push the modified tuple into the tuplestore.
-	 */
-	oldcxt = MemoryContextSwitchTo(myState->cxt);
-	tuplestore_putvalues(myState->tstore, typeinfo,
-						 myState->outvalues, slot->tts_isnull);
-	MemoryContextSwitchTo(oldcxt);
+    myState->outvalues[i] = val;
+  }
 
-	/* And release any temporary detoasted values */
-	for (i = 0; i < nfree; i++)
-		pfree(DatumGetPointer(myState->tofree[i]));
+  /*
+   * Push the modified tuple into the tuplestore.
+   */
+  oldcxt = MemoryContextSwitchTo(myState->cxt);
+  tuplestore_putvalues(myState->tstore, typeinfo,
+                       myState->outvalues, slot->tts_isnull);
+  MemoryContextSwitchTo(oldcxt);
 
-	return true;
+  /* And release any temporary detoasted values */
+  for (i = 0; i < nfree; i++)
+    pfree(DatumGetPointer(myState->tofree[i]));
+
+  return true;
 }
 
 /*
@@ -191,12 +181,12 @@ tstoreReceiveSlot_detoast(TupleTableSlot *slot, DestReceiver *self)
 static bool
 tstoreReceiveSlot_tupmap(TupleTableSlot *slot, DestReceiver *self)
 {
-	TStoreState *myState = (TStoreState *) self;
+  TStoreState *myState = (TStoreState *) self;
 
-	execute_attr_map_slot(myState->tupmap->attrMap, slot, myState->mapslot);
-	tuplestore_puttupleslot(myState->tstore, myState->mapslot);
+  execute_attr_map_slot(myState->tupmap->attrMap, slot, myState->mapslot);
+  tuplestore_puttupleslot(myState->tstore, myState->mapslot);
 
-	return true;
+  return true;
 }
 
 /*
@@ -205,21 +195,28 @@ tstoreReceiveSlot_tupmap(TupleTableSlot *slot, DestReceiver *self)
 static void
 tstoreShutdownReceiver(DestReceiver *self)
 {
-	TStoreState *myState = (TStoreState *) self;
+  TStoreState *myState = (TStoreState *) self;
 
-	/* Release workspace if any */
-	if (myState->outvalues)
-		pfree(myState->outvalues);
-	myState->outvalues = NULL;
-	if (myState->tofree)
-		pfree(myState->tofree);
-	myState->tofree = NULL;
-	if (myState->tupmap)
-		free_conversion_map(myState->tupmap);
-	myState->tupmap = NULL;
-	if (myState->mapslot)
-		ExecDropSingleTupleTableSlot(myState->mapslot);
-	myState->mapslot = NULL;
+  /* Release workspace if any */
+  if (myState->outvalues)
+    pfree(myState->outvalues);
+
+  myState->outvalues = NULL;
+
+  if (myState->tofree)
+    pfree(myState->tofree);
+
+  myState->tofree = NULL;
+
+  if (myState->tupmap)
+    free_conversion_map(myState->tupmap);
+
+  myState->tupmap = NULL;
+
+  if (myState->mapslot)
+    ExecDropSingleTupleTableSlot(myState->mapslot);
+
+  myState->mapslot = NULL;
 }
 
 /*
@@ -228,7 +225,7 @@ tstoreShutdownReceiver(DestReceiver *self)
 static void
 tstoreDestroyReceiver(DestReceiver *self)
 {
-	pfree(self);
+  pfree(self);
 }
 
 /*
@@ -237,17 +234,17 @@ tstoreDestroyReceiver(DestReceiver *self)
 DestReceiver *
 CreateTuplestoreDestReceiver(void)
 {
-	TStoreState *self = (TStoreState *) palloc0(sizeof(TStoreState));
+  TStoreState *self = (TStoreState *) palloc0(sizeof(TStoreState));
 
-	self->pub.receiveSlot = tstoreReceiveSlot_notoast;	/* might change */
-	self->pub.rStartup = tstoreStartupReceiver;
-	self->pub.rShutdown = tstoreShutdownReceiver;
-	self->pub.rDestroy = tstoreDestroyReceiver;
-	self->pub.mydest = DestTuplestore;
+  self->pub.receiveSlot = tstoreReceiveSlot_notoast;  /* might change */
+  self->pub.rStartup = tstoreStartupReceiver;
+  self->pub.rShutdown = tstoreShutdownReceiver;
+  self->pub.rDestroy = tstoreDestroyReceiver;
+  self->pub.mydest = DestTuplestore;
 
-	/* private fields will be set by SetTuplestoreDestReceiverParams */
+  /* private fields will be set by SetTuplestoreDestReceiverParams */
 
-	return (DestReceiver *) self;
+  return (DestReceiver *) self;
 }
 
 /*
@@ -264,20 +261,20 @@ CreateTuplestoreDestReceiver(void)
  */
 void
 SetTuplestoreDestReceiverParams(DestReceiver *self,
-								Tuplestorestate *tStore,
-								MemoryContext tContext,
-								bool detoast,
-								TupleDesc target_tupdesc,
-								const char *map_failure_msg)
+                                Tuplestorestate *tStore,
+                                MemoryContext tContext,
+                                bool detoast,
+                                TupleDesc target_tupdesc,
+                                const char *map_failure_msg)
 {
-	TStoreState *myState = (TStoreState *) self;
+  TStoreState *myState = (TStoreState *) self;
 
-	Assert(!(detoast && target_tupdesc));
+  Assert(!(detoast && target_tupdesc));
 
-	Assert(myState->pub.mydest == DestTuplestore);
-	myState->tstore = tStore;
-	myState->cxt = tContext;
-	myState->detoast = detoast;
-	myState->target_tupdesc = target_tupdesc;
-	myState->map_failure_msg = map_failure_msg;
+  Assert(myState->pub.mydest == DestTuplestore);
+  myState->tstore = tStore;
+  myState->cxt = tContext;
+  myState->detoast = detoast;
+  myState->target_tupdesc = target_tupdesc;
+  myState->map_failure_msg = map_failure_msg;
 }

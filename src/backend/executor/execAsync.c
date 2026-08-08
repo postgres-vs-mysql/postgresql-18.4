@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * execAsync.c
- *	  Support routines for asynchronous execution
+ *    Support routines for asynchronous execution
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/executor/execAsync.c
+ *    src/backend/executor/execAsync.c
  *
  *-------------------------------------------------------------------------
  */
@@ -25,30 +25,30 @@
 void
 ExecAsyncRequest(AsyncRequest *areq)
 {
-	if (areq->requestee->chgParam != NULL)	/* something changed? */
-		ExecReScan(areq->requestee);	/* let ReScan handle this */
+  if (areq->requestee->chgParam != NULL)  /* something changed? */
+    ExecReScan(areq->requestee);  /* let ReScan handle this */
 
-	/* must provide our own instrumentation support */
-	if (areq->requestee->instrument)
-		InstrStartNode(areq->requestee->instrument);
+  /* must provide our own instrumentation support */
+  if (areq->requestee->instrument)
+    InstrStartNode(areq->requestee->instrument);
 
-	switch (nodeTag(areq->requestee))
-	{
-		case T_ForeignScanState:
-			ExecAsyncForeignScanRequest(areq);
-			break;
-		default:
-			/* If the node doesn't support async, caller messed up. */
-			elog(ERROR, "unrecognized node type: %d",
-				 (int) nodeTag(areq->requestee));
-	}
+  switch (nodeTag(areq->requestee)) {
+    case T_ForeignScanState:
+      ExecAsyncForeignScanRequest(areq);
+      break;
 
-	ExecAsyncResponse(areq);
+    default:
+      /* If the node doesn't support async, caller messed up. */
+      elog(ERROR, "unrecognized node type: %d",
+           (int) nodeTag(areq->requestee));
+  }
 
-	/* must provide our own instrumentation support */
-	if (areq->requestee->instrument)
-		InstrStopNode(areq->requestee->instrument,
-					  TupIsNull(areq->result) ? 0.0 : 1.0);
+  ExecAsyncResponse(areq);
+
+  /* must provide our own instrumentation support */
+  if (areq->requestee->instrument)
+    InstrStopNode(areq->requestee->instrument,
+                  TupIsNull(areq->result) ? 0.0 : 1.0);
 }
 
 /*
@@ -61,24 +61,24 @@ ExecAsyncRequest(AsyncRequest *areq)
 void
 ExecAsyncConfigureWait(AsyncRequest *areq)
 {
-	/* must provide our own instrumentation support */
-	if (areq->requestee->instrument)
-		InstrStartNode(areq->requestee->instrument);
+  /* must provide our own instrumentation support */
+  if (areq->requestee->instrument)
+    InstrStartNode(areq->requestee->instrument);
 
-	switch (nodeTag(areq->requestee))
-	{
-		case T_ForeignScanState:
-			ExecAsyncForeignScanConfigureWait(areq);
-			break;
-		default:
-			/* If the node doesn't support async, caller messed up. */
-			elog(ERROR, "unrecognized node type: %d",
-				 (int) nodeTag(areq->requestee));
-	}
+  switch (nodeTag(areq->requestee)) {
+    case T_ForeignScanState:
+      ExecAsyncForeignScanConfigureWait(areq);
+      break;
 
-	/* must provide our own instrumentation support */
-	if (areq->requestee->instrument)
-		InstrStopNode(areq->requestee->instrument, 0.0);
+    default:
+      /* If the node doesn't support async, caller messed up. */
+      elog(ERROR, "unrecognized node type: %d",
+           (int) nodeTag(areq->requestee));
+  }
+
+  /* must provide our own instrumentation support */
+  if (areq->requestee->instrument)
+    InstrStopNode(areq->requestee->instrument, 0.0);
 }
 
 /*
@@ -87,27 +87,27 @@ ExecAsyncConfigureWait(AsyncRequest *areq)
 void
 ExecAsyncNotify(AsyncRequest *areq)
 {
-	/* must provide our own instrumentation support */
-	if (areq->requestee->instrument)
-		InstrStartNode(areq->requestee->instrument);
+  /* must provide our own instrumentation support */
+  if (areq->requestee->instrument)
+    InstrStartNode(areq->requestee->instrument);
 
-	switch (nodeTag(areq->requestee))
-	{
-		case T_ForeignScanState:
-			ExecAsyncForeignScanNotify(areq);
-			break;
-		default:
-			/* If the node doesn't support async, caller messed up. */
-			elog(ERROR, "unrecognized node type: %d",
-				 (int) nodeTag(areq->requestee));
-	}
+  switch (nodeTag(areq->requestee)) {
+    case T_ForeignScanState:
+      ExecAsyncForeignScanNotify(areq);
+      break;
 
-	ExecAsyncResponse(areq);
+    default:
+      /* If the node doesn't support async, caller messed up. */
+      elog(ERROR, "unrecognized node type: %d",
+           (int) nodeTag(areq->requestee));
+  }
 
-	/* must provide our own instrumentation support */
-	if (areq->requestee->instrument)
-		InstrStopNode(areq->requestee->instrument,
-					  TupIsNull(areq->result) ? 0.0 : 1.0);
+  ExecAsyncResponse(areq);
+
+  /* must provide our own instrumentation support */
+  if (areq->requestee->instrument)
+    InstrStopNode(areq->requestee->instrument,
+                  TupIsNull(areq->result) ? 0.0 : 1.0);
 }
 
 /*
@@ -116,16 +116,16 @@ ExecAsyncNotify(AsyncRequest *areq)
 void
 ExecAsyncResponse(AsyncRequest *areq)
 {
-	switch (nodeTag(areq->requestor))
-	{
-		case T_AppendState:
-			ExecAsyncAppendResponse(areq);
-			break;
-		default:
-			/* If the node doesn't support async, caller messed up. */
-			elog(ERROR, "unrecognized node type: %d",
-				 (int) nodeTag(areq->requestor));
-	}
+  switch (nodeTag(areq->requestor)) {
+    case T_AppendState:
+      ExecAsyncAppendResponse(areq);
+      break;
+
+    default:
+      /* If the node doesn't support async, caller messed up. */
+      elog(ERROR, "unrecognized node type: %d",
+           (int) nodeTag(areq->requestor));
+  }
 }
 
 /*
@@ -136,8 +136,8 @@ ExecAsyncResponse(AsyncRequest *areq)
 void
 ExecAsyncRequestDone(AsyncRequest *areq, TupleTableSlot *result)
 {
-	areq->request_complete = true;
-	areq->result = result;
+  areq->request_complete = true;
+  areq->result = result;
 }
 
 /*
@@ -148,7 +148,7 @@ ExecAsyncRequestDone(AsyncRequest *areq, TupleTableSlot *result)
 void
 ExecAsyncRequestPending(AsyncRequest *areq)
 {
-	areq->callback_pending = true;
-	areq->request_complete = false;
-	areq->result = NULL;
+  areq->callback_pending = true;
+  areq->request_complete = false;
+  areq->result = NULL;
 }

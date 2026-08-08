@@ -1,7 +1,7 @@
 /* -------------------------------------------------------------------------
  *
  * pgstat_backend.c
- *	  Implementation of backend statistics.
+ *    Implementation of backend statistics.
  *
  * This file contains the implementation of backend statistics.  It is kept
  * separate from pgstat.c to enforce the line between the statistics access /
@@ -18,7 +18,7 @@
  * Copyright (c) 2001-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/backend/utils/activity/pgstat_backend.c
+ *    src/backend/utils/activity/pgstat_backend.c
  * -------------------------------------------------------------------------
  */
 
@@ -54,36 +54,36 @@ static WalUsage prevBackendWalUsage;
  */
 void
 pgstat_count_backend_io_op_time(IOObject io_object, IOContext io_context,
-								IOOp io_op, instr_time io_time)
+                                IOOp io_op, instr_time io_time)
 {
-	Assert(track_io_timing || track_wal_io_timing);
+  Assert(track_io_timing || track_wal_io_timing);
 
-	if (!pgstat_tracks_backend_bktype(MyBackendType))
-		return;
+  if (!pgstat_tracks_backend_bktype(MyBackendType))
+    return;
 
-	Assert(pgstat_tracks_io_op(MyBackendType, io_object, io_context, io_op));
+  Assert(pgstat_tracks_io_op(MyBackendType, io_object, io_context, io_op));
 
-	INSTR_TIME_ADD(PendingBackendStats.pending_io.pending_times[io_object][io_context][io_op],
-				   io_time);
+  INSTR_TIME_ADD(PendingBackendStats.pending_io.pending_times[io_object][io_context][io_op],
+                 io_time);
 
-	backend_has_iostats = true;
-	pgstat_report_fixed = true;
+  backend_has_iostats = true;
+  pgstat_report_fixed = true;
 }
 
 void
 pgstat_count_backend_io_op(IOObject io_object, IOContext io_context,
-						   IOOp io_op, uint32 cnt, uint64 bytes)
+                           IOOp io_op, uint32 cnt, uint64 bytes)
 {
-	if (!pgstat_tracks_backend_bktype(MyBackendType))
-		return;
+  if (!pgstat_tracks_backend_bktype(MyBackendType))
+    return;
 
-	Assert(pgstat_tracks_io_op(MyBackendType, io_object, io_context, io_op));
+  Assert(pgstat_tracks_io_op(MyBackendType, io_object, io_context, io_op));
 
-	PendingBackendStats.pending_io.counts[io_object][io_context][io_op] += cnt;
-	PendingBackendStats.pending_io.bytes[io_object][io_context][io_op] += bytes;
+  PendingBackendStats.pending_io.counts[io_object][io_context][io_op] += cnt;
+  PendingBackendStats.pending_io.bytes[io_object][io_context][io_op] += bytes;
 
-	backend_has_iostats = true;
-	pgstat_report_fixed = true;
+  backend_has_iostats = true;
+  pgstat_report_fixed = true;
 }
 
 /*
@@ -92,12 +92,12 @@ pgstat_count_backend_io_op(IOObject io_object, IOContext io_context,
 PgStat_Backend *
 pgstat_fetch_stat_backend(ProcNumber procNumber)
 {
-	PgStat_Backend *backend_entry;
+  PgStat_Backend *backend_entry;
 
-	backend_entry = (PgStat_Backend *) pgstat_fetch_entry(PGSTAT_KIND_BACKEND,
-														  InvalidOid, procNumber);
+  backend_entry = (PgStat_Backend *) pgstat_fetch_entry(PGSTAT_KIND_BACKEND,
+                  InvalidOid, procNumber);
 
-	return backend_entry;
+  return backend_entry;
 }
 
 /*
@@ -110,52 +110,55 @@ pgstat_fetch_stat_backend(ProcNumber procNumber)
 PgStat_Backend *
 pgstat_fetch_stat_backend_by_pid(int pid, BackendType *bktype)
 {
-	PGPROC	   *proc;
-	PgBackendStatus *beentry;
-	ProcNumber	procNumber;
-	PgStat_Backend *backend_stats;
+  PGPROC     *proc;
+  PgBackendStatus *beentry;
+  ProcNumber  procNumber;
+  PgStat_Backend *backend_stats;
 
-	proc = BackendPidGetProc(pid);
-	if (bktype)
-		*bktype = B_INVALID;
+  proc = BackendPidGetProc(pid);
 
-	/* this could be an auxiliary process */
-	if (!proc)
-		proc = AuxiliaryPidGetProc(pid);
+  if (bktype)
+    *bktype = B_INVALID;
 
-	if (!proc)
-		return NULL;
+  /* this could be an auxiliary process */
+  if (!proc)
+    proc = AuxiliaryPidGetProc(pid);
 
-	procNumber = GetNumberFromPGProc(proc);
+  if (!proc)
+    return NULL;
 
-	beentry = pgstat_get_beentry_by_proc_number(procNumber);
-	if (!beentry)
-		return NULL;
+  procNumber = GetNumberFromPGProc(proc);
 
-	/* check if the backend type tracks statistics */
-	if (!pgstat_tracks_backend_bktype(beentry->st_backendType))
-		return NULL;
+  beentry = pgstat_get_beentry_by_proc_number(procNumber);
 
-	/* if PID does not match, leave */
-	if (beentry->st_procpid != pid)
-		return NULL;
+  if (!beentry)
+    return NULL;
 
-	if (bktype)
-		*bktype = beentry->st_backendType;
+  /* check if the backend type tracks statistics */
+  if (!pgstat_tracks_backend_bktype(beentry->st_backendType))
+    return NULL;
 
-	/*
-	 * Retrieve the entry.  Note that "beentry" may be freed depending on the
-	 * value of stats_fetch_consistency, so do not access it from this point.
-	 */
-	backend_stats = pgstat_fetch_stat_backend(procNumber);
-	if (!backend_stats)
-	{
-		if (bktype)
-			*bktype = B_INVALID;
-		return NULL;
-	}
+  /* if PID does not match, leave */
+  if (beentry->st_procpid != pid)
+    return NULL;
 
-	return backend_stats;
+  if (bktype)
+    *bktype = beentry->st_backendType;
+
+  /*
+   * Retrieve the entry.  Note that "beentry" may be freed depending on the
+   * value of stats_fetch_consistency, so do not access it from this point.
+   */
+  backend_stats = pgstat_fetch_stat_backend(procNumber);
+
+  if (!backend_stats) {
+    if (bktype)
+      *bktype = B_INVALID;
+
+    return NULL;
+  }
+
+  return backend_stats;
 }
 
 /*
@@ -165,48 +168,45 @@ pgstat_fetch_stat_backend_by_pid(int pid, BackendType *bktype)
 static void
 pgstat_flush_backend_entry_io(PgStat_EntryRef *entry_ref)
 {
-	PgStatShared_Backend *shbackendent;
-	PgStat_BktypeIO *bktype_shstats;
-	PgStat_PendingIO pending_io;
+  PgStatShared_Backend *shbackendent;
+  PgStat_BktypeIO *bktype_shstats;
+  PgStat_PendingIO pending_io;
 
-	/*
-	 * This function can be called even if nothing at all has happened for IO
-	 * statistics.  In this case, avoid unnecessarily modifying the stats
-	 * entry.
-	 */
-	if (!backend_has_iostats)
-		return;
+  /*
+   * This function can be called even if nothing at all has happened for IO
+   * statistics.  In this case, avoid unnecessarily modifying the stats
+   * entry.
+   */
+  if (!backend_has_iostats)
+    return;
 
-	shbackendent = (PgStatShared_Backend *) entry_ref->shared_stats;
-	bktype_shstats = &shbackendent->stats.io_stats;
-	pending_io = PendingBackendStats.pending_io;
+  shbackendent = (PgStatShared_Backend *) entry_ref->shared_stats;
+  bktype_shstats = &shbackendent->stats.io_stats;
+  pending_io = PendingBackendStats.pending_io;
 
-	for (int io_object = 0; io_object < IOOBJECT_NUM_TYPES; io_object++)
-	{
-		for (int io_context = 0; io_context < IOCONTEXT_NUM_TYPES; io_context++)
-		{
-			for (int io_op = 0; io_op < IOOP_NUM_TYPES; io_op++)
-			{
-				instr_time	time;
+  for (int io_object = 0; io_object < IOOBJECT_NUM_TYPES; io_object++) {
+    for (int io_context = 0; io_context < IOCONTEXT_NUM_TYPES; io_context++) {
+      for (int io_op = 0; io_op < IOOP_NUM_TYPES; io_op++) {
+        instr_time  time;
 
-				bktype_shstats->counts[io_object][io_context][io_op] +=
-					pending_io.counts[io_object][io_context][io_op];
-				bktype_shstats->bytes[io_object][io_context][io_op] +=
-					pending_io.bytes[io_object][io_context][io_op];
-				time = pending_io.pending_times[io_object][io_context][io_op];
+        bktype_shstats->counts[io_object][io_context][io_op] +=
+          pending_io.counts[io_object][io_context][io_op];
+        bktype_shstats->bytes[io_object][io_context][io_op] +=
+          pending_io.bytes[io_object][io_context][io_op];
+        time = pending_io.pending_times[io_object][io_context][io_op];
 
-				bktype_shstats->times[io_object][io_context][io_op] +=
-					INSTR_TIME_GET_MICROSEC(time);
-			}
-		}
-	}
+        bktype_shstats->times[io_object][io_context][io_op] +=
+          INSTR_TIME_GET_MICROSEC(time);
+      }
+    }
+  }
 
-	/*
-	 * Clear out the statistics buffer, so it can be re-used.
-	 */
-	MemSet(&PendingBackendStats.pending_io, 0, sizeof(PgStat_PendingIO));
+  /*
+   * Clear out the statistics buffer, so it can be re-used.
+   */
+  MemSet(&PendingBackendStats.pending_io, 0, sizeof(PgStat_PendingIO));
 
-	backend_has_iostats = false;
+  backend_has_iostats = false;
 }
 
 /*
@@ -215,7 +215,7 @@ pgstat_flush_backend_entry_io(PgStat_EntryRef *entry_ref)
 static inline bool
 pgstat_backend_wal_have_pending(void)
 {
-	return (pgWalUsage.wal_records != prevBackendWalUsage.wal_records);
+  return (pgWalUsage.wal_records != prevBackendWalUsage.wal_records);
 }
 
 /*
@@ -225,39 +225,39 @@ pgstat_backend_wal_have_pending(void)
 static void
 pgstat_flush_backend_entry_wal(PgStat_EntryRef *entry_ref)
 {
-	PgStatShared_Backend *shbackendent;
-	PgStat_WalCounters *bktype_shstats;
-	WalUsage	wal_usage_diff = {0};
+  PgStatShared_Backend *shbackendent;
+  PgStat_WalCounters *bktype_shstats;
+  WalUsage  wal_usage_diff = {0};
 
-	/*
-	 * This function can be called even if nothing at all has happened for WAL
-	 * statistics.  In this case, avoid unnecessarily modifying the stats
-	 * entry.
-	 */
-	if (!pgstat_backend_wal_have_pending())
-		return;
+  /*
+   * This function can be called even if nothing at all has happened for WAL
+   * statistics.  In this case, avoid unnecessarily modifying the stats
+   * entry.
+   */
+  if (!pgstat_backend_wal_have_pending())
+    return;
 
-	shbackendent = (PgStatShared_Backend *) entry_ref->shared_stats;
-	bktype_shstats = &shbackendent->stats.wal_counters;
+  shbackendent = (PgStatShared_Backend *) entry_ref->shared_stats;
+  bktype_shstats = &shbackendent->stats.wal_counters;
 
-	/*
-	 * Calculate how much WAL usage counters were increased by subtracting the
-	 * previous counters from the current ones.
-	 */
-	WalUsageAccumDiff(&wal_usage_diff, &pgWalUsage, &prevBackendWalUsage);
+  /*
+   * Calculate how much WAL usage counters were increased by subtracting the
+   * previous counters from the current ones.
+   */
+  WalUsageAccumDiff(&wal_usage_diff, &pgWalUsage, &prevBackendWalUsage);
 
 #define WALSTAT_ACC(fld, var_to_add) \
-	(bktype_shstats->fld += var_to_add.fld)
-	WALSTAT_ACC(wal_buffers_full, wal_usage_diff);
-	WALSTAT_ACC(wal_records, wal_usage_diff);
-	WALSTAT_ACC(wal_fpi, wal_usage_diff);
-	WALSTAT_ACC(wal_bytes, wal_usage_diff);
+  (bktype_shstats->fld += var_to_add.fld)
+  WALSTAT_ACC(wal_buffers_full, wal_usage_diff);
+  WALSTAT_ACC(wal_records, wal_usage_diff);
+  WALSTAT_ACC(wal_fpi, wal_usage_diff);
+  WALSTAT_ACC(wal_bytes, wal_usage_diff);
 #undef WALSTAT_ACC
 
-	/*
-	 * Save the current counters for the subsequent calculation of WAL usage.
-	 */
-	prevBackendWalUsage = pgWalUsage;
+  /*
+   * Save the current counters for the subsequent calculation of WAL usage.
+   */
+  prevBackendWalUsage = pgWalUsage;
 }
 
 /*
@@ -269,39 +269,40 @@ pgstat_flush_backend_entry_wal(PgStat_EntryRef *entry_ref)
 bool
 pgstat_flush_backend(bool nowait, bits32 flags)
 {
-	PgStat_EntryRef *entry_ref;
-	bool		has_pending_data = false;
+  PgStat_EntryRef *entry_ref;
+  bool    has_pending_data = false;
 
-	if (!pgstat_tracks_backend_bktype(MyBackendType))
-		return false;
+  if (!pgstat_tracks_backend_bktype(MyBackendType))
+    return false;
 
-	/* Some IO data pending? */
-	if ((flags & PGSTAT_BACKEND_FLUSH_IO) && backend_has_iostats)
-		has_pending_data = true;
+  /* Some IO data pending? */
+  if ((flags & PGSTAT_BACKEND_FLUSH_IO) && backend_has_iostats)
+    has_pending_data = true;
 
-	/* Some WAL data pending? */
-	if ((flags & PGSTAT_BACKEND_FLUSH_WAL) &&
-		pgstat_backend_wal_have_pending())
-		has_pending_data = true;
+  /* Some WAL data pending? */
+  if ((flags & PGSTAT_BACKEND_FLUSH_WAL) &&
+      pgstat_backend_wal_have_pending())
+    has_pending_data = true;
 
-	if (!has_pending_data)
-		return false;
+  if (!has_pending_data)
+    return false;
 
-	entry_ref = pgstat_get_entry_ref_locked(PGSTAT_KIND_BACKEND, InvalidOid,
-											MyProcNumber, nowait);
-	if (!entry_ref)
-		return true;
+  entry_ref = pgstat_get_entry_ref_locked(PGSTAT_KIND_BACKEND, InvalidOid,
+                                          MyProcNumber, nowait);
 
-	/* Flush requested statistics */
-	if (flags & PGSTAT_BACKEND_FLUSH_IO)
-		pgstat_flush_backend_entry_io(entry_ref);
+  if (!entry_ref)
+    return true;
 
-	if (flags & PGSTAT_BACKEND_FLUSH_WAL)
-		pgstat_flush_backend_entry_wal(entry_ref);
+  /* Flush requested statistics */
+  if (flags & PGSTAT_BACKEND_FLUSH_IO)
+    pgstat_flush_backend_entry_io(entry_ref);
 
-	pgstat_unlock_entry(entry_ref);
+  if (flags & PGSTAT_BACKEND_FLUSH_WAL)
+    pgstat_flush_backend_entry_wal(entry_ref);
 
-	return false;
+  pgstat_unlock_entry(entry_ref);
+
+  return false;
 }
 
 /*
@@ -312,7 +313,7 @@ pgstat_flush_backend(bool nowait, bits32 flags)
 bool
 pgstat_backend_flush_cb(bool nowait)
 {
-	return pgstat_flush_backend(nowait, PGSTAT_BACKEND_FLUSH_ALL);
+  return pgstat_flush_backend(nowait, PGSTAT_BACKEND_FLUSH_ALL);
 }
 
 /*
@@ -321,29 +322,29 @@ pgstat_backend_flush_cb(bool nowait)
 void
 pgstat_create_backend(ProcNumber procnum)
 {
-	PgStat_EntryRef *entry_ref;
-	PgStatShared_Backend *shstatent;
+  PgStat_EntryRef *entry_ref;
+  PgStatShared_Backend *shstatent;
 
-	entry_ref = pgstat_get_entry_ref_locked(PGSTAT_KIND_BACKEND, InvalidOid,
-											procnum, false);
-	shstatent = (PgStatShared_Backend *) entry_ref->shared_stats;
+  entry_ref = pgstat_get_entry_ref_locked(PGSTAT_KIND_BACKEND, InvalidOid,
+                                          procnum, false);
+  shstatent = (PgStatShared_Backend *) entry_ref->shared_stats;
 
-	/*
-	 * NB: need to accept that there might be stats from an older backend,
-	 * e.g. if we previously used this proc number.
-	 */
-	memset(&shstatent->stats, 0, sizeof(shstatent->stats));
-	pgstat_unlock_entry(entry_ref);
+  /*
+   * NB: need to accept that there might be stats from an older backend,
+   * e.g. if we previously used this proc number.
+   */
+  memset(&shstatent->stats, 0, sizeof(shstatent->stats));
+  pgstat_unlock_entry(entry_ref);
 
-	MemSet(&PendingBackendStats, 0, sizeof(PgStat_BackendPending));
-	backend_has_iostats = false;
+  MemSet(&PendingBackendStats, 0, sizeof(PgStat_BackendPending));
+  backend_has_iostats = false;
 
-	/*
-	 * Initialize prevBackendWalUsage with pgWalUsage so that
-	 * pgstat_backend_flush_cb() can calculate how much pgWalUsage counters
-	 * are increased by subtracting prevBackendWalUsage from pgWalUsage.
-	 */
-	prevBackendWalUsage = pgWalUsage;
+  /*
+   * Initialize prevBackendWalUsage with pgWalUsage so that
+   * pgstat_backend_flush_cb() can calculate how much pgWalUsage counters
+   * are increased by subtracting prevBackendWalUsage from pgWalUsage.
+   */
+  prevBackendWalUsage = pgWalUsage;
 }
 
 /*
@@ -364,40 +365,39 @@ pgstat_create_backend(ProcNumber procnum)
 bool
 pgstat_tracks_backend_bktype(BackendType bktype)
 {
-	/*
-	 * List every type so that new backend types trigger a warning about
-	 * needing to adjust this switch.
-	 */
-	switch (bktype)
-	{
-		case B_INVALID:
-		case B_AUTOVAC_LAUNCHER:
-		case B_DEAD_END_BACKEND:
-		case B_ARCHIVER:
-		case B_LOGGER:
-		case B_BG_WRITER:
-		case B_CHECKPOINTER:
-		case B_IO_WORKER:
-		case B_STARTUP:
-			return false;
+  /*
+   * List every type so that new backend types trigger a warning about
+   * needing to adjust this switch.
+   */
+  switch (bktype) {
+    case B_INVALID:
+    case B_AUTOVAC_LAUNCHER:
+    case B_DEAD_END_BACKEND:
+    case B_ARCHIVER:
+    case B_LOGGER:
+    case B_BG_WRITER:
+    case B_CHECKPOINTER:
+    case B_IO_WORKER:
+    case B_STARTUP:
+      return false;
 
-		case B_AUTOVAC_WORKER:
-		case B_BACKEND:
-		case B_BG_WORKER:
-		case B_STANDALONE_BACKEND:
-		case B_SLOTSYNC_WORKER:
-		case B_WAL_RECEIVER:
-		case B_WAL_SENDER:
-		case B_WAL_SUMMARIZER:
-		case B_WAL_WRITER:
-			return true;
-	}
+    case B_AUTOVAC_WORKER:
+    case B_BACKEND:
+    case B_BG_WORKER:
+    case B_STANDALONE_BACKEND:
+    case B_SLOTSYNC_WORKER:
+    case B_WAL_RECEIVER:
+    case B_WAL_SENDER:
+    case B_WAL_SUMMARIZER:
+    case B_WAL_WRITER:
+      return true;
+  }
 
-	return false;
+  return false;
 }
 
 void
 pgstat_backend_reset_timestamp_cb(PgStatShared_Common *header, TimestampTz ts)
 {
-	((PgStatShared_Backend *) header)->stats.stat_reset_timestamp = ts;
+  ((PgStatShared_Backend *) header)->stats.stat_reset_timestamp = ts;
 }

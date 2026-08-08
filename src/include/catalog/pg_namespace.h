@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_namespace.h
- *	  definition of the "namespace" system catalog (pg_namespace)
+ *    definition of the "namespace" system catalog (pg_namespace)
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -10,8 +10,8 @@
  * src/include/catalog/pg_namespace.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -23,30 +23,31 @@
 #include "utils/acl.h"
 
 /* ----------------------------------------------------------------
- *		pg_namespace definition.
+ *    pg_namespace definition.
  *
- *		cpp turns this into typedef struct FormData_pg_namespace
+ *    cpp turns this into typedef struct FormData_pg_namespace
  *
- *	nspname				name of the namespace
- *	nspowner			owner (creator) of the namespace
- *	nspacl				access privilege list
+ *  nspname       name of the namespace
+ *  nspowner      owner (creator) of the namespace
+ *  nspacl        access privilege list
  * ----------------------------------------------------------------
  */
-CATALOG(pg_namespace,2615,NamespaceRelationId)
+CATALOG(pg_namespace, 2615, NamespaceRelationId)
 {
-	Oid			oid;			/* oid */
+  Oid     oid;      /* oid */
 
-	NameData	nspname;
-	Oid			nspowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
+  NameData  nspname;
+  Oid     nspowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
 
-#ifdef CATALOG_VARLEN			/* variable-length fields start here */
-	aclitem		nspacl[1];
+#ifdef CATALOG_VARLEN     /* variable-length fields start here */
+  aclitem   nspacl[1];
 #endif
-} FormData_pg_namespace;
+}
+FormData_pg_namespace;
 
 /* ----------------
- *		Form_pg_namespace corresponds to a pointer to a tuple with
- *		the format of pg_namespace relation.
+ *    Form_pg_namespace corresponds to a pointer to a tuple with
+ *    the format of pg_namespace relation.
  * ----------------
  */
 typedef FormData_pg_namespace *Form_pg_namespace;
@@ -62,6 +63,6 @@ MAKE_SYSCACHE(NAMESPACEOID, pg_namespace_oid_index, 16);
 /*
  * prototypes for functions in pg_namespace.c
  */
-extern Oid	NamespaceCreate(const char *nspName, Oid ownerId, bool isTemp);
+extern Oid  NamespaceCreate(const char *nspName, Oid ownerId, bool isTemp);
 
-#endif							/* PG_NAMESPACE_H */
+#endif              /* PG_NAMESPACE_H */

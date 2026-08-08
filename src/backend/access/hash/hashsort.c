@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * hashsort.c
- *		Sort tuples for insertion into a new hash index.
+ *    Sort tuples for insertion into a new hash index.
  *
  * When building a very large hash index, we pre-sort the tuples by bucket
  * number to improve locality of access to the index, and thereby avoid
@@ -18,7 +18,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/access/hash/hashsort.c
+ *    src/backend/access/hash/hashsort.c
  *
  *-------------------------------------------------------------------------
  */
@@ -36,20 +36,19 @@
 /*
  * Status record for spooling/sorting phase.
  */
-struct HSpool
-{
-	Tuplesortstate *sortstate;	/* state data for tuplesort.c */
-	Relation	index;
+struct HSpool {
+  Tuplesortstate *sortstate;  /* state data for tuplesort.c */
+  Relation  index;
 
-	/*
-	 * We sort the hash keys based on the buckets they belong to, then by the
-	 * hash values themselves, to optimize insertions onto hash pages.  The
-	 * masks below are used in _hash_hashkey2bucket to determine the bucket of
-	 * a given hash key.
-	 */
-	uint32		high_mask;
-	uint32		low_mask;
-	uint32		max_buckets;
+  /*
+   * We sort the hash keys based on the buckets they belong to, then by the
+   * hash values themselves, to optimize insertions onto hash pages.  The
+   * masks below are used in _hash_hashkey2bucket to determine the bucket of
+   * a given hash key.
+   */
+  uint32    high_mask;
+  uint32    low_mask;
+  uint32    max_buckets;
 };
 
 
@@ -59,37 +58,37 @@ struct HSpool
 HSpool *
 _h_spoolinit(Relation heap, Relation index, uint32 num_buckets)
 {
-	HSpool	   *hspool = (HSpool *) palloc0(sizeof(HSpool));
+  HSpool     *hspool = (HSpool *) palloc0(sizeof(HSpool));
 
-	hspool->index = index;
+  hspool->index = index;
 
-	/*
-	 * Determine the bitmask for hash code values.  Since there are currently
-	 * num_buckets buckets in the index, the appropriate mask can be computed
-	 * as follows.
-	 *
-	 * NOTE : This hash mask calculation should be in sync with similar
-	 * calculation in _hash_init_metabuffer.
-	 */
-	hspool->high_mask = pg_nextpower2_32(num_buckets + 1) - 1;
-	hspool->low_mask = (hspool->high_mask >> 1);
-	hspool->max_buckets = num_buckets - 1;
+  /*
+   * Determine the bitmask for hash code values.  Since there are currently
+   * num_buckets buckets in the index, the appropriate mask can be computed
+   * as follows.
+   *
+   * NOTE : This hash mask calculation should be in sync with similar
+   * calculation in _hash_init_metabuffer.
+   */
+  hspool->high_mask = pg_nextpower2_32(num_buckets + 1) - 1;
+  hspool->low_mask = (hspool->high_mask >> 1);
+  hspool->max_buckets = num_buckets - 1;
 
-	/*
-	 * We size the sort area as maintenance_work_mem rather than work_mem to
-	 * speed index creation.  This should be OK since a single backend can't
-	 * run multiple index creations in parallel.
-	 */
-	hspool->sortstate = tuplesort_begin_index_hash(heap,
-												   index,
-												   hspool->high_mask,
-												   hspool->low_mask,
-												   hspool->max_buckets,
-												   maintenance_work_mem,
-												   NULL,
-												   TUPLESORT_NONE);
+  /*
+   * We size the sort area as maintenance_work_mem rather than work_mem to
+   * speed index creation.  This should be OK since a single backend can't
+   * run multiple index creations in parallel.
+   */
+  hspool->sortstate = tuplesort_begin_index_hash(heap,
+                      index,
+                      hspool->high_mask,
+                      hspool->low_mask,
+                      hspool->max_buckets,
+                      maintenance_work_mem,
+                      NULL,
+                      TUPLESORT_NONE);
 
-	return hspool;
+  return hspool;
 }
 
 /*
@@ -98,8 +97,8 @@ _h_spoolinit(Relation heap, Relation index, uint32 num_buckets)
 void
 _h_spooldestroy(HSpool *hspool)
 {
-	tuplesort_end(hspool->sortstate);
-	pfree(hspool);
+  tuplesort_end(hspool->sortstate);
+  pfree(hspool);
 }
 
 /*
@@ -108,8 +107,8 @@ _h_spooldestroy(HSpool *hspool)
 void
 _h_spool(HSpool *hspool, ItemPointer self, const Datum *values, const bool *isnull)
 {
-	tuplesort_putindextuplevalues(hspool->sortstate, hspool->index,
-								  self, values, isnull);
+  tuplesort_putindextuplevalues(hspool->sortstate, hspool->index,
+                                self, values, isnull);
 }
 
 /*
@@ -119,39 +118,38 @@ _h_spool(HSpool *hspool, ItemPointer self, const Datum *values, const bool *isnu
 void
 _h_indexbuild(HSpool *hspool, Relation heapRel)
 {
-	IndexTuple	itup;
-	int64		tups_done = 0;
+  IndexTuple  itup;
+  int64   tups_done = 0;
 #ifdef USE_ASSERT_CHECKING
-	uint32		hashkey = 0;
+  uint32    hashkey = 0;
 #endif
 
-	tuplesort_performsort(hspool->sortstate);
+  tuplesort_performsort(hspool->sortstate);
 
-	while ((itup = tuplesort_getindextuple(hspool->sortstate, true)) != NULL)
-	{
-		/*
-		 * Technically, it isn't critical that hash keys be found in sorted
-		 * order, since this sorting is only used to increase locality of
-		 * access as a performance optimization.  It still seems like a good
-		 * idea to test tuplesort.c's handling of hash index tuple sorts
-		 * through an assertion, though.
-		 */
+  while ((itup = tuplesort_getindextuple(hspool->sortstate, true)) != NULL) {
+    /*
+     * Technically, it isn't critical that hash keys be found in sorted
+     * order, since this sorting is only used to increase locality of
+     * access as a performance optimization.  It still seems like a good
+     * idea to test tuplesort.c's handling of hash index tuple sorts
+     * through an assertion, though.
+     */
 #ifdef USE_ASSERT_CHECKING
-		uint32		lasthashkey = hashkey;
+    uint32    lasthashkey = hashkey;
 
-		hashkey = _hash_hashkey2bucket(_hash_get_indextuple_hashkey(itup),
-									   hspool->max_buckets, hspool->high_mask,
-									   hspool->low_mask);
-		Assert(hashkey >= lasthashkey);
+    hashkey = _hash_hashkey2bucket(_hash_get_indextuple_hashkey(itup),
+                                   hspool->max_buckets, hspool->high_mask,
+                                   hspool->low_mask);
+    Assert(hashkey >= lasthashkey);
 #endif
 
-		/* the tuples are sorted by hashkey, so pass 'sorted' as true */
-		_hash_doinsert(hspool->index, itup, heapRel, true);
+    /* the tuples are sorted by hashkey, so pass 'sorted' as true */
+    _hash_doinsert(hspool->index, itup, heapRel, true);
 
-		/* allow insertion phase to be interrupted, and track progress */
-		CHECK_FOR_INTERRUPTS();
+    /* allow insertion phase to be interrupted, and track progress */
+    CHECK_FOR_INTERRUPTS();
 
-		pgstat_progress_update_param(PROGRESS_CREATEIDX_TUPLES_DONE,
-									 ++tups_done);
-	}
+    pgstat_progress_update_param(PROGRESS_CREATEIDX_TUPLES_DONE,
+                                 ++tups_done);
+  }
 }

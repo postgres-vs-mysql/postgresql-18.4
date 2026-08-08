@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * subscripting.h
- *		API for generic type subscripting
+ *    API for generic type subscripting
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -22,7 +22,7 @@ struct SubscriptExecSteps;
 
 /*
  * The SQL-visible function that defines a subscripting method is declared
- *		subscripting_function(internal) returns internal
+ *    subscripting_function(internal) returns internal
  * but it actually is not passed any parameter.  It must return a pointer
  * to a "struct SubscriptRoutines" that provides pointers to the individual
  * subscript parsing and execution methods.  Typically the pointer will point
@@ -93,10 +93,10 @@ struct SubscriptExecSteps;
  * assignment must return.
  */
 typedef void (*SubscriptTransform) (SubscriptingRef *sbsref,
-									List *indirection,
-									struct ParseState *pstate,
-									bool isSlice,
-									bool isAssignment);
+                                    List *indirection,
+                                    struct ParseState *pstate,
+                                    bool isSlice,
+                                    bool isAssignment);
 
 /*
  * The exec_setup method is called during executor-startup compilation of a
@@ -151,17 +151,17 @@ typedef void (*SubscriptTransform) (SubscriptingRef *sbsref,
  * Set the relevant pointers to NULL for any omitted methods.
  */
 typedef void (*SubscriptExecSetup) (const SubscriptingRef *sbsref,
-									struct SubscriptingRefState *sbsrefstate,
-									struct SubscriptExecSteps *methods);
+                                    struct SubscriptingRefState *sbsrefstate,
+                                    struct SubscriptExecSteps *methods);
 
 /* Struct returned by the SQL-visible subscript handler function */
 typedef struct SubscriptRoutines
 {
-	SubscriptTransform transform;	/* parse analysis function */
-	SubscriptExecSetup exec_setup;	/* expression compilation function */
-	bool		fetch_strict;	/* is fetch SubscriptRef strict? */
-	bool		fetch_leakproof;	/* is fetch SubscriptRef leakproof? */
-	bool		store_leakproof;	/* is assignment SubscriptRef leakproof? */
+  SubscriptTransform transform; /* parse analysis function */
+  SubscriptExecSetup exec_setup;  /* expression compilation function */
+  bool    fetch_strict; /* is fetch SubscriptRef strict? */
+  bool    fetch_leakproof;  /* is fetch SubscriptRef leakproof? */
+  bool    store_leakproof;  /* is assignment SubscriptRef leakproof? */
 } SubscriptRoutines;
 
-#endif							/* SUBSCRIPTING_H */
+#endif              /* SUBSCRIPTING_H */

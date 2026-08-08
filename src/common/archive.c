@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * archive.c
- *	  Common WAL archive routines
+ *    Common WAL archive routines
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/common/archive.c
+ *    src/common/archive.c
  *
  *-------------------------------------------------------------------------
  */
@@ -37,24 +37,23 @@
  */
 char *
 BuildRestoreCommand(const char *restoreCommand,
-					const char *xlogpath,
-					const char *xlogfname,
-					const char *lastRestartPointFname)
+                    const char *xlogpath,
+                    const char *xlogfname,
+                    const char *lastRestartPointFname)
 {
-	char	   *nativePath = NULL;
-	char	   *result;
+  char     *nativePath = NULL;
+  char     *result;
 
-	if (xlogpath)
-	{
-		nativePath = pstrdup(xlogpath);
-		make_native_path(nativePath);
-	}
+  if (xlogpath) {
+    nativePath = pstrdup(xlogpath);
+    make_native_path(nativePath);
+  }
 
-	result = replace_percent_placeholders(restoreCommand, "restore_command", "frp",
-										  xlogfname, lastRestartPointFname, nativePath);
+  result = replace_percent_placeholders(restoreCommand, "restore_command", "frp",
+                                        xlogfname, lastRestartPointFname, nativePath);
 
-	if (nativePath)
-		pfree(nativePath);
+  if (nativePath)
+    pfree(nativePath);
 
-	return result;
+  return result;
 }

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * optimizer.h
- *	  External API for the Postgres planner.
+ *    External API for the Postgres planner.
  *
  * This header is meant to define everything that the core planner
  * exposes for use by non-planner modules.
@@ -54,27 +54,27 @@ struct HeapTupleData;
 /* in path/clausesel.c: */
 
 extern Selectivity clause_selectivity(PlannerInfo *root,
-									  Node *clause,
-									  int varRelid,
-									  JoinType jointype,
-									  SpecialJoinInfo *sjinfo);
+                                      Node *clause,
+                                      int varRelid,
+                                      JoinType jointype,
+                                      SpecialJoinInfo *sjinfo);
 extern Selectivity clause_selectivity_ext(PlannerInfo *root,
-										  Node *clause,
-										  int varRelid,
-										  JoinType jointype,
-										  SpecialJoinInfo *sjinfo,
-										  bool use_extended_stats);
+    Node *clause,
+    int varRelid,
+    JoinType jointype,
+    SpecialJoinInfo *sjinfo,
+    bool use_extended_stats);
 extern Selectivity clauselist_selectivity(PlannerInfo *root,
-										  List *clauses,
-										  int varRelid,
-										  JoinType jointype,
-										  SpecialJoinInfo *sjinfo);
+    List *clauses,
+    int varRelid,
+    JoinType jointype,
+    SpecialJoinInfo *sjinfo);
 extern Selectivity clauselist_selectivity_ext(PlannerInfo *root,
-											  List *clauses,
-											  int varRelid,
-											  JoinType jointype,
-											  SpecialJoinInfo *sjinfo,
-											  bool use_extended_stats);
+    List *clauses,
+    int varRelid,
+    JoinType jointype,
+    SpecialJoinInfo *sjinfo,
+    bool use_extended_stats);
 
 /* in path/costsize.c: */
 
@@ -96,17 +96,17 @@ extern long clamp_cardinality_to_long(Cardinality x);
 /* in path/indxpath.c: */
 
 extern bool is_pseudo_constant_for_index(PlannerInfo *root, Node *expr,
-										 IndexOptInfo *index);
+    IndexOptInfo *index);
 
 /* in plan/planner.c: */
 
 /* possible values for debug_parallel_query */
 typedef enum
 {
-	DEBUG_PARALLEL_OFF,
-	DEBUG_PARALLEL_ON,
-	DEBUG_PARALLEL_REGRESS,
-}			DebugParallelMode;
+  DEBUG_PARALLEL_OFF,
+  DEBUG_PARALLEL_ON,
+  DEBUG_PARALLEL_REGRESS,
+}     DebugParallelMode;
 
 /* GUC parameters */
 extern PGDLLIMPORT int debug_parallel_query;
@@ -114,23 +114,23 @@ extern PGDLLIMPORT bool parallel_leader_participation;
 extern PGDLLIMPORT bool enable_distinct_reordering;
 
 extern struct PlannedStmt *planner(Query *parse, const char *query_string,
-								   int cursorOptions,
-								   struct ParamListInfoData *boundParams);
+                                   int cursorOptions,
+                                   struct ParamListInfoData *boundParams);
 
 extern Expr *expression_planner(Expr *expr);
 extern Expr *expression_planner_with_deps(Expr *expr,
-										  List **relationOids,
-										  List **invalItems);
+    List **relationOids,
+    List **invalItems);
 
 extern bool plan_cluster_use_sort(Oid tableOid, Oid indexOid);
-extern int	plan_create_index_workers(Oid tableOid, Oid indexOid);
+extern int  plan_create_index_workers(Oid tableOid, Oid indexOid);
 
 /* in plan/setrefs.c: */
 
 extern void extract_query_dependencies(Node *query,
-									   List **relationOids,
-									   List **invalItems,
-									   bool *hasRowSecurity);
+                                       List **relationOids,
+                                       List **invalItems,
+                                       bool *hasRowSecurity);
 
 /* in prep/prepqual.c: */
 
@@ -152,53 +152,53 @@ extern void convert_saop_to_hashed_saop(Node *node);
 extern Node *estimate_expression_value(PlannerInfo *root, Node *node);
 
 extern Expr *evaluate_expr(Expr *expr, Oid result_type, int32 result_typmod,
-						   Oid result_collation);
+                           Oid result_collation);
 
 extern List *expand_function_arguments(List *args, bool include_out_arguments,
-									   Oid result_type,
-									   struct HeapTupleData *func_tuple);
+                                       Oid result_type,
+                                       struct HeapTupleData *func_tuple);
 
 extern ScalarArrayOpExpr *make_SAOP_expr(Oid oper, Node *leftexpr,
-										 Oid coltype, Oid arraycollid,
-										 Oid inputcollid, List *exprs,
-										 bool haveNonConst);
+    Oid coltype, Oid arraycollid,
+    Oid inputcollid, List *exprs,
+    bool haveNonConst);
 
 /* in util/predtest.c: */
 
 extern bool predicate_implied_by(List *predicate_list, List *clause_list,
-								 bool weak);
+                                 bool weak);
 extern bool predicate_refuted_by(List *predicate_list, List *clause_list,
-								 bool weak);
+                                 bool weak);
 
 /* in util/tlist.c: */
 
-extern int	count_nonjunk_tlist_entries(List *tlist);
+extern int  count_nonjunk_tlist_entries(List *tlist);
 extern TargetEntry *get_sortgroupref_tle(Index sortref,
-										 List *targetList);
+    List *targetList);
 extern TargetEntry *get_sortgroupclause_tle(SortGroupClause *sgClause,
-											List *targetList);
+    List *targetList);
 extern Node *get_sortgroupclause_expr(SortGroupClause *sgClause,
-									  List *targetList);
+                                      List *targetList);
 extern List *get_sortgrouplist_exprs(List *sgClauses,
-									 List *targetList);
+                                     List *targetList);
 extern SortGroupClause *get_sortgroupref_clause(Index sortref,
-												List *clauses);
+    List *clauses);
 extern SortGroupClause *get_sortgroupref_clause_noerr(Index sortref,
-													  List *clauses);
+    List *clauses);
 
 /* in util/var.c: */
 
 /* Bits that can be OR'd into the flags argument of pull_var_clause() */
-#define PVC_INCLUDE_AGGREGATES	0x0001	/* include Aggrefs in output list */
-#define PVC_RECURSE_AGGREGATES	0x0002	/* recurse into Aggref arguments */
-#define PVC_INCLUDE_WINDOWFUNCS 0x0004	/* include WindowFuncs in output list */
-#define PVC_RECURSE_WINDOWFUNCS 0x0008	/* recurse into WindowFunc arguments */
-#define PVC_INCLUDE_PLACEHOLDERS	0x0010	/* include PlaceHolderVars in
-											 * output list */
-#define PVC_RECURSE_PLACEHOLDERS	0x0020	/* recurse into PlaceHolderVar
-											 * arguments */
-#define PVC_INCLUDE_CONVERTROWTYPES	0x0040	/* include ConvertRowtypeExprs in
-											 * output list */
+#define PVC_INCLUDE_AGGREGATES  0x0001  /* include Aggrefs in output list */
+#define PVC_RECURSE_AGGREGATES  0x0002  /* recurse into Aggref arguments */
+#define PVC_INCLUDE_WINDOWFUNCS 0x0004  /* include WindowFuncs in output list */
+#define PVC_RECURSE_WINDOWFUNCS 0x0008  /* recurse into WindowFunc arguments */
+#define PVC_INCLUDE_PLACEHOLDERS  0x0010  /* include PlaceHolderVars in
+                       * output list */
+#define PVC_RECURSE_PLACEHOLDERS  0x0020  /* recurse into PlaceHolderVar
+                       * arguments */
+#define PVC_INCLUDE_CONVERTROWTYPES 0x0040  /* include ConvertRowtypeExprs in
+                       * output list */
 
 extern Bitmapset *pull_varnos(PlannerInfo *root, Node *node);
 extern Bitmapset *pull_varnos_of_level(PlannerInfo *root, Node *node, int levelsup);
@@ -207,9 +207,9 @@ extern List *pull_vars_of_level(Node *node, int levelsup);
 extern bool contain_var_clause(Node *node);
 extern bool contain_vars_of_level(Node *node, int levelsup);
 extern bool contain_vars_returning_old_or_new(Node *node);
-extern int	locate_var_of_level(Node *node, int levelsup);
+extern int  locate_var_of_level(Node *node, int levelsup);
 extern List *pull_var_clause(Node *node, int flags);
 extern Node *flatten_join_alias_vars(PlannerInfo *root, Query *query, Node *node);
 extern Node *flatten_group_exprs(PlannerInfo *root, Query *query, Node *node);
 
-#endif							/* OPTIMIZER_H */
+#endif              /* OPTIMIZER_H */

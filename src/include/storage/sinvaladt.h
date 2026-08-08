@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * sinvaladt.h
- *	  POSTGRES shared cache invalidation data manager.
+ *    POSTGRES shared cache invalidation data manager.
  *
  * The shared cache invalidation manager is responsible for transmitting
  * invalidation messages between backends.  Any message sent by any backend
@@ -33,9 +33,9 @@ extern void SharedInvalShmemInit(void);
 extern void SharedInvalBackendInit(bool sendOnly);
 
 extern void SIInsertDataEntries(const SharedInvalidationMessage *data, int n);
-extern int	SIGetDataEntries(SharedInvalidationMessage *data, int datasize);
+extern int  SIGetDataEntries(SharedInvalidationMessage *data, int datasize);
 extern void SICleanupQueue(bool callerHasWriteLock, int minFree);
 
 extern LocalTransactionId GetNextLocalTransactionId(void);
 
-#endif							/* SINVALADT_H */
+#endif              /* SINVALADT_H */

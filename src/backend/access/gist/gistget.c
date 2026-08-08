@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * gistget.c
- *	  fetch tuples from a GiST scan.
+ *    fetch tuples from a GiST scan.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/access/gist/gistget.c
+ *    src/backend/access/gist/gistget.c
  *
  *-------------------------------------------------------------------------
  */
@@ -37,65 +37,63 @@
 static void
 gistkillitems(IndexScanDesc scan)
 {
-	GISTScanOpaque so = (GISTScanOpaque) scan->opaque;
-	Buffer		buffer;
-	Page		page;
-	OffsetNumber offnum;
-	ItemId		iid;
-	int			i;
-	bool		killedsomething = false;
+  GISTScanOpaque so = (GISTScanOpaque) scan->opaque;
+  Buffer    buffer;
+  Page    page;
+  OffsetNumber offnum;
+  ItemId    iid;
+  int     i;
+  bool    killedsomething = false;
 
-	Assert(so->curBlkno != InvalidBlockNumber);
-	Assert(!XLogRecPtrIsInvalid(so->curPageLSN));
-	Assert(so->killedItems != NULL);
+  Assert(so->curBlkno != InvalidBlockNumber);
+  Assert(!XLogRecPtrIsInvalid(so->curPageLSN));
+  Assert(so->killedItems != NULL);
 
-	buffer = ReadBuffer(scan->indexRelation, so->curBlkno);
-	if (!BufferIsValid(buffer))
-		return;
+  buffer = ReadBuffer(scan->indexRelation, so->curBlkno);
 
-	LockBuffer(buffer, GIST_SHARE);
-	gistcheckpage(scan->indexRelation, buffer);
-	page = BufferGetPage(buffer);
+  if (!BufferIsValid(buffer))
+    return;
 
-	/*
-	 * If page LSN differs it means that the page was modified since the last
-	 * read. killedItems could be not valid so LP_DEAD hints applying is not
-	 * safe.
-	 */
-	if (BufferGetLSNAtomic(buffer) != so->curPageLSN)
-	{
-		UnlockReleaseBuffer(buffer);
-		so->numKilled = 0;		/* reset counter */
-		return;
-	}
+  LockBuffer(buffer, GIST_SHARE);
+  gistcheckpage(scan->indexRelation, buffer);
+  page = BufferGetPage(buffer);
 
-	Assert(GistPageIsLeaf(page));
+  /*
+   * If page LSN differs it means that the page was modified since the last
+   * read. killedItems could be not valid so LP_DEAD hints applying is not
+   * safe.
+   */
+  if (BufferGetLSNAtomic(buffer) != so->curPageLSN) {
+    UnlockReleaseBuffer(buffer);
+    so->numKilled = 0;    /* reset counter */
+    return;
+  }
 
-	/*
-	 * Mark all killedItems as dead. We need no additional recheck, because,
-	 * if page was modified, curPageLSN must have changed.
-	 */
-	for (i = 0; i < so->numKilled; i++)
-	{
-		offnum = so->killedItems[i];
-		iid = PageGetItemId(page, offnum);
-		ItemIdMarkDead(iid);
-		killedsomething = true;
-	}
+  Assert(GistPageIsLeaf(page));
 
-	if (killedsomething)
-	{
-		GistMarkPageHasGarbage(page);
-		MarkBufferDirtyHint(buffer, true);
-	}
+  /*
+   * Mark all killedItems as dead. We need no additional recheck, because,
+   * if page was modified, curPageLSN must have changed.
+   */
+  for (i = 0; i < so->numKilled; i++) {
+    offnum = so->killedItems[i];
+    iid = PageGetItemId(page, offnum);
+    ItemIdMarkDead(iid);
+    killedsomething = true;
+  }
 
-	UnlockReleaseBuffer(buffer);
+  if (killedsomething) {
+    GistMarkPageHasGarbage(page);
+    MarkBufferDirtyHint(buffer, true);
+  }
 
-	/*
-	 * Always reset the scan state, so we don't look for same items on other
-	 * pages.
-	 */
-	so->numKilled = 0;
+  UnlockReleaseBuffer(buffer);
+
+  /*
+   * Always reset the scan state, so we don't look for same items on other
+   * pages.
+   */
+  so->numKilled = 0;
 }
 
 /*
@@ -123,183 +121,173 @@ gistkillitems(IndexScanDesc scan)
  */
 static bool
 gistindex_keytest(IndexScanDesc scan,
-				  IndexTuple tuple,
-				  Page page,
-				  OffsetNumber offset,
-				  bool *recheck_p,
-				  bool *recheck_distances_p)
+                  IndexTuple tuple,
+                  Page page,
+                  OffsetNumber offset,
+                  bool *recheck_p,
+                  bool *recheck_distances_p)
 {
-	GISTScanOpaque so = (GISTScanOpaque) scan->opaque;
-	GISTSTATE  *giststate = so->giststate;
-	ScanKey		key = scan->keyData;
-	int			keySize = scan->numberOfKeys;
-	IndexOrderByDistance *distance_p;
-	Relation	r = scan->indexRelation;
+  GISTScanOpaque so = (GISTScanOpaque) scan->opaque;
+  GISTSTATE  *giststate = so->giststate;
+  ScanKey   key = scan->keyData;
+  int     keySize = scan->numberOfKeys;
+  IndexOrderByDistance *distance_p;
+  Relation  r = scan->indexRelation;
 
-	*recheck_p = false;
-	*recheck_distances_p = false;
+  *recheck_p = false;
+  *recheck_distances_p = false;
 
-	/*
-	 * If it's a leftover invalid tuple from pre-9.1, treat it as a match with
-	 * minimum possible distances.  This means we'll always follow it to the
-	 * referenced page.
-	 */
-	if (GistTupleIsInvalid(tuple))
-	{
-		int			i;
+  /*
+   * If it's a leftover invalid tuple from pre-9.1, treat it as a match with
+   * minimum possible distances.  This means we'll always follow it to the
+   * referenced page.
+   */
+  if (GistTupleIsInvalid(tuple)) {
+    int     i;
 
-		if (GistPageIsLeaf(page))	/* shouldn't happen */
-			elog(ERROR, "invalid GiST tuple found on leaf page");
-		for (i = 0; i < scan->numberOfOrderBys; i++)
-		{
-			so->distances[i].value = -get_float8_infinity();
-			so->distances[i].isnull = false;
-		}
-		return true;
-	}
+    if (GistPageIsLeaf(page)) /* shouldn't happen */
+      elog(ERROR, "invalid GiST tuple found on leaf page");
 
-	/* Check whether it matches according to the Consistent functions */
-	while (keySize > 0)
-	{
-		Datum		datum;
-		bool		isNull;
+    for (i = 0; i < scan->numberOfOrderBys; i++) {
+      so->distances[i].value = -get_float8_infinity();
+      so->distances[i].isnull = false;
+    }
 
-		datum = index_getattr(tuple,
-							  key->sk_attno,
-							  giststate->leafTupdesc,
-							  &isNull);
+    return true;
+  }
 
-		if (key->sk_flags & SK_ISNULL)
-		{
-			/*
-			 * On non-leaf page we can't conclude that child hasn't NULL
-			 * values because of assumption in GiST: union (VAL, NULL) is VAL.
-			 * But if on non-leaf page key IS NULL, then all children are
-			 * NULL.
-			 */
-			if (key->sk_flags & SK_SEARCHNULL)
-			{
-				if (GistPageIsLeaf(page) && !isNull)
-					return false;
-			}
-			else
-			{
-				Assert(key->sk_flags & SK_SEARCHNOTNULL);
-				if (isNull)
-					return false;
-			}
-		}
-		else if (isNull)
-		{
-			return false;
-		}
-		else
-		{
-			Datum		test;
-			bool		recheck;
-			GISTENTRY	de;
+  /* Check whether it matches according to the Consistent functions */
+  while (keySize > 0) {
+    Datum   datum;
+    bool    isNull;
 
-			gistdentryinit(giststate, key->sk_attno - 1, &de,
-						   datum, r, page, offset,
-						   false, isNull);
+    datum = index_getattr(tuple,
+                          key->sk_attno,
+                          giststate->leafTupdesc,
+                          &isNull);
 
-			/*
-			 * Call the Consistent function to evaluate the test.  The
-			 * arguments are the index datum (as a GISTENTRY*), the comparison
-			 * datum, the comparison operator's strategy number and subtype
-			 * from pg_amop, and the recheck flag.
-			 *
-			 * (Presently there's no need to pass the subtype since it'll
-			 * always be zero, but might as well pass it for possible future
-			 * use.)
-			 *
-			 * We initialize the recheck flag to true (the safest assumption)
-			 * in case the Consistent function forgets to set it.
-			 */
-			recheck = true;
+    if (key->sk_flags & SK_ISNULL) {
+      /*
+       * On non-leaf page we can't conclude that child hasn't NULL
+       * values because of assumption in GiST: union (VAL, NULL) is VAL.
+       * But if on non-leaf page key IS NULL, then all children are
+       * NULL.
+       */
+      if (key->sk_flags & SK_SEARCHNULL) {
+        if (GistPageIsLeaf(page) && !isNull)
+          return false;
+      } else {
+        Assert(key->sk_flags & SK_SEARCHNOTNULL);
 
-			test = FunctionCall5Coll(&key->sk_func,
-									 key->sk_collation,
-									 PointerGetDatum(&de),
-									 key->sk_argument,
-									 Int16GetDatum(key->sk_strategy),
-									 ObjectIdGetDatum(key->sk_subtype),
-									 PointerGetDatum(&recheck));
+        if (isNull)
+          return false;
+      }
+    } else if (isNull) {
+      return false;
+    } else {
+      Datum   test;
+      bool    recheck;
+      GISTENTRY de;
 
-			if (!DatumGetBool(test))
-				return false;
-			*recheck_p |= recheck;
-		}
+      gistdentryinit(giststate, key->sk_attno - 1, &de,
+                     datum, r, page, offset,
+                     false, isNull);
 
-		key++;
-		keySize--;
-	}
+      /*
+       * Call the Consistent function to evaluate the test.  The
+       * arguments are the index datum (as a GISTENTRY*), the comparison
+       * datum, the comparison operator's strategy number and subtype
+       * from pg_amop, and the recheck flag.
+       *
+       * (Presently there's no need to pass the subtype since it'll
+       * always be zero, but might as well pass it for possible future
+       * use.)
+       *
+       * We initialize the recheck flag to true (the safest assumption)
+       * in case the Consistent function forgets to set it.
+       */
+      recheck = true;
 
-	/* OK, it passes --- now let's compute the distances */
-	key = scan->orderByData;
-	distance_p = so->distances;
-	keySize = scan->numberOfOrderBys;
-	while (keySize > 0)
-	{
-		Datum		datum;
-		bool		isNull;
+      test = FunctionCall5Coll(&key->sk_func,
+                               key->sk_collation,
+                               PointerGetDatum(&de),
+                               key->sk_argument,
+                               Int16GetDatum(key->sk_strategy),
+                               ObjectIdGetDatum(key->sk_subtype),
+                               PointerGetDatum(&recheck));
 
-		datum = index_getattr(tuple,
-							  key->sk_attno,
-							  giststate->leafTupdesc,
-							  &isNull);
+      if (!DatumGetBool(test))
+        return false;
 
-		if ((key->sk_flags & SK_ISNULL) || isNull)
-		{
-			/* Assume distance computes as null */
-			distance_p->value = 0.0;
-			distance_p->isnull = true;
-		}
-		else
-		{
-			Datum		dist;
-			bool		recheck;
-			GISTENTRY	de;
+      *recheck_p |= recheck;
+    }
 
-			gistdentryinit(giststate, key->sk_attno - 1, &de,
-						   datum, r, page, offset,
-						   false, isNull);
+    key++;
+    keySize--;
+  }
 
-			/*
-			 * Call the Distance function to evaluate the distance.  The
-			 * arguments are the index datum (as a GISTENTRY*), the comparison
-			 * datum, the ordering operator's strategy number and subtype from
-			 * pg_amop, and the recheck flag.
-			 *
-			 * (Presently there's no need to pass the subtype since it'll
-			 * always be zero, but might as well pass it for possible future
-			 * use.)
-			 *
-			 * If the function sets the recheck flag, the returned distance is
-			 * a lower bound on the true distance and needs to be rechecked.
-			 * We initialize the flag to 'false'.  This flag was added in
-			 * version 9.5; distance functions written before that won't know
-			 * about the flag, but are expected to never be lossy.
-			 */
-			recheck = false;
-			dist = FunctionCall5Coll(&key->sk_func,
-									 key->sk_collation,
-									 PointerGetDatum(&de),
-									 key->sk_argument,
-									 Int16GetDatum(key->sk_strategy),
-									 ObjectIdGetDatum(key->sk_subtype),
-									 PointerGetDatum(&recheck));
-			*recheck_distances_p |= recheck;
-			distance_p->value = DatumGetFloat8(dist);
-			distance_p->isnull = false;
-		}
+  /* OK, it passes --- now let's compute the distances */
+  key = scan->orderByData;
+  distance_p = so->distances;
+  keySize = scan->numberOfOrderBys;
 
-		key++;
-		distance_p++;
-		keySize--;
-	}
+  while (keySize > 0) {
+    Datum   datum;
+    bool    isNull;
 
-	return true;
+    datum = index_getattr(tuple,
+                          key->sk_attno,
+                          giststate->leafTupdesc,
+                          &isNull);
+
+    if ((key->sk_flags & SK_ISNULL) || isNull) {
+      /* Assume distance computes as null */
+      distance_p->value = 0.0;
+      distance_p->isnull = true;
+    } else {
+      Datum   dist;
+      bool    recheck;
+      GISTENTRY de;
+
+      gistdentryinit(giststate, key->sk_attno - 1, &de,
+                     datum, r, page, offset,
+                     false, isNull);
+
+      /*
+       * Call the Distance function to evaluate the distance.  The
+       * arguments are the index datum (as a GISTENTRY*), the comparison
+       * datum, the ordering operator's strategy number and subtype from
+       * pg_amop, and the recheck flag.
+       *
+       * (Presently there's no need to pass the subtype since it'll
+       * always be zero, but might as well pass it for possible future
+       * use.)
+       *
+       * If the function sets the recheck flag, the returned distance is
+       * a lower bound on the true distance and needs to be rechecked.
+       * We initialize the flag to 'false'.  This flag was added in
+       * version 9.5; distance functions written before that won't know
+       * about the flag, but are expected to never be lossy.
+       */
+      recheck = false;
+      dist = FunctionCall5Coll(&key->sk_func,
+                               key->sk_collation,
+                               PointerGetDatum(&de),
+                               key->sk_argument,
+                               Int16GetDatum(key->sk_strategy),
+                               ObjectIdGetDatum(key->sk_subtype),
+                               PointerGetDatum(&recheck));
+      *recheck_distances_p |= recheck;
+      distance_p->value = DatumGetFloat8(dist);
+      distance_p->isnull = false;
+    }
+
+    key++;
+    distance_p++;
+    keySize--;
+  }
+
+  return true;
 }
 
 /*
@@ -326,207 +314,198 @@ gistindex_keytest(IndexScanDesc scan,
  */
 static void
 gistScanPage(IndexScanDesc scan, GISTSearchItem *pageItem,
-			 IndexOrderByDistance *myDistances, TIDBitmap *tbm, int64 *ntids)
+             IndexOrderByDistance *myDistances, TIDBitmap *tbm, int64 *ntids)
 {
-	GISTScanOpaque so = (GISTScanOpaque) scan->opaque;
-	GISTSTATE  *giststate = so->giststate;
-	Relation	r = scan->indexRelation;
-	Buffer		buffer;
-	Page		page;
-	GISTPageOpaque opaque;
-	OffsetNumber maxoff;
-	OffsetNumber i;
-	MemoryContext oldcxt;
+  GISTScanOpaque so = (GISTScanOpaque) scan->opaque;
+  GISTSTATE  *giststate = so->giststate;
+  Relation  r = scan->indexRelation;
+  Buffer    buffer;
+  Page    page;
+  GISTPageOpaque opaque;
+  OffsetNumber maxoff;
+  OffsetNumber i;
+  MemoryContext oldcxt;
 
-	Assert(!GISTSearchItemIsHeap(*pageItem));
+  Assert(!GISTSearchItemIsHeap(*pageItem));
 
-	buffer = ReadBuffer(scan->indexRelation, pageItem->blkno);
-	LockBuffer(buffer, GIST_SHARE);
-	PredicateLockPage(r, BufferGetBlockNumber(buffer), scan->xs_snapshot);
-	gistcheckpage(scan->indexRelation, buffer);
-	page = BufferGetPage(buffer);
-	opaque = GistPageGetOpaque(page);
+  buffer = ReadBuffer(scan->indexRelation, pageItem->blkno);
+  LockBuffer(buffer, GIST_SHARE);
+  PredicateLockPage(r, BufferGetBlockNumber(buffer), scan->xs_snapshot);
+  gistcheckpage(scan->indexRelation, buffer);
+  page = BufferGetPage(buffer);
+  opaque = GistPageGetOpaque(page);
 
-	/*
-	 * Check if we need to follow the rightlink. We need to follow it if the
-	 * page was concurrently split since we visited the parent (in which case
-	 * parentlsn < nsn), or if the system crashed after a page split but
-	 * before the downlink was inserted into the parent.
-	 */
-	if (!XLogRecPtrIsInvalid(pageItem->data.parentlsn) &&
-		(GistFollowRight(page) ||
-		 pageItem->data.parentlsn < GistPageGetNSN(page)) &&
-		opaque->rightlink != InvalidBlockNumber /* sanity check */ )
-	{
-		/* There was a page split, follow right link to add pages */
-		GISTSearchItem *item;
+  /*
+   * Check if we need to follow the rightlink. We need to follow it if the
+   * page was concurrently split since we visited the parent (in which case
+   * parentlsn < nsn), or if the system crashed after a page split but
+   * before the downlink was inserted into the parent.
+   */
+  if (!XLogRecPtrIsInvalid(pageItem->data.parentlsn) &&
+      (GistFollowRight(page) ||
+       pageItem->data.parentlsn < GistPageGetNSN(page)) &&
+      opaque->rightlink != InvalidBlockNumber /* sanity check */ ) {
+    /* There was a page split, follow right link to add pages */
+    GISTSearchItem *item;
 
-		/* This can't happen when starting at the root */
-		Assert(myDistances != NULL);
+    /* This can't happen when starting at the root */
+    Assert(myDistances != NULL);
 
-		oldcxt = MemoryContextSwitchTo(so->queueCxt);
+    oldcxt = MemoryContextSwitchTo(so->queueCxt);
 
-		/* Create new GISTSearchItem for the right sibling index page */
-		item = palloc(SizeOfGISTSearchItem(scan->numberOfOrderBys));
-		item->blkno = opaque->rightlink;
-		item->data.parentlsn = pageItem->data.parentlsn;
+    /* Create new GISTSearchItem for the right sibling index page */
+    item = palloc(SizeOfGISTSearchItem(scan->numberOfOrderBys));
+    item->blkno = opaque->rightlink;
+    item->data.parentlsn = pageItem->data.parentlsn;
 
-		/* Insert it into the queue using same distances as for this page */
-		memcpy(item->distances, myDistances,
-			   sizeof(item->distances[0]) * scan->numberOfOrderBys);
+    /* Insert it into the queue using same distances as for this page */
+    memcpy(item->distances, myDistances,
+           sizeof(item->distances[0]) * scan->numberOfOrderBys);
 
-		pairingheap_add(so->queue, &item->phNode);
+    pairingheap_add(so->queue, &item->phNode);
 
-		MemoryContextSwitchTo(oldcxt);
-	}
+    MemoryContextSwitchTo(oldcxt);
+  }
 
-	/*
-	 * Check if the page was deleted after we saw the downlink. There's
-	 * nothing of interest on a deleted page. Note that we must do this after
-	 * checking the NSN for concurrent splits! It's possible that the page
-	 * originally contained some tuples that are visible to us, but was split
-	 * so that all the visible tuples were moved to another page, and then
-	 * this page was deleted.
-	 */
-	if (GistPageIsDeleted(page))
-	{
-		UnlockReleaseBuffer(buffer);
-		return;
-	}
+  /*
+   * Check if the page was deleted after we saw the downlink. There's
+   * nothing of interest on a deleted page. Note that we must do this after
+   * checking the NSN for concurrent splits! It's possible that the page
+   * originally contained some tuples that are visible to us, but was split
+   * so that all the visible tuples were moved to another page, and then
+   * this page was deleted.
+   */
+  if (GistPageIsDeleted(page)) {
+    UnlockReleaseBuffer(buffer);
+    return;
+  }
 
-	so->nPageData = so->curPageData = 0;
-	scan->xs_hitup = NULL;		/* might point into pageDataCxt */
-	if (so->pageDataCxt)
-		MemoryContextReset(so->pageDataCxt);
+  so->nPageData = so->curPageData = 0;
+  scan->xs_hitup = NULL;    /* might point into pageDataCxt */
 
-	/*
-	 * We save the LSN of the page as we read it, so that we know whether it
-	 * safe to apply LP_DEAD hints to the page later. This allows us to drop
-	 * the pin for MVCC scans, which allows vacuum to avoid blocking.
-	 */
-	so->curPageLSN = BufferGetLSNAtomic(buffer);
+  if (so->pageDataCxt)
+    MemoryContextReset(so->pageDataCxt);
 
-	/*
-	 * check all tuples on page
-	 */
-	maxoff = PageGetMaxOffsetNumber(page);
-	for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
-	{
-		ItemId		iid = PageGetItemId(page, i);
-		IndexTuple	it;
-		bool		match;
-		bool		recheck;
-		bool		recheck_distances;
+  /*
+   * We save the LSN of the page as we read it, so that we know whether it
+   * safe to apply LP_DEAD hints to the page later. This allows us to drop
+   * the pin for MVCC scans, which allows vacuum to avoid blocking.
+   */
+  so->curPageLSN = BufferGetLSNAtomic(buffer);
 
-		/*
-		 * If the scan specifies not to return killed tuples, then we treat a
-		 * killed tuple as not passing the qual.
-		 */
-		if (scan->ignore_killed_tuples && ItemIdIsDead(iid))
-			continue;
+  /*
+   * check all tuples on page
+   */
+  maxoff = PageGetMaxOffsetNumber(page);
 
-		it = (IndexTuple) PageGetItem(page, iid);
+  for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
+    ItemId    iid = PageGetItemId(page, i);
+    IndexTuple  it;
+    bool    match;
+    bool    recheck;
+    bool    recheck_distances;
 
-		/*
-		 * Must call gistindex_keytest in tempCxt, and clean up any leftover
-		 * junk afterward.
-		 */
-		oldcxt = MemoryContextSwitchTo(so->giststate->tempCxt);
+    /*
+     * If the scan specifies not to return killed tuples, then we treat a
+     * killed tuple as not passing the qual.
+     */
+    if (scan->ignore_killed_tuples && ItemIdIsDead(iid))
+      continue;
 
-		match = gistindex_keytest(scan, it, page, i,
-								  &recheck, &recheck_distances);
+    it = (IndexTuple) PageGetItem(page, iid);
 
-		MemoryContextSwitchTo(oldcxt);
-		MemoryContextReset(so->giststate->tempCxt);
+    /*
+     * Must call gistindex_keytest in tempCxt, and clean up any leftover
+     * junk afterward.
+     */
+    oldcxt = MemoryContextSwitchTo(so->giststate->tempCxt);
 
-		/* Ignore tuple if it doesn't match */
-		if (!match)
-			continue;
+    match = gistindex_keytest(scan, it, page, i,
+                              &recheck, &recheck_distances);
 
-		if (tbm && GistPageIsLeaf(page))
-		{
-			/*
-			 * getbitmap scan, so just push heap tuple TIDs into the bitmap
-			 * without worrying about ordering
-			 */
-			tbm_add_tuples(tbm, &it->t_tid, 1, recheck);
-			(*ntids)++;
-		}
-		else if (scan->numberOfOrderBys == 0 && GistPageIsLeaf(page))
-		{
-			/*
-			 * Non-ordered scan, so report tuples in so->pageData[]
-			 */
-			so->pageData[so->nPageData].heapPtr = it->t_tid;
-			so->pageData[so->nPageData].recheck = recheck;
-			so->pageData[so->nPageData].offnum = i;
+    MemoryContextSwitchTo(oldcxt);
+    MemoryContextReset(so->giststate->tempCxt);
 
-			/*
-			 * In an index-only scan, also fetch the data from the tuple.  The
-			 * reconstructed tuples are stored in pageDataCxt.
-			 */
-			if (scan->xs_want_itup)
-			{
-				oldcxt = MemoryContextSwitchTo(so->pageDataCxt);
-				so->pageData[so->nPageData].recontup =
-					gistFetchTuple(giststate, r, it);
-				MemoryContextSwitchTo(oldcxt);
-			}
-			so->nPageData++;
-		}
-		else
-		{
-			/*
-			 * Must push item into search queue.  We get here for any lower
-			 * index page, and also for heap tuples if doing an ordered
-			 * search.
-			 */
-			GISTSearchItem *item;
-			int			nOrderBys = scan->numberOfOrderBys;
+    /* Ignore tuple if it doesn't match */
+    if (!match)
+      continue;
 
-			oldcxt = MemoryContextSwitchTo(so->queueCxt);
+    if (tbm && GistPageIsLeaf(page)) {
+      /*
+       * getbitmap scan, so just push heap tuple TIDs into the bitmap
+       * without worrying about ordering
+       */
+      tbm_add_tuples(tbm, &it->t_tid, 1, recheck);
+      (*ntids)++;
+    } else if (scan->numberOfOrderBys == 0 && GistPageIsLeaf(page)) {
+      /*
+       * Non-ordered scan, so report tuples in so->pageData[]
+       */
+      so->pageData[so->nPageData].heapPtr = it->t_tid;
+      so->pageData[so->nPageData].recheck = recheck;
+      so->pageData[so->nPageData].offnum = i;
 
-			/* Create new GISTSearchItem for this item */
-			item = palloc(SizeOfGISTSearchItem(scan->numberOfOrderBys));
+      /*
+       * In an index-only scan, also fetch the data from the tuple.  The
+       * reconstructed tuples are stored in pageDataCxt.
+       */
+      if (scan->xs_want_itup) {
+        oldcxt = MemoryContextSwitchTo(so->pageDataCxt);
+        so->pageData[so->nPageData].recontup =
+          gistFetchTuple(giststate, r, it);
+        MemoryContextSwitchTo(oldcxt);
+      }
 
-			if (GistPageIsLeaf(page))
-			{
-				/* Creating heap-tuple GISTSearchItem */
-				item->blkno = InvalidBlockNumber;
-				item->data.heap.heapPtr = it->t_tid;
-				item->data.heap.recheck = recheck;
-				item->data.heap.recheckDistances = recheck_distances;
+      so->nPageData++;
+    } else {
+      /*
+       * Must push item into search queue.  We get here for any lower
+       * index page, and also for heap tuples if doing an ordered
+       * search.
+       */
+      GISTSearchItem *item;
+      int     nOrderBys = scan->numberOfOrderBys;
 
-				/*
-				 * In an index-only scan, also fetch the data from the tuple.
-				 */
-				if (scan->xs_want_itup)
-					item->data.heap.recontup = gistFetchTuple(giststate, r, it);
-			}
-			else
-			{
-				/* Creating index-page GISTSearchItem */
-				item->blkno = ItemPointerGetBlockNumber(&it->t_tid);
+      oldcxt = MemoryContextSwitchTo(so->queueCxt);
 
-				/*
-				 * LSN of current page is lsn of parent page for child. We
-				 * only have a shared lock, so we need to get the LSN
-				 * atomically.
-				 */
-				item->data.parentlsn = BufferGetLSNAtomic(buffer);
-			}
+      /* Create new GISTSearchItem for this item */
+      item = palloc(SizeOfGISTSearchItem(scan->numberOfOrderBys));
 
-			/* Insert it into the queue using new distance data */
-			memcpy(item->distances, so->distances,
-				   sizeof(item->distances[0]) * nOrderBys);
+      if (GistPageIsLeaf(page)) {
+        /* Creating heap-tuple GISTSearchItem */
+        item->blkno = InvalidBlockNumber;
+        item->data.heap.heapPtr = it->t_tid;
+        item->data.heap.recheck = recheck;
+        item->data.heap.recheckDistances = recheck_distances;
 
-			pairingheap_add(so->queue, &item->phNode);
+        /*
+         * In an index-only scan, also fetch the data from the tuple.
+         */
+        if (scan->xs_want_itup)
+          item->data.heap.recontup = gistFetchTuple(giststate, r, it);
+      } else {
+        /* Creating index-page GISTSearchItem */
+        item->blkno = ItemPointerGetBlockNumber(&it->t_tid);
 
-			MemoryContextSwitchTo(oldcxt);
-		}
-	}
+        /*
+         * LSN of current page is lsn of parent page for child. We
+         * only have a shared lock, so we need to get the LSN
+         * atomically.
+         */
+        item->data.parentlsn = BufferGetLSNAtomic(buffer);
+      }
 
-	UnlockReleaseBuffer(buffer);
+      /* Insert it into the queue using new distance data */
+      memcpy(item->distances, so->distances,
+             sizeof(item->distances[0]) * nOrderBys);
+
+      pairingheap_add(so->queue, &item->phNode);
+
+      MemoryContextSwitchTo(oldcxt);
+    }
+  }
+
+  UnlockReleaseBuffer(buffer);
 }
 
 /*
@@ -537,20 +516,17 @@ gistScanPage(IndexScanDesc scan, GISTSearchItem *pageItem,
 static GISTSearchItem *
 getNextGISTSearchItem(GISTScanOpaque so)
 {
-	GISTSearchItem *item;
+  GISTSearchItem *item;
 
-	if (!pairingheap_is_empty(so->queue))
-	{
-		item = (GISTSearchItem *) pairingheap_remove_first(so->queue);
-	}
-	else
-	{
-		/* Done when both heaps are empty */
-		item = NULL;
-	}
+  if (!pairingheap_is_empty(so->queue)) {
+    item = (GISTSearchItem *) pairingheap_remove_first(so->queue);
+  } else {
+    /* Done when both heaps are empty */
+    item = NULL;
+  }
 
-	/* Return item; caller is responsible to pfree it */
-	return item;
+  /* Return item; caller is responsible to pfree it */
+  return item;
 }
 
 /*
@@ -559,50 +535,46 @@ getNextGISTSearchItem(GISTScanOpaque so)
 static bool
 getNextNearest(IndexScanDesc scan)
 {
-	GISTScanOpaque so = (GISTScanOpaque) scan->opaque;
-	bool		res = false;
+  GISTScanOpaque so = (GISTScanOpaque) scan->opaque;
+  bool    res = false;
 
-	if (scan->xs_hitup)
-	{
-		/* free previously returned tuple */
-		pfree(scan->xs_hitup);
-		scan->xs_hitup = NULL;
-	}
+  if (scan->xs_hitup) {
+    /* free previously returned tuple */
+    pfree(scan->xs_hitup);
+    scan->xs_hitup = NULL;
+  }
 
-	do
-	{
-		GISTSearchItem *item = getNextGISTSearchItem(so);
+  do {
+    GISTSearchItem *item = getNextGISTSearchItem(so);
 
-		if (!item)
-			break;
+    if (!item)
+      break;
 
-		if (GISTSearchItemIsHeap(*item))
-		{
-			/* found a heap item at currently minimal distance */
-			scan->xs_heaptid = item->data.heap.heapPtr;
-			scan->xs_recheck = item->data.heap.recheck;
+    if (GISTSearchItemIsHeap(*item)) {
+      /* found a heap item at currently minimal distance */
+      scan->xs_heaptid = item->data.heap.heapPtr;
+      scan->xs_recheck = item->data.heap.recheck;
 
-			index_store_float8_orderby_distances(scan, so->orderByTypes,
-												 item->distances,
-												 item->data.heap.recheckDistances);
+      index_store_float8_orderby_distances(scan, so->orderByTypes,
+                                           item->distances,
+                                           item->data.heap.recheckDistances);
 
-			/* in an index-only scan, also return the reconstructed tuple. */
-			if (scan->xs_want_itup)
-				scan->xs_hitup = item->data.heap.recontup;
-			res = true;
-		}
-		else
-		{
-			/* visit an index page, extract its items into queue */
-			CHECK_FOR_INTERRUPTS();
+      /* in an index-only scan, also return the reconstructed tuple. */
+      if (scan->xs_want_itup)
+        scan->xs_hitup = item->data.heap.recontup;
 
-			gistScanPage(scan, item, item->distances, NULL, NULL);
-		}
+      res = true;
+    } else {
+      /* visit an index page, extract its items into queue */
+      CHECK_FOR_INTERRUPTS();
 
-		pfree(item);
-	} while (!res);
+      gistScanPage(scan, item, item->distances, NULL, NULL);
+    }
 
-	return res;
+    pfree(item);
+  } while (!res);
+
+  return res;
 }
 
 /*
@@ -611,131 +583,126 @@ getNextNearest(IndexScanDesc scan)
 bool
 gistgettuple(IndexScanDesc scan, ScanDirection dir)
 {
-	GISTScanOpaque so = (GISTScanOpaque) scan->opaque;
+  GISTScanOpaque so = (GISTScanOpaque) scan->opaque;
 
-	if (dir != ForwardScanDirection)
-		elog(ERROR, "GiST only supports forward scan direction");
+  if (dir != ForwardScanDirection)
+    elog(ERROR, "GiST only supports forward scan direction");
 
-	if (!so->qual_ok)
-		return false;
+  if (!so->qual_ok)
+    return false;
 
-	if (so->firstCall)
-	{
-		/* Begin the scan by processing the root page */
-		GISTSearchItem fakeItem;
+  if (so->firstCall) {
+    /* Begin the scan by processing the root page */
+    GISTSearchItem fakeItem;
 
-		pgstat_count_index_scan(scan->indexRelation);
-		if (scan->instrument)
-			scan->instrument->nsearches++;
+    pgstat_count_index_scan(scan->indexRelation);
 
-		so->firstCall = false;
-		so->curPageData = so->nPageData = 0;
-		scan->xs_hitup = NULL;
-		if (so->pageDataCxt)
-			MemoryContextReset(so->pageDataCxt);
+    if (scan->instrument)
+      scan->instrument->nsearches++;
 
-		fakeItem.blkno = GIST_ROOT_BLKNO;
-		memset(&fakeItem.data.parentlsn, 0, sizeof(GistNSN));
-		gistScanPage(scan, &fakeItem, NULL, NULL, NULL);
-	}
+    so->firstCall = false;
+    so->curPageData = so->nPageData = 0;
+    scan->xs_hitup = NULL;
 
-	if (scan->numberOfOrderBys > 0)
-	{
-		/* Must fetch tuples in strict distance order */
-		return getNextNearest(scan);
-	}
-	else
-	{
-		/* Fetch tuples index-page-at-a-time */
-		for (;;)
-		{
-			if (so->curPageData < so->nPageData)
-			{
-				if (scan->kill_prior_tuple && so->curPageData > 0)
-				{
+    if (so->pageDataCxt)
+      MemoryContextReset(so->pageDataCxt);
 
-					if (so->killedItems == NULL)
-					{
-						MemoryContext oldCxt =
-							MemoryContextSwitchTo(so->giststate->scanCxt);
+    fakeItem.blkno = GIST_ROOT_BLKNO;
+    memset(&fakeItem.data.parentlsn, 0, sizeof(GistNSN));
+    gistScanPage(scan, &fakeItem, NULL, NULL, NULL);
+  }
 
-						so->killedItems =
-							(OffsetNumber *) palloc(MaxIndexTuplesPerPage
-													* sizeof(OffsetNumber));
+  if (scan->numberOfOrderBys > 0) {
+    /* Must fetch tuples in strict distance order */
+    return getNextNearest(scan);
+  } else {
+    /* Fetch tuples index-page-at-a-time */
+    for (;;) {
+      if (so->curPageData < so->nPageData) {
+        if (scan->kill_prior_tuple && so->curPageData > 0) {
 
-						MemoryContextSwitchTo(oldCxt);
-					}
-					if (so->numKilled < MaxIndexTuplesPerPage)
-						so->killedItems[so->numKilled++] =
-							so->pageData[so->curPageData - 1].offnum;
-				}
-				/* continuing to return tuples from a leaf page */
-				scan->xs_heaptid = so->pageData[so->curPageData].heapPtr;
-				scan->xs_recheck = so->pageData[so->curPageData].recheck;
+          if (so->killedItems == NULL) {
+            MemoryContext oldCxt =
+              MemoryContextSwitchTo(so->giststate->scanCxt);
 
-				/* in an index-only scan, also return the reconstructed tuple */
-				if (scan->xs_want_itup)
-					scan->xs_hitup = so->pageData[so->curPageData].recontup;
+            so->killedItems =
+              (OffsetNumber *) palloc(MaxIndexTuplesPerPage
+                                      * sizeof(OffsetNumber));
 
-				so->curPageData++;
+            MemoryContextSwitchTo(oldCxt);
+          }
 
-				return true;
-			}
+          if (so->numKilled < MaxIndexTuplesPerPage)
+            so->killedItems[so->numKilled++] =
+              so->pageData[so->curPageData - 1].offnum;
+        }
 
-			/*
-			 * Check the last returned tuple and add it to killedItems if
-			 * necessary
-			 */
-			if (scan->kill_prior_tuple
-				&& so->curPageData > 0
-				&& so->curPageData == so->nPageData)
-			{
+        /* continuing to return tuples from a leaf page */
+        scan->xs_heaptid = so->pageData[so->curPageData].heapPtr;
+        scan->xs_recheck = so->pageData[so->curPageData].recheck;
 
-				if (so->killedItems == NULL)
-				{
-					MemoryContext oldCxt =
-						MemoryContextSwitchTo(so->giststate->scanCxt);
+        /* in an index-only scan, also return the reconstructed tuple */
+        if (scan->xs_want_itup)
+          scan->xs_hitup = so->pageData[so->curPageData].recontup;
 
-					so->killedItems =
-						(OffsetNumber *) palloc(MaxIndexTuplesPerPage
-												* sizeof(OffsetNumber));
+        so->curPageData++;
 
-					MemoryContextSwitchTo(oldCxt);
-				}
-				if (so->numKilled < MaxIndexTuplesPerPage)
-					so->killedItems[so->numKilled++] =
-						so->pageData[so->curPageData - 1].offnum;
-			}
-			/* find and process the next index page */
-			do
-			{
-				GISTSearchItem *item;
+        return true;
+      }
 
-				if ((so->curBlkno != InvalidBlockNumber) && (so->numKilled > 0))
-					gistkillitems(scan);
+      /*
+       * Check the last returned tuple and add it to killedItems if
+       * necessary
+       */
+      if (scan->kill_prior_tuple
+          && so->curPageData > 0
+          && so->curPageData == so->nPageData) {
 
-				item = getNextGISTSearchItem(so);
+        if (so->killedItems == NULL) {
+          MemoryContext oldCxt =
+            MemoryContextSwitchTo(so->giststate->scanCxt);
 
-				if (!item)
-					return false;
+          so->killedItems =
+            (OffsetNumber *) palloc(MaxIndexTuplesPerPage
+                                    * sizeof(OffsetNumber));
 
-				CHECK_FOR_INTERRUPTS();
+          MemoryContextSwitchTo(oldCxt);
+        }
 
-				/* save current item BlockNumber for next gistkillitems() call */
-				so->curBlkno = item->blkno;
+        if (so->numKilled < MaxIndexTuplesPerPage)
+          so->killedItems[so->numKilled++] =
+            so->pageData[so->curPageData - 1].offnum;
+      }
 
-				/*
-				 * While scanning a leaf page, ItemPointers of matching heap
-				 * tuples are stored in so->pageData.  If there are any on
-				 * this page, we fall out of the inner "do" and loop around to
-				 * return them.
-				 */
-				gistScanPage(scan, item, item->distances, NULL, NULL);
+      /* find and process the next index page */
+      do {
+        GISTSearchItem *item;
 
-				pfree(item);
-			} while (so->nPageData == 0);
-		}
-	}
+        if ((so->curBlkno != InvalidBlockNumber) && (so->numKilled > 0))
+          gistkillitems(scan);
+
+        item = getNextGISTSearchItem(so);
+
+        if (!item)
+          return false;
+
+        CHECK_FOR_INTERRUPTS();
+
+        /* save current item BlockNumber for next gistkillitems() call */
+        so->curBlkno = item->blkno;
+
+        /*
+         * While scanning a leaf page, ItemPointers of matching heap
+         * tuples are stored in so->pageData.  If there are any on
+         * this page, we fall out of the inner "do" and loop around to
+         * return them.
+         */
+        gistScanPage(scan, item, item->distances, NULL, NULL);
+
+        pfree(item);
+      } while (so->nPageData == 0);
+    }
+  }
 }
 
 /*
@@ -744,46 +711,47 @@ gistgettuple(IndexScanDesc scan, ScanDirection dir)
 int64
 gistgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 {
-	GISTScanOpaque so = (GISTScanOpaque) scan->opaque;
-	int64		ntids = 0;
-	GISTSearchItem fakeItem;
+  GISTScanOpaque so = (GISTScanOpaque) scan->opaque;
+  int64   ntids = 0;
+  GISTSearchItem fakeItem;
 
-	if (!so->qual_ok)
-		return 0;
+  if (!so->qual_ok)
+    return 0;
 
-	pgstat_count_index_scan(scan->indexRelation);
-	if (scan->instrument)
-		scan->instrument->nsearches++;
+  pgstat_count_index_scan(scan->indexRelation);
 
-	/* Begin the scan by processing the root page */
-	so->curPageData = so->nPageData = 0;
-	scan->xs_hitup = NULL;
-	if (so->pageDataCxt)
-		MemoryContextReset(so->pageDataCxt);
+  if (scan->instrument)
+    scan->instrument->nsearches++;
 
-	fakeItem.blkno = GIST_ROOT_BLKNO;
-	memset(&fakeItem.data.parentlsn, 0, sizeof(GistNSN));
-	gistScanPage(scan, &fakeItem, NULL, tbm, &ntids);
+  /* Begin the scan by processing the root page */
+  so->curPageData = so->nPageData = 0;
+  scan->xs_hitup = NULL;
 
-	/*
-	 * While scanning a leaf page, ItemPointers of matching heap tuples will
-	 * be stored directly into tbm, so we don't need to deal with them here.
-	 */
-	for (;;)
-	{
-		GISTSearchItem *item = getNextGISTSearchItem(so);
+  if (so->pageDataCxt)
+    MemoryContextReset(so->pageDataCxt);
 
-		if (!item)
-			break;
+  fakeItem.blkno = GIST_ROOT_BLKNO;
+  memset(&fakeItem.data.parentlsn, 0, sizeof(GistNSN));
+  gistScanPage(scan, &fakeItem, NULL, tbm, &ntids);
 
-		CHECK_FOR_INTERRUPTS();
+  /*
+   * While scanning a leaf page, ItemPointers of matching heap tuples will
+   * be stored directly into tbm, so we don't need to deal with them here.
+   */
+  for (;;) {
+    GISTSearchItem *item = getNextGISTSearchItem(so);
 
-		gistScanPage(scan, item, item->distances, tbm, &ntids);
+    if (!item)
+      break;
 
-		pfree(item);
-	}
+    CHECK_FOR_INTERRUPTS();
 
-	return ntids;
+    gistScanPage(scan, item, item->distances, tbm, &ntids);
+
+    pfree(item);
+  }
+
+  return ntids;
 }
 
 /*
@@ -796,10 +764,10 @@ gistgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 bool
 gistcanreturn(Relation index, int attno)
 {
-	if (attno > IndexRelationGetNumberOfKeyAttributes(index) ||
-		OidIsValid(index_getprocid(index, attno, GIST_FETCH_PROC)) ||
-		!OidIsValid(index_getprocid(index, attno, GIST_COMPRESS_PROC)))
-		return true;
-	else
-		return false;
+  if (attno > IndexRelationGetNumberOfKeyAttributes(index) ||
+      OidIsValid(index_getprocid(index, attno, GIST_FETCH_PROC)) ||
+      !OidIsValid(index_getprocid(index, attno, GIST_COMPRESS_PROC)))
+    return true;
+  else
+    return false;
 }

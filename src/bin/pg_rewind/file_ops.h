@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * file_ops.h
- *	  Helper functions for operating on files
+ *    Helper functions for operating on files
  *
  * Copyright (c) 2013-2025, PostgreSQL Global Development Group
  *
@@ -26,4 +26,4 @@ extern char *slurpFile(const char *datadir, const char *path, size_t *filesize);
 typedef void (*process_file_callback_t) (const char *path, file_type_t type, size_t size, const char *link_target);
 extern void traverse_datadir(const char *datadir, process_file_callback_t callback);
 
-#endif							/* FILE_OPS_H */
+#endif              /* FILE_OPS_H */

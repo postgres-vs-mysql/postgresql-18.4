@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * tuplestore.c
- *	  Generalized routines for temporary tuple storage.
+ *    Generalized routines for temporary tuple storage.
  *
  * This module handles temporary storage of tuples for purposes such
  * as Materialize nodes, hashjoin batch files, etc.  It is essentially
@@ -47,7 +47,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/utils/sort/tuplestore.c
+ *    src/backend/utils/sort/tuplestore.c
  *
  *-------------------------------------------------------------------------
  */
@@ -69,11 +69,10 @@
  * Possible states of a Tuplestore object.  These denote the states that
  * persist between calls of Tuplestore routines.
  */
-typedef enum
-{
-	TSS_INMEM,					/* Tuples still fit in memory */
-	TSS_WRITEFILE,				/* Writing to temp file */
-	TSS_READFILE,				/* Reading from temp file */
+typedef enum {
+  TSS_INMEM,          /* Tuples still fit in memory */
+  TSS_WRITEFILE,        /* Writing to temp file */
+  TSS_READFILE,       /* Reading from temp file */
 } TupStoreStatus;
 
 /*
@@ -88,106 +87,104 @@ typedef enum
  * maintained.  This way we need not update all the read pointers each time
  * we write.
  */
-typedef struct
-{
-	int			eflags;			/* capability flags */
-	bool		eof_reached;	/* read has reached EOF */
-	int			current;		/* next array index to read */
-	int			file;			/* temp file# */
-	off_t		offset;			/* byte offset in file */
+typedef struct {
+  int     eflags;     /* capability flags */
+  bool    eof_reached;  /* read has reached EOF */
+  int     current;    /* next array index to read */
+  int     file;     /* temp file# */
+  off_t   offset;     /* byte offset in file */
 } TSReadPointer;
 
 /*
  * Private state of a Tuplestore operation.
  */
-struct Tuplestorestate
-{
-	TupStoreStatus status;		/* enumerated value as shown above */
-	int			eflags;			/* capability flags (OR of pointers' flags) */
-	bool		backward;		/* store extra length words in file? */
-	bool		interXact;		/* keep open through transactions? */
-	bool		truncated;		/* tuplestore_trim has removed tuples? */
-	bool		usedDisk;		/* used by tuplestore_get_stats() */
-	int64		maxSpace;		/* used by tuplestore_get_stats() */
-	int64		availMem;		/* remaining memory available, in bytes */
-	int64		allowedMem;		/* total memory allowed, in bytes */
-	int64		tuples;			/* number of tuples added */
-	BufFile    *myfile;			/* underlying file, or NULL if none */
-	MemoryContext context;		/* memory context for holding tuples */
-	ResourceOwner resowner;		/* resowner for holding temp files */
+struct Tuplestorestate {
+  TupStoreStatus status;    /* enumerated value as shown above */
+  int     eflags;     /* capability flags (OR of pointers' flags) */
+  bool    backward;   /* store extra length words in file? */
+  bool    interXact;    /* keep open through transactions? */
+  bool    truncated;    /* tuplestore_trim has removed tuples? */
+  bool    usedDisk;   /* used by tuplestore_get_stats() */
+  int64   maxSpace;   /* used by tuplestore_get_stats() */
+  int64   availMem;   /* remaining memory available, in bytes */
+  int64   allowedMem;   /* total memory allowed, in bytes */
+  int64   tuples;     /* number of tuples added */
+  BufFile    *myfile;     /* underlying file, or NULL if none */
+  MemoryContext context;    /* memory context for holding tuples */
+  ResourceOwner resowner;   /* resowner for holding temp files */
 
-	/*
-	 * These function pointers decouple the routines that must know what kind
-	 * of tuple we are handling from the routines that don't need to know it.
-	 * They are set up by the tuplestore_begin_xxx routines.
-	 *
-	 * (Although tuplestore.c currently only supports heap tuples, I've copied
-	 * this part of tuplesort.c so that extension to other kinds of objects
-	 * will be easy if it's ever needed.)
-	 *
-	 * Function to copy a supplied input tuple into palloc'd space. (NB: we
-	 * assume that a single pfree() is enough to release the tuple later, so
-	 * the representation must be "flat" in one palloc chunk.) state->availMem
-	 * must be decreased by the amount of space used.
-	 */
-	void	   *(*copytup) (Tuplestorestate *state, void *tup);
+  /*
+   * These function pointers decouple the routines that must know what kind
+   * of tuple we are handling from the routines that don't need to know it.
+   * They are set up by the tuplestore_begin_xxx routines.
+   *
+   * (Although tuplestore.c currently only supports heap tuples, I've copied
+   * this part of tuplesort.c so that extension to other kinds of objects
+   * will be easy if it's ever needed.)
+   *
+   * Function to copy a supplied input tuple into palloc'd space. (NB: we
+   * assume that a single pfree() is enough to release the tuple later, so
+   * the representation must be "flat" in one palloc chunk.) state->availMem
+   * must be decreased by the amount of space used.
+   */
+  void     *(*copytup) (Tuplestorestate *state, void *tup);
 
-	/*
-	 * Function to write a stored tuple onto tape.  The representation of the
-	 * tuple on tape need not be the same as it is in memory; requirements on
-	 * the tape representation are given below.  After writing the tuple,
-	 * pfree() it, and increase state->availMem by the amount of memory space
-	 * thereby released.
-	 */
-	void		(*writetup) (Tuplestorestate *state, void *tup);
+  /*
+   * Function to write a stored tuple onto tape.  The representation of the
+   * tuple on tape need not be the same as it is in memory; requirements on
+   * the tape representation are given below.  After writing the tuple,
+   * pfree() it, and increase state->availMem by the amount of memory space
+   * thereby released.
+   */
+  void    (*writetup) (Tuplestorestate *state, void *tup);
 
-	/*
-	 * Function to read a stored tuple from tape back into memory. 'len' is
-	 * the already-read length of the stored tuple.  Create and return a
-	 * palloc'd copy, and decrease state->availMem by the amount of memory
-	 * space consumed.
-	 */
-	void	   *(*readtup) (Tuplestorestate *state, unsigned int len);
+  /*
+   * Function to read a stored tuple from tape back into memory. 'len' is
+   * the already-read length of the stored tuple.  Create and return a
+   * palloc'd copy, and decrease state->availMem by the amount of memory
+   * space consumed.
+   */
+  void     *(*readtup) (Tuplestorestate *state, unsigned int len);
 
-	/*
-	 * This array holds pointers to tuples in memory if we are in state INMEM.
-	 * In states WRITEFILE and READFILE it's not used.
-	 *
-	 * When memtupdeleted > 0, the first memtupdeleted pointers are already
-	 * released due to a tuplestore_trim() operation, but we haven't expended
-	 * the effort to slide the remaining pointers down.  These unused pointers
-	 * are set to NULL to catch any invalid accesses.  Note that memtupcount
-	 * includes the deleted pointers.
-	 */
-	void	  **memtuples;		/* array of pointers to palloc'd tuples */
-	int			memtupdeleted;	/* the first N slots are currently unused */
-	int			memtupcount;	/* number of tuples currently present */
-	int			memtupsize;		/* allocated length of memtuples array */
-	bool		growmemtuples;	/* memtuples' growth still underway? */
+  /*
+   * This array holds pointers to tuples in memory if we are in state INMEM.
+   * In states WRITEFILE and READFILE it's not used.
+   *
+   * When memtupdeleted > 0, the first memtupdeleted pointers are already
+   * released due to a tuplestore_trim() operation, but we haven't expended
+   * the effort to slide the remaining pointers down.  These unused pointers
+   * are set to NULL to catch any invalid accesses.  Note that memtupcount
+   * includes the deleted pointers.
+   */
+  void    **memtuples;    /* array of pointers to palloc'd tuples */
+  int     memtupdeleted;  /* the first N slots are currently unused */
+  int     memtupcount;  /* number of tuples currently present */
+  int     memtupsize;   /* allocated length of memtuples array */
+  bool    growmemtuples;  /* memtuples' growth still underway? */
 
-	/*
-	 * These variables are used to keep track of the current positions.
-	 *
-	 * In state WRITEFILE, the current file seek position is the write point;
-	 * in state READFILE, the write position is remembered in writepos_xxx.
-	 * (The write position is the same as EOF, but since BufFileSeek doesn't
-	 * currently implement SEEK_END, we have to remember it explicitly.)
-	 */
-	TSReadPointer *readptrs;	/* array of read pointers */
-	int			activeptr;		/* index of the active read pointer */
-	int			readptrcount;	/* number of pointers currently valid */
-	int			readptrsize;	/* allocated length of readptrs array */
+  /*
+   * These variables are used to keep track of the current positions.
+   *
+   * In state WRITEFILE, the current file seek position is the write point;
+   * in state READFILE, the write position is remembered in writepos_xxx.
+   * (The write position is the same as EOF, but since BufFileSeek doesn't
+   * currently implement SEEK_END, we have to remember it explicitly.)
+   */
+  TSReadPointer *readptrs;  /* array of read pointers */
+  int     activeptr;    /* index of the active read pointer */
+  int     readptrcount; /* number of pointers currently valid */
+  int     readptrsize;  /* allocated length of readptrs array */
 
-	int			writepos_file;	/* file# (valid if READFILE state) */
-	off_t		writepos_offset;	/* offset (valid if READFILE state) */
+  int     writepos_file;  /* file# (valid if READFILE state) */
+  off_t   writepos_offset;  /* offset (valid if READFILE state) */
 };
 
-#define COPYTUP(state,tup)	((*(state)->copytup) (state, tup))
+#define COPYTUP(state,tup)  ((*(state)->copytup) (state, tup))
 #define WRITETUP(state,tup) ((*(state)->writetup) (state, tup))
-#define READTUP(state,len)	((*(state)->readtup) (state, len))
-#define LACKMEM(state)		((state)->availMem < 0)
-#define USEMEM(state,amt)	((state)->availMem -= (amt))
-#define FREEMEM(state,amt)	((state)->availMem += (amt))
+#define READTUP(state,len)  ((*(state)->readtup) (state, len))
+#define LACKMEM(state)    ((state)->availMem < 0)
+#define USEMEM(state,amt) ((state)->availMem -= (amt))
+#define FREEMEM(state,amt)  ((state)->availMem += (amt))
 
 /*--------------------
  *
@@ -236,8 +233,8 @@ struct Tuplestorestate
 
 
 static Tuplestorestate *tuplestore_begin_common(int eflags,
-												bool interXact,
-												int maxKBytes);
+    bool interXact,
+    int maxKBytes);
 static void tuplestore_puttuple_common(Tuplestorestate *state, void *tuple);
 static void dumptuples(Tuplestorestate *state);
 static void tuplestore_updatemax(Tuplestorestate *state);
@@ -248,63 +245,63 @@ static void *readtup_heap(Tuplestorestate *state, unsigned int len);
 
 
 /*
- *		tuplestore_begin_xxx
+ *    tuplestore_begin_xxx
  *
  * Initialize for a tuple store operation.
  */
 static Tuplestorestate *
 tuplestore_begin_common(int eflags, bool interXact, int maxKBytes)
 {
-	Tuplestorestate *state;
+  Tuplestorestate *state;
 
-	state = (Tuplestorestate *) palloc0(sizeof(Tuplestorestate));
+  state = (Tuplestorestate *) palloc0(sizeof(Tuplestorestate));
 
-	state->status = TSS_INMEM;
-	state->eflags = eflags;
-	state->interXact = interXact;
-	state->truncated = false;
-	state->usedDisk = false;
-	state->maxSpace = 0;
-	state->allowedMem = maxKBytes * (int64) 1024;
-	state->availMem = state->allowedMem;
-	state->myfile = NULL;
+  state->status = TSS_INMEM;
+  state->eflags = eflags;
+  state->interXact = interXact;
+  state->truncated = false;
+  state->usedDisk = false;
+  state->maxSpace = 0;
+  state->allowedMem = maxKBytes * (int64) 1024;
+  state->availMem = state->allowedMem;
+  state->myfile = NULL;
 
-	/*
-	 * The palloc/pfree pattern for tuple memory is in a FIFO pattern.  A
-	 * generation context is perfectly suited for this.
-	 */
-	state->context = GenerationContextCreate(CurrentMemoryContext,
-											 "tuplestore tuples",
-											 ALLOCSET_DEFAULT_SIZES);
-	state->resowner = CurrentResourceOwner;
+  /*
+   * The palloc/pfree pattern for tuple memory is in a FIFO pattern.  A
+   * generation context is perfectly suited for this.
+   */
+  state->context = GenerationContextCreate(CurrentMemoryContext,
+                   "tuplestore tuples",
+                   ALLOCSET_DEFAULT_SIZES);
+  state->resowner = CurrentResourceOwner;
 
-	state->memtupdeleted = 0;
-	state->memtupcount = 0;
-	state->tuples = 0;
+  state->memtupdeleted = 0;
+  state->memtupcount = 0;
+  state->tuples = 0;
 
-	/*
-	 * Initial size of array must be more than ALLOCSET_SEPARATE_THRESHOLD;
-	 * see comments in grow_memtuples().
-	 */
-	state->memtupsize = Max(16384 / sizeof(void *),
-							ALLOCSET_SEPARATE_THRESHOLD / sizeof(void *) + 1);
+  /*
+   * Initial size of array must be more than ALLOCSET_SEPARATE_THRESHOLD;
+   * see comments in grow_memtuples().
+   */
+  state->memtupsize = Max(16384 / sizeof(void *),
+                          ALLOCSET_SEPARATE_THRESHOLD / sizeof(void *) + 1);
 
-	state->growmemtuples = true;
-	state->memtuples = (void **) palloc(state->memtupsize * sizeof(void *));
+  state->growmemtuples = true;
+  state->memtuples = (void **) palloc(state->memtupsize * sizeof(void *));
 
-	USEMEM(state, GetMemoryChunkSpace(state->memtuples));
+  USEMEM(state, GetMemoryChunkSpace(state->memtuples));
 
-	state->activeptr = 0;
-	state->readptrcount = 1;
-	state->readptrsize = 8;		/* arbitrary */
-	state->readptrs = (TSReadPointer *)
-		palloc(state->readptrsize * sizeof(TSReadPointer));
+  state->activeptr = 0;
+  state->readptrcount = 1;
+  state->readptrsize = 8;   /* arbitrary */
+  state->readptrs = (TSReadPointer *)
+                    palloc(state->readptrsize * sizeof(TSReadPointer));
 
-	state->readptrs[0].eflags = eflags;
-	state->readptrs[0].eof_reached = false;
-	state->readptrs[0].current = 0;
+  state->readptrs[0].eflags = eflags;
+  state->readptrs[0].eof_reached = false;
+  state->readptrs[0].current = 0;
 
-	return state;
+  return state;
 }
 
 /*
@@ -329,24 +326,24 @@ tuplestore_begin_common(int eflags, bool interXact, int maxKBytes)
 Tuplestorestate *
 tuplestore_begin_heap(bool randomAccess, bool interXact, int maxKBytes)
 {
-	Tuplestorestate *state;
-	int			eflags;
+  Tuplestorestate *state;
+  int     eflags;
 
-	/*
-	 * This interpretation of the meaning of randomAccess is compatible with
-	 * the pre-8.3 behavior of tuplestores.
-	 */
-	eflags = randomAccess ?
-		(EXEC_FLAG_BACKWARD | EXEC_FLAG_REWIND) :
-		(EXEC_FLAG_REWIND);
+  /*
+   * This interpretation of the meaning of randomAccess is compatible with
+   * the pre-8.3 behavior of tuplestores.
+   */
+  eflags = randomAccess ?
+           (EXEC_FLAG_BACKWARD | EXEC_FLAG_REWIND) :
+           (EXEC_FLAG_REWIND);
 
-	state = tuplestore_begin_common(eflags, interXact, maxKBytes);
+  state = tuplestore_begin_common(eflags, interXact, maxKBytes);
 
-	state->copytup = copytup_heap;
-	state->writetup = writetup_heap;
-	state->readtup = readtup_heap;
+  state->copytup = copytup_heap;
+  state->writetup = writetup_heap;
+  state->readtup = readtup_heap;
 
-	return state;
+  return state;
 }
 
 /*
@@ -358,8 +355,8 @@ tuplestore_begin_heap(bool randomAccess, bool interXact, int maxKBytes)
  *
  * eflags is a bitmask following the meanings used for executor node
  * startup flags (see executor.h).  tuplestore pays attention to these bits:
- *		EXEC_FLAG_REWIND		need rewind to start
- *		EXEC_FLAG_BACKWARD		need backward fetch
+ *    EXEC_FLAG_REWIND    need rewind to start
+ *    EXEC_FLAG_BACKWARD    need backward fetch
  * If tuplestore_set_eflags is not called, REWIND is allowed, and BACKWARD
  * is set per "randomAccess" in the tuplestore_begin_xxx call.
  *
@@ -370,15 +367,17 @@ tuplestore_begin_heap(bool randomAccess, bool interXact, int maxKBytes)
 void
 tuplestore_set_eflags(Tuplestorestate *state, int eflags)
 {
-	int			i;
+  int     i;
 
-	if (state->status != TSS_INMEM || state->memtupcount != 0)
-		elog(ERROR, "too late to call tuplestore_set_eflags");
+  if (state->status != TSS_INMEM || state->memtupcount != 0)
+    elog(ERROR, "too late to call tuplestore_set_eflags");
 
-	state->readptrs[0].eflags = eflags;
-	for (i = 1; i < state->readptrcount; i++)
-		eflags |= state->readptrs[i].eflags;
-	state->eflags = eflags;
+  state->readptrs[0].eflags = eflags;
+
+  for (i = 1; i < state->readptrcount; i++)
+    eflags |= state->readptrs[i].eflags;
+
+  state->eflags = eflags;
 }
 
 /*
@@ -394,110 +393,109 @@ tuplestore_set_eflags(Tuplestorestate *state, int eflags)
 int
 tuplestore_alloc_read_pointer(Tuplestorestate *state, int eflags)
 {
-	/* Check for possible increase of requirements */
-	if (state->status != TSS_INMEM || state->memtupcount != 0)
-	{
-		if ((state->eflags | eflags) != state->eflags)
-			elog(ERROR, "too late to require new tuplestore eflags");
-	}
+  /* Check for possible increase of requirements */
+  if (state->status != TSS_INMEM || state->memtupcount != 0) {
+    if ((state->eflags | eflags) != state->eflags)
+      elog(ERROR, "too late to require new tuplestore eflags");
+  }
 
-	/* Make room for another read pointer if needed */
-	if (state->readptrcount >= state->readptrsize)
-	{
-		int			newcnt = state->readptrsize * 2;
+  /* Make room for another read pointer if needed */
+  if (state->readptrcount >= state->readptrsize) {
+    int     newcnt = state->readptrsize * 2;
 
-		state->readptrs = (TSReadPointer *)
-			repalloc(state->readptrs, newcnt * sizeof(TSReadPointer));
-		state->readptrsize = newcnt;
-	}
+    state->readptrs = (TSReadPointer *)
+                      repalloc(state->readptrs, newcnt * sizeof(TSReadPointer));
+    state->readptrsize = newcnt;
+  }
 
-	/* And set it up */
-	state->readptrs[state->readptrcount] = state->readptrs[0];
-	state->readptrs[state->readptrcount].eflags = eflags;
+  /* And set it up */
+  state->readptrs[state->readptrcount] = state->readptrs[0];
+  state->readptrs[state->readptrcount].eflags = eflags;
 
-	state->eflags |= eflags;
+  state->eflags |= eflags;
 
-	return state->readptrcount++;
+  return state->readptrcount++;
 }
 
 /*
  * tuplestore_clear
  *
- *	Delete all the contents of a tuplestore, and reset its read pointers
- *	to the start.
+ *  Delete all the contents of a tuplestore, and reset its read pointers
+ *  to the start.
  */
 void
 tuplestore_clear(Tuplestorestate *state)
 {
-	int			i;
-	TSReadPointer *readptr;
+  int     i;
+  TSReadPointer *readptr;
 
-	/* update the maxSpace before doing any USEMEM/FREEMEM adjustments */
-	tuplestore_updatemax(state);
+  /* update the maxSpace before doing any USEMEM/FREEMEM adjustments */
+  tuplestore_updatemax(state);
 
-	if (state->myfile)
-		BufFileClose(state->myfile);
-	state->myfile = NULL;
+  if (state->myfile)
+    BufFileClose(state->myfile);
+
+  state->myfile = NULL;
 
 #ifdef USE_ASSERT_CHECKING
-	{
-		int64		availMem = state->availMem;
+  {
+    int64   availMem = state->availMem;
 
-		/*
-		 * Below, we reset the memory context for storing tuples.  To save
-		 * from having to always call GetMemoryChunkSpace() on all stored
-		 * tuples, we adjust the availMem to forget all the tuples and just
-		 * recall USEMEM for the space used by the memtuples array.  Here we
-		 * just Assert that's correct and the memory tracking hasn't gone
-		 * wrong anywhere.
-		 */
-		for (i = state->memtupdeleted; i < state->memtupcount; i++)
-			availMem += GetMemoryChunkSpace(state->memtuples[i]);
+    /*
+     * Below, we reset the memory context for storing tuples.  To save
+     * from having to always call GetMemoryChunkSpace() on all stored
+     * tuples, we adjust the availMem to forget all the tuples and just
+     * recall USEMEM for the space used by the memtuples array.  Here we
+     * just Assert that's correct and the memory tracking hasn't gone
+     * wrong anywhere.
+     */
+    for (i = state->memtupdeleted; i < state->memtupcount; i++)
+      availMem += GetMemoryChunkSpace(state->memtuples[i]);
 
-		availMem += GetMemoryChunkSpace(state->memtuples);
+    availMem += GetMemoryChunkSpace(state->memtuples);
 
-		Assert(availMem == state->allowedMem);
-	}
+    Assert(availMem == state->allowedMem);
+  }
 #endif
 
-	/* clear the memory consumed by the memory tuples */
-	MemoryContextReset(state->context);
+  /* clear the memory consumed by the memory tuples */
+  MemoryContextReset(state->context);
 
-	/*
-	 * Zero the used memory and re-consume the space for the memtuples array.
-	 * This saves having to FREEMEM for each stored tuple.
-	 */
-	state->availMem = state->allowedMem;
-	USEMEM(state, GetMemoryChunkSpace(state->memtuples));
+  /*
+   * Zero the used memory and re-consume the space for the memtuples array.
+   * This saves having to FREEMEM for each stored tuple.
+   */
+  state->availMem = state->allowedMem;
+  USEMEM(state, GetMemoryChunkSpace(state->memtuples));
 
-	state->status = TSS_INMEM;
-	state->truncated = false;
-	state->memtupdeleted = 0;
-	state->memtupcount = 0;
-	state->tuples = 0;
-	readptr = state->readptrs;
-	for (i = 0; i < state->readptrcount; readptr++, i++)
-	{
-		readptr->eof_reached = false;
-		readptr->current = 0;
-	}
+  state->status = TSS_INMEM;
+  state->truncated = false;
+  state->memtupdeleted = 0;
+  state->memtupcount = 0;
+  state->tuples = 0;
+  readptr = state->readptrs;
+
+  for (i = 0; i < state->readptrcount; readptr++, i++) {
+    readptr->eof_reached = false;
+    readptr->current = 0;
+  }
 }
 
 /*
  * tuplestore_end
  *
- *	Release resources and clean up.
+ *  Release resources and clean up.
  */
 void
 tuplestore_end(Tuplestorestate *state)
 {
-	if (state->myfile)
-		BufFileClose(state->myfile);
+  if (state->myfile)
+    BufFileClose(state->myfile);
 
-	MemoryContextDelete(state->context);
-	pfree(state->memtuples);
-	pfree(state->readptrs);
-	pfree(state);
+  MemoryContextDelete(state->context);
+  pfree(state->memtuples);
+  pfree(state->readptrs);
+  pfree(state);
 }
 
 /*
@@ -506,68 +504,67 @@ tuplestore_end(Tuplestorestate *state)
 void
 tuplestore_select_read_pointer(Tuplestorestate *state, int ptr)
 {
-	TSReadPointer *readptr;
-	TSReadPointer *oldptr;
+  TSReadPointer *readptr;
+  TSReadPointer *oldptr;
 
-	Assert(ptr >= 0 && ptr < state->readptrcount);
+  Assert(ptr >= 0 && ptr < state->readptrcount);
 
-	/* No work if already active */
-	if (ptr == state->activeptr)
-		return;
+  /* No work if already active */
+  if (ptr == state->activeptr)
+    return;
 
-	readptr = &state->readptrs[ptr];
-	oldptr = &state->readptrs[state->activeptr];
+  readptr = &state->readptrs[ptr];
+  oldptr = &state->readptrs[state->activeptr];
 
-	switch (state->status)
-	{
-		case TSS_INMEM:
-		case TSS_WRITEFILE:
-			/* no work */
-			break;
-		case TSS_READFILE:
+  switch (state->status) {
+    case TSS_INMEM:
+    case TSS_WRITEFILE:
+      /* no work */
+      break;
 
-			/*
-			 * First, save the current read position in the pointer about to
-			 * become inactive.
-			 */
-			if (!oldptr->eof_reached)
-				BufFileTell(state->myfile,
-							&oldptr->file,
-							&oldptr->offset);
+    case TSS_READFILE:
 
-			/*
-			 * We have to make the temp file's seek position equal to the
-			 * logical position of the new read pointer.  In eof_reached
-			 * state, that's the EOF, which we have available from the saved
-			 * write position.
-			 */
-			if (readptr->eof_reached)
-			{
-				if (BufFileSeek(state->myfile,
-								state->writepos_file,
-								state->writepos_offset,
-								SEEK_SET) != 0)
-					ereport(ERROR,
-							(errcode_for_file_access(),
-							 errmsg("could not seek in tuplestore temporary file")));
-			}
-			else
-			{
-				if (BufFileSeek(state->myfile,
-								readptr->file,
-								readptr->offset,
-								SEEK_SET) != 0)
-					ereport(ERROR,
-							(errcode_for_file_access(),
-							 errmsg("could not seek in tuplestore temporary file")));
-			}
-			break;
-		default:
-			elog(ERROR, "invalid tuplestore state");
-			break;
-	}
+      /*
+       * First, save the current read position in the pointer about to
+       * become inactive.
+       */
+      if (!oldptr->eof_reached)
+        BufFileTell(state->myfile,
+                    &oldptr->file,
+                    &oldptr->offset);
 
-	state->activeptr = ptr;
+      /*
+       * We have to make the temp file's seek position equal to the
+       * logical position of the new read pointer.  In eof_reached
+       * state, that's the EOF, which we have available from the saved
+       * write position.
+       */
+      if (readptr->eof_reached) {
+        if (BufFileSeek(state->myfile,
+                        state->writepos_file,
+                        state->writepos_offset,
+                        SEEK_SET) != 0)
+          ereport(ERROR,
+                  (errcode_for_file_access(),
+                   errmsg("could not seek in tuplestore temporary file")));
+      } else {
+        if (BufFileSeek(state->myfile,
+                        readptr->file,
+                        readptr->offset,
+                        SEEK_SET) != 0)
+          ereport(ERROR,
+                  (errcode_for_file_access(),
+                   errmsg("could not seek in tuplestore temporary file")));
+      }
+
+      break;
+
+    default:
+      elog(ERROR, "invalid tuplestore state");
+      break;
+  }
+
+  state->activeptr = ptr;
 }
 
 /*
@@ -579,7 +576,7 @@ tuplestore_select_read_pointer(Tuplestorestate *state, int ptr)
 int64
 tuplestore_tuple_count(Tuplestorestate *state)
 {
-	return state->tuples;
+  return state->tuples;
 }
 
 /*
@@ -590,7 +587,7 @@ tuplestore_tuple_count(Tuplestorestate *state)
 bool
 tuplestore_ateof(Tuplestorestate *state)
 {
-	return state->readptrs[state->activeptr].eof_reached;
+  return state->readptrs[state->activeptr].eof_reached;
 }
 
 /*
@@ -611,115 +608,113 @@ tuplestore_ateof(Tuplestorestate *state)
 static bool
 grow_memtuples(Tuplestorestate *state)
 {
-	int			newmemtupsize;
-	int			memtupsize = state->memtupsize;
-	int64		memNowUsed = state->allowedMem - state->availMem;
+  int     newmemtupsize;
+  int     memtupsize = state->memtupsize;
+  int64   memNowUsed = state->allowedMem - state->availMem;
 
-	/* Forget it if we've already maxed out memtuples, per comment above */
-	if (!state->growmemtuples)
-		return false;
+  /* Forget it if we've already maxed out memtuples, per comment above */
+  if (!state->growmemtuples)
+    return false;
 
-	/* Select new value of memtupsize */
-	if (memNowUsed <= state->availMem)
-	{
-		/*
-		 * We've used no more than half of allowedMem; double our usage,
-		 * clamping at INT_MAX tuples.
-		 */
-		if (memtupsize < INT_MAX / 2)
-			newmemtupsize = memtupsize * 2;
-		else
-		{
-			newmemtupsize = INT_MAX;
-			state->growmemtuples = false;
-		}
-	}
-	else
-	{
-		/*
-		 * This will be the last increment of memtupsize.  Abandon doubling
-		 * strategy and instead increase as much as we safely can.
-		 *
-		 * To stay within allowedMem, we can't increase memtupsize by more
-		 * than availMem / sizeof(void *) elements. In practice, we want to
-		 * increase it by considerably less, because we need to leave some
-		 * space for the tuples to which the new array slots will refer.  We
-		 * assume the new tuples will be about the same size as the tuples
-		 * we've already seen, and thus we can extrapolate from the space
-		 * consumption so far to estimate an appropriate new size for the
-		 * memtuples array.  The optimal value might be higher or lower than
-		 * this estimate, but it's hard to know that in advance.  We again
-		 * clamp at INT_MAX tuples.
-		 *
-		 * This calculation is safe against enlarging the array so much that
-		 * LACKMEM becomes true, because the memory currently used includes
-		 * the present array; thus, there would be enough allowedMem for the
-		 * new array elements even if no other memory were currently used.
-		 *
-		 * We do the arithmetic in float8, because otherwise the product of
-		 * memtupsize and allowedMem could overflow.  Any inaccuracy in the
-		 * result should be insignificant; but even if we computed a
-		 * completely insane result, the checks below will prevent anything
-		 * really bad from happening.
-		 */
-		double		grow_ratio;
+  /* Select new value of memtupsize */
+  if (memNowUsed <= state->availMem) {
+    /*
+     * We've used no more than half of allowedMem; double our usage,
+     * clamping at INT_MAX tuples.
+     */
+    if (memtupsize < INT_MAX / 2)
+      newmemtupsize = memtupsize * 2;
+    else {
+      newmemtupsize = INT_MAX;
+      state->growmemtuples = false;
+    }
+  } else {
+    /*
+     * This will be the last increment of memtupsize.  Abandon doubling
+     * strategy and instead increase as much as we safely can.
+     *
+     * To stay within allowedMem, we can't increase memtupsize by more
+     * than availMem / sizeof(void *) elements. In practice, we want to
+     * increase it by considerably less, because we need to leave some
+     * space for the tuples to which the new array slots will refer.  We
+     * assume the new tuples will be about the same size as the tuples
+     * we've already seen, and thus we can extrapolate from the space
+     * consumption so far to estimate an appropriate new size for the
+     * memtuples array.  The optimal value might be higher or lower than
+     * this estimate, but it's hard to know that in advance.  We again
+     * clamp at INT_MAX tuples.
+     *
+     * This calculation is safe against enlarging the array so much that
+     * LACKMEM becomes true, because the memory currently used includes
+     * the present array; thus, there would be enough allowedMem for the
+     * new array elements even if no other memory were currently used.
+     *
+     * We do the arithmetic in float8, because otherwise the product of
+     * memtupsize and allowedMem could overflow.  Any inaccuracy in the
+     * result should be insignificant; but even if we computed a
+     * completely insane result, the checks below will prevent anything
+     * really bad from happening.
+     */
+    double    grow_ratio;
 
-		grow_ratio = (double) state->allowedMem / (double) memNowUsed;
-		if (memtupsize * grow_ratio < INT_MAX)
-			newmemtupsize = (int) (memtupsize * grow_ratio);
-		else
-			newmemtupsize = INT_MAX;
+    grow_ratio = (double) state->allowedMem / (double) memNowUsed;
 
-		/* We won't make any further enlargement attempts */
-		state->growmemtuples = false;
-	}
+    if (memtupsize * grow_ratio < INT_MAX)
+      newmemtupsize = (int) (memtupsize * grow_ratio);
+    else
+      newmemtupsize = INT_MAX;
 
-	/* Must enlarge array by at least one element, else report failure */
-	if (newmemtupsize <= memtupsize)
-		goto noalloc;
+    /* We won't make any further enlargement attempts */
+    state->growmemtuples = false;
+  }
 
-	/*
-	 * On a 32-bit machine, allowedMem could exceed MaxAllocHugeSize.  Clamp
-	 * to ensure our request won't be rejected.  Note that we can easily
-	 * exhaust address space before facing this outcome.  (This is presently
-	 * impossible due to guc.c's MAX_KILOBYTES limitation on work_mem, but
-	 * don't rely on that at this distance.)
-	 */
-	if ((Size) newmemtupsize >= MaxAllocHugeSize / sizeof(void *))
-	{
-		newmemtupsize = (int) (MaxAllocHugeSize / sizeof(void *));
-		state->growmemtuples = false;	/* can't grow any more */
-	}
+  /* Must enlarge array by at least one element, else report failure */
+  if (newmemtupsize <= memtupsize)
+    goto noalloc;
 
-	/*
-	 * We need to be sure that we do not cause LACKMEM to become true, else
-	 * the space management algorithm will go nuts.  The code above should
-	 * never generate a dangerous request, but to be safe, check explicitly
-	 * that the array growth fits within availMem.  (We could still cause
-	 * LACKMEM if the memory chunk overhead associated with the memtuples
-	 * array were to increase.  That shouldn't happen because we chose the
-	 * initial array size large enough to ensure that palloc will be treating
-	 * both old and new arrays as separate chunks.  But we'll check LACKMEM
-	 * explicitly below just in case.)
-	 */
-	if (state->availMem < (int64) ((newmemtupsize - memtupsize) * sizeof(void *)))
-		goto noalloc;
+  /*
+   * On a 32-bit machine, allowedMem could exceed MaxAllocHugeSize.  Clamp
+   * to ensure our request won't be rejected.  Note that we can easily
+   * exhaust address space before facing this outcome.  (This is presently
+   * impossible due to guc.c's MAX_KILOBYTES limitation on work_mem, but
+   * don't rely on that at this distance.)
+   */
+  if ((Size) newmemtupsize >= MaxAllocHugeSize / sizeof(void *)) {
+    newmemtupsize = (int) (MaxAllocHugeSize / sizeof(void *));
+    state->growmemtuples = false; /* can't grow any more */
+  }
 
-	/* OK, do it */
-	FREEMEM(state, GetMemoryChunkSpace(state->memtuples));
-	state->memtuples = (void **)
-		repalloc_huge(state->memtuples,
-					  newmemtupsize * sizeof(void *));
-	state->memtupsize = newmemtupsize;
-	USEMEM(state, GetMemoryChunkSpace(state->memtuples));
-	if (LACKMEM(state))
-		elog(ERROR, "unexpected out-of-memory situation in tuplestore");
-	return true;
+  /*
+   * We need to be sure that we do not cause LACKMEM to become true, else
+   * the space management algorithm will go nuts.  The code above should
+   * never generate a dangerous request, but to be safe, check explicitly
+   * that the array growth fits within availMem.  (We could still cause
+   * LACKMEM if the memory chunk overhead associated with the memtuples
+   * array were to increase.  That shouldn't happen because we chose the
+   * initial array size large enough to ensure that palloc will be treating
+   * both old and new arrays as separate chunks.  But we'll check LACKMEM
+   * explicitly below just in case.)
+   */
+  if (state->availMem < (int64) ((newmemtupsize - memtupsize) * sizeof(void *)))
+    goto noalloc;
+
+  /* OK, do it */
+  FREEMEM(state, GetMemoryChunkSpace(state->memtuples));
+  state->memtuples = (void **)
+                     repalloc_huge(state->memtuples,
+                                   newmemtupsize * sizeof(void *));
+  state->memtupsize = newmemtupsize;
+  USEMEM(state, GetMemoryChunkSpace(state->memtuples));
+
+  if (LACKMEM(state))
+    elog(ERROR, "unexpected out-of-memory situation in tuplestore");
+
+  return true;
 
 noalloc:
-	/* If for any reason we didn't realloc, shut off future attempts */
-	state->growmemtuples = false;
-	return false;
+  /* If for any reason we didn't realloc, shut off future attempts */
+  state->growmemtuples = false;
+  return false;
 }
 
 /*
@@ -740,20 +735,20 @@ noalloc:
  */
 void
 tuplestore_puttupleslot(Tuplestorestate *state,
-						TupleTableSlot *slot)
+                        TupleTableSlot *slot)
 {
-	MinimalTuple tuple;
-	MemoryContext oldcxt = MemoryContextSwitchTo(state->context);
+  MinimalTuple tuple;
+  MemoryContext oldcxt = MemoryContextSwitchTo(state->context);
 
-	/*
-	 * Form a MinimalTuple in working memory
-	 */
-	tuple = ExecCopySlotMinimalTuple(slot);
-	USEMEM(state, GetMemoryChunkSpace(tuple));
+  /*
+   * Form a MinimalTuple in working memory
+   */
+  tuple = ExecCopySlotMinimalTuple(slot);
+  USEMEM(state, GetMemoryChunkSpace(tuple));
 
-	tuplestore_puttuple_common(state, tuple);
+  tuplestore_puttuple_common(state, tuple);
 
-	MemoryContextSwitchTo(oldcxt);
+  MemoryContextSwitchTo(oldcxt);
 }
 
 /*
@@ -763,17 +758,17 @@ tuplestore_puttupleslot(Tuplestorestate *state,
 void
 tuplestore_puttuple(Tuplestorestate *state, HeapTuple tuple)
 {
-	MemoryContext oldcxt = MemoryContextSwitchTo(state->context);
+  MemoryContext oldcxt = MemoryContextSwitchTo(state->context);
 
-	/*
-	 * Copy the tuple.  (Must do this even in WRITEFILE case.  Note that
-	 * COPYTUP includes USEMEM, so we needn't do that here.)
-	 */
-	tuple = COPYTUP(state, tuple);
+  /*
+   * Copy the tuple.  (Must do this even in WRITEFILE case.  Note that
+   * COPYTUP includes USEMEM, so we needn't do that here.)
+   */
+  tuple = COPYTUP(state, tuple);
 
-	tuplestore_puttuple_common(state, tuple);
+  tuplestore_puttuple_common(state, tuple);
 
-	MemoryContextSwitchTo(oldcxt);
+  MemoryContextSwitchTo(oldcxt);
 }
 
 /*
@@ -782,165 +777,165 @@ tuplestore_puttuple(Tuplestorestate *state, HeapTuple tuple)
  */
 void
 tuplestore_putvalues(Tuplestorestate *state, TupleDesc tdesc,
-					 const Datum *values, const bool *isnull)
+                     const Datum *values, const bool *isnull)
 {
-	MinimalTuple tuple;
-	MemoryContext oldcxt = MemoryContextSwitchTo(state->context);
+  MinimalTuple tuple;
+  MemoryContext oldcxt = MemoryContextSwitchTo(state->context);
 
-	tuple = heap_form_minimal_tuple(tdesc, values, isnull, 0);
-	USEMEM(state, GetMemoryChunkSpace(tuple));
+  tuple = heap_form_minimal_tuple(tdesc, values, isnull, 0);
+  USEMEM(state, GetMemoryChunkSpace(tuple));
 
-	tuplestore_puttuple_common(state, tuple);
+  tuplestore_puttuple_common(state, tuple);
 
-	MemoryContextSwitchTo(oldcxt);
+  MemoryContextSwitchTo(oldcxt);
 }
 
 static void
 tuplestore_puttuple_common(Tuplestorestate *state, void *tuple)
 {
-	TSReadPointer *readptr;
-	int			i;
-	ResourceOwner oldowner;
-	MemoryContext oldcxt;
+  TSReadPointer *readptr;
+  int     i;
+  ResourceOwner oldowner;
+  MemoryContext oldcxt;
 
-	state->tuples++;
+  state->tuples++;
 
-	switch (state->status)
-	{
-		case TSS_INMEM:
+  switch (state->status) {
+    case TSS_INMEM:
 
-			/*
-			 * Update read pointers as needed; see API spec above.
-			 */
-			readptr = state->readptrs;
-			for (i = 0; i < state->readptrcount; readptr++, i++)
-			{
-				if (readptr->eof_reached && i != state->activeptr)
-				{
-					readptr->eof_reached = false;
-					readptr->current = state->memtupcount;
-				}
-			}
+      /*
+       * Update read pointers as needed; see API spec above.
+       */
+      readptr = state->readptrs;
 
-			/*
-			 * Grow the array as needed.  Note that we try to grow the array
-			 * when there is still one free slot remaining --- if we fail,
-			 * there'll still be room to store the incoming tuple, and then
-			 * we'll switch to tape-based operation.
-			 */
-			if (state->memtupcount >= state->memtupsize - 1)
-			{
-				(void) grow_memtuples(state);
-				Assert(state->memtupcount < state->memtupsize);
-			}
+      for (i = 0; i < state->readptrcount; readptr++, i++) {
+        if (readptr->eof_reached && i != state->activeptr) {
+          readptr->eof_reached = false;
+          readptr->current = state->memtupcount;
+        }
+      }
 
-			/* Stash the tuple in the in-memory array */
-			state->memtuples[state->memtupcount++] = tuple;
+      /*
+       * Grow the array as needed.  Note that we try to grow the array
+       * when there is still one free slot remaining --- if we fail,
+       * there'll still be room to store the incoming tuple, and then
+       * we'll switch to tape-based operation.
+       */
+      if (state->memtupcount >= state->memtupsize - 1) {
+        (void) grow_memtuples(state);
+        Assert(state->memtupcount < state->memtupsize);
+      }
 
-			/*
-			 * Done if we still fit in available memory and have array slots.
-			 */
-			if (state->memtupcount < state->memtupsize && !LACKMEM(state))
-				return;
+      /* Stash the tuple in the in-memory array */
+      state->memtuples[state->memtupcount++] = tuple;
 
-			/*
-			 * Nope; time to switch to tape-based operation.  Make sure that
-			 * the temp file(s) are created in suitable temp tablespaces.
-			 */
-			PrepareTempTablespaces();
+      /*
+       * Done if we still fit in available memory and have array slots.
+       */
+      if (state->memtupcount < state->memtupsize && !LACKMEM(state))
+        return;
 
-			/* associate the file with the store's resource owner */
-			oldowner = CurrentResourceOwner;
-			CurrentResourceOwner = state->resowner;
+      /*
+       * Nope; time to switch to tape-based operation.  Make sure that
+       * the temp file(s) are created in suitable temp tablespaces.
+       */
+      PrepareTempTablespaces();
 
-			/*
-			 * We switch out of the state->context as this is a generation
-			 * context, which isn't ideal for allocations relating to the
-			 * BufFile.
-			 */
-			oldcxt = MemoryContextSwitchTo(state->context->parent);
+      /* associate the file with the store's resource owner */
+      oldowner = CurrentResourceOwner;
+      CurrentResourceOwner = state->resowner;
 
-			state->myfile = BufFileCreateTemp(state->interXact);
+      /*
+       * We switch out of the state->context as this is a generation
+       * context, which isn't ideal for allocations relating to the
+       * BufFile.
+       */
+      oldcxt = MemoryContextSwitchTo(state->context->parent);
 
-			MemoryContextSwitchTo(oldcxt);
+      state->myfile = BufFileCreateTemp(state->interXact);
 
-			CurrentResourceOwner = oldowner;
+      MemoryContextSwitchTo(oldcxt);
 
-			/*
-			 * Freeze the decision about whether trailing length words will be
-			 * used.  We can't change this choice once data is on tape, even
-			 * though callers might drop the requirement.
-			 */
-			state->backward = (state->eflags & EXEC_FLAG_BACKWARD) != 0;
+      CurrentResourceOwner = oldowner;
 
-			/*
-			 * Update the maximum space used before dumping the tuples.  It's
-			 * possible that more space will be used by the tuples in memory
-			 * than the space that will be used on disk.
-			 */
-			tuplestore_updatemax(state);
+      /*
+       * Freeze the decision about whether trailing length words will be
+       * used.  We can't change this choice once data is on tape, even
+       * though callers might drop the requirement.
+       */
+      state->backward = (state->eflags & EXEC_FLAG_BACKWARD) != 0;
 
-			state->status = TSS_WRITEFILE;
-			dumptuples(state);
-			break;
-		case TSS_WRITEFILE:
+      /*
+       * Update the maximum space used before dumping the tuples.  It's
+       * possible that more space will be used by the tuples in memory
+       * than the space that will be used on disk.
+       */
+      tuplestore_updatemax(state);
 
-			/*
-			 * Update read pointers as needed; see API spec above. Note:
-			 * BufFileTell is quite cheap, so not worth trying to avoid
-			 * multiple calls.
-			 */
-			readptr = state->readptrs;
-			for (i = 0; i < state->readptrcount; readptr++, i++)
-			{
-				if (readptr->eof_reached && i != state->activeptr)
-				{
-					readptr->eof_reached = false;
-					BufFileTell(state->myfile,
-								&readptr->file,
-								&readptr->offset);
-				}
-			}
+      state->status = TSS_WRITEFILE;
+      dumptuples(state);
+      break;
 
-			WRITETUP(state, tuple);
-			break;
-		case TSS_READFILE:
+    case TSS_WRITEFILE:
 
-			/*
-			 * Switch from reading to writing.
-			 */
-			if (!state->readptrs[state->activeptr].eof_reached)
-				BufFileTell(state->myfile,
-							&state->readptrs[state->activeptr].file,
-							&state->readptrs[state->activeptr].offset);
-			if (BufFileSeek(state->myfile,
-							state->writepos_file, state->writepos_offset,
-							SEEK_SET) != 0)
-				ereport(ERROR,
-						(errcode_for_file_access(),
-						 errmsg("could not seek in tuplestore temporary file")));
-			state->status = TSS_WRITEFILE;
+      /*
+       * Update read pointers as needed; see API spec above. Note:
+       * BufFileTell is quite cheap, so not worth trying to avoid
+       * multiple calls.
+       */
+      readptr = state->readptrs;
 
-			/*
-			 * Update read pointers as needed; see API spec above.
-			 */
-			readptr = state->readptrs;
-			for (i = 0; i < state->readptrcount; readptr++, i++)
-			{
-				if (readptr->eof_reached && i != state->activeptr)
-				{
-					readptr->eof_reached = false;
-					readptr->file = state->writepos_file;
-					readptr->offset = state->writepos_offset;
-				}
-			}
+      for (i = 0; i < state->readptrcount; readptr++, i++) {
+        if (readptr->eof_reached && i != state->activeptr) {
+          readptr->eof_reached = false;
+          BufFileTell(state->myfile,
+                      &readptr->file,
+                      &readptr->offset);
+        }
+      }
 
-			WRITETUP(state, tuple);
-			break;
-		default:
-			elog(ERROR, "invalid tuplestore state");
-			break;
-	}
+      WRITETUP(state, tuple);
+      break;
+
+    case TSS_READFILE:
+
+      /*
+       * Switch from reading to writing.
+       */
+      if (!state->readptrs[state->activeptr].eof_reached)
+        BufFileTell(state->myfile,
+                    &state->readptrs[state->activeptr].file,
+                    &state->readptrs[state->activeptr].offset);
+
+      if (BufFileSeek(state->myfile,
+                      state->writepos_file, state->writepos_offset,
+                      SEEK_SET) != 0)
+        ereport(ERROR,
+                (errcode_for_file_access(),
+                 errmsg("could not seek in tuplestore temporary file")));
+
+      state->status = TSS_WRITEFILE;
+
+      /*
+       * Update read pointers as needed; see API spec above.
+       */
+      readptr = state->readptrs;
+
+      for (i = 0; i < state->readptrcount; readptr++, i++) {
+        if (readptr->eof_reached && i != state->activeptr) {
+          readptr->eof_reached = false;
+          readptr->file = state->writepos_file;
+          readptr->offset = state->writepos_offset;
+        }
+      }
+
+      WRITETUP(state, tuple);
+      break;
+
+    default:
+      elog(ERROR, "invalid tuplestore state");
+      break;
+  }
 }
 
 /*
@@ -953,164 +948,161 @@ tuplestore_puttuple_common(Tuplestorestate *state, void *tuple)
  */
 static void *
 tuplestore_gettuple(Tuplestorestate *state, bool forward,
-					bool *should_free)
+                    bool *should_free)
 {
-	TSReadPointer *readptr = &state->readptrs[state->activeptr];
-	unsigned int tuplen;
-	void	   *tup;
+  TSReadPointer *readptr = &state->readptrs[state->activeptr];
+  unsigned int tuplen;
+  void     *tup;
 
-	Assert(forward || (readptr->eflags & EXEC_FLAG_BACKWARD));
+  Assert(forward || (readptr->eflags & EXEC_FLAG_BACKWARD));
 
-	switch (state->status)
-	{
-		case TSS_INMEM:
-			*should_free = false;
-			if (forward)
-			{
-				if (readptr->eof_reached)
-					return NULL;
-				if (readptr->current < state->memtupcount)
-				{
-					/* We have another tuple, so return it */
-					return state->memtuples[readptr->current++];
-				}
-				readptr->eof_reached = true;
-				return NULL;
-			}
-			else
-			{
-				/*
-				 * if all tuples are fetched already then we return last
-				 * tuple, else tuple before last returned.
-				 */
-				if (readptr->eof_reached)
-				{
-					readptr->current = state->memtupcount;
-					readptr->eof_reached = false;
-				}
-				else
-				{
-					if (readptr->current <= state->memtupdeleted)
-					{
-						Assert(!state->truncated);
-						return NULL;
-					}
-					readptr->current--; /* last returned tuple */
-				}
-				if (readptr->current <= state->memtupdeleted)
-				{
-					Assert(!state->truncated);
-					return NULL;
-				}
-				return state->memtuples[readptr->current - 1];
-			}
-			break;
+  switch (state->status) {
+    case TSS_INMEM:
+      *should_free = false;
 
-		case TSS_WRITEFILE:
-			/* Skip state change if we'll just return NULL */
-			if (readptr->eof_reached && forward)
-				return NULL;
+      if (forward) {
+        if (readptr->eof_reached)
+          return NULL;
 
-			/*
-			 * Switch from writing to reading.
-			 */
-			BufFileTell(state->myfile,
-						&state->writepos_file, &state->writepos_offset);
-			if (!readptr->eof_reached)
-				if (BufFileSeek(state->myfile,
-								readptr->file, readptr->offset,
-								SEEK_SET) != 0)
-					ereport(ERROR,
-							(errcode_for_file_access(),
-							 errmsg("could not seek in tuplestore temporary file")));
-			state->status = TSS_READFILE;
-			/* FALLTHROUGH */
+        if (readptr->current < state->memtupcount) {
+          /* We have another tuple, so return it */
+          return state->memtuples[readptr->current++];
+        }
 
-		case TSS_READFILE:
-			*should_free = true;
-			if (forward)
-			{
-				if ((tuplen = getlen(state, true)) != 0)
-				{
-					tup = READTUP(state, tuplen);
-					return tup;
-				}
-				else
-				{
-					readptr->eof_reached = true;
-					return NULL;
-				}
-			}
+        readptr->eof_reached = true;
+        return NULL;
+      } else {
+        /*
+         * if all tuples are fetched already then we return last
+         * tuple, else tuple before last returned.
+         */
+        if (readptr->eof_reached) {
+          readptr->current = state->memtupcount;
+          readptr->eof_reached = false;
+        } else {
+          if (readptr->current <= state->memtupdeleted) {
+            Assert(!state->truncated);
+            return NULL;
+          }
 
-			/*
-			 * Backward.
-			 *
-			 * if all tuples are fetched already then we return last tuple,
-			 * else tuple before last returned.
-			 *
-			 * Back up to fetch previously-returned tuple's ending length
-			 * word. If seek fails, assume we are at start of file.
-			 */
-			if (BufFileSeek(state->myfile, 0, -(long) sizeof(unsigned int),
-							SEEK_CUR) != 0)
-			{
-				/* even a failed backwards fetch gets you out of eof state */
-				readptr->eof_reached = false;
-				Assert(!state->truncated);
-				return NULL;
-			}
-			tuplen = getlen(state, false);
+          readptr->current--; /* last returned tuple */
+        }
 
-			if (readptr->eof_reached)
-			{
-				readptr->eof_reached = false;
-				/* We will return the tuple returned before returning NULL */
-			}
-			else
-			{
-				/*
-				 * Back up to get ending length word of tuple before it.
-				 */
-				if (BufFileSeek(state->myfile, 0,
-								-(long) (tuplen + 2 * sizeof(unsigned int)),
-								SEEK_CUR) != 0)
-				{
-					/*
-					 * If that fails, presumably the prev tuple is the first
-					 * in the file.  Back up so that it becomes next to read
-					 * in forward direction (not obviously right, but that is
-					 * what in-memory case does).
-					 */
-					if (BufFileSeek(state->myfile, 0,
-									-(long) (tuplen + sizeof(unsigned int)),
-									SEEK_CUR) != 0)
-						ereport(ERROR,
-								(errcode_for_file_access(),
-								 errmsg("could not seek in tuplestore temporary file")));
-					Assert(!state->truncated);
-					return NULL;
-				}
-				tuplen = getlen(state, false);
-			}
+        if (readptr->current <= state->memtupdeleted) {
+          Assert(!state->truncated);
+          return NULL;
+        }
 
-			/*
-			 * Now we have the length of the prior tuple, back up and read it.
-			 * Note: READTUP expects we are positioned after the initial
-			 * length word of the tuple, so back up to that point.
-			 */
-			if (BufFileSeek(state->myfile, 0,
-							-(long) tuplen,
-							SEEK_CUR) != 0)
-				ereport(ERROR,
-						(errcode_for_file_access(),
-						 errmsg("could not seek in tuplestore temporary file")));
-			tup = READTUP(state, tuplen);
-			return tup;
+        return state->memtuples[readptr->current - 1];
+      }
 
-		default:
-			elog(ERROR, "invalid tuplestore state");
-			return NULL;		/* keep compiler quiet */
-	}
+      break;
+
+    case TSS_WRITEFILE:
+
+      /* Skip state change if we'll just return NULL */
+      if (readptr->eof_reached && forward)
+        return NULL;
+
+      /*
+       * Switch from writing to reading.
+       */
+      BufFileTell(state->myfile,
+                  &state->writepos_file, &state->writepos_offset);
+
+      if (!readptr->eof_reached)
+        if (BufFileSeek(state->myfile,
+                        readptr->file, readptr->offset,
+                        SEEK_SET) != 0)
+          ereport(ERROR,
+                  (errcode_for_file_access(),
+                   errmsg("could not seek in tuplestore temporary file")));
+
+      state->status = TSS_READFILE;
+
+    /* FALLTHROUGH */
+
+    case TSS_READFILE:
+      *should_free = true;
+
+      if (forward) {
+        if ((tuplen = getlen(state, true)) != 0) {
+          tup = READTUP(state, tuplen);
+          return tup;
+        } else {
+          readptr->eof_reached = true;
+          return NULL;
+        }
+      }
+
+      /*
+       * Backward.
+       *
+       * if all tuples are fetched already then we return last tuple,
+       * else tuple before last returned.
+       *
+       * Back up to fetch previously-returned tuple's ending length
+       * word. If seek fails, assume we are at start of file.
+       */
+      if (BufFileSeek(state->myfile, 0, -(long) sizeof(unsigned int),
+                      SEEK_CUR) != 0) {
+        /* even a failed backwards fetch gets you out of eof state */
+        readptr->eof_reached = false;
+        Assert(!state->truncated);
+        return NULL;
+      }
+
+      tuplen = getlen(state, false);
+
+      if (readptr->eof_reached) {
+        readptr->eof_reached = false;
+        /* We will return the tuple returned before returning NULL */
+      } else {
+        /*
+         * Back up to get ending length word of tuple before it.
+         */
+        if (BufFileSeek(state->myfile, 0,
+                        -(long) (tuplen + 2 * sizeof(unsigned int)),
+                        SEEK_CUR) != 0) {
+          /*
+           * If that fails, presumably the prev tuple is the first
+           * in the file.  Back up so that it becomes next to read
+           * in forward direction (not obviously right, but that is
+           * what in-memory case does).
+           */
+          if (BufFileSeek(state->myfile, 0,
+                          -(long) (tuplen + sizeof(unsigned int)),
+                          SEEK_CUR) != 0)
+            ereport(ERROR,
+                    (errcode_for_file_access(),
+                     errmsg("could not seek in tuplestore temporary file")));
+
+          Assert(!state->truncated);
+          return NULL;
+        }
+
+        tuplen = getlen(state, false);
+      }
+
+      /*
+       * Now we have the length of the prior tuple, back up and read it.
+       * Note: READTUP expects we are positioned after the initial
+       * length word of the tuple, so back up to that point.
+       */
+      if (BufFileSeek(state->myfile, 0,
+                      -(long) tuplen,
+                      SEEK_CUR) != 0)
+        ereport(ERROR,
+                (errcode_for_file_access(),
+                 errmsg("could not seek in tuplestore temporary file")));
+
+      tup = READTUP(state, tuplen);
+      return tup;
+
+    default:
+      elog(ERROR, "invalid tuplestore state");
+      return NULL;    /* keep compiler quiet */
+  }
 }
 
 /*
@@ -1128,28 +1120,25 @@ tuplestore_gettuple(Tuplestorestate *state, bool forward,
  */
 bool
 tuplestore_gettupleslot(Tuplestorestate *state, bool forward,
-						bool copy, TupleTableSlot *slot)
+                        bool copy, TupleTableSlot *slot)
 {
-	MinimalTuple tuple;
-	bool		should_free;
+  MinimalTuple tuple;
+  bool    should_free;
 
-	tuple = (MinimalTuple) tuplestore_gettuple(state, forward, &should_free);
+  tuple = (MinimalTuple) tuplestore_gettuple(state, forward, &should_free);
 
-	if (tuple)
-	{
-		if (copy && !should_free)
-		{
-			tuple = heap_copy_minimal_tuple(tuple, 0);
-			should_free = true;
-		}
-		ExecStoreMinimalTuple(tuple, slot, should_free);
-		return true;
-	}
-	else
-	{
-		ExecClearTuple(slot);
-		return false;
-	}
+  if (tuple) {
+    if (copy && !should_free) {
+      tuple = heap_copy_minimal_tuple(tuple, 0);
+      should_free = true;
+    }
+
+    ExecStoreMinimalTuple(tuple, slot, should_free);
+    return true;
+  } else {
+    ExecClearTuple(slot);
+    return false;
+  }
 }
 
 /*
@@ -1161,21 +1150,19 @@ tuplestore_gettupleslot(Tuplestorestate *state, bool forward,
 bool
 tuplestore_advance(Tuplestorestate *state, bool forward)
 {
-	void	   *tuple;
-	bool		should_free;
+  void     *tuple;
+  bool    should_free;
 
-	tuple = tuplestore_gettuple(state, forward, &should_free);
+  tuple = tuplestore_gettuple(state, forward, &should_free);
 
-	if (tuple)
-	{
-		if (should_free)
-			pfree(tuple);
-		return true;
-	}
-	else
-	{
-		return false;
-	}
+  if (tuple) {
+    if (should_free)
+      pfree(tuple);
+
+    return true;
+  } else {
+    return false;
+  }
 }
 
 /*
@@ -1186,65 +1173,66 @@ tuplestore_advance(Tuplestorestate *state, bool forward)
 bool
 tuplestore_skiptuples(Tuplestorestate *state, int64 ntuples, bool forward)
 {
-	TSReadPointer *readptr = &state->readptrs[state->activeptr];
+  TSReadPointer *readptr = &state->readptrs[state->activeptr];
 
-	Assert(forward || (readptr->eflags & EXEC_FLAG_BACKWARD));
+  Assert(forward || (readptr->eflags & EXEC_FLAG_BACKWARD));
 
-	if (ntuples <= 0)
-		return true;
+  if (ntuples <= 0)
+    return true;
 
-	switch (state->status)
-	{
-		case TSS_INMEM:
-			if (forward)
-			{
-				if (readptr->eof_reached)
-					return false;
-				if (state->memtupcount - readptr->current >= ntuples)
-				{
-					readptr->current += ntuples;
-					return true;
-				}
-				readptr->current = state->memtupcount;
-				readptr->eof_reached = true;
-				return false;
-			}
-			else
-			{
-				if (readptr->eof_reached)
-				{
-					readptr->current = state->memtupcount;
-					readptr->eof_reached = false;
-					ntuples--;
-				}
-				if (readptr->current - state->memtupdeleted > ntuples)
-				{
-					readptr->current -= ntuples;
-					return true;
-				}
-				Assert(!state->truncated);
-				readptr->current = state->memtupdeleted;
-				return false;
-			}
-			break;
+  switch (state->status) {
+    case TSS_INMEM:
+      if (forward) {
+        if (readptr->eof_reached)
+          return false;
 
-		default:
-			/* We don't currently try hard to optimize other cases */
-			while (ntuples-- > 0)
-			{
-				void	   *tuple;
-				bool		should_free;
+        if (state->memtupcount - readptr->current >= ntuples) {
+          readptr->current += ntuples;
+          return true;
+        }
 
-				tuple = tuplestore_gettuple(state, forward, &should_free);
+        readptr->current = state->memtupcount;
+        readptr->eof_reached = true;
+        return false;
+      } else {
+        if (readptr->eof_reached) {
+          readptr->current = state->memtupcount;
+          readptr->eof_reached = false;
+          ntuples--;
+        }
 
-				if (tuple == NULL)
-					return false;
-				if (should_free)
-					pfree(tuple);
-				CHECK_FOR_INTERRUPTS();
-			}
-			return true;
-	}
+        if (readptr->current - state->memtupdeleted > ntuples) {
+          readptr->current -= ntuples;
+          return true;
+        }
+
+        Assert(!state->truncated);
+        readptr->current = state->memtupdeleted;
+        return false;
+      }
+
+      break;
+
+    default:
+
+      /* We don't currently try hard to optimize other cases */
+      while (ntuples-- > 0) {
+        void     *tuple;
+        bool    should_free;
+
+        tuple = tuplestore_gettuple(state, forward, &should_free);
+
+        if (tuple == NULL)
+          return false;
+
+        if (should_free)
+          pfree(tuple);
+
+        CHECK_FOR_INTERRUPTS();
+      }
+
+      return true;
+  }
 }
 
 /*
@@ -1257,72 +1245,77 @@ tuplestore_skiptuples(Tuplestorestate *state, int64 ntuples, bool forward)
 static void
 dumptuples(Tuplestorestate *state)
 {
-	int			i;
+  int     i;
 
-	for (i = state->memtupdeleted;; i++)
-	{
-		TSReadPointer *readptr = state->readptrs;
-		int			j;
+  for (i = state->memtupdeleted;; i++) {
+    TSReadPointer *readptr = state->readptrs;
+    int     j;
 
-		for (j = 0; j < state->readptrcount; readptr++, j++)
-		{
-			if (i == readptr->current && !readptr->eof_reached)
-				BufFileTell(state->myfile,
-							&readptr->file, &readptr->offset);
-		}
-		if (i >= state->memtupcount)
-			break;
-		WRITETUP(state, state->memtuples[i]);
+    for (j = 0; j < state->readptrcount; readptr++, j++) {
+      if (i == readptr->current && !readptr->eof_reached)
+        BufFileTell(state->myfile,
+                    &readptr->file, &readptr->offset);
+    }
 
-		/*
-		 * Increase memtupdeleted to track the fact that we just deleted that
-		 * tuple.  Think not to remove this on the grounds that we'll reset
-		 * memtupdeleted to zero below.  We might not reach that if some later
-		 * WRITETUP fails (e.g. due to overrunning temp_file_limit).  If so,
-		 * we'd error out leaving an effectively-corrupt tuplestore, which
-		 * would be quite bad if it's a persistent data structure such as a
-		 * Portal's holdStore.
-		 */
-		state->memtupdeleted++;
-	}
-	/* Now we can reset memtupdeleted along with memtupcount */
-	state->memtupdeleted = 0;
-	state->memtupcount = 0;
+    if (i >= state->memtupcount)
+      break;
+
+    WRITETUP(state, state->memtuples[i]);
+
+    /*
+     * Increase memtupdeleted to track the fact that we just deleted that
+     * tuple.  Think not to remove this on the grounds that we'll reset
+     * memtupdeleted to zero below.  We might not reach that if some later
+     * WRITETUP fails (e.g. due to overrunning temp_file_limit).  If so,
+     * we'd error out leaving an effectively-corrupt tuplestore, which
+     * would be quite bad if it's a persistent data structure such as a
+     * Portal's holdStore.
+     */
+    state->memtupdeleted++;
+  }
+
+  /* Now we can reset memtupdeleted along with memtupcount */
+  state->memtupdeleted = 0;
+  state->memtupcount = 0;
 }
 
 /*
- * tuplestore_rescan		- rewind the active read pointer to start
+ * tuplestore_rescan    - rewind the active read pointer to start
  */
 void
 tuplestore_rescan(Tuplestorestate *state)
 {
-	TSReadPointer *readptr = &state->readptrs[state->activeptr];
+  TSReadPointer *readptr = &state->readptrs[state->activeptr];
 
-	Assert(readptr->eflags & EXEC_FLAG_REWIND);
-	Assert(!state->truncated);
+  Assert(readptr->eflags & EXEC_FLAG_REWIND);
+  Assert(!state->truncated);
 
-	switch (state->status)
-	{
-		case TSS_INMEM:
-			readptr->eof_reached = false;
-			readptr->current = 0;
-			break;
-		case TSS_WRITEFILE:
-			readptr->eof_reached = false;
-			readptr->file = 0;
-			readptr->offset = 0;
-			break;
-		case TSS_READFILE:
-			readptr->eof_reached = false;
-			if (BufFileSeek(state->myfile, 0, 0, SEEK_SET) != 0)
-				ereport(ERROR,
-						(errcode_for_file_access(),
-						 errmsg("could not seek in tuplestore temporary file")));
-			break;
-		default:
-			elog(ERROR, "invalid tuplestore state");
-			break;
-	}
+  switch (state->status) {
+    case TSS_INMEM:
+      readptr->eof_reached = false;
+      readptr->current = 0;
+      break;
+
+    case TSS_WRITEFILE:
+      readptr->eof_reached = false;
+      readptr->file = 0;
+      readptr->offset = 0;
+      break;
+
+    case TSS_READFILE:
+      readptr->eof_reached = false;
+
+      if (BufFileSeek(state->myfile, 0, 0, SEEK_SET) != 0)
+        ereport(ERROR,
+                (errcode_for_file_access(),
+                 errmsg("could not seek in tuplestore temporary file")));
+
+      break;
+
+    default:
+      elog(ERROR, "invalid tuplestore state");
+      break;
+  }
 }
 
 /*
@@ -1330,86 +1323,82 @@ tuplestore_rescan(Tuplestorestate *state)
  */
 void
 tuplestore_copy_read_pointer(Tuplestorestate *state,
-							 int srcptr, int destptr)
+                             int srcptr, int destptr)
 {
-	TSReadPointer *sptr = &state->readptrs[srcptr];
-	TSReadPointer *dptr = &state->readptrs[destptr];
+  TSReadPointer *sptr = &state->readptrs[srcptr];
+  TSReadPointer *dptr = &state->readptrs[destptr];
 
-	Assert(srcptr >= 0 && srcptr < state->readptrcount);
-	Assert(destptr >= 0 && destptr < state->readptrcount);
+  Assert(srcptr >= 0 && srcptr < state->readptrcount);
+  Assert(destptr >= 0 && destptr < state->readptrcount);
 
-	/* Assigning to self is a no-op */
-	if (srcptr == destptr)
-		return;
+  /* Assigning to self is a no-op */
+  if (srcptr == destptr)
+    return;
 
-	if (dptr->eflags != sptr->eflags)
-	{
-		/* Possible change of overall eflags, so copy and then recompute */
-		int			eflags;
-		int			i;
+  if (dptr->eflags != sptr->eflags) {
+    /* Possible change of overall eflags, so copy and then recompute */
+    int     eflags;
+    int     i;
 
-		*dptr = *sptr;
-		eflags = state->readptrs[0].eflags;
-		for (i = 1; i < state->readptrcount; i++)
-			eflags |= state->readptrs[i].eflags;
-		state->eflags = eflags;
-	}
-	else
-		*dptr = *sptr;
+    *dptr = *sptr;
+    eflags = state->readptrs[0].eflags;
 
-	switch (state->status)
-	{
-		case TSS_INMEM:
-		case TSS_WRITEFILE:
-			/* no work */
-			break;
-		case TSS_READFILE:
+    for (i = 1; i < state->readptrcount; i++)
+      eflags |= state->readptrs[i].eflags;
 
-			/*
-			 * This case is a bit tricky since the active read pointer's
-			 * position corresponds to the seek point, not what is in its
-			 * variables.  Assigning to the active requires a seek, and
-			 * assigning from the active requires a tell, except when
-			 * eof_reached.
-			 */
-			if (destptr == state->activeptr)
-			{
-				if (dptr->eof_reached)
-				{
-					if (BufFileSeek(state->myfile,
-									state->writepos_file,
-									state->writepos_offset,
-									SEEK_SET) != 0)
-						ereport(ERROR,
-								(errcode_for_file_access(),
-								 errmsg("could not seek in tuplestore temporary file")));
-				}
-				else
-				{
-					if (BufFileSeek(state->myfile,
-									dptr->file, dptr->offset,
-									SEEK_SET) != 0)
-						ereport(ERROR,
-								(errcode_for_file_access(),
-								 errmsg("could not seek in tuplestore temporary file")));
-				}
-			}
-			else if (srcptr == state->activeptr)
-			{
-				if (!dptr->eof_reached)
-					BufFileTell(state->myfile,
-								&dptr->file,
-								&dptr->offset);
-			}
-			break;
-		default:
-			elog(ERROR, "invalid tuplestore state");
-			break;
-	}
+    state->eflags = eflags;
+  } else
+    *dptr = *sptr;
+
+  switch (state->status) {
+    case TSS_INMEM:
+    case TSS_WRITEFILE:
+      /* no work */
+      break;
+
+    case TSS_READFILE:
+
+      /*
+       * This case is a bit tricky since the active read pointer's
+       * position corresponds to the seek point, not what is in its
+       * variables.  Assigning to the active requires a seek, and
+       * assigning from the active requires a tell, except when
+       * eof_reached.
+       */
+      if (destptr == state->activeptr) {
+        if (dptr->eof_reached) {
+          if (BufFileSeek(state->myfile,
+                          state->writepos_file,
+                          state->writepos_offset,
+                          SEEK_SET) != 0)
+            ereport(ERROR,
+                    (errcode_for_file_access(),
+                     errmsg("could not seek in tuplestore temporary file")));
+        } else {
+          if (BufFileSeek(state->myfile,
+                          dptr->file, dptr->offset,
+                          SEEK_SET) != 0)
+            ereport(ERROR,
+                    (errcode_for_file_access(),
+                     errmsg("could not seek in tuplestore temporary file")));
+        }
+      } else if (srcptr == state->activeptr) {
+        if (!dptr->eof_reached)
+          BufFileTell(state->myfile,
+                      &dptr->file,
+                      &dptr->offset);
+      }
+
+      break;
+
+    default:
+      elog(ERROR, "invalid tuplestore state");
+      break;
+  }
 }
 
 /*
- * tuplestore_trim	- remove all no-longer-needed tuples
+ * tuplestore_trim  - remove all no-longer-needed tuples
  *
  * Calling this function authorizes the tuplestore to delete all tuples
  * before the oldest read pointer, if no read pointer is marked as requiring
@@ -1423,138 +1412,138 @@ tuplestore_copy_read_pointer(Tuplestorestate *state,
 void
 tuplestore_trim(Tuplestorestate *state)
 {
-	int			oldest;
-	int			nremove;
-	int			i;
+  int     oldest;
+  int     nremove;
+  int     i;
 
-	/*
-	 * Truncation is disallowed if any read pointer requires rewind
-	 * capability.
-	 */
-	if (state->eflags & EXEC_FLAG_REWIND)
-		return;
+  /*
+   * Truncation is disallowed if any read pointer requires rewind
+   * capability.
+   */
+  if (state->eflags & EXEC_FLAG_REWIND)
+    return;
 
-	/*
-	 * We don't bother trimming temp files since it usually would mean more
-	 * work than just letting them sit in kernel buffers until they age out.
-	 */
-	if (state->status != TSS_INMEM)
-		return;
+  /*
+   * We don't bother trimming temp files since it usually would mean more
+   * work than just letting them sit in kernel buffers until they age out.
+   */
+  if (state->status != TSS_INMEM)
+    return;
 
-	/* Find the oldest read pointer */
-	oldest = state->memtupcount;
-	for (i = 0; i < state->readptrcount; i++)
-	{
-		if (!state->readptrs[i].eof_reached)
-			oldest = Min(oldest, state->readptrs[i].current);
-	}
+  /* Find the oldest read pointer */
+  oldest = state->memtupcount;
 
-	/*
-	 * Note: you might think we could remove all the tuples before the oldest
-	 * "current", since that one is the next to be returned.  However, since
-	 * tuplestore_gettuple returns a direct pointer to our internal copy of
-	 * the tuple, it's likely that the caller has still got the tuple just
-	 * before "current" referenced in a slot. So we keep one extra tuple
-	 * before the oldest "current".  (Strictly speaking, we could require such
-	 * callers to use the "copy" flag to tuplestore_gettupleslot, but for
-	 * efficiency we allow this one case to not use "copy".)
-	 */
-	nremove = oldest - 1;
-	if (nremove <= 0)
-		return;					/* nothing to do */
+  for (i = 0; i < state->readptrcount; i++) {
+    if (!state->readptrs[i].eof_reached)
+      oldest = Min(oldest, state->readptrs[i].current);
+  }
 
-	Assert(nremove >= state->memtupdeleted);
-	Assert(nremove <= state->memtupcount);
+  /*
+   * Note: you might think we could remove all the tuples before the oldest
+   * "current", since that one is the next to be returned.  However, since
+   * tuplestore_gettuple returns a direct pointer to our internal copy of
+   * the tuple, it's likely that the caller has still got the tuple just
+   * before "current" referenced in a slot. So we keep one extra tuple
+   * before the oldest "current".  (Strictly speaking, we could require such
+   * callers to use the "copy" flag to tuplestore_gettupleslot, but for
+   * efficiency we allow this one case to not use "copy".)
+   */
+  nremove = oldest - 1;
 
-	/* before freeing any memory, update the statistics */
-	tuplestore_updatemax(state);
+  if (nremove <= 0)
+    return;         /* nothing to do */
 
-	/* Release no-longer-needed tuples */
-	for (i = state->memtupdeleted; i < nremove; i++)
-	{
-		FREEMEM(state, GetMemoryChunkSpace(state->memtuples[i]));
-		pfree(state->memtuples[i]);
-		state->memtuples[i] = NULL;
-		/* As in dumptuples(), increment memtupdeleted synchronously */
-		state->memtupdeleted++;
-	}
-	Assert(state->memtupdeleted == nremove);
+  Assert(nremove >= state->memtupdeleted);
+  Assert(nremove <= state->memtupcount);
 
-	/* mark tuplestore as truncated (used for Assert crosschecks only) */
-	state->truncated = true;
+  /* before freeing any memory, update the statistics */
+  tuplestore_updatemax(state);
 
-	/*
-	 * If nremove is less than 1/8th memtupcount, just stop here, leaving the
-	 * "deleted" slots as NULL.  This prevents us from expending O(N^2) time
-	 * repeatedly memmove-ing a large pointer array.  The worst case space
-	 * wastage is pretty small, since it's just pointers and not whole tuples.
-	 */
-	if (nremove < state->memtupcount / 8)
-		return;
+  /* Release no-longer-needed tuples */
+  for (i = state->memtupdeleted; i < nremove; i++) {
+    FREEMEM(state, GetMemoryChunkSpace(state->memtuples[i]));
+    pfree(state->memtuples[i]);
+    state->memtuples[i] = NULL;
+    /* As in dumptuples(), increment memtupdeleted synchronously */
+    state->memtupdeleted++;
+  }
 
-	/*
-	 * Slide the array down and readjust pointers.
-	 *
-	 * In mergejoin's current usage, it's demonstrable that there will always
-	 * be exactly one non-removed tuple; so optimize that case.
-	 */
-	if (nremove + 1 == state->memtupcount)
-		state->memtuples[0] = state->memtuples[nremove];
-	else
-		memmove(state->memtuples, state->memtuples + nremove,
-				(state->memtupcount - nremove) * sizeof(void *));
+  Assert(state->memtupdeleted == nremove);
 
-	state->memtupdeleted = 0;
-	state->memtupcount -= nremove;
-	for (i = 0; i < state->readptrcount; i++)
-	{
-		if (!state->readptrs[i].eof_reached)
-			state->readptrs[i].current -= nremove;
-	}
+  /* mark tuplestore as truncated (used for Assert crosschecks only) */
+  state->truncated = true;
+
+  /*
+   * If nremove is less than 1/8th memtupcount, just stop here, leaving the
+   * "deleted" slots as NULL.  This prevents us from expending O(N^2) time
+   * repeatedly memmove-ing a large pointer array.  The worst case space
+   * wastage is pretty small, since it's just pointers and not whole tuples.
+   */
+  if (nremove < state->memtupcount / 8)
+    return;
+
+  /*
+   * Slide the array down and readjust pointers.
+   *
+   * In mergejoin's current usage, it's demonstrable that there will always
+   * be exactly one non-removed tuple; so optimize that case.
+   */
+  if (nremove + 1 == state->memtupcount)
+    state->memtuples[0] = state->memtuples[nremove];
+  else
+    memmove(state->memtuples, state->memtuples + nremove,
+            (state->memtupcount - nremove) * sizeof(void *));
+
+  state->memtupdeleted = 0;
+  state->memtupcount -= nremove;
+
+  for (i = 0; i < state->readptrcount; i++) {
+    if (!state->readptrs[i].eof_reached)
+      state->readptrs[i].current -= nremove;
+  }
 }
 
 /*
  * tuplestore_updatemax
- *		Update the maximum space used by this tuplestore and the method used
- *		for storage.
+ *    Update the maximum space used by this tuplestore and the method used
+ *    for storage.
  */
 static void
 tuplestore_updatemax(Tuplestorestate *state)
 {
-	if (state->status == TSS_INMEM)
-		state->maxSpace = Max(state->maxSpace,
-							  state->allowedMem - state->availMem);
-	else
-	{
-		state->maxSpace = Max(state->maxSpace,
-							  BufFileSize(state->myfile));
+  if (state->status == TSS_INMEM)
+    state->maxSpace = Max(state->maxSpace,
+                          state->allowedMem - state->availMem);
+  else {
+    state->maxSpace = Max(state->maxSpace,
+                          BufFileSize(state->myfile));
 
-		/*
-		 * usedDisk never gets set to false again after spilling to disk, even
-		 * if tuplestore_clear() is called and new tuples go to memory again.
-		 */
-		state->usedDisk = true;
-	}
+    /*
+     * usedDisk never gets set to false again after spilling to disk, even
+     * if tuplestore_clear() is called and new tuples go to memory again.
+     */
+    state->usedDisk = true;
+  }
 }
 
 /*
  * tuplestore_get_stats
- *		Obtain statistics about the maximum space used by the tuplestore.
- *		These statistics are the maximums and are not reset by calls to
- *		tuplestore_trim() or tuplestore_clear().
+ *    Obtain statistics about the maximum space used by the tuplestore.
+ *    These statistics are the maximums and are not reset by calls to
+ *    tuplestore_trim() or tuplestore_clear().
  */
 void
 tuplestore_get_stats(Tuplestorestate *state, char **max_storage_type,
-					 int64 *max_space)
+                     int64 *max_space)
 {
-	tuplestore_updatemax(state);
+  tuplestore_updatemax(state);
 
-	if (state->usedDisk)
-		*max_storage_type = "Disk";
-	else
-		*max_storage_type = "Memory";
+  if (state->usedDisk)
+    *max_storage_type = "Disk";
+  else
+    *max_storage_type = "Memory";
 
-	*max_space = state->maxSpace;
+  *max_space = state->maxSpace;
 }
 
 /*
@@ -1567,7 +1556,7 @@ tuplestore_get_stats(Tuplestorestate *state, char **max_storage_type,
 bool
 tuplestore_in_memory(Tuplestorestate *state)
 {
-	return (state->status == TSS_INMEM);
+  return (state->status == TSS_INMEM);
 }
 
 
@@ -1578,14 +1567,15 @@ tuplestore_in_memory(Tuplestorestate *state)
 static unsigned int
 getlen(Tuplestorestate *state, bool eofOK)
 {
-	unsigned int len;
-	size_t		nbytes;
+  unsigned int len;
+  size_t    nbytes;
 
-	nbytes = BufFileReadMaybeEOF(state->myfile, &len, sizeof(len), eofOK);
-	if (nbytes == 0)
-		return 0;
-	else
-		return len;
+  nbytes = BufFileReadMaybeEOF(state->myfile, &len, sizeof(len), eofOK);
+
+  if (nbytes == 0)
+    return 0;
+  else
+    return len;
 }
 
 
@@ -1602,46 +1592,49 @@ getlen(Tuplestorestate *state, bool eofOK)
 static void *
 copytup_heap(Tuplestorestate *state, void *tup)
 {
-	MinimalTuple tuple;
+  MinimalTuple tuple;
 
-	tuple = minimal_tuple_from_heap_tuple((HeapTuple) tup, 0);
-	USEMEM(state, GetMemoryChunkSpace(tuple));
-	return tuple;
+  tuple = minimal_tuple_from_heap_tuple((HeapTuple) tup, 0);
+  USEMEM(state, GetMemoryChunkSpace(tuple));
+  return tuple;
 }
 
 static void
 writetup_heap(Tuplestorestate *state, void *tup)
 {
-	MinimalTuple tuple = (MinimalTuple) tup;
+  MinimalTuple tuple = (MinimalTuple) tup;
 
-	/* the part of the MinimalTuple we'll write: */
-	char	   *tupbody = (char *) tuple + MINIMAL_TUPLE_DATA_OFFSET;
-	unsigned int tupbodylen = tuple->t_len - MINIMAL_TUPLE_DATA_OFFSET;
+  /* the part of the MinimalTuple we'll write: */
+  char     *tupbody = (char *) tuple + MINIMAL_TUPLE_DATA_OFFSET;
+  unsigned int tupbodylen = tuple->t_len - MINIMAL_TUPLE_DATA_OFFSET;
 
-	/* total on-disk footprint: */
-	unsigned int tuplen = tupbodylen + sizeof(int);
+  /* total on-disk footprint: */
+  unsigned int tuplen = tupbodylen + sizeof(int);
 
-	BufFileWrite(state->myfile, &tuplen, sizeof(tuplen));
-	BufFileWrite(state->myfile, tupbody, tupbodylen);
-	if (state->backward)		/* need trailing length word? */
-		BufFileWrite(state->myfile, &tuplen, sizeof(tuplen));
+  BufFileWrite(state->myfile, &tuplen, sizeof(tuplen));
+  BufFileWrite(state->myfile, tupbody, tupbodylen);
 
-	FREEMEM(state, GetMemoryChunkSpace(tuple));
-	heap_free_minimal_tuple(tuple);
+  if (state->backward)    /* need trailing length word? */
+    BufFileWrite(state->myfile, &tuplen, sizeof(tuplen));
+
+  FREEMEM(state, GetMemoryChunkSpace(tuple));
+  heap_free_minimal_tuple(tuple);
 }
 
 static void *
 readtup_heap(Tuplestorestate *state, unsigned int len)
 {
-	unsigned int tupbodylen = len - sizeof(int);
-	unsigned int tuplen = tupbodylen + MINIMAL_TUPLE_DATA_OFFSET;
-	MinimalTuple tuple = (MinimalTuple) palloc(tuplen);
-	char	   *tupbody = (char *) tuple + MINIMAL_TUPLE_DATA_OFFSET;
+  unsigned int tupbodylen = len - sizeof(int);
+  unsigned int tuplen = tupbodylen + MINIMAL_TUPLE_DATA_OFFSET;
+  MinimalTuple tuple = (MinimalTuple) palloc(tuplen);
+  char     *tupbody = (char *) tuple + MINIMAL_TUPLE_DATA_OFFSET;
 
-	/* read in the tuple proper */
-	tuple->t_len = tuplen;
-	BufFileReadExact(state->myfile, tupbody, tupbodylen);
-	if (state->backward)		/* need trailing length word? */
-		BufFileReadExact(state->myfile, &tuplen, sizeof(tuplen));
-	return tuple;
+  /* read in the tuple proper */
+  tuple->t_len = tuplen;
+  BufFileReadExact(state->myfile, tupbody, tupbodylen);
+
+  if (state->backward)    /* need trailing length word? */
+    BufFileReadExact(state->myfile, &tuplen, sizeof(tuplen));
+
+  return tuple;
 }

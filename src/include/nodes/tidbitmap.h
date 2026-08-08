@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * tidbitmap.h
- *	  PostgreSQL tuple-id (TID) bitmap package
+ *    PostgreSQL tuple-id (TID) bitmap package
  *
  * This module provides bitmap data structures that are spiritually
  * similar to Bitmapsets, but are specially adapted to store sets of
@@ -50,33 +50,33 @@ typedef struct TBMSharedIterator TBMSharedIterator;
  */
 typedef struct TBMIterator
 {
-	bool		shared;
-	union
-	{
-		TBMPrivateIterator *private_iterator;
-		TBMSharedIterator *shared_iterator;
-	}			i;
+  bool    shared;
+  union
+  {
+    TBMPrivateIterator *private_iterator;
+    TBMSharedIterator *shared_iterator;
+  }     i;
 } TBMIterator;
 
 /* Result structure for tbm_iterate */
 typedef struct TBMIterateResult
 {
-	BlockNumber blockno;		/* block number containing tuples */
+  BlockNumber blockno;    /* block number containing tuples */
 
-	bool		lossy;
+  bool    lossy;
 
-	/*
-	 * Whether or not the tuples should be rechecked. This is always true if
-	 * the page is lossy but may also be true if the query requires recheck.
-	 */
-	bool		recheck;
+  /*
+   * Whether or not the tuples should be rechecked. This is always true if
+   * the page is lossy but may also be true if the query requires recheck.
+   */
+  bool    recheck;
 
-	/*
-	 * Pointer to the page containing the bitmap for this block. It is a void *
-	 * to avoid exposing the details of the tidbitmap PagetableEntry to API
-	 * users.
-	 */
-	void	   *internal_page;
+  /*
+   * Pointer to the page containing the bitmap for this block. It is a void *
+   * to avoid exposing the details of the tidbitmap PagetableEntry to API
+   * users.
+   */
+  void     *internal_page;
 } TBMIterateResult;
 
 /* function prototypes in nodes/tidbitmap.c */
@@ -86,16 +86,16 @@ extern void tbm_free(TIDBitmap *tbm);
 extern void tbm_free_shared_area(dsa_area *dsa, dsa_pointer dp);
 
 extern void tbm_add_tuples(TIDBitmap *tbm,
-						   const ItemPointer tids, int ntids,
-						   bool recheck);
+                           const ItemPointer tids, int ntids,
+                           bool recheck);
 extern void tbm_add_page(TIDBitmap *tbm, BlockNumber pageno);
 
 extern void tbm_union(TIDBitmap *a, const TIDBitmap *b);
 extern void tbm_intersect(TIDBitmap *a, const TIDBitmap *b);
 
-extern int	tbm_extract_page_tuple(TBMIterateResult *iteritem,
-								   OffsetNumber *offsets,
-								   uint32 max_offsets);
+extern int  tbm_extract_page_tuple(TBMIterateResult *iteritem,
+                                   OffsetNumber *offsets,
+                                   uint32 max_offsets);
 
 extern bool tbm_is_empty(const TIDBitmap *tbm);
 
@@ -106,11 +106,11 @@ extern bool tbm_shared_iterate(TBMSharedIterator *iterator, TBMIterateResult *tb
 extern void tbm_end_private_iterate(TBMPrivateIterator *iterator);
 extern void tbm_end_shared_iterate(TBMSharedIterator *iterator);
 extern TBMSharedIterator *tbm_attach_shared_iterate(dsa_area *dsa,
-													dsa_pointer dp);
-extern int	tbm_calculate_entries(Size maxbytes);
+    dsa_pointer dp);
+extern int  tbm_calculate_entries(Size maxbytes);
 
 extern TBMIterator tbm_begin_iterate(TIDBitmap *tbm,
-									 dsa_area *dsa, dsa_pointer dsp);
+                                     dsa_area *dsa, dsa_pointer dsp);
 extern void tbm_end_iterate(TBMIterator *iterator);
 
 extern bool tbm_iterate(TBMIterator *iterator, TBMIterateResult *tbmres);
@@ -118,11 +118,11 @@ extern bool tbm_iterate(TBMIterator *iterator, TBMIterateResult *tbmres);
 static inline bool
 tbm_exhausted(TBMIterator *iterator)
 {
-	/*
-	 * It doesn't matter if we check the private or shared iterator here. If
-	 * tbm_end_iterate() was called, they will be NULL
-	 */
-	return !iterator->i.private_iterator;
+  /*
+   * It doesn't matter if we check the private or shared iterator here. If
+   * tbm_end_iterate() was called, they will be NULL
+   */
+  return !iterator->i.private_iterator;
 }
 
-#endif							/* TIDBITMAP_H */
+#endif              /* TIDBITMAP_H */

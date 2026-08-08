@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_bswap.h
- *	  Byte swapping.
+ *    Byte swapping.
  *
  * Macros for reversing the byte order of 16, 32 and 64-bit unsigned integers.
  * For example, 0xAABBCCDD becomes 0xDDCCBBAA.  These are just wrappers for
@@ -41,12 +41,12 @@
 static inline uint16
 pg_bswap16(uint16 x)
 {
-	return
-		((x << 8) & 0xff00) |
-		((x >> 8) & 0x00ff);
+  return
+    ((x << 8) & 0xff00) |
+    ((x >> 8) & 0x00ff);
 }
 
-#endif							/* HAVE__BUILTIN_BSWAP16 */
+#endif              /* HAVE__BUILTIN_BSWAP16 */
 
 
 /* implementation of uint32 pg_bswap32(uint32) */
@@ -63,14 +63,14 @@ pg_bswap16(uint16 x)
 static inline uint32
 pg_bswap32(uint32 x)
 {
-	return
-		((x << 24) & 0xff000000) |
-		((x << 8) & 0x00ff0000) |
-		((x >> 8) & 0x0000ff00) |
-		((x >> 24) & 0x000000ff);
+  return
+    ((x << 24) & 0xff000000) |
+    ((x << 8) & 0x00ff0000) |
+    ((x >> 8) & 0x0000ff00) |
+    ((x >> 24) & 0x000000ff);
 }
 
-#endif							/* HAVE__BUILTIN_BSWAP32 */
+#endif              /* HAVE__BUILTIN_BSWAP32 */
 
 
 /* implementation of uint64 pg_bswap64(uint64) */
@@ -88,17 +88,17 @@ pg_bswap32(uint32 x)
 static inline uint64
 pg_bswap64(uint64 x)
 {
-	return
-		((x << 56) & UINT64CONST(0xff00000000000000)) |
-		((x << 40) & UINT64CONST(0x00ff000000000000)) |
-		((x << 24) & UINT64CONST(0x0000ff0000000000)) |
-		((x << 8) & UINT64CONST(0x000000ff00000000)) |
-		((x >> 8) & UINT64CONST(0x00000000ff000000)) |
-		((x >> 24) & UINT64CONST(0x0000000000ff0000)) |
-		((x >> 40) & UINT64CONST(0x000000000000ff00)) |
-		((x >> 56) & UINT64CONST(0x00000000000000ff));
+  return
+    ((x << 56) & UINT64CONST(0xff00000000000000)) |
+    ((x << 40) & UINT64CONST(0x00ff000000000000)) |
+    ((x << 24) & UINT64CONST(0x0000ff0000000000)) |
+    ((x << 8) & UINT64CONST(0x000000ff00000000)) |
+    ((x >> 8) & UINT64CONST(0x00000000ff000000)) |
+    ((x >> 24) & UINT64CONST(0x0000000000ff0000)) |
+    ((x >> 40) & UINT64CONST(0x000000000000ff00)) |
+    ((x >> 56) & UINT64CONST(0x00000000000000ff));
 }
-#endif							/* HAVE__BUILTIN_BSWAP64 */
+#endif              /* HAVE__BUILTIN_BSWAP64 */
 
 
 /*
@@ -107,25 +107,25 @@ pg_bswap64(uint64 x)
  */
 #ifdef WORDS_BIGENDIAN
 
-#define pg_hton16(x)		(x)
-#define pg_hton32(x)		(x)
-#define pg_hton64(x)		(x)
+#define pg_hton16(x)    (x)
+#define pg_hton32(x)    (x)
+#define pg_hton64(x)    (x)
 
-#define pg_ntoh16(x)		(x)
-#define pg_ntoh32(x)		(x)
-#define pg_ntoh64(x)		(x)
+#define pg_ntoh16(x)    (x)
+#define pg_ntoh32(x)    (x)
+#define pg_ntoh64(x)    (x)
 
 #else
 
-#define pg_hton16(x)		pg_bswap16(x)
-#define pg_hton32(x)		pg_bswap32(x)
-#define pg_hton64(x)		pg_bswap64(x)
+#define pg_hton16(x)    pg_bswap16(x)
+#define pg_hton32(x)    pg_bswap32(x)
+#define pg_hton64(x)    pg_bswap64(x)
 
-#define pg_ntoh16(x)		pg_bswap16(x)
-#define pg_ntoh32(x)		pg_bswap32(x)
-#define pg_ntoh64(x)		pg_bswap64(x)
+#define pg_ntoh16(x)    pg_bswap16(x)
+#define pg_ntoh32(x)    pg_bswap32(x)
+#define pg_ntoh64(x)    pg_bswap64(x)
 
-#endif							/* WORDS_BIGENDIAN */
+#endif              /* WORDS_BIGENDIAN */
 
 
 /*
@@ -148,14 +148,14 @@ pg_bswap64(uint64 x)
  */
 #ifdef SIZEOF_DATUM
 #ifdef WORDS_BIGENDIAN
-#define		DatumBigEndianToNative(x)	(x)
-#else							/* !WORDS_BIGENDIAN */
+#define   DatumBigEndianToNative(x) (x)
+#else             /* !WORDS_BIGENDIAN */
 #if SIZEOF_DATUM == 8
-#define		DatumBigEndianToNative(x)	pg_bswap64(x)
-#else							/* SIZEOF_DATUM != 8 */
-#define		DatumBigEndianToNative(x)	pg_bswap32(x)
-#endif							/* SIZEOF_DATUM == 8 */
-#endif							/* WORDS_BIGENDIAN */
-#endif							/* SIZEOF_DATUM */
+#define   DatumBigEndianToNative(x) pg_bswap64(x)
+#else             /* SIZEOF_DATUM != 8 */
+#define   DatumBigEndianToNative(x) pg_bswap32(x)
+#endif              /* SIZEOF_DATUM == 8 */
+#endif              /* WORDS_BIGENDIAN */
+#endif              /* SIZEOF_DATUM */
 
-#endif							/* PG_BSWAP_H */
+#endif              /* PG_BSWAP_H */

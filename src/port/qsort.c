@@ -1,5 +1,5 @@
 /*
- *	qsort.c: standard quicksort algorithm
+ *  qsort.c: standard quicksort algorithm
  */
 
 #include "c.h"
@@ -18,5 +18,5 @@
 int
 pg_qsort_strcmp(const void *a, const void *b)
 {
-	return strcmp(*(const char *const *) a, *(const char *const *) b);
+  return strcmp(*(const char *const *) a, *(const char *const *) b);
 }

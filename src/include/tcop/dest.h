@@ -1,22 +1,22 @@
 /*-------------------------------------------------------------------------
  *
  * dest.h
- *	  support for communication destinations
+ *    support for communication destinations
  *
  * Whenever the backend executes a query that returns tuples, the results
  * have to go someplace.  For example:
  *
- *	  - stdout is the destination only when we are running a
- *		standalone backend (no postmaster) and are returning results
- *		back to an interactive user.
+ *    - stdout is the destination only when we are running a
+ *    standalone backend (no postmaster) and are returning results
+ *    back to an interactive user.
  *
- *	  - a remote process is the destination when we are
- *		running a backend with a frontend and the frontend executes
- *		PQexec() or PQfn().  In this case, the results are sent
- *		to the frontend via the functions in backend/libpq.
+ *    - a remote process is the destination when we are
+ *    running a backend with a frontend and the frontend executes
+ *    PQexec() or PQfn().  In this case, the results are sent
+ *    to the frontend via the functions in backend/libpq.
  *
- *	  - DestNone is the destination when the system executes
- *		a query internally.  The results are discarded.
+ *    - DestNone is the destination when the system executes
+ *    a query internally.  The results are discarded.
  *
  * dest.c defines three functions that implement destination management:
  *
@@ -74,8 +74,8 @@
 
 
 /* ----------------
- *		CommandDest is a simplistic means of identifying the desired
- *		destination.  Someday this will probably need to be improved.
+ *    CommandDest is a simplistic means of identifying the desired
+ *    destination.  Someday this will probably need to be improved.
  *
  * Note: only the values DestNone, DestDebug, DestRemote are legal for the
  * global variable whereToSendOutput.   The other values may be used
@@ -84,25 +84,25 @@
  */
 typedef enum
 {
-	DestNone,					/* results are discarded */
-	DestDebug,					/* results go to debugging output */
-	DestRemote,					/* results sent to frontend process */
-	DestRemoteExecute,			/* sent to frontend, in Execute command */
-	DestRemoteSimple,			/* sent to frontend, w/no catalog access */
-	DestSPI,					/* results sent to SPI manager */
-	DestTuplestore,				/* results sent to Tuplestore */
-	DestIntoRel,				/* results sent to relation (SELECT INTO) */
-	DestCopyOut,				/* results sent to COPY TO code */
-	DestSQLFunction,			/* results sent to SQL-language func mgr */
-	DestTransientRel,			/* results sent to transient relation */
-	DestTupleQueue,				/* results sent to tuple queue */
-	DestExplainSerialize,		/* results are serialized and discarded */
+  DestNone,         /* results are discarded */
+  DestDebug,          /* results go to debugging output */
+  DestRemote,         /* results sent to frontend process */
+  DestRemoteExecute,      /* sent to frontend, in Execute command */
+  DestRemoteSimple,     /* sent to frontend, w/no catalog access */
+  DestSPI,          /* results sent to SPI manager */
+  DestTuplestore,       /* results sent to Tuplestore */
+  DestIntoRel,        /* results sent to relation (SELECT INTO) */
+  DestCopyOut,        /* results sent to COPY TO code */
+  DestSQLFunction,      /* results sent to SQL-language func mgr */
+  DestTransientRel,     /* results sent to transient relation */
+  DestTupleQueue,       /* results sent to tuple queue */
+  DestExplainSerialize,   /* results are serialized and discarded */
 } CommandDest;
 
 /* ----------------
- *		DestReceiver is a base type for destination-specific local state.
- *		In the simplest cases, there is no state info, just the function
- *		pointers that the executor must call.
+ *    DestReceiver is a base type for destination-specific local state.
+ *    In the simplest cases, there is no state info, just the function
+ *    pointers that the executor must call.
  *
  * Note: the receiveSlot routine must be passed a slot containing a TupleDesc
  * identical to the one given to the rStartup routine.  It returns bool where
@@ -114,30 +114,30 @@ typedef struct _DestReceiver DestReceiver;
 
 struct _DestReceiver
 {
-	/* Called for each tuple to be output: */
-	bool		(*receiveSlot) (TupleTableSlot *slot,
-								DestReceiver *self);
-	/* Per-executor-run initialization and shutdown: */
-	void		(*rStartup) (DestReceiver *self,
-							 int operation,
-							 TupleDesc typeinfo);
-	void		(*rShutdown) (DestReceiver *self);
-	/* Destroy the receiver object itself (if dynamically allocated) */
-	void		(*rDestroy) (DestReceiver *self);
-	/* CommandDest code for this receiver */
-	CommandDest mydest;
-	/* Private fields might appear beyond this point... */
+  /* Called for each tuple to be output: */
+  bool    (*receiveSlot) (TupleTableSlot *slot,
+                          DestReceiver *self);
+  /* Per-executor-run initialization and shutdown: */
+  void    (*rStartup) (DestReceiver *self,
+                       int operation,
+                       TupleDesc typeinfo);
+  void    (*rShutdown) (DestReceiver *self);
+  /* Destroy the receiver object itself (if dynamically allocated) */
+  void    (*rDestroy) (DestReceiver *self);
+  /* CommandDest code for this receiver */
+  CommandDest mydest;
+  /* Private fields might appear beyond this point... */
 };
 
 extern PGDLLIMPORT DestReceiver *None_Receiver; /* permanent receiver for
-												 * DestNone */
+                         * DestNone */
 
 /* The primary destination management functions */
 
 extern void BeginCommand(CommandTag commandTag, CommandDest dest);
 extern DestReceiver *CreateDestReceiver(CommandDest dest);
 extern void EndCommand(const QueryCompletion *qc, CommandDest dest,
-					   bool force_undecorated_output);
+                       bool force_undecorated_output);
 extern void EndReplicationCommand(const char *commandTag);
 
 /* Additional functions that go with destination management, more or less. */
@@ -145,4 +145,4 @@ extern void EndReplicationCommand(const char *commandTag);
 extern void NullCommand(CommandDest dest);
 extern void ReadyForQuery(CommandDest dest);
 
-#endif							/* DEST_H */
+#endif              /* DEST_H */

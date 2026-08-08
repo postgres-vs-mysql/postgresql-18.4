@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * stringinfo.h
- *	  Declarations/definitions for "StringInfo" functions.
+ *    Declarations/definitions for "StringInfo" functions.
  *
  * StringInfo provides an extensible string data type (currently limited to a
  * length of 1GB).  It can be used to buffer either ordinary C strings
@@ -20,19 +20,19 @@
 
 /*-------------------------
  * StringInfoData holds information about an extensible string.
- *		data	is the current buffer for the string.
- *		len		is the current string length.  Except in the case of read-only
- *				strings described below, there is guaranteed to be a
- *				terminating '\0' at data[len].
- *		maxlen	is the allocated size in bytes of 'data', i.e. the maximum
- *				string size (including the terminating '\0' char) that we can
- *				currently store in 'data' without having to reallocate
- *				more space.  We must always have maxlen > len, except
- *				in the read-only case described below.
- *		cursor	is initialized to zero by makeStringInfo, initStringInfo,
- *				initReadOnlyStringInfo and initStringInfoFromString but is not
- *				otherwise touched by the stringinfo.c routines.  Some routines
- *				use it to scan through a StringInfo.
+ *    data  is the current buffer for the string.
+ *    len   is the current string length.  Except in the case of read-only
+ *        strings described below, there is guaranteed to be a
+ *        terminating '\0' at data[len].
+ *    maxlen  is the allocated size in bytes of 'data', i.e. the maximum
+ *        string size (including the terminating '\0' char) that we can
+ *        currently store in 'data' without having to reallocate
+ *        more space.  We must always have maxlen > len, except
+ *        in the read-only case described below.
+ *    cursor  is initialized to zero by makeStringInfo, initStringInfo,
+ *        initReadOnlyStringInfo and initStringInfoFromString but is not
+ *        otherwise touched by the stringinfo.c routines.  Some routines
+ *        use it to scan through a StringInfo.
  *
  * As a special case, a StringInfoData can be initialized with a read-only
  * string buffer.  In this case "data" does not necessarily point at a
@@ -45,10 +45,10 @@
  */
 typedef struct StringInfoData
 {
-	char	   *data;
-	int			len;
-	int			maxlen;
-	int			cursor;
+  char     *data;
+  int     len;
+  int     maxlen;
+  int     cursor;
 } StringInfoData;
 
 typedef StringInfoData *StringInfo;
@@ -58,42 +58,42 @@ typedef StringInfoData *StringInfo;
  * There are six ways to create a StringInfo object initially:
  *
  * StringInfo stringptr = makeStringInfo();
- *		Both the StringInfoData and the data buffer are palloc'd.
+ *    Both the StringInfoData and the data buffer are palloc'd.
  *
  * StringInfo stringptr = makeStringInfoExt(initsize);
- *		Same as makeStringInfo except the data buffer is allocated
- *		with size 'initsize'.
+ *    Same as makeStringInfo except the data buffer is allocated
+ *    with size 'initsize'.
  *
  * StringInfoData string;
  * initStringInfo(&string);
- *		The data buffer is palloc'd but the StringInfoData is just local.
- *		This is the easiest approach for a StringInfo object that will
- *		only live as long as the current routine.
+ *    The data buffer is palloc'd but the StringInfoData is just local.
+ *    This is the easiest approach for a StringInfo object that will
+ *    only live as long as the current routine.
  *
  * StringInfoData string;
  * initStringInfoExt(&string, initsize);
- *		Same as initStringInfo except the data buffer is allocated
- *		with size 'initsize'.
+ *    Same as initStringInfo except the data buffer is allocated
+ *    with size 'initsize'.
  *
  * StringInfoData string;
  * initReadOnlyStringInfo(&string, existingbuf, len);
- *		The StringInfoData's data field is set to point directly to the
- *		existing buffer and the StringInfoData's len is set to the given len.
- *		The given buffer can point to memory that's not managed by palloc or
- *		is pointing partway through a palloc'd chunk.  The maxlen field is set
- *		to 0.  A read-only StringInfo cannot be appended to using any of the
- *		appendStringInfo functions or reset with resetStringInfo().  The given
- *		buffer can optionally omit the trailing NUL.
+ *    The StringInfoData's data field is set to point directly to the
+ *    existing buffer and the StringInfoData's len is set to the given len.
+ *    The given buffer can point to memory that's not managed by palloc or
+ *    is pointing partway through a palloc'd chunk.  The maxlen field is set
+ *    to 0.  A read-only StringInfo cannot be appended to using any of the
+ *    appendStringInfo functions or reset with resetStringInfo().  The given
+ *    buffer can optionally omit the trailing NUL.
  *
  * StringInfoData string;
  * initStringInfoFromString(&string, palloced_buf, len);
- *		The StringInfoData's data field is set to point directly to the given
- *		buffer and the StringInfoData's len is set to the given len.  This
- *		method of initialization is useful when the buffer already exists.
- *		StringInfos initialized this way can be appended to using the
- *		appendStringInfo functions and reset with resetStringInfo().  The
- *		given buffer must be NUL-terminated.  The palloc'd buffer is assumed
- *		to be len + 1 in size.
+ *    The StringInfoData's data field is set to point directly to the given
+ *    buffer and the StringInfoData's len is set to the given len.  This
+ *    method of initialization is useful when the buffer already exists.
+ *    StringInfos initialized this way can be appended to using the
+ *    appendStringInfo functions and reset with resetStringInfo().  The
+ *    given buffer must be NUL-terminated.  The palloc'd buffer is assumed
+ *    to be len + 1 in size.
  *
  * To destroy a StringInfo, pfree() the data buffer, and then pfree() the
  * StringInfoData if it was palloc'd.  For StringInfos created with
@@ -109,7 +109,7 @@ typedef StringInfoData *StringInfo;
  *-------------------------
  */
 
-#define STRINGINFO_DEFAULT_SIZE 1024	/* default initial allocation size */
+#define STRINGINFO_DEFAULT_SIZE 1024  /* default initial allocation size */
 
 /*------------------------
  * makeStringInfo
@@ -156,10 +156,10 @@ extern void initStringInfoExt(StringInfo str, int initsize);
 static inline void
 initReadOnlyStringInfo(StringInfo str, char *data, int len)
 {
-	str->data = data;
-	str->len = len;
-	str->maxlen = 0;			/* read-only */
-	str->cursor = 0;
+  str->data = data;
+  str->len = len;
+  str->maxlen = 0;      /* read-only */
+  str->cursor = 0;
 }
 
 /*------------------------
@@ -174,12 +174,12 @@ initReadOnlyStringInfo(StringInfo str, char *data, int len)
 static inline void
 initStringInfoFromString(StringInfo str, char *data, int len)
 {
-	Assert(data[len] == '\0');
+  Assert(data[len] == '\0');
 
-	str->data = data;
-	str->len = len;
-	str->maxlen = len + 1;
-	str->cursor = 0;
+  str->data = data;
+  str->len = len;
+  str->maxlen = len + 1;
+  str->cursor = 0;
 }
 
 /*------------------------
@@ -196,7 +196,7 @@ extern void resetStringInfo(StringInfo str);
  * to str if necessary.  This is sort of like a combination of sprintf and
  * strcat.
  */
-extern void appendStringInfo(StringInfo str, const char *fmt,...) pg_attribute_printf(2, 3);
+extern void appendStringInfo(StringInfo str, const char *fmt, ...) pg_attribute_printf(2, 3);
 
 /*------------------------
  * appendStringInfoVA
@@ -207,7 +207,7 @@ extern void appendStringInfo(StringInfo str, const char *fmt,...) pg_attribute_p
  * pass the return value to enlargeStringInfo() before trying again; see
  * appendStringInfo for standard usage pattern.
  */
-extern int	appendStringInfoVA(StringInfo str, const char *fmt, va_list args) pg_attribute_printf(2, 0);
+extern int  appendStringInfoVA(StringInfo str, const char *fmt, va_list args) pg_attribute_printf(2, 0);
 
 /*------------------------
  * appendStringInfoString
@@ -229,9 +229,9 @@ extern void appendStringInfoChar(StringInfo str, char ch);
  * Caution: str argument will be evaluated multiple times.
  */
 #define appendStringInfoCharMacro(str,ch) \
-	(((str)->len + 1 >= (str)->maxlen) ? \
-	 appendStringInfoChar(str, ch) : \
-	 (void)((str)->data[(str)->len] = (ch), (str)->data[++(str)->len] = '\0'))
+  (((str)->len + 1 >= (str)->maxlen) ? \
+   appendStringInfoChar(str, ch) : \
+   (void)((str)->data[(str)->len] = (ch), (str)->data[++(str)->len] = '\0'))
 
 /*------------------------
  * appendStringInfoSpaces
@@ -245,7 +245,7 @@ extern void appendStringInfoSpaces(StringInfo str, int count);
  * if necessary.
  */
 extern void appendBinaryStringInfo(StringInfo str,
-								   const void *data, int datalen);
+                                   const void *data, int datalen);
 
 /*------------------------
  * appendBinaryStringInfoNT
@@ -253,7 +253,7 @@ extern void appendBinaryStringInfo(StringInfo str,
  * if necessary. Does not ensure a trailing null-byte exists.
  */
 extern void appendBinaryStringInfoNT(StringInfo str,
-									 const void *data, int datalen);
+                                     const void *data, int datalen);
 
 /*------------------------
  * enlargeStringInfo
@@ -267,4 +267,4 @@ extern void enlargeStringInfo(StringInfo str, int needed);
  */
 extern void destroyStringInfo(StringInfo str);
 
-#endif							/* STRINGINFO_H */
+#endif              /* STRINGINFO_H */

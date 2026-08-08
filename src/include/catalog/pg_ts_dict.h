@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_ts_dict.h
- *	  definition of the "text search dictionary" system catalog (pg_ts_dict)
+ *    definition of the "text search dictionary" system catalog (pg_ts_dict)
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -10,8 +10,8 @@
  * src/include/catalog/pg_ts_dict.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -19,35 +19,36 @@
 #define PG_TS_DICT_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_ts_dict_d.h"	/* IWYU pragma: export */
+#include "catalog/pg_ts_dict_d.h" /* IWYU pragma: export */
 
 /* ----------------
- *		pg_ts_dict definition.  cpp turns this into
- *		typedef struct FormData_pg_ts_dict
+ *    pg_ts_dict definition.  cpp turns this into
+ *    typedef struct FormData_pg_ts_dict
  * ----------------
  */
-CATALOG(pg_ts_dict,3600,TSDictionaryRelationId)
+CATALOG(pg_ts_dict, 3600, TSDictionaryRelationId)
 {
-	/* oid */
-	Oid			oid;
+  /* oid */
+  Oid     oid;
 
-	/* dictionary name */
-	NameData	dictname;
+  /* dictionary name */
+  NameData  dictname;
 
-	/* name space */
-	Oid			dictnamespace BKI_DEFAULT(pg_catalog) BKI_LOOKUP(pg_namespace);
+  /* name space */
+  Oid     dictnamespace BKI_DEFAULT(pg_catalog) BKI_LOOKUP(pg_namespace);
 
-	/* owner */
-	Oid			dictowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
+  /* owner */
+  Oid     dictowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
 
-	/* dictionary's template */
-	Oid			dicttemplate BKI_LOOKUP(pg_ts_template);
+  /* dictionary's template */
+  Oid     dicttemplate BKI_LOOKUP(pg_ts_template);
 
-#ifdef CATALOG_VARLEN			/* variable-length fields start here */
-	/* options passed to dict_init() */
-	text		dictinitoption;
+#ifdef CATALOG_VARLEN     /* variable-length fields start here */
+  /* options passed to dict_init() */
+  text    dictinitoption;
 #endif
-} FormData_pg_ts_dict;
+}
+FormData_pg_ts_dict;
 
 typedef FormData_pg_ts_dict *Form_pg_ts_dict;
 
@@ -59,4 +60,4 @@ DECLARE_UNIQUE_INDEX_PKEY(pg_ts_dict_oid_index, 3605, TSDictionaryOidIndexId, pg
 MAKE_SYSCACHE(TSDICTNAMENSP, pg_ts_dict_dictname_index, 2);
 MAKE_SYSCACHE(TSDICTOID, pg_ts_dict_oid_index, 2);
 
-#endif							/* PG_TS_DICT_H */
+#endif              /* PG_TS_DICT_H */

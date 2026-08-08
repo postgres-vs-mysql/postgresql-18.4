@@ -1,8 +1,8 @@
 /*-------------------------------------------------------------------------
  *
  * pg_auth_members.h
- *	  definition of the "authorization identifier members" system catalog
- *	  (pg_auth_members).
+ *    definition of the "authorization identifier members" system catalog
+ *    (pg_auth_members).
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -11,8 +11,8 @@
  * src/include/catalog/pg_auth_members.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -20,27 +20,27 @@
 #define PG_AUTH_MEMBERS_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_auth_members_d.h"	/* IWYU pragma: export */
+#include "catalog/pg_auth_members_d.h"  /* IWYU pragma: export */
 
 /* ----------------
- *		pg_auth_members definition.  cpp turns this into
- *		typedef struct FormData_pg_auth_members
+ *    pg_auth_members definition.  cpp turns this into
+ *    typedef struct FormData_pg_auth_members
  * ----------------
  */
-CATALOG(pg_auth_members,1261,AuthMemRelationId) BKI_SHARED_RELATION BKI_ROWTYPE_OID(2843,AuthMemRelation_Rowtype_Id) BKI_SCHEMA_MACRO
+CATALOG(pg_auth_members, 1261, AuthMemRelationId) BKI_SHARED_RELATION BKI_ROWTYPE_OID(2843, AuthMemRelation_Rowtype_Id) BKI_SCHEMA_MACRO
 {
-	Oid			oid;			/* oid */
-	Oid			roleid BKI_LOOKUP(pg_authid);	/* ID of a role */
-	Oid			member BKI_LOOKUP(pg_authid);	/* ID of a member of that role */
-	Oid			grantor BKI_LOOKUP(pg_authid);	/* who granted the membership */
-	bool		admin_option;	/* granted with admin option? */
-	bool		inherit_option; /* exercise privileges without SET ROLE? */
-	bool		set_option;		/* use SET ROLE to the target role? */
+  Oid     oid;      /* oid */
+  Oid     roleid BKI_LOOKUP(pg_authid); /* ID of a role */
+  Oid     member BKI_LOOKUP(pg_authid); /* ID of a member of that role */
+  Oid     grantor BKI_LOOKUP(pg_authid);  /* who granted the membership */
+  bool    admin_option; /* granted with admin option? */
+  bool    inherit_option; /* exercise privileges without SET ROLE? */
+  bool    set_option;   /* use SET ROLE to the target role? */
 } FormData_pg_auth_members;
 
 /* ----------------
- *		Form_pg_auth_members corresponds to a pointer to a tuple with
- *		the format of pg_auth_members relation.
+ *    Form_pg_auth_members corresponds to a pointer to a tuple with
+ *    the format of pg_auth_members relation.
  * ----------------
  */
 typedef FormData_pg_auth_members *Form_pg_auth_members;
@@ -53,4 +53,4 @@ DECLARE_INDEX(pg_auth_members_grantor_index, 6302, AuthMemGrantorIndexId, pg_aut
 MAKE_SYSCACHE(AUTHMEMROLEMEM, pg_auth_members_role_member_index, 8);
 MAKE_SYSCACHE(AUTHMEMMEMROLE, pg_auth_members_member_role_index, 8);
 
-#endif							/* PG_AUTH_MEMBERS_H */
+#endif              /* PG_AUTH_MEMBERS_H */

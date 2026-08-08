@@ -2,7 +2,7 @@
  *
  * fe-auth-oauth.h
  *
- *	  Definitions for OAuth authentication implementations
+ *    Definitions for OAuth authentication implementations
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -21,10 +21,10 @@
 
 enum fe_oauth_step
 {
-	FE_OAUTH_INIT,
-	FE_OAUTH_BEARER_SENT,
-	FE_OAUTH_REQUESTING_TOKEN,
-	FE_OAUTH_SERVER_ERROR,
+  FE_OAUTH_INIT,
+  FE_OAUTH_BEARER_SENT,
+  FE_OAUTH_REQUESTING_TOKEN,
+  FE_OAUTH_SERVER_ERROR,
 };
 
 /*
@@ -34,12 +34,12 @@ enum fe_oauth_step
  */
 typedef struct
 {
-	enum fe_oauth_step step;
+  enum fe_oauth_step step;
 
-	PGconn	   *conn;
-	void	   *async_ctx;
+  PGconn     *conn;
+  void     *async_ctx;
 
-	void	   *builtin_flow;
+  void     *builtin_flow;
 } fe_oauth_state;
 
 extern void pqClearOAuthToken(PGconn *conn);
@@ -49,4 +49,4 @@ extern bool use_builtin_flow(PGconn *conn, fe_oauth_state *state);
 /* Mechanisms in fe-auth-oauth.c */
 extern const pg_fe_sasl_mech pg_oauth_mech;
 
-#endif							/* FE_AUTH_OAUTH_H */
+#endif              /* FE_AUTH_OAUTH_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * sdir.h
- *	  POSTGRES scan direction definitions.
+ *    POSTGRES scan direction definitions.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -23,9 +23,9 @@
  */
 typedef enum ScanDirection
 {
-	BackwardScanDirection = -1,
-	NoMovementScanDirection = 0,
-	ForwardScanDirection = 1
+  BackwardScanDirection = -1,
+  NoMovementScanDirection = 0,
+  ForwardScanDirection = 1
 } ScanDirection;
 
 /*
@@ -37,31 +37,31 @@ typedef enum ScanDirection
 
 /*
  * ScanDirectionIsValid
- *		True iff scan direction is valid.
+ *    True iff scan direction is valid.
  */
 #define ScanDirectionIsValid(direction) \
-	((bool) (BackwardScanDirection <= (direction) && \
-			 (direction) <= ForwardScanDirection))
+  ((bool) (BackwardScanDirection <= (direction) && \
+       (direction) <= ForwardScanDirection))
 
 /*
  * ScanDirectionIsBackward
- *		True iff scan direction is backward.
+ *    True iff scan direction is backward.
  */
 #define ScanDirectionIsBackward(direction) \
-	((bool) ((direction) == BackwardScanDirection))
+  ((bool) ((direction) == BackwardScanDirection))
 
 /*
  * ScanDirectionIsNoMovement
- *		True iff scan direction indicates no movement.
+ *    True iff scan direction indicates no movement.
  */
 #define ScanDirectionIsNoMovement(direction) \
-	((bool) ((direction) == NoMovementScanDirection))
+  ((bool) ((direction) == NoMovementScanDirection))
 
 /*
  * ScanDirectionIsForward
- *		True iff scan direction is forward.
+ *    True iff scan direction is forward.
  */
 #define ScanDirectionIsForward(direction) \
-	((bool) ((direction) == ForwardScanDirection))
+  ((bool) ((direction) == ForwardScanDirection))
 
-#endif							/* SDIR_H */
+#endif              /* SDIR_H */

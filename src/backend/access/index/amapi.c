@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * amapi.c
- *	  Support routines for API for Postgres index access methods.
+ *    Support routines for API for Postgres index access methods.
  *
  * Copyright (c) 2015-2025, PostgreSQL Global Development Group
  *
  *
  * IDENTIFICATION
- *	  src/backend/access/index/amapi.c
+ *    src/backend/access/index/amapi.c
  *
  *-------------------------------------------------------------------------
  */
@@ -32,17 +32,17 @@
 IndexAmRoutine *
 GetIndexAmRoutine(Oid amhandler)
 {
-	Datum		datum;
-	IndexAmRoutine *routine;
+  Datum   datum;
+  IndexAmRoutine *routine;
 
-	datum = OidFunctionCall0(amhandler);
-	routine = (IndexAmRoutine *) DatumGetPointer(datum);
+  datum = OidFunctionCall0(amhandler);
+  routine = (IndexAmRoutine *) DatumGetPointer(datum);
 
-	if (routine == NULL || !IsA(routine, IndexAmRoutine))
-		elog(ERROR, "index access method handler function %u did not return an IndexAmRoutine struct",
-			 amhandler);
+  if (routine == NULL || !IsA(routine, IndexAmRoutine))
+    elog(ERROR, "index access method handler function %u did not return an IndexAmRoutine struct",
+         amhandler);
 
-	return routine;
+  return routine;
 }
 
 /*
@@ -55,55 +55,55 @@ GetIndexAmRoutine(Oid amhandler)
 IndexAmRoutine *
 GetIndexAmRoutineByAmId(Oid amoid, bool noerror)
 {
-	HeapTuple	tuple;
-	Form_pg_am	amform;
-	regproc		amhandler;
+  HeapTuple tuple;
+  Form_pg_am  amform;
+  regproc   amhandler;
 
-	/* Get handler function OID for the access method */
-	tuple = SearchSysCache1(AMOID, ObjectIdGetDatum(amoid));
-	if (!HeapTupleIsValid(tuple))
-	{
-		if (noerror)
-			return NULL;
-		elog(ERROR, "cache lookup failed for access method %u",
-			 amoid);
-	}
-	amform = (Form_pg_am) GETSTRUCT(tuple);
+  /* Get handler function OID for the access method */
+  tuple = SearchSysCache1(AMOID, ObjectIdGetDatum(amoid));
 
-	/* Check if it's an index access method as opposed to some other AM */
-	if (amform->amtype != AMTYPE_INDEX)
-	{
-		if (noerror)
-		{
-			ReleaseSysCache(tuple);
-			return NULL;
-		}
-		ereport(ERROR,
-				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-				 errmsg("access method \"%s\" is not of type %s",
-						NameStr(amform->amname), "INDEX")));
-	}
+  if (!HeapTupleIsValid(tuple)) {
+    if (noerror)
+      return NULL;
 
-	amhandler = amform->amhandler;
+    elog(ERROR, "cache lookup failed for access method %u",
+         amoid);
+  }
 
-	/* Complain if handler OID is invalid */
-	if (!RegProcedureIsValid(amhandler))
-	{
-		if (noerror)
-		{
-			ReleaseSysCache(tuple);
-			return NULL;
-		}
-		ereport(ERROR,
-				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-				 errmsg("index access method \"%s\" does not have a handler",
-						NameStr(amform->amname))));
-	}
+  amform = (Form_pg_am) GETSTRUCT(tuple);
 
-	ReleaseSysCache(tuple);
+  /* Check if it's an index access method as opposed to some other AM */
+  if (amform->amtype != AMTYPE_INDEX) {
+    if (noerror) {
+      ReleaseSysCache(tuple);
+      return NULL;
+    }
 
-	/* And finally, call the handler function to get the API struct. */
-	return GetIndexAmRoutine(amhandler);
+    ereport(ERROR,
+            (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+             errmsg("access method \"%s\" is not of type %s",
+                    NameStr(amform->amname), "INDEX")));
+  }
+
+  amhandler = amform->amhandler;
+
+  /* Complain if handler OID is invalid */
+  if (!RegProcedureIsValid(amhandler)) {
+    if (noerror) {
+      ReleaseSysCache(tuple);
+      return NULL;
+    }
+
+    ereport(ERROR,
+            (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+             errmsg("index access method \"%s\" does not have a handler",
+                    NameStr(amform->amname))));
+  }
+
+  ReleaseSysCache(tuple);
+
+  /* And finally, call the handler function to get the API struct. */
+  return GetIndexAmRoutine(amhandler);
 }
 
 
@@ -117,24 +117,25 @@ GetIndexAmRoutineByAmId(Oid amoid, bool noerror)
 CompareType
 IndexAmTranslateStrategy(StrategyNumber strategy, Oid amoid, Oid opfamily, bool missing_ok)
 {
-	CompareType result;
-	IndexAmRoutine *amroutine;
+  CompareType result;
+  IndexAmRoutine *amroutine;
 
-	/* shortcut for common case */
-	if (amoid == BTREE_AM_OID &&
-		(strategy > InvalidStrategy && strategy <= BTMaxStrategyNumber))
-		return (CompareType) strategy;
+  /* shortcut for common case */
+  if (amoid == BTREE_AM_OID &&
+      (strategy > InvalidStrategy && strategy <= BTMaxStrategyNumber))
+    return (CompareType) strategy;
 
-	amroutine = GetIndexAmRoutineByAmId(amoid, false);
-	if (amroutine->amtranslatestrategy)
-		result = amroutine->amtranslatestrategy(strategy, opfamily);
-	else
-		result = COMPARE_INVALID;
+  amroutine = GetIndexAmRoutineByAmId(amoid, false);
 
-	if (!missing_ok && result == COMPARE_INVALID)
-		elog(ERROR, "could not translate strategy number %d for index AM %u", strategy, amoid);
+  if (amroutine->amtranslatestrategy)
+    result = amroutine->amtranslatestrategy(strategy, opfamily);
+  else
+    result = COMPARE_INVALID;
 
-	return result;
+  if (!missing_ok && result == COMPARE_INVALID)
+    elog(ERROR, "could not translate strategy number %d for index AM %u", strategy, amoid);
+
+  return result;
 }
 
 /*
@@ -147,24 +148,25 @@ IndexAmTranslateStrategy(StrategyNumber strategy, Oid amoid, Oid opfamily, bool 
 StrategyNumber
 IndexAmTranslateCompareType(CompareType cmptype, Oid amoid, Oid opfamily, bool missing_ok)
 {
-	StrategyNumber result;
-	IndexAmRoutine *amroutine;
+  StrategyNumber result;
+  IndexAmRoutine *amroutine;
 
-	/* shortcut for common case */
-	if (amoid == BTREE_AM_OID &&
-		(cmptype > COMPARE_INVALID && cmptype <= COMPARE_GT))
-		return (StrategyNumber) cmptype;
+  /* shortcut for common case */
+  if (amoid == BTREE_AM_OID &&
+      (cmptype > COMPARE_INVALID && cmptype <= COMPARE_GT))
+    return (StrategyNumber) cmptype;
 
-	amroutine = GetIndexAmRoutineByAmId(amoid, false);
-	if (amroutine->amtranslatecmptype)
-		result = amroutine->amtranslatecmptype(cmptype, opfamily);
-	else
-		result = InvalidStrategy;
+  amroutine = GetIndexAmRoutineByAmId(amoid, false);
 
-	if (!missing_ok && result == InvalidStrategy)
-		elog(ERROR, "could not translate compare type %u for index AM %u", cmptype, amoid);
+  if (amroutine->amtranslatecmptype)
+    result = amroutine->amtranslatecmptype(cmptype, opfamily);
+  else
+    result = InvalidStrategy;
 
-	return result;
+  if (!missing_ok && result == InvalidStrategy)
+    elog(ERROR, "could not translate compare type %u for index AM %u", cmptype, amoid);
+
+  return result;
 }
 
 /*
@@ -173,31 +175,33 @@ IndexAmTranslateCompareType(CompareType cmptype, Oid amoid, Oid opfamily, bool m
 Datum
 amvalidate(PG_FUNCTION_ARGS)
 {
-	Oid			opclassoid = PG_GETARG_OID(0);
-	bool		result;
-	HeapTuple	classtup;
-	Form_pg_opclass classform;
-	Oid			amoid;
-	IndexAmRoutine *amroutine;
+  Oid     opclassoid = PG_GETARG_OID(0);
+  bool    result;
+  HeapTuple classtup;
+  Form_pg_opclass classform;
+  Oid     amoid;
+  IndexAmRoutine *amroutine;
 
-	classtup = SearchSysCache1(CLAOID, ObjectIdGetDatum(opclassoid));
-	if (!HeapTupleIsValid(classtup))
-		elog(ERROR, "cache lookup failed for operator class %u", opclassoid);
-	classform = (Form_pg_opclass) GETSTRUCT(classtup);
+  classtup = SearchSysCache1(CLAOID, ObjectIdGetDatum(opclassoid));
 
-	amoid = classform->opcmethod;
+  if (!HeapTupleIsValid(classtup))
+    elog(ERROR, "cache lookup failed for operator class %u", opclassoid);
 
-	ReleaseSysCache(classtup);
+  classform = (Form_pg_opclass) GETSTRUCT(classtup);
 
-	amroutine = GetIndexAmRoutineByAmId(amoid, false);
+  amoid = classform->opcmethod;
 
-	if (amroutine->amvalidate == NULL)
-		elog(ERROR, "function amvalidate is not defined for index access method %u",
-			 amoid);
+  ReleaseSysCache(classtup);
 
-	result = amroutine->amvalidate(opclassoid);
+  amroutine = GetIndexAmRoutineByAmId(amoid, false);
 
-	pfree(amroutine);
+  if (amroutine->amvalidate == NULL)
+    elog(ERROR, "function amvalidate is not defined for index access method %u",
+         amoid);
 
-	PG_RETURN_BOOL(result);
+  result = amroutine->amvalidate(opclassoid);
+
+  pfree(amroutine);
+
+  PG_RETURN_BOOL(result);
 }

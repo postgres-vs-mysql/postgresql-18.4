@@ -20,14 +20,14 @@ struct manifest_writer;
 typedef struct manifest_writer manifest_writer;
 
 extern manifest_writer *create_manifest_writer(char *directory,
-											   uint64 system_identifier);
+    uint64 system_identifier);
 extern void add_file_to_manifest(manifest_writer *mwriter,
-								 const char *manifest_path,
-								 uint64 size, time_t mtime,
-								 pg_checksum_type checksum_type,
-								 int checksum_length,
-								 uint8 *checksum_payload);
+                                 const char *manifest_path,
+                                 uint64 size, time_t mtime,
+                                 pg_checksum_type checksum_type,
+                                 int checksum_length,
+                                 uint8 *checksum_payload);
 extern void finalize_manifest(manifest_writer *mwriter,
-							  struct manifest_wal_range *first_wal_range);
+                              struct manifest_wal_range *first_wal_range);
 
-#endif							/* WRITE_MANIFEST_H */
+#endif              /* WRITE_MANIFEST_H */

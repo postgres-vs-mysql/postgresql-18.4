@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * tqueue.c
- *	  Use shm_mq to send & receive tuples between parallel backends
+ *    Use shm_mq to send & receive tuples between parallel backends
  *
  * A DestReceiver of type DestTupleQueue, which is a TQueueDestReceiver
  * under the hood, writes tuples from the executor to a shm_mq.
@@ -12,7 +12,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/executor/tqueue.c
+ *    src/backend/executor/tqueue.c
  *
  *-------------------------------------------------------------------------
  */
@@ -27,10 +27,9 @@
  *
  * queue is a pointer to data supplied by DestReceiver's caller.
  */
-typedef struct TQueueDestReceiver
-{
-	DestReceiver pub;			/* public fields */
-	shm_mq_handle *queue;		/* shm_mq to send to */
+typedef struct TQueueDestReceiver {
+  DestReceiver pub;     /* public fields */
+  shm_mq_handle *queue;   /* shm_mq to send to */
 } TQueueDestReceiver;
 
 /*
@@ -40,9 +39,8 @@ typedef struct TQueueDestReceiver
  *
  * "typedef struct TupleQueueReader TupleQueueReader" is in tqueue.h
  */
-struct TupleQueueReader
-{
-	shm_mq_handle *queue;		/* shm_mq to receive from */
+struct TupleQueueReader {
+  shm_mq_handle *queue;   /* shm_mq to receive from */
 };
 
 /*
@@ -53,27 +51,27 @@ struct TupleQueueReader
 static bool
 tqueueReceiveSlot(TupleTableSlot *slot, DestReceiver *self)
 {
-	TQueueDestReceiver *tqueue = (TQueueDestReceiver *) self;
-	MinimalTuple tuple;
-	shm_mq_result result;
-	bool		should_free;
+  TQueueDestReceiver *tqueue = (TQueueDestReceiver *) self;
+  MinimalTuple tuple;
+  shm_mq_result result;
+  bool    should_free;
 
-	/* Send the tuple itself. */
-	tuple = ExecFetchSlotMinimalTuple(slot, &should_free);
-	result = shm_mq_send(tqueue->queue, tuple->t_len, tuple, false, false);
+  /* Send the tuple itself. */
+  tuple = ExecFetchSlotMinimalTuple(slot, &should_free);
+  result = shm_mq_send(tqueue->queue, tuple->t_len, tuple, false, false);
 
-	if (should_free)
-		pfree(tuple);
+  if (should_free)
+    pfree(tuple);
 
-	/* Check for failure. */
-	if (result == SHM_MQ_DETACHED)
-		return false;
-	else if (result != SHM_MQ_SUCCESS)
-		ereport(ERROR,
-				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-				 errmsg("could not send tuple to shared-memory queue")));
+  /* Check for failure. */
+  if (result == SHM_MQ_DETACHED)
+    return false;
+  else if (result != SHM_MQ_SUCCESS)
+    ereport(ERROR,
+            (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+             errmsg("could not send tuple to shared-memory queue")));
 
-	return true;
+  return true;
 }
 
 /*
@@ -82,7 +80,7 @@ tqueueReceiveSlot(TupleTableSlot *slot, DestReceiver *self)
 static void
 tqueueStartupReceiver(DestReceiver *self, int operation, TupleDesc typeinfo)
 {
-	/* do nothing */
+  /* do nothing */
 }
 
 /*
@@ -91,11 +89,12 @@ tqueueStartupReceiver(DestReceiver *self, int operation, TupleDesc typeinfo)
 static void
 tqueueShutdownReceiver(DestReceiver *self)
 {
-	TQueueDestReceiver *tqueue = (TQueueDestReceiver *) self;
+  TQueueDestReceiver *tqueue = (TQueueDestReceiver *) self;
 
-	if (tqueue->queue != NULL)
-		shm_mq_detach(tqueue->queue);
-	tqueue->queue = NULL;
+  if (tqueue->queue != NULL)
+    shm_mq_detach(tqueue->queue);
+
+  tqueue->queue = NULL;
 }
 
 /*
@@ -104,12 +103,13 @@ tqueueShutdownReceiver(DestReceiver *self)
 static void
 tqueueDestroyReceiver(DestReceiver *self)
 {
-	TQueueDestReceiver *tqueue = (TQueueDestReceiver *) self;
+  TQueueDestReceiver *tqueue = (TQueueDestReceiver *) self;
 
-	/* We probably already detached from queue, but let's be sure */
-	if (tqueue->queue != NULL)
-		shm_mq_detach(tqueue->queue);
-	pfree(self);
+  /* We probably already detached from queue, but let's be sure */
+  if (tqueue->queue != NULL)
+    shm_mq_detach(tqueue->queue);
+
+  pfree(self);
 }
 
 /*
@@ -118,18 +118,18 @@ tqueueDestroyReceiver(DestReceiver *self)
 DestReceiver *
 CreateTupleQueueDestReceiver(shm_mq_handle *handle)
 {
-	TQueueDestReceiver *self;
+  TQueueDestReceiver *self;
 
-	self = (TQueueDestReceiver *) palloc0(sizeof(TQueueDestReceiver));
+  self = (TQueueDestReceiver *) palloc0(sizeof(TQueueDestReceiver));
 
-	self->pub.receiveSlot = tqueueReceiveSlot;
-	self->pub.rStartup = tqueueStartupReceiver;
-	self->pub.rShutdown = tqueueShutdownReceiver;
-	self->pub.rDestroy = tqueueDestroyReceiver;
-	self->pub.mydest = DestTupleQueue;
-	self->queue = handle;
+  self->pub.receiveSlot = tqueueReceiveSlot;
+  self->pub.rStartup = tqueueStartupReceiver;
+  self->pub.rShutdown = tqueueShutdownReceiver;
+  self->pub.rDestroy = tqueueDestroyReceiver;
+  self->pub.mydest = DestTupleQueue;
+  self->queue = handle;
 
-	return (DestReceiver *) self;
+  return (DestReceiver *) self;
 }
 
 /*
@@ -138,11 +138,11 @@ CreateTupleQueueDestReceiver(shm_mq_handle *handle)
 TupleQueueReader *
 CreateTupleQueueReader(shm_mq_handle *handle)
 {
-	TupleQueueReader *reader = palloc0(sizeof(TupleQueueReader));
+  TupleQueueReader *reader = palloc0(sizeof(TupleQueueReader));
 
-	reader->queue = handle;
+  reader->queue = handle;
 
-	return reader;
+  return reader;
 }
 
 /*
@@ -154,7 +154,7 @@ CreateTupleQueueReader(shm_mq_handle *handle)
 void
 DestroyTupleQueueReader(TupleQueueReader *reader)
 {
-	pfree(reader);
+  pfree(reader);
 }
 
 /*
@@ -175,36 +175,37 @@ DestroyTupleQueueReader(TupleQueueReader *reader)
 MinimalTuple
 TupleQueueReaderNext(TupleQueueReader *reader, bool nowait, bool *done)
 {
-	MinimalTuple tuple;
-	shm_mq_result result;
-	Size		nbytes;
-	void	   *data;
+  MinimalTuple tuple;
+  shm_mq_result result;
+  Size    nbytes;
+  void     *data;
 
-	if (done != NULL)
-		*done = false;
+  if (done != NULL)
+    *done = false;
 
-	/* Attempt to read a message. */
-	result = shm_mq_receive(reader->queue, &nbytes, &data, nowait);
+  /* Attempt to read a message. */
+  result = shm_mq_receive(reader->queue, &nbytes, &data, nowait);
 
-	/* If queue is detached, set *done and return NULL. */
-	if (result == SHM_MQ_DETACHED)
-	{
-		if (done != NULL)
-			*done = true;
-		return NULL;
-	}
+  /* If queue is detached, set *done and return NULL. */
+  if (result == SHM_MQ_DETACHED) {
+    if (done != NULL)
+      *done = true;
 
-	/* In non-blocking mode, bail out if no message ready yet. */
-	if (result == SHM_MQ_WOULD_BLOCK)
-		return NULL;
-	Assert(result == SHM_MQ_SUCCESS);
+    return NULL;
+  }
 
-	/*
-	 * Return a pointer to the queue memory directly (which had better be
-	 * sufficiently aligned).
-	 */
-	tuple = (MinimalTuple) data;
-	Assert(tuple->t_len == nbytes);
+  /* In non-blocking mode, bail out if no message ready yet. */
+  if (result == SHM_MQ_WOULD_BLOCK)
+    return NULL;
 
-	return tuple;
+  Assert(result == SHM_MQ_SUCCESS);
+
+  /*
+   * Return a pointer to the queue memory directly (which had better be
+   * sufficiently aligned).
+   */
+  tuple = (MinimalTuple) data;
+  Assert(tuple->t_len == nbytes);
+
+  return tuple;
 }

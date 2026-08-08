@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_tablespace.h
- *	  definition of the "tablespace" system catalog (pg_tablespace)
+ *    definition of the "tablespace" system catalog (pg_tablespace)
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -10,8 +10,8 @@
  * src/include/catalog/pg_tablespace.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -19,30 +19,30 @@
 #define PG_TABLESPACE_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_tablespace_d.h"	/* IWYU pragma: export */
+#include "catalog/pg_tablespace_d.h"  /* IWYU pragma: export */
 
 /* ----------------
- *		pg_tablespace definition.  cpp turns this into
- *		typedef struct FormData_pg_tablespace
+ *    pg_tablespace definition.  cpp turns this into
+ *    typedef struct FormData_pg_tablespace
  * ----------------
  */
-CATALOG(pg_tablespace,1213,TableSpaceRelationId) BKI_SHARED_RELATION
+CATALOG(pg_tablespace, 1213, TableSpaceRelationId) BKI_SHARED_RELATION
 {
-	Oid			oid;			/* oid */
-	NameData	spcname;		/* tablespace name */
+  Oid     oid;      /* oid */
+  NameData  spcname;    /* tablespace name */
 
-	/* owner of tablespace */
-	Oid			spcowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
+  /* owner of tablespace */
+  Oid     spcowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
 
-#ifdef CATALOG_VARLEN			/* variable-length fields start here */
-	aclitem		spcacl[1];		/* access permissions */
-	text		spcoptions[1];	/* per-tablespace options */
+#ifdef CATALOG_VARLEN     /* variable-length fields start here */
+  aclitem   spcacl[1];    /* access permissions */
+  text    spcoptions[1];  /* per-tablespace options */
 #endif
 } FormData_pg_tablespace;
 
 /* ----------------
- *		Form_pg_tablespace corresponds to a pointer to a tuple with
- *		the format of pg_tablespace relation.
+ *    Form_pg_tablespace corresponds to a pointer to a tuple with
+ *    the format of pg_tablespace relation.
  * ----------------
  */
 typedef FormData_pg_tablespace *Form_pg_tablespace;
@@ -54,4 +54,4 @@ DECLARE_UNIQUE_INDEX(pg_tablespace_spcname_index, 2698, TablespaceNameIndexId, p
 
 MAKE_SYSCACHE(TABLESPACEOID, pg_tablespace_oid_index, 4);
 
-#endif							/* PG_TABLESPACE_H */
+#endif              /* PG_TABLESPACE_H */

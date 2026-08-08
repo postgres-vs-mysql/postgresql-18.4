@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * proclang.h
- *	  prototypes for proclang.c.
+ *    prototypes for proclang.c.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -18,6 +18,6 @@
 
 extern ObjectAddress CreateProceduralLanguage(CreatePLangStmt *stmt);
 
-extern Oid	get_language_oid(const char *langname, bool missing_ok);
+extern Oid  get_language_oid(const char *langname, bool missing_ok);
 
-#endif							/* PROCLANG_H */
+#endif              /* PROCLANG_H */

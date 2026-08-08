@@ -38,45 +38,48 @@
 static Bitmapset *
 fixup_whole_row_references(Oid relOid, Bitmapset *columns)
 {
-	Bitmapset  *result;
-	HeapTuple	tuple;
-	AttrNumber	natts;
-	AttrNumber	attno;
-	int			index;
+  Bitmapset  *result;
+  HeapTuple tuple;
+  AttrNumber  natts;
+  AttrNumber  attno;
+  int     index;
 
-	/* if no whole-row references, nothing to do */
-	index = InvalidAttrNumber - FirstLowInvalidHeapAttributeNumber;
-	if (!bms_is_member(index, columns))
-		return columns;
+  /* if no whole-row references, nothing to do */
+  index = InvalidAttrNumber - FirstLowInvalidHeapAttributeNumber;
 
-	/* obtain number of attributes */
-	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relOid));
-	if (!HeapTupleIsValid(tuple))
-		elog(ERROR, "cache lookup failed for relation %u", relOid);
-	natts = ((Form_pg_class) GETSTRUCT(tuple))->relnatts;
-	ReleaseSysCache(tuple);
+  if (!bms_is_member(index, columns))
+    return columns;
 
-	/* remove bit 0 from column set, add in all the non-dropped columns */
-	result = bms_copy(columns);
-	result = bms_del_member(result, index);
+  /* obtain number of attributes */
+  tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relOid));
 
-	for (attno = 1; attno <= natts; attno++)
-	{
-		tuple = SearchSysCache2(ATTNUM,
-								ObjectIdGetDatum(relOid),
-								Int16GetDatum(attno));
-		if (!HeapTupleIsValid(tuple))
-			continue;			/* unexpected case, should we error? */
+  if (!HeapTupleIsValid(tuple))
+    elog(ERROR, "cache lookup failed for relation %u", relOid);
 
-		if (!((Form_pg_attribute) GETSTRUCT(tuple))->attisdropped)
-		{
-			index = attno - FirstLowInvalidHeapAttributeNumber;
-			result = bms_add_member(result, index);
-		}
+  natts = ((Form_pg_class) GETSTRUCT(tuple))->relnatts;
+  ReleaseSysCache(tuple);
 
-		ReleaseSysCache(tuple);
-	}
-	return result;
+  /* remove bit 0 from column set, add in all the non-dropped columns */
+  result = bms_copy(columns);
+  result = bms_del_member(result, index);
+
+  for (attno = 1; attno <= natts; attno++) {
+    tuple = SearchSysCache2(ATTNUM,
+                            ObjectIdGetDatum(relOid),
+                            Int16GetDatum(attno));
+
+    if (!HeapTupleIsValid(tuple))
+      continue;     /* unexpected case, should we error? */
+
+    if (!((Form_pg_attribute) GETSTRUCT(tuple))->attisdropped) {
+      index = attno - FirstLowInvalidHeapAttributeNumber;
+      result = bms_add_member(result, index);
+    }
+
+    ReleaseSysCache(tuple);
+  }
+
+  return result;
 }
 
 /*
@@ -92,44 +95,44 @@ fixup_whole_row_references(Oid relOid, Bitmapset *columns)
 static Bitmapset *
 fixup_inherited_columns(Oid parentId, Oid childId, Bitmapset *columns)
 {
-	Bitmapset  *result = NULL;
-	int			index;
+  Bitmapset  *result = NULL;
+  int     index;
 
-	/*
-	 * obviously, no need to do anything here
-	 */
-	if (parentId == childId)
-		return columns;
+  /*
+   * obviously, no need to do anything here
+   */
+  if (parentId == childId)
+    return columns;
 
-	index = -1;
-	while ((index = bms_next_member(columns, index)) >= 0)
-	{
-		/* bit numbers are offset by FirstLowInvalidHeapAttributeNumber */
-		AttrNumber	attno = index + FirstLowInvalidHeapAttributeNumber;
-		char	   *attname;
+  index = -1;
 
-		/*
-		 * whole-row-reference shall be fixed-up later
-		 */
-		if (attno == InvalidAttrNumber)
-		{
-			result = bms_add_member(result, index);
-			continue;
-		}
+  while ((index = bms_next_member(columns, index)) >= 0) {
+    /* bit numbers are offset by FirstLowInvalidHeapAttributeNumber */
+    AttrNumber  attno = index + FirstLowInvalidHeapAttributeNumber;
+    char     *attname;
 
-		attname = get_attname(parentId, attno, false);
-		attno = get_attnum(childId, attname);
-		if (attno == InvalidAttrNumber)
-			elog(ERROR, "cache lookup failed for attribute %s of relation %u",
-				 attname, childId);
+    /*
+     * whole-row-reference shall be fixed-up later
+     */
+    if (attno == InvalidAttrNumber) {
+      result = bms_add_member(result, index);
+      continue;
+    }
 
-		result = bms_add_member(result,
-								attno - FirstLowInvalidHeapAttributeNumber);
+    attname = get_attname(parentId, attno, false);
+    attno = get_attnum(childId, attname);
 
-		pfree(attname);
-	}
+    if (attno == InvalidAttrNumber)
+      elog(ERROR, "cache lookup failed for attribute %s of relation %u",
+           attname, childId);
 
-	return result;
+    result = bms_add_member(result,
+                            attno - FirstLowInvalidHeapAttributeNumber);
+
+    pfree(attname);
+  }
+
+  return result;
 }
 
 /*
@@ -140,137 +143,140 @@ fixup_inherited_columns(Oid parentId, Oid childId, Bitmapset *columns)
  */
 static bool
 check_relation_privileges(Oid relOid,
-						  Bitmapset *selected,
-						  Bitmapset *inserted,
-						  Bitmapset *updated,
-						  uint32 required,
-						  bool abort_on_violation)
+                          Bitmapset *selected,
+                          Bitmapset *inserted,
+                          Bitmapset *updated,
+                          uint32 required,
+                          bool abort_on_violation)
 {
-	ObjectAddress object;
-	char	   *audit_name;
-	Bitmapset  *columns;
-	int			index;
-	char		relkind = get_rel_relkind(relOid);
-	bool		result = true;
+  ObjectAddress object;
+  char     *audit_name;
+  Bitmapset  *columns;
+  int     index;
+  char    relkind = get_rel_relkind(relOid);
+  bool    result = true;
 
-	/*
-	 * Hardwired Policies: SE-PostgreSQL enforces - clients cannot modify
-	 * system catalogs using DMLs - clients cannot reference/modify toast
-	 * relations using DMLs
-	 */
-	if (sepgsql_getenforce() > 0)
-	{
-		if ((required & (SEPG_DB_TABLE__UPDATE |
-						 SEPG_DB_TABLE__INSERT |
-						 SEPG_DB_TABLE__DELETE)) != 0 &&
-			IsCatalogRelationOid(relOid))
-			ereport(ERROR,
-					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-					 errmsg("SELinux: hardwired security policy violation")));
+  /*
+   * Hardwired Policies: SE-PostgreSQL enforces - clients cannot modify
+   * system catalogs using DMLs - clients cannot reference/modify toast
+   * relations using DMLs
+   */
+  if (sepgsql_getenforce() > 0) {
+    if ((required & (SEPG_DB_TABLE__UPDATE |
+                     SEPG_DB_TABLE__INSERT |
+                     SEPG_DB_TABLE__DELETE)) != 0 &&
+        IsCatalogRelationOid(relOid))
+      ereport(ERROR,
+              (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+               errmsg("SELinux: hardwired security policy violation")));
 
-		if (relkind == RELKIND_TOASTVALUE)
-			ereport(ERROR,
-					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-					 errmsg("SELinux: hardwired security policy violation")));
-	}
+    if (relkind == RELKIND_TOASTVALUE)
+      ereport(ERROR,
+              (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+               errmsg("SELinux: hardwired security policy violation")));
+  }
 
-	/*
-	 * Check permissions on the relation
-	 */
-	object.classId = RelationRelationId;
-	object.objectId = relOid;
-	object.objectSubId = 0;
-	audit_name = getObjectIdentity(&object, false);
-	switch (relkind)
-	{
-		case RELKIND_RELATION:
-		case RELKIND_PARTITIONED_TABLE:
-			result = sepgsql_avc_check_perms(&object,
-											 SEPG_CLASS_DB_TABLE,
-											 required,
-											 audit_name,
-											 abort_on_violation);
-			break;
+  /*
+   * Check permissions on the relation
+   */
+  object.classId = RelationRelationId;
+  object.objectId = relOid;
+  object.objectSubId = 0;
+  audit_name = getObjectIdentity(&object, false);
 
-		case RELKIND_SEQUENCE:
-			Assert((required & ~SEPG_DB_TABLE__SELECT) == 0);
+  switch (relkind) {
+    case RELKIND_RELATION:
+    case RELKIND_PARTITIONED_TABLE:
+      result = sepgsql_avc_check_perms(&object,
+                                       SEPG_CLASS_DB_TABLE,
+                                       required,
+                                       audit_name,
+                                       abort_on_violation);
+      break;
 
-			if (required & SEPG_DB_TABLE__SELECT)
-				result = sepgsql_avc_check_perms(&object,
-												 SEPG_CLASS_DB_SEQUENCE,
-												 SEPG_DB_SEQUENCE__GET_VALUE,
-												 audit_name,
-												 abort_on_violation);
-			break;
+    case RELKIND_SEQUENCE:
+      Assert((required & ~SEPG_DB_TABLE__SELECT) == 0);
 
-		case RELKIND_VIEW:
-			result = sepgsql_avc_check_perms(&object,
-											 SEPG_CLASS_DB_VIEW,
-											 SEPG_DB_VIEW__EXPAND,
-											 audit_name,
-											 abort_on_violation);
-			break;
+      if (required & SEPG_DB_TABLE__SELECT)
+        result = sepgsql_avc_check_perms(&object,
+                                         SEPG_CLASS_DB_SEQUENCE,
+                                         SEPG_DB_SEQUENCE__GET_VALUE,
+                                         audit_name,
+                                         abort_on_violation);
 
-		default:
-			/* nothing to be checked */
-			break;
-	}
-	pfree(audit_name);
+      break;
 
-	/*
-	 * Only columns owned by relations shall be checked
-	 */
-	if (relkind != RELKIND_RELATION && relkind != RELKIND_PARTITIONED_TABLE)
-		return true;
+    case RELKIND_VIEW:
+      result = sepgsql_avc_check_perms(&object,
+                                       SEPG_CLASS_DB_VIEW,
+                                       SEPG_DB_VIEW__EXPAND,
+                                       audit_name,
+                                       abort_on_violation);
+      break;
 
-	/*
-	 * Check permissions on the columns
-	 */
-	selected = fixup_whole_row_references(relOid, selected);
-	inserted = fixup_whole_row_references(relOid, inserted);
-	updated = fixup_whole_row_references(relOid, updated);
-	columns = bms_union(selected, bms_union(inserted, updated));
+    default:
+      /* nothing to be checked */
+      break;
+  }
 
-	index = -1;
-	while ((index = bms_next_member(columns, index)) >= 0)
-	{
-		AttrNumber	attnum;
-		uint32		column_perms = 0;
+  pfree(audit_name);
 
-		if (bms_is_member(index, selected))
-			column_perms |= SEPG_DB_COLUMN__SELECT;
-		if (bms_is_member(index, inserted))
-		{
-			if (required & SEPG_DB_TABLE__INSERT)
-				column_perms |= SEPG_DB_COLUMN__INSERT;
-		}
-		if (bms_is_member(index, updated))
-		{
-			if (required & SEPG_DB_TABLE__UPDATE)
-				column_perms |= SEPG_DB_COLUMN__UPDATE;
-		}
-		if (column_perms == 0)
-			continue;
+  /*
+   * Only columns owned by relations shall be checked
+   */
+  if (relkind != RELKIND_RELATION && relkind != RELKIND_PARTITIONED_TABLE)
+    return true;
 
-		/* obtain column's permission */
-		attnum = index + FirstLowInvalidHeapAttributeNumber;
+  /*
+   * Check permissions on the columns
+   */
+  selected = fixup_whole_row_references(relOid, selected);
+  inserted = fixup_whole_row_references(relOid, inserted);
+  updated = fixup_whole_row_references(relOid, updated);
+  columns = bms_union(selected, bms_union(inserted, updated));
 
-		object.classId = RelationRelationId;
-		object.objectId = relOid;
-		object.objectSubId = attnum;
-		audit_name = getObjectDescription(&object, false);
+  index = -1;
 
-		result = sepgsql_avc_check_perms(&object,
-										 SEPG_CLASS_DB_COLUMN,
-										 column_perms,
-										 audit_name,
-										 abort_on_violation);
-		pfree(audit_name);
+  while ((index = bms_next_member(columns, index)) >= 0) {
+    AttrNumber  attnum;
+    uint32    column_perms = 0;
 
-		if (!result)
-			return result;
-	}
-	return true;
+    if (bms_is_member(index, selected))
+      column_perms |= SEPG_DB_COLUMN__SELECT;
+
+    if (bms_is_member(index, inserted)) {
+      if (required & SEPG_DB_TABLE__INSERT)
+        column_perms |= SEPG_DB_COLUMN__INSERT;
+    }
+
+    if (bms_is_member(index, updated)) {
+      if (required & SEPG_DB_TABLE__UPDATE)
+        column_perms |= SEPG_DB_COLUMN__UPDATE;
+    }
+
+    if (column_perms == 0)
+      continue;
+
+    /* obtain column's permission */
+    attnum = index + FirstLowInvalidHeapAttributeNumber;
+
+    object.classId = RelationRelationId;
+    object.objectId = relOid;
+    object.objectSubId = attnum;
+    audit_name = getObjectDescription(&object, false);
+
+    result = sepgsql_avc_check_perms(&object,
+                                     SEPG_CLASS_DB_COLUMN,
+                                     column_perms,
+                                     audit_name,
+                                     abort_on_violation);
+    pfree(audit_name);
+
+    if (!result)
+      return result;
+  }
+
+  return true;
 }
 
 /*
@@ -280,80 +286,82 @@ check_relation_privileges(Oid relOid,
  */
 bool
 sepgsql_dml_privileges(List *rangeTbls, List *rteperminfos,
-					   bool abort_on_violation)
+                       bool abort_on_violation)
 {
-	ListCell   *lr;
+  ListCell   *lr;
 
-	foreach(lr, rteperminfos)
-	{
-		RTEPermissionInfo *perminfo = lfirst_node(RTEPermissionInfo, lr);
-		uint32		required = 0;
-		List	   *tableIds;
-		ListCell   *li;
+  foreach(lr, rteperminfos) {
+    RTEPermissionInfo *perminfo = lfirst_node(RTEPermissionInfo, lr);
+    uint32    required = 0;
+    List     *tableIds;
+    ListCell   *li;
 
-		/*
-		 * Find out required permissions
-		 */
-		if (perminfo->requiredPerms & ACL_SELECT)
-			required |= SEPG_DB_TABLE__SELECT;
-		if (perminfo->requiredPerms & ACL_INSERT)
-			required |= SEPG_DB_TABLE__INSERT;
-		if (perminfo->requiredPerms & ACL_UPDATE)
-		{
-			if (!bms_is_empty(perminfo->updatedCols))
-				required |= SEPG_DB_TABLE__UPDATE;
-			else
-				required |= SEPG_DB_TABLE__LOCK;
-		}
-		if (perminfo->requiredPerms & ACL_DELETE)
-			required |= SEPG_DB_TABLE__DELETE;
+    /*
+     * Find out required permissions
+     */
+    if (perminfo->requiredPerms & ACL_SELECT)
+      required |= SEPG_DB_TABLE__SELECT;
 
-		/*
-		 * Skip, if nothing to be checked
-		 */
-		if (required == 0)
-			continue;
+    if (perminfo->requiredPerms & ACL_INSERT)
+      required |= SEPG_DB_TABLE__INSERT;
 
-		/*
-		 * If this RangeTblEntry is also supposed to reference inherited
-		 * tables, we need to check security label of the child tables. So, we
-		 * expand rte->relid into list of OIDs of inheritance hierarchy, then
-		 * checker routine will be invoked for each relations.
-		 */
-		if (!perminfo->inh)
-			tableIds = list_make1_oid(perminfo->relid);
-		else
-			tableIds = find_all_inheritors(perminfo->relid, NoLock, NULL);
+    if (perminfo->requiredPerms & ACL_UPDATE) {
+      if (!bms_is_empty(perminfo->updatedCols))
+        required |= SEPG_DB_TABLE__UPDATE;
+      else
+        required |= SEPG_DB_TABLE__LOCK;
+    }
 
-		foreach(li, tableIds)
-		{
-			Oid			tableOid = lfirst_oid(li);
-			Bitmapset  *selectedCols;
-			Bitmapset  *insertedCols;
-			Bitmapset  *updatedCols;
+    if (perminfo->requiredPerms & ACL_DELETE)
+      required |= SEPG_DB_TABLE__DELETE;
 
-			/*
-			 * child table has different attribute numbers, so we need to fix
-			 * up them.
-			 */
-			selectedCols = fixup_inherited_columns(perminfo->relid, tableOid,
-												   perminfo->selectedCols);
-			insertedCols = fixup_inherited_columns(perminfo->relid, tableOid,
-												   perminfo->insertedCols);
-			updatedCols = fixup_inherited_columns(perminfo->relid, tableOid,
-												  perminfo->updatedCols);
+    /*
+     * Skip, if nothing to be checked
+     */
+    if (required == 0)
+      continue;
 
-			/*
-			 * check permissions on individual tables
-			 */
-			if (!check_relation_privileges(tableOid,
-										   selectedCols,
-										   insertedCols,
-										   updatedCols,
-										   required, abort_on_violation))
-				return false;
-		}
-		list_free(tableIds);
-	}
-	return true;
+    /*
+     * If this RangeTblEntry is also supposed to reference inherited
+     * tables, we need to check security label of the child tables. So, we
+     * expand rte->relid into list of OIDs of inheritance hierarchy, then
+     * checker routine will be invoked for each relations.
+     */
+    if (!perminfo->inh)
+      tableIds = list_make1_oid(perminfo->relid);
+    else
+      tableIds = find_all_inheritors(perminfo->relid, NoLock, NULL);
+
+    foreach(li, tableIds) {
+      Oid     tableOid = lfirst_oid(li);
+      Bitmapset  *selectedCols;
+      Bitmapset  *insertedCols;
+      Bitmapset  *updatedCols;
+
+      /*
+       * child table has different attribute numbers, so we need to fix
+       * up them.
+       */
+      selectedCols = fixup_inherited_columns(perminfo->relid, tableOid,
+                                             perminfo->selectedCols);
+      insertedCols = fixup_inherited_columns(perminfo->relid, tableOid,
+                                             perminfo->insertedCols);
+      updatedCols = fixup_inherited_columns(perminfo->relid, tableOid,
+                                            perminfo->updatedCols);
+
+      /*
+       * check permissions on individual tables
+       */
+      if (!check_relation_privileges(tableOid,
+                                     selectedCols,
+                                     insertedCols,
+                                     updatedCols,
+                                     required, abort_on_violation))
+        return false;
+    }
+
+    list_free(tableIds);
+  }
+
+  return true;
 }

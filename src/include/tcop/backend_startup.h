@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * backend_startup.h
- *	  prototypes for backend_startup.c.
+ *    prototypes for backend_startup.c.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -32,31 +32,31 @@ extern PGDLLIMPORT struct ConnectionTiming conn_timing;
  */
 typedef enum CAC_state
 {
-	CAC_OK,
-	CAC_STARTUP,
-	CAC_SHUTDOWN,
-	CAC_RECOVERY,
-	CAC_NOTHOTSTANDBY,
-	CAC_TOOMANY,
+  CAC_OK,
+  CAC_STARTUP,
+  CAC_SHUTDOWN,
+  CAC_RECOVERY,
+  CAC_NOTHOTSTANDBY,
+  CAC_TOOMANY,
 } CAC_state;
 
 /* Information passed from postmaster to backend process in 'startup_data' */
 typedef struct BackendStartupData
 {
-	CAC_state	canAcceptConnections;
+  CAC_state canAcceptConnections;
 
-	/*
-	 * Time at which the connection client socket is created. Only used for
-	 * client and wal sender connections.
-	 */
-	TimestampTz socket_created;
+  /*
+   * Time at which the connection client socket is created. Only used for
+   * client and wal sender connections.
+   */
+  TimestampTz socket_created;
 
-	/*
-	 * Time at which the postmaster initiates process creation -- either
-	 * through fork or otherwise. Only used for client and wal sender
-	 * connections.
-	 */
-	TimestampTz fork_started;
+  /*
+   * Time at which the postmaster initiates process creation -- either
+   * through fork or otherwise. Only used for client and wal sender
+   * connections.
+   */
+  TimestampTz fork_started;
 } BackendStartupData;
 
 /*
@@ -73,20 +73,20 @@ typedef struct BackendStartupData
  */
 typedef enum LogConnectionOption
 {
-	LOG_CONNECTION_RECEIPT = (1 << 0),
-	LOG_CONNECTION_AUTHENTICATION = (1 << 1),
-	LOG_CONNECTION_AUTHORIZATION = (1 << 2),
-	LOG_CONNECTION_SETUP_DURATIONS = (1 << 3),
-	LOG_CONNECTION_ON =
-		LOG_CONNECTION_RECEIPT |
-		LOG_CONNECTION_AUTHENTICATION |
-		LOG_CONNECTION_AUTHORIZATION,
-	LOG_CONNECTION_ALL =
-		LOG_CONNECTION_RECEIPT |
-		LOG_CONNECTION_AUTHENTICATION |
-		LOG_CONNECTION_AUTHORIZATION |
-		LOG_CONNECTION_SETUP_DURATIONS,
-}			LogConnectionOption;
+  LOG_CONNECTION_RECEIPT = (1 << 0),
+  LOG_CONNECTION_AUTHENTICATION = (1 << 1),
+  LOG_CONNECTION_AUTHORIZATION = (1 << 2),
+  LOG_CONNECTION_SETUP_DURATIONS = (1 << 3),
+  LOG_CONNECTION_ON =
+    LOG_CONNECTION_RECEIPT |
+    LOG_CONNECTION_AUTHENTICATION |
+    LOG_CONNECTION_AUTHORIZATION,
+  LOG_CONNECTION_ALL =
+    LOG_CONNECTION_RECEIPT |
+    LOG_CONNECTION_AUTHENTICATION |
+    LOG_CONNECTION_AUTHORIZATION |
+    LOG_CONNECTION_SETUP_DURATIONS,
+}     LogConnectionOption;
 
 /*
  * A collection of timings of various stages of connection establishment and
@@ -96,27 +96,27 @@ typedef enum LogConnectionOption
  */
 typedef struct ConnectionTiming
 {
-	/*
-	 * The time at which the client socket is created and the time at which
-	 * the connection is fully set up and first ready for query. Together
-	 * these represent the total connection establishment and setup time.
-	 */
-	TimestampTz socket_create;
-	TimestampTz ready_for_use;
+  /*
+   * The time at which the client socket is created and the time at which
+   * the connection is fully set up and first ready for query. Together
+   * these represent the total connection establishment and setup time.
+   */
+  TimestampTz socket_create;
+  TimestampTz ready_for_use;
 
-	/* Time at which process creation was initiated */
-	TimestampTz fork_start;
+  /* Time at which process creation was initiated */
+  TimestampTz fork_start;
 
-	/* Time at which process creation was completed */
-	TimestampTz fork_end;
+  /* Time at which process creation was completed */
+  TimestampTz fork_end;
 
-	/* Time at which authentication started */
-	TimestampTz auth_start;
+  /* Time at which authentication started */
+  TimestampTz auth_start;
 
-	/* Time at which authentication was finished */
-	TimestampTz auth_end;
+  /* Time at which authentication was finished */
+  TimestampTz auth_end;
 } ConnectionTiming;
 
 pg_noreturn extern void BackendMain(const void *startup_data, size_t startup_data_len);
 
-#endif							/* BACKEND_STARTUP_H */
+#endif              /* BACKEND_STARTUP_H */

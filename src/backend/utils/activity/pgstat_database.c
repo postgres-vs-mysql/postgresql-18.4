@@ -1,7 +1,7 @@
 /* -------------------------------------------------------------------------
  *
  * pgstat_database.c
- *	  Implementation of database statistics.
+ *    Implementation of database statistics.
  *
  * This file contains the implementation of database statistics. It is kept
  * separate from pgstat.c to enforce the line between the statistics access /
@@ -11,7 +11,7 @@
  * Copyright (c) 2001-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/backend/utils/activity/pgstat_database.c
+ *    src/backend/utils/activity/pgstat_database.c
  * -------------------------------------------------------------------------
  */
 
@@ -32,8 +32,8 @@ PgStat_Counter pgStatTransactionIdleTime = 0;
 SessionEndType pgStatSessionEndCause = DISCONNECT_NORMAL;
 
 
-static int	pgStatXactCommit = 0;
-static int	pgStatXactRollback = 0;
+static int  pgStatXactCommit = 0;
+static int  pgStatXactRollback = 0;
 static PgStat_Counter pgLastSessionReportTime = 0;
 
 
@@ -43,7 +43,7 @@ static PgStat_Counter pgLastSessionReportTime = 0;
 void
 pgstat_drop_database(Oid databaseid)
 {
-	pgstat_drop_transactional(PGSTAT_KIND_DATABASE, databaseid, InvalidOid);
+  pgstat_drop_transactional(PGSTAT_KIND_DATABASE, databaseid, InvalidOid);
 }
 
 /*
@@ -54,24 +54,24 @@ pgstat_drop_database(Oid databaseid)
 void
 pgstat_report_autovac(Oid dboid)
 {
-	PgStat_EntryRef *entry_ref;
-	PgStatShared_Database *dbentry;
+  PgStat_EntryRef *entry_ref;
+  PgStatShared_Database *dbentry;
 
-	/* can't get here in single user mode */
-	Assert(IsUnderPostmaster);
+  /* can't get here in single user mode */
+  Assert(IsUnderPostmaster);
 
-	/*
-	 * End-of-vacuum is reported instantly. Report the start the same way for
-	 * consistency. Vacuum doesn't run frequently and is a long-lasting
-	 * operation so it doesn't matter if we get blocked here a little.
-	 */
-	entry_ref = pgstat_get_entry_ref_locked(PGSTAT_KIND_DATABASE,
-											dboid, InvalidOid, false);
+  /*
+   * End-of-vacuum is reported instantly. Report the start the same way for
+   * consistency. Vacuum doesn't run frequently and is a long-lasting
+   * operation so it doesn't matter if we get blocked here a little.
+   */
+  entry_ref = pgstat_get_entry_ref_locked(PGSTAT_KIND_DATABASE,
+                                          dboid, InvalidOid, false);
 
-	dbentry = (PgStatShared_Database *) entry_ref->shared_stats;
-	dbentry->stats.last_autovac_time = GetCurrentTimestamp();
+  dbentry = (PgStatShared_Database *) entry_ref->shared_stats;
+  dbentry->stats.last_autovac_time = GetCurrentTimestamp();
 
-	pgstat_unlock_entry(entry_ref);
+  pgstat_unlock_entry(entry_ref);
 }
 
 /*
@@ -80,42 +80,48 @@ pgstat_report_autovac(Oid dboid)
 void
 pgstat_report_recovery_conflict(int reason)
 {
-	PgStat_StatDBEntry *dbentry;
+  PgStat_StatDBEntry *dbentry;
 
-	Assert(IsUnderPostmaster);
-	if (!pgstat_track_counts)
-		return;
+  Assert(IsUnderPostmaster);
 
-	dbentry = pgstat_prep_database_pending(MyDatabaseId);
+  if (!pgstat_track_counts)
+    return;
 
-	switch (reason)
-	{
-		case PROCSIG_RECOVERY_CONFLICT_DATABASE:
+  dbentry = pgstat_prep_database_pending(MyDatabaseId);
 
-			/*
-			 * Since we drop the information about the database as soon as it
-			 * replicates, there is no point in counting these conflicts.
-			 */
-			break;
-		case PROCSIG_RECOVERY_CONFLICT_TABLESPACE:
-			dbentry->conflict_tablespace++;
-			break;
-		case PROCSIG_RECOVERY_CONFLICT_LOCK:
-			dbentry->conflict_lock++;
-			break;
-		case PROCSIG_RECOVERY_CONFLICT_SNAPSHOT:
-			dbentry->conflict_snapshot++;
-			break;
-		case PROCSIG_RECOVERY_CONFLICT_BUFFERPIN:
-			dbentry->conflict_bufferpin++;
-			break;
-		case PROCSIG_RECOVERY_CONFLICT_LOGICALSLOT:
-			dbentry->conflict_logicalslot++;
-			break;
-		case PROCSIG_RECOVERY_CONFLICT_STARTUP_DEADLOCK:
-			dbentry->conflict_startup_deadlock++;
-			break;
-	}
+  switch (reason) {
+    case PROCSIG_RECOVERY_CONFLICT_DATABASE:
+
+      /*
+       * Since we drop the information about the database as soon as it
+       * replicates, there is no point in counting these conflicts.
+       */
+      break;
+
+    case PROCSIG_RECOVERY_CONFLICT_TABLESPACE:
+      dbentry->conflict_tablespace++;
+      break;
+
+    case PROCSIG_RECOVERY_CONFLICT_LOCK:
+      dbentry->conflict_lock++;
+      break;
+
+    case PROCSIG_RECOVERY_CONFLICT_SNAPSHOT:
+      dbentry->conflict_snapshot++;
+      break;
+
+    case PROCSIG_RECOVERY_CONFLICT_BUFFERPIN:
+      dbentry->conflict_bufferpin++;
+      break;
+
+    case PROCSIG_RECOVERY_CONFLICT_LOGICALSLOT:
+      dbentry->conflict_logicalslot++;
+      break;
+
+    case PROCSIG_RECOVERY_CONFLICT_STARTUP_DEADLOCK:
+      dbentry->conflict_startup_deadlock++;
+      break;
+  }
 }
 
 /*
@@ -124,13 +130,13 @@ pgstat_report_recovery_conflict(int reason)
 void
 pgstat_report_deadlock(void)
 {
-	PgStat_StatDBEntry *dbent;
+  PgStat_StatDBEntry *dbent;
 
-	if (!pgstat_track_counts)
-		return;
+  if (!pgstat_track_counts)
+    return;
 
-	dbent = pgstat_prep_database_pending(MyDatabaseId);
-	dbent->deadlocks++;
+  dbent = pgstat_prep_database_pending(MyDatabaseId);
+  dbent->deadlocks++;
 }
 
 /*
@@ -144,15 +150,15 @@ pgstat_report_deadlock(void)
 void
 pgstat_prepare_report_checksum_failure(Oid dboid)
 {
-	Assert(!CritSectionCount);
+  Assert(!CritSectionCount);
 
-	/*
-	 * Just need to ensure this backend has an entry ref for the database.
-	 * That will allows us to report checksum failures without e.g. needing to
-	 * map in DSM segments.
-	 */
-	pgstat_get_entry_ref(PGSTAT_KIND_DATABASE, dboid, InvalidOid,
-						 true, NULL);
+  /*
+   * Just need to ensure this backend has an entry ref for the database.
+   * That will allows us to report checksum failures without e.g. needing to
+   * map in DSM segments.
+   */
+  pgstat_get_entry_ref(PGSTAT_KIND_DATABASE, dboid, InvalidOid,
+                       true, NULL);
 }
 
 /*
@@ -165,43 +171,43 @@ pgstat_prepare_report_checksum_failure(Oid dboid)
 void
 pgstat_report_checksum_failures_in_db(Oid dboid, int failurecount)
 {
-	PgStat_EntryRef *entry_ref;
-	PgStatShared_Database *sharedent;
+  PgStat_EntryRef *entry_ref;
+  PgStatShared_Database *sharedent;
 
-	if (!pgstat_track_counts)
-		return;
+  if (!pgstat_track_counts)
+    return;
 
-	/*
-	 * Update the shared stats directly - checksum failures should never be
-	 * common enough for that to be a problem. Note that we pass create=false
-	 * here, as we want to be sure to not require memory allocations, so this
-	 * can be called in critical sections.
-	 */
-	entry_ref = pgstat_get_entry_ref(PGSTAT_KIND_DATABASE, dboid, InvalidOid,
-									 false, NULL);
+  /*
+   * Update the shared stats directly - checksum failures should never be
+   * common enough for that to be a problem. Note that we pass create=false
+   * here, as we want to be sure to not require memory allocations, so this
+   * can be called in critical sections.
+   */
+  entry_ref = pgstat_get_entry_ref(PGSTAT_KIND_DATABASE, dboid, InvalidOid,
+                                   false, NULL);
 
-	/*
-	 * Should always have been created by
-	 * pgstat_prepare_report_checksum_failure().
-	 *
-	 * When not using assertions, we don't want to crash should something have
-	 * gone wrong, so just return.
-	 */
-	Assert(entry_ref);
-	if (!entry_ref)
-	{
-		elog(WARNING, "could not report %d checksum failures for database %u",
-			 failurecount, dboid);
-		return;
-	}
+  /*
+   * Should always have been created by
+   * pgstat_prepare_report_checksum_failure().
+   *
+   * When not using assertions, we don't want to crash should something have
+   * gone wrong, so just return.
+   */
+  Assert(entry_ref);
 
-	(void) pgstat_lock_entry(entry_ref, false);
+  if (!entry_ref) {
+    elog(WARNING, "could not report %d checksum failures for database %u",
+         failurecount, dboid);
+    return;
+  }
 
-	sharedent = (PgStatShared_Database *) entry_ref->shared_stats;
-	sharedent->stats.checksum_failures += failurecount;
-	sharedent->stats.last_checksum_failure = GetCurrentTimestamp();
+  (void) pgstat_lock_entry(entry_ref, false);
 
-	pgstat_unlock_entry(entry_ref);
+  sharedent = (PgStatShared_Database *) entry_ref->shared_stats;
+  sharedent->stats.checksum_failures += failurecount;
+  sharedent->stats.last_checksum_failure = GetCurrentTimestamp();
+
+  pgstat_unlock_entry(entry_ref);
 }
 
 /*
@@ -210,14 +216,14 @@ pgstat_report_checksum_failures_in_db(Oid dboid, int failurecount)
 void
 pgstat_report_tempfile(size_t filesize)
 {
-	PgStat_StatDBEntry *dbent;
+  PgStat_StatDBEntry *dbent;
 
-	if (!pgstat_track_counts)
-		return;
+  if (!pgstat_track_counts)
+    return;
 
-	dbent = pgstat_prep_database_pending(MyDatabaseId);
-	dbent->temp_bytes += filesize;
-	dbent->temp_files++;
+  dbent = pgstat_prep_database_pending(MyDatabaseId);
+  dbent->temp_bytes += filesize;
+  dbent->temp_files++;
 }
 
 /*
@@ -226,15 +232,15 @@ pgstat_report_tempfile(size_t filesize)
 void
 pgstat_report_connect(Oid dboid)
 {
-	PgStat_StatDBEntry *dbentry;
+  PgStat_StatDBEntry *dbentry;
 
-	if (!pgstat_should_report_connstat())
-		return;
+  if (!pgstat_should_report_connstat())
+    return;
 
-	pgLastSessionReportTime = MyStartTimestamp;
+  pgLastSessionReportTime = MyStartTimestamp;
 
-	dbentry = pgstat_prep_database_pending(dboid);
-	dbentry->sessions++;
+  dbentry = pgstat_prep_database_pending(dboid);
+  dbentry->sessions++;
 }
 
 /*
@@ -243,29 +249,31 @@ pgstat_report_connect(Oid dboid)
 void
 pgstat_report_disconnect(Oid dboid)
 {
-	PgStat_StatDBEntry *dbentry;
+  PgStat_StatDBEntry *dbentry;
 
-	if (!pgstat_should_report_connstat())
-		return;
+  if (!pgstat_should_report_connstat())
+    return;
 
-	dbentry = pgstat_prep_database_pending(dboid);
+  dbentry = pgstat_prep_database_pending(dboid);
 
-	switch (pgStatSessionEndCause)
-	{
-		case DISCONNECT_NOT_YET:
-		case DISCONNECT_NORMAL:
-			/* we don't collect these */
-			break;
-		case DISCONNECT_CLIENT_EOF:
-			dbentry->sessions_abandoned++;
-			break;
-		case DISCONNECT_FATAL:
-			dbentry->sessions_fatal++;
-			break;
-		case DISCONNECT_KILLED:
-			dbentry->sessions_killed++;
-			break;
-	}
+  switch (pgStatSessionEndCause) {
+    case DISCONNECT_NOT_YET:
+    case DISCONNECT_NORMAL:
+      /* we don't collect these */
+      break;
+
+    case DISCONNECT_CLIENT_EOF:
+      dbentry->sessions_abandoned++;
+      break;
+
+    case DISCONNECT_FATAL:
+      dbentry->sessions_fatal++;
+      break;
+
+    case DISCONNECT_KILLED:
+      dbentry->sessions_killed++;
+      break;
+  }
 }
 
 /*
@@ -277,25 +285,24 @@ pgstat_report_disconnect(Oid dboid)
 PgStat_StatDBEntry *
 pgstat_fetch_stat_dbentry(Oid dboid)
 {
-	return (PgStat_StatDBEntry *)
-		pgstat_fetch_entry(PGSTAT_KIND_DATABASE, dboid, InvalidOid);
+  return (PgStat_StatDBEntry *)
+         pgstat_fetch_entry(PGSTAT_KIND_DATABASE, dboid, InvalidOid);
 }
 
 void
 AtEOXact_PgStat_Database(bool isCommit, bool parallel)
 {
-	/* Don't count parallel worker transaction stats */
-	if (!parallel)
-	{
-		/*
-		 * Count transaction commit or abort.  (We use counters, not just
-		 * bools, in case the reporting message isn't sent right away.)
-		 */
-		if (isCommit)
-			pgStatXactCommit++;
-		else
-			pgStatXactRollback++;
-	}
+  /* Don't count parallel worker transaction stats */
+  if (!parallel) {
+    /*
+     * Count transaction commit or abort.  (We use counters, not just
+     * bools, in case the reporting message isn't sent right away.)
+     */
+    if (isCommit)
+      pgStatXactCommit++;
+    else
+      pgStatXactRollback++;
+  }
 }
 
 /*
@@ -303,16 +310,16 @@ AtEOXact_PgStat_Database(bool isCommit, bool parallel)
  */
 void
 pgstat_update_parallel_workers_stats(PgStat_Counter workers_to_launch,
-									 PgStat_Counter workers_launched)
+                                     PgStat_Counter workers_launched)
 {
-	PgStat_StatDBEntry *dbentry;
+  PgStat_StatDBEntry *dbentry;
 
-	if (!OidIsValid(MyDatabaseId))
-		return;
+  if (!OidIsValid(MyDatabaseId))
+    return;
 
-	dbentry = pgstat_prep_database_pending(MyDatabaseId);
-	dbentry->parallel_workers_to_launch += workers_to_launch;
-	dbentry->parallel_workers_launched += workers_launched;
+  dbentry = pgstat_prep_database_pending(MyDatabaseId);
+  dbentry->parallel_workers_to_launch += workers_to_launch;
+  dbentry->parallel_workers_launched += workers_launched;
 }
 
 /*
@@ -322,48 +329,47 @@ pgstat_update_parallel_workers_stats(PgStat_Counter workers_to_launch,
 void
 pgstat_update_dbstats(TimestampTz ts)
 {
-	PgStat_StatDBEntry *dbentry;
+  PgStat_StatDBEntry *dbentry;
 
-	/*
-	 * If not connected to a database yet, don't attribute time to "shared
-	 * state" (InvalidOid is used to track stats for shared relations, etc.).
-	 */
-	if (!OidIsValid(MyDatabaseId))
-		return;
+  /*
+   * If not connected to a database yet, don't attribute time to "shared
+   * state" (InvalidOid is used to track stats for shared relations, etc.).
+   */
+  if (!OidIsValid(MyDatabaseId))
+    return;
 
-	dbentry = pgstat_prep_database_pending(MyDatabaseId);
+  dbentry = pgstat_prep_database_pending(MyDatabaseId);
 
-	/*
-	 * Accumulate xact commit/rollback and I/O timings to stats entry of the
-	 * current database.
-	 */
-	dbentry->xact_commit += pgStatXactCommit;
-	dbentry->xact_rollback += pgStatXactRollback;
-	dbentry->blk_read_time += pgStatBlockReadTime;
-	dbentry->blk_write_time += pgStatBlockWriteTime;
+  /*
+   * Accumulate xact commit/rollback and I/O timings to stats entry of the
+   * current database.
+   */
+  dbentry->xact_commit += pgStatXactCommit;
+  dbentry->xact_rollback += pgStatXactRollback;
+  dbentry->blk_read_time += pgStatBlockReadTime;
+  dbentry->blk_write_time += pgStatBlockWriteTime;
 
-	if (pgstat_should_report_connstat())
-	{
-		long		secs;
-		int			usecs;
+  if (pgstat_should_report_connstat()) {
+    long    secs;
+    int     usecs;
 
-		/*
-		 * pgLastSessionReportTime is initialized to MyStartTimestamp by
-		 * pgstat_report_connect().
-		 */
-		TimestampDifference(pgLastSessionReportTime, ts, &secs, &usecs);
-		pgLastSessionReportTime = ts;
-		dbentry->session_time += (PgStat_Counter) secs * 1000000 + usecs;
-		dbentry->active_time += pgStatActiveTime;
-		dbentry->idle_in_transaction_time += pgStatTransactionIdleTime;
-	}
+    /*
+     * pgLastSessionReportTime is initialized to MyStartTimestamp by
+     * pgstat_report_connect().
+     */
+    TimestampDifference(pgLastSessionReportTime, ts, &secs, &usecs);
+    pgLastSessionReportTime = ts;
+    dbentry->session_time += (PgStat_Counter) secs * 1000000 + usecs;
+    dbentry->active_time += pgStatActiveTime;
+    dbentry->idle_in_transaction_time += pgStatTransactionIdleTime;
+  }
 
-	pgStatXactCommit = 0;
-	pgStatXactRollback = 0;
-	pgStatBlockReadTime = 0;
-	pgStatBlockWriteTime = 0;
-	pgStatActiveTime = 0;
-	pgStatTransactionIdleTime = 0;
+  pgStatXactCommit = 0;
+  pgStatXactRollback = 0;
+  pgStatBlockReadTime = 0;
+  pgStatBlockWriteTime = 0;
+  pgStatActiveTime = 0;
+  pgStatTransactionIdleTime = 0;
 }
 
 /*
@@ -376,7 +382,7 @@ pgstat_update_dbstats(TimestampTz ts)
 static bool
 pgstat_should_report_connstat(void)
 {
-	return MyBackendType == B_BACKEND;
+  return MyBackendType == B_BACKEND;
 }
 
 /*
@@ -385,18 +391,18 @@ pgstat_should_report_connstat(void)
 PgStat_StatDBEntry *
 pgstat_prep_database_pending(Oid dboid)
 {
-	PgStat_EntryRef *entry_ref;
+  PgStat_EntryRef *entry_ref;
 
-	/*
-	 * This should not report stats on database objects before having
-	 * connected to a database.
-	 */
-	Assert(!OidIsValid(dboid) || OidIsValid(MyDatabaseId));
+  /*
+   * This should not report stats on database objects before having
+   * connected to a database.
+   */
+  Assert(!OidIsValid(dboid) || OidIsValid(MyDatabaseId));
 
-	entry_ref = pgstat_prep_pending_entry(PGSTAT_KIND_DATABASE, dboid, InvalidOid,
-										  NULL);
+  entry_ref = pgstat_prep_pending_entry(PGSTAT_KIND_DATABASE, dboid, InvalidOid,
+                                        NULL);
 
-	return entry_ref->pending;
+  return entry_ref->pending;
 }
 
 /*
@@ -406,16 +412,16 @@ pgstat_prep_database_pending(Oid dboid)
 void
 pgstat_reset_database_timestamp(Oid dboid, TimestampTz ts)
 {
-	PgStat_EntryRef *dbref;
-	PgStatShared_Database *dbentry;
+  PgStat_EntryRef *dbref;
+  PgStatShared_Database *dbentry;
 
-	dbref = pgstat_get_entry_ref_locked(PGSTAT_KIND_DATABASE, dboid, InvalidOid,
-										false);
+  dbref = pgstat_get_entry_ref_locked(PGSTAT_KIND_DATABASE, dboid, InvalidOid,
+                                      false);
 
-	dbentry = (PgStatShared_Database *) dbref->shared_stats;
-	dbentry->stats.stat_reset_timestamp = ts;
+  dbentry = (PgStatShared_Database *) dbref->shared_stats;
+  dbentry->stats.stat_reset_timestamp = ts;
 
-	pgstat_unlock_entry(dbref);
+  pgstat_unlock_entry(dbref);
 }
 
 /*
@@ -427,70 +433,70 @@ pgstat_reset_database_timestamp(Oid dboid, TimestampTz ts)
 bool
 pgstat_database_flush_cb(PgStat_EntryRef *entry_ref, bool nowait)
 {
-	PgStatShared_Database *sharedent;
-	PgStat_StatDBEntry *pendingent;
+  PgStatShared_Database *sharedent;
+  PgStat_StatDBEntry *pendingent;
 
-	pendingent = (PgStat_StatDBEntry *) entry_ref->pending;
-	sharedent = (PgStatShared_Database *) entry_ref->shared_stats;
+  pendingent = (PgStat_StatDBEntry *) entry_ref->pending;
+  sharedent = (PgStatShared_Database *) entry_ref->shared_stats;
 
-	if (!pgstat_lock_entry(entry_ref, nowait))
-		return false;
+  if (!pgstat_lock_entry(entry_ref, nowait))
+    return false;
 
-#define PGSTAT_ACCUM_DBCOUNT(item)		\
-	(sharedent)->stats.item += (pendingent)->item
+#define PGSTAT_ACCUM_DBCOUNT(item)    \
+  (sharedent)->stats.item += (pendingent)->item
 
-	PGSTAT_ACCUM_DBCOUNT(xact_commit);
-	PGSTAT_ACCUM_DBCOUNT(xact_rollback);
-	PGSTAT_ACCUM_DBCOUNT(blocks_fetched);
-	PGSTAT_ACCUM_DBCOUNT(blocks_hit);
+  PGSTAT_ACCUM_DBCOUNT(xact_commit);
+  PGSTAT_ACCUM_DBCOUNT(xact_rollback);
+  PGSTAT_ACCUM_DBCOUNT(blocks_fetched);
+  PGSTAT_ACCUM_DBCOUNT(blocks_hit);
 
-	PGSTAT_ACCUM_DBCOUNT(tuples_returned);
-	PGSTAT_ACCUM_DBCOUNT(tuples_fetched);
-	PGSTAT_ACCUM_DBCOUNT(tuples_inserted);
-	PGSTAT_ACCUM_DBCOUNT(tuples_updated);
-	PGSTAT_ACCUM_DBCOUNT(tuples_deleted);
+  PGSTAT_ACCUM_DBCOUNT(tuples_returned);
+  PGSTAT_ACCUM_DBCOUNT(tuples_fetched);
+  PGSTAT_ACCUM_DBCOUNT(tuples_inserted);
+  PGSTAT_ACCUM_DBCOUNT(tuples_updated);
+  PGSTAT_ACCUM_DBCOUNT(tuples_deleted);
 
-	/* last_autovac_time is reported immediately */
-	Assert(pendingent->last_autovac_time == 0);
+  /* last_autovac_time is reported immediately */
+  Assert(pendingent->last_autovac_time == 0);
 
-	PGSTAT_ACCUM_DBCOUNT(conflict_tablespace);
-	PGSTAT_ACCUM_DBCOUNT(conflict_lock);
-	PGSTAT_ACCUM_DBCOUNT(conflict_snapshot);
-	PGSTAT_ACCUM_DBCOUNT(conflict_logicalslot);
-	PGSTAT_ACCUM_DBCOUNT(conflict_bufferpin);
-	PGSTAT_ACCUM_DBCOUNT(conflict_startup_deadlock);
+  PGSTAT_ACCUM_DBCOUNT(conflict_tablespace);
+  PGSTAT_ACCUM_DBCOUNT(conflict_lock);
+  PGSTAT_ACCUM_DBCOUNT(conflict_snapshot);
+  PGSTAT_ACCUM_DBCOUNT(conflict_logicalslot);
+  PGSTAT_ACCUM_DBCOUNT(conflict_bufferpin);
+  PGSTAT_ACCUM_DBCOUNT(conflict_startup_deadlock);
 
-	PGSTAT_ACCUM_DBCOUNT(temp_bytes);
-	PGSTAT_ACCUM_DBCOUNT(temp_files);
-	PGSTAT_ACCUM_DBCOUNT(deadlocks);
+  PGSTAT_ACCUM_DBCOUNT(temp_bytes);
+  PGSTAT_ACCUM_DBCOUNT(temp_files);
+  PGSTAT_ACCUM_DBCOUNT(deadlocks);
 
-	/* checksum failures are reported immediately */
-	Assert(pendingent->checksum_failures == 0);
-	Assert(pendingent->last_checksum_failure == 0);
+  /* checksum failures are reported immediately */
+  Assert(pendingent->checksum_failures == 0);
+  Assert(pendingent->last_checksum_failure == 0);
 
-	PGSTAT_ACCUM_DBCOUNT(blk_read_time);
-	PGSTAT_ACCUM_DBCOUNT(blk_write_time);
+  PGSTAT_ACCUM_DBCOUNT(blk_read_time);
+  PGSTAT_ACCUM_DBCOUNT(blk_write_time);
 
-	PGSTAT_ACCUM_DBCOUNT(sessions);
-	PGSTAT_ACCUM_DBCOUNT(session_time);
-	PGSTAT_ACCUM_DBCOUNT(active_time);
-	PGSTAT_ACCUM_DBCOUNT(idle_in_transaction_time);
-	PGSTAT_ACCUM_DBCOUNT(sessions_abandoned);
-	PGSTAT_ACCUM_DBCOUNT(sessions_fatal);
-	PGSTAT_ACCUM_DBCOUNT(sessions_killed);
-	PGSTAT_ACCUM_DBCOUNT(parallel_workers_to_launch);
-	PGSTAT_ACCUM_DBCOUNT(parallel_workers_launched);
+  PGSTAT_ACCUM_DBCOUNT(sessions);
+  PGSTAT_ACCUM_DBCOUNT(session_time);
+  PGSTAT_ACCUM_DBCOUNT(active_time);
+  PGSTAT_ACCUM_DBCOUNT(idle_in_transaction_time);
+  PGSTAT_ACCUM_DBCOUNT(sessions_abandoned);
+  PGSTAT_ACCUM_DBCOUNT(sessions_fatal);
+  PGSTAT_ACCUM_DBCOUNT(sessions_killed);
+  PGSTAT_ACCUM_DBCOUNT(parallel_workers_to_launch);
+  PGSTAT_ACCUM_DBCOUNT(parallel_workers_launched);
 #undef PGSTAT_ACCUM_DBCOUNT
 
-	pgstat_unlock_entry(entry_ref);
+  pgstat_unlock_entry(entry_ref);
 
-	memset(pendingent, 0, sizeof(*pendingent));
+  memset(pendingent, 0, sizeof(*pendingent));
 
-	return true;
+  return true;
 }
 
 void
 pgstat_database_reset_timestamp_cb(PgStatShared_Common *header, TimestampTz ts)
 {
-	((PgStatShared_Database *) header)->stats.stat_reset_timestamp = ts;
+  ((PgStatShared_Database *) header)->stats.stat_reset_timestamp = ts;
 }

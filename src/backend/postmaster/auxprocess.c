@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  * auxprocess.c
- *	  functions related to auxiliary processes.
+ *    functions related to auxiliary processes.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/postmaster/auxprocess.c
+ *    src/backend/postmaster/auxprocess.c
  *-------------------------------------------------------------------------
  */
 #include "postgres.h"
@@ -30,61 +30,60 @@ static void ShutdownAuxiliaryProcess(int code, Datum arg);
 
 
 /*
- *	 AuxiliaryProcessMainCommon
+ *   AuxiliaryProcessMainCommon
  *
- *	 Common initialization code for auxiliary processes, such as the bgwriter,
- *	 walwriter, walreceiver, and the startup process.
+ *   Common initialization code for auxiliary processes, such as the bgwriter,
+ *   walwriter, walreceiver, and the startup process.
  */
 void
 AuxiliaryProcessMainCommon(void)
 {
-	Assert(IsUnderPostmaster);
+  Assert(IsUnderPostmaster);
 
-	/* Release postmaster's working memory context */
-	if (PostmasterContext)
-	{
-		MemoryContextDelete(PostmasterContext);
-		PostmasterContext = NULL;
-	}
+  /* Release postmaster's working memory context */
+  if (PostmasterContext) {
+    MemoryContextDelete(PostmasterContext);
+    PostmasterContext = NULL;
+  }
 
-	init_ps_display(NULL);
+  init_ps_display(NULL);
 
-	Assert(GetProcessingMode() == InitProcessing);
+  Assert(GetProcessingMode() == InitProcessing);
 
-	IgnoreSystemIndexes = true;
+  IgnoreSystemIndexes = true;
 
-	/*
-	 * As an auxiliary process, we aren't going to do the full InitPostgres
-	 * pushups, but there are a couple of things that need to get lit up even
-	 * in an auxiliary process.
-	 */
+  /*
+   * As an auxiliary process, we aren't going to do the full InitPostgres
+   * pushups, but there are a couple of things that need to get lit up even
+   * in an auxiliary process.
+   */
 
-	/*
-	 * Create a PGPROC so we can use LWLocks and access shared memory.
-	 */
-	InitAuxiliaryProcess();
+  /*
+   * Create a PGPROC so we can use LWLocks and access shared memory.
+   */
+  InitAuxiliaryProcess();
 
-	BaseInit();
+  BaseInit();
 
-	ProcSignalInit(NULL, 0);
+  ProcSignalInit(NULL, 0);
 
-	/*
-	 * Auxiliary processes don't run transactions, but they may need a
-	 * resource owner anyway to manage buffer pins acquired outside
-	 * transactions (and, perhaps, other things in future).
-	 */
-	CreateAuxProcessResourceOwner();
+  /*
+   * Auxiliary processes don't run transactions, but they may need a
+   * resource owner anyway to manage buffer pins acquired outside
+   * transactions (and, perhaps, other things in future).
+   */
+  CreateAuxProcessResourceOwner();
 
 
-	/* Initialize backend status information */
-	pgstat_beinit();
-	pgstat_bestart_initial();
-	pgstat_bestart_final();
+  /* Initialize backend status information */
+  pgstat_beinit();
+  pgstat_bestart_initial();
+  pgstat_bestart_final();
 
-	/* register a before-shutdown callback for LWLock cleanup */
-	before_shmem_exit(ShutdownAuxiliaryProcess, 0);
+  /* register a before-shutdown callback for LWLock cleanup */
+  before_shmem_exit(ShutdownAuxiliaryProcess, 0);
 
-	SetProcessingMode(NormalProcessing);
+  SetProcessingMode(NormalProcessing);
 }
 
 /*
@@ -97,7 +96,7 @@ AuxiliaryProcessMainCommon(void)
 static void
 ShutdownAuxiliaryProcess(int code, Datum arg)
 {
-	LWLockReleaseAll();
-	ConditionVariableCancelSleep();
-	pgstat_report_wait_end();
+  LWLockReleaseAll();
+  ConditionVariableCancelSleep();
+  pgstat_report_wait_end();
 }

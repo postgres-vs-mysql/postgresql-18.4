@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * pg_largeobject.c
- *	  routines to support manipulation of the pg_largeobject relation
+ *    routines to support manipulation of the pg_largeobject relation
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/backend/catalog/pg_largeobject.c
+ *    src/backend/catalog/pg_largeobject.c
  *
  *-------------------------------------------------------------------------
  */
@@ -35,56 +35,57 @@
 Oid
 LargeObjectCreate(Oid loid)
 {
-	Relation	pg_lo_meta;
-	HeapTuple	ntup;
-	Oid			loid_new;
-	Datum		values[Natts_pg_largeobject_metadata];
-	bool		nulls[Natts_pg_largeobject_metadata];
-	Oid			ownerId;
-	Acl		   *lomacl;
+  Relation  pg_lo_meta;
+  HeapTuple ntup;
+  Oid     loid_new;
+  Datum   values[Natts_pg_largeobject_metadata];
+  bool    nulls[Natts_pg_largeobject_metadata];
+  Oid     ownerId;
+  Acl      *lomacl;
 
-	pg_lo_meta = table_open(LargeObjectMetadataRelationId,
-							RowExclusiveLock);
+  pg_lo_meta = table_open(LargeObjectMetadataRelationId,
+                          RowExclusiveLock);
 
-	/*
-	 * Insert metadata of the largeobject
-	 */
-	memset(values, 0, sizeof(values));
-	memset(nulls, false, sizeof(nulls));
+  /*
+   * Insert metadata of the largeobject
+   */
+  memset(values, 0, sizeof(values));
+  memset(nulls, false, sizeof(nulls));
 
-	if (OidIsValid(loid))
-		loid_new = loid;
-	else
-		loid_new = GetNewOidWithIndex(pg_lo_meta,
-									  LargeObjectMetadataOidIndexId,
-									  Anum_pg_largeobject_metadata_oid);
-	ownerId = GetUserId();
-	lomacl = get_user_default_acl(OBJECT_LARGEOBJECT, ownerId, InvalidOid);
+  if (OidIsValid(loid))
+    loid_new = loid;
+  else
+    loid_new = GetNewOidWithIndex(pg_lo_meta,
+                                  LargeObjectMetadataOidIndexId,
+                                  Anum_pg_largeobject_metadata_oid);
 
-	values[Anum_pg_largeobject_metadata_oid - 1] = ObjectIdGetDatum(loid_new);
-	values[Anum_pg_largeobject_metadata_lomowner - 1]
-		= ObjectIdGetDatum(ownerId);
+  ownerId = GetUserId();
+  lomacl = get_user_default_acl(OBJECT_LARGEOBJECT, ownerId, InvalidOid);
 
-	if (lomacl != NULL)
-		values[Anum_pg_largeobject_metadata_lomacl - 1]
-			= PointerGetDatum(lomacl);
-	else
-		nulls[Anum_pg_largeobject_metadata_lomacl - 1] = true;
+  values[Anum_pg_largeobject_metadata_oid - 1] = ObjectIdGetDatum(loid_new);
+  values[Anum_pg_largeobject_metadata_lomowner - 1]
+    = ObjectIdGetDatum(ownerId);
 
-	ntup = heap_form_tuple(RelationGetDescr(pg_lo_meta),
-						   values, nulls);
+  if (lomacl != NULL)
+    values[Anum_pg_largeobject_metadata_lomacl - 1]
+      = PointerGetDatum(lomacl);
+  else
+    nulls[Anum_pg_largeobject_metadata_lomacl - 1] = true;
 
-	CatalogTupleInsert(pg_lo_meta, ntup);
+  ntup = heap_form_tuple(RelationGetDescr(pg_lo_meta),
+                         values, nulls);
 
-	heap_freetuple(ntup);
+  CatalogTupleInsert(pg_lo_meta, ntup);
 
-	table_close(pg_lo_meta, RowExclusiveLock);
+  heap_freetuple(ntup);
 
-	/* dependencies on roles mentioned in default ACL */
-	recordDependencyOnNewAcl(LargeObjectRelationId, loid_new, 0,
-							 ownerId, lomacl);
+  table_close(pg_lo_meta, RowExclusiveLock);
 
-	return loid_new;
+  /* dependencies on roles mentioned in default ACL */
+  recordDependencyOnNewAcl(LargeObjectRelationId, loid_new, 0,
+                           ownerId, lomacl);
+
+  return loid_new;
 }
 
 /*
@@ -94,61 +95,62 @@ LargeObjectCreate(Oid loid)
 void
 LargeObjectDrop(Oid loid)
 {
-	Relation	pg_lo_meta;
-	Relation	pg_largeobject;
-	ScanKeyData skey[1];
-	SysScanDesc scan;
-	HeapTuple	tuple;
+  Relation  pg_lo_meta;
+  Relation  pg_largeobject;
+  ScanKeyData skey[1];
+  SysScanDesc scan;
+  HeapTuple tuple;
 
-	pg_lo_meta = table_open(LargeObjectMetadataRelationId,
-							RowExclusiveLock);
+  pg_lo_meta = table_open(LargeObjectMetadataRelationId,
+                          RowExclusiveLock);
 
-	pg_largeobject = table_open(LargeObjectRelationId,
-								RowExclusiveLock);
+  pg_largeobject = table_open(LargeObjectRelationId,
+                              RowExclusiveLock);
 
-	/*
-	 * Delete an entry from pg_largeobject_metadata
-	 */
-	ScanKeyInit(&skey[0],
-				Anum_pg_largeobject_metadata_oid,
-				BTEqualStrategyNumber, F_OIDEQ,
-				ObjectIdGetDatum(loid));
+  /*
+   * Delete an entry from pg_largeobject_metadata
+   */
+  ScanKeyInit(&skey[0],
+              Anum_pg_largeobject_metadata_oid,
+              BTEqualStrategyNumber, F_OIDEQ,
+              ObjectIdGetDatum(loid));
 
-	scan = systable_beginscan(pg_lo_meta,
-							  LargeObjectMetadataOidIndexId, true,
-							  NULL, 1, skey);
+  scan = systable_beginscan(pg_lo_meta,
+                            LargeObjectMetadataOidIndexId, true,
+                            NULL, 1, skey);
 
-	tuple = systable_getnext(scan);
-	if (!HeapTupleIsValid(tuple))
-		ereport(ERROR,
-				(errcode(ERRCODE_UNDEFINED_OBJECT),
-				 errmsg("large object %u does not exist", loid)));
+  tuple = systable_getnext(scan);
 
-	CatalogTupleDelete(pg_lo_meta, &tuple->t_self);
+  if (!HeapTupleIsValid(tuple))
+    ereport(ERROR,
+            (errcode(ERRCODE_UNDEFINED_OBJECT),
+             errmsg("large object %u does not exist", loid)));
 
-	systable_endscan(scan);
+  CatalogTupleDelete(pg_lo_meta, &tuple->t_self);
 
-	/*
-	 * Delete all the associated entries from pg_largeobject
-	 */
-	ScanKeyInit(&skey[0],
-				Anum_pg_largeobject_loid,
-				BTEqualStrategyNumber, F_OIDEQ,
-				ObjectIdGetDatum(loid));
+  systable_endscan(scan);
 
-	scan = systable_beginscan(pg_largeobject,
-							  LargeObjectLOidPNIndexId, true,
-							  NULL, 1, skey);
-	while (HeapTupleIsValid(tuple = systable_getnext(scan)))
-	{
-		CatalogTupleDelete(pg_largeobject, &tuple->t_self);
-	}
+  /*
+   * Delete all the associated entries from pg_largeobject
+   */
+  ScanKeyInit(&skey[0],
+              Anum_pg_largeobject_loid,
+              BTEqualStrategyNumber, F_OIDEQ,
+              ObjectIdGetDatum(loid));
 
-	systable_endscan(scan);
+  scan = systable_beginscan(pg_largeobject,
+                            LargeObjectLOidPNIndexId, true,
+                            NULL, 1, skey);
 
-	table_close(pg_largeobject, RowExclusiveLock);
+  while (HeapTupleIsValid(tuple = systable_getnext(scan))) {
+    CatalogTupleDelete(pg_largeobject, &tuple->t_self);
+  }
 
-	table_close(pg_lo_meta, RowExclusiveLock);
+  systable_endscan(scan);
+
+  table_close(pg_largeobject, RowExclusiveLock);
+
+  table_close(pg_lo_meta, RowExclusiveLock);
 }
 
 /*
@@ -166,7 +168,7 @@ LargeObjectDrop(Oid loid)
 bool
 LargeObjectExists(Oid loid)
 {
-	return LargeObjectExistsWithSnapshot(loid, NULL);
+  return LargeObjectExistsWithSnapshot(loid, NULL);
 }
 
 /*
@@ -175,31 +177,32 @@ LargeObjectExists(Oid loid)
 bool
 LargeObjectExistsWithSnapshot(Oid loid, Snapshot snapshot)
 {
-	Relation	pg_lo_meta;
-	ScanKeyData skey[1];
-	SysScanDesc sd;
-	HeapTuple	tuple;
-	bool		retval = false;
+  Relation  pg_lo_meta;
+  ScanKeyData skey[1];
+  SysScanDesc sd;
+  HeapTuple tuple;
+  bool    retval = false;
 
-	ScanKeyInit(&skey[0],
-				Anum_pg_largeobject_metadata_oid,
-				BTEqualStrategyNumber, F_OIDEQ,
-				ObjectIdGetDatum(loid));
+  ScanKeyInit(&skey[0],
+              Anum_pg_largeobject_metadata_oid,
+              BTEqualStrategyNumber, F_OIDEQ,
+              ObjectIdGetDatum(loid));
 
-	pg_lo_meta = table_open(LargeObjectMetadataRelationId,
-							AccessShareLock);
+  pg_lo_meta = table_open(LargeObjectMetadataRelationId,
+                          AccessShareLock);
 
-	sd = systable_beginscan(pg_lo_meta,
-							LargeObjectMetadataOidIndexId, true,
-							snapshot, 1, skey);
+  sd = systable_beginscan(pg_lo_meta,
+                          LargeObjectMetadataOidIndexId, true,
+                          snapshot, 1, skey);
 
-	tuple = systable_getnext(sd);
-	if (HeapTupleIsValid(tuple))
-		retval = true;
+  tuple = systable_getnext(sd);
 
-	systable_endscan(sd);
+  if (HeapTupleIsValid(tuple))
+    retval = true;
 
-	table_close(pg_lo_meta, AccessShareLock);
+  systable_endscan(sd);
 
-	return retval;
+  table_close(pg_lo_meta, AccessShareLock);
+
+  return retval;
 }

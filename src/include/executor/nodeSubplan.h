@@ -26,4 +26,4 @@ extern void ExecSetParamPlan(SubPlanState *node, ExprContext *econtext);
 
 extern void ExecSetParamPlanMulti(const Bitmapset *params, ExprContext *econtext);
 
-#endif							/* NODESUBPLAN_H */
+#endif              /* NODESUBPLAN_H */

@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * compat.c
- *		Reimplementations of various backend functions.
+ *    Reimplementations of various backend functions.
  *
  * Portions Copyright (c) 2013-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *		src/bin/pg_waldump/compat.c
+ *    src/bin/pg_waldump/compat.c
  *
  * This file contains client-side implementations for various backend
  * functions that the rm_desc functions in *desc.c files rely on.
@@ -26,11 +26,11 @@
 pg_time_t
 timestamptz_to_time_t(TimestampTz t)
 {
-	pg_time_t	result;
+  pg_time_t result;
 
-	result = (pg_time_t) (t / USECS_PER_SEC +
-						  ((POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * SECS_PER_DAY));
-	return result;
+  result = (pg_time_t) (t / USECS_PER_SEC +
+                        ((POSTGRES_EPOCH_JDATE - UNIX_EPOCH_JDATE) * SECS_PER_DAY));
+  return result;
 }
 
 /*
@@ -48,17 +48,17 @@ timestamptz_to_time_t(TimestampTz t)
 const char *
 timestamptz_to_str(TimestampTz t)
 {
-	static char buf[MAXDATELEN + 1];
-	char		ts[MAXDATELEN + 1];
-	char		zone[MAXDATELEN + 1];
-	time_t		result = (time_t) timestamptz_to_time_t(t);
-	struct tm  *ltime = localtime(&result);
+  static char buf[MAXDATELEN + 1];
+  char    ts[MAXDATELEN + 1];
+  char    zone[MAXDATELEN + 1];
+  time_t    result = (time_t) timestamptz_to_time_t(t);
+  struct tm  *ltime = localtime(&result);
 
-	strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", ltime);
-	strftime(zone, sizeof(zone), "%Z", ltime);
+  strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", ltime);
+  strftime(zone, sizeof(zone), "%Z", ltime);
 
-	snprintf(buf, sizeof(buf), "%s.%06d %s",
-			 ts, (int) (t % USECS_PER_SEC), zone);
+  snprintf(buf, sizeof(buf), "%s.%06d %s",
+           ts, (int) (t % USECS_PER_SEC), zone);
 
-	return buf;
+  return buf;
 }

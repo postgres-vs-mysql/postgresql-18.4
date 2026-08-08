@@ -14,13 +14,13 @@ typedef int64_t int64;
 
 #define HAVE_INT64_TIMESTAMP
 
-#endif							/* C_H */
+#endif              /* C_H */
 
 typedef struct
 {
-	int64		time;			/* all time units other than months and years */
-	long		month;			/* months and years, after time for alignment */
-}			interval;
+  int64   time;     /* all time units other than months and years */
+  long    month;      /* months and years, after time for alignment */
+}     interval;
 
 #ifdef __cplusplus
 extern "C"
@@ -31,10 +31,10 @@ extern interval * PGTYPESinterval_new(void);
 extern void PGTYPESinterval_free(interval * intvl);
 extern interval * PGTYPESinterval_from_asc(char *str, char **endptr);
 extern char *PGTYPESinterval_to_asc(interval * span);
-extern int	PGTYPESinterval_copy(interval * intvlsrc, interval * intvldest);
+extern int  PGTYPESinterval_copy(interval * intvlsrc, interval * intvldest);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif							/* PGTYPES_INTERVAL */
+#endif              /* PGTYPES_INTERVAL */

@@ -34,4 +34,4 @@ extern void AtEOXact_Aio(bool is_commit);
 /* method_worker.c */
 extern bool pgaio_workers_enabled(void);
 
-#endif							/* AIO_SUBSYS_H */
+#endif              /* AIO_SUBSYS_H */

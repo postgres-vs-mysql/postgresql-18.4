@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * sha1.h
- *	  Constants related to SHA1.
+ *    Constants related to SHA1.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -18,4 +18,4 @@
 /* Block size for SHA1 */
 #define SHA1_BLOCK_SIZE 64
 
-#endif							/* PG_SHA1_H */
+#endif              /* PG_SHA1_H */

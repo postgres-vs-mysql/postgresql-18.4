@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * resowner.h
- *	  POSTGRES resource owner definitions.
+ *    POSTGRES resource owner definitions.
  *
  * Query-lifespan resources are tracked by associating them with
  * ResourceOwner objects.  This provides a simple mechanism for ensuring
@@ -51,34 +51,34 @@ extern PGDLLIMPORT ResourceOwner AuxProcessResourceOwner;
  */
 typedef enum
 {
-	RESOURCE_RELEASE_BEFORE_LOCKS = 1,
-	RESOURCE_RELEASE_LOCKS,
-	RESOURCE_RELEASE_AFTER_LOCKS,
+  RESOURCE_RELEASE_BEFORE_LOCKS = 1,
+  RESOURCE_RELEASE_LOCKS,
+  RESOURCE_RELEASE_AFTER_LOCKS,
 } ResourceReleasePhase;
 
 typedef uint32 ResourceReleasePriority;
 
 /* priorities of built-in BEFORE_LOCKS resources */
-#define RELEASE_PRIO_BUFFER_IOS			    100
-#define RELEASE_PRIO_BUFFER_PINS		    200
-#define RELEASE_PRIO_RELCACHE_REFS			300
-#define RELEASE_PRIO_DSMS					400
-#define RELEASE_PRIO_JIT_CONTEXTS			500
-#define RELEASE_PRIO_CRYPTOHASH_CONTEXTS	600
-#define RELEASE_PRIO_HMAC_CONTEXTS			700
+#define RELEASE_PRIO_BUFFER_IOS         100
+#define RELEASE_PRIO_BUFFER_PINS        200
+#define RELEASE_PRIO_RELCACHE_REFS      300
+#define RELEASE_PRIO_DSMS         400
+#define RELEASE_PRIO_JIT_CONTEXTS     500
+#define RELEASE_PRIO_CRYPTOHASH_CONTEXTS  600
+#define RELEASE_PRIO_HMAC_CONTEXTS      700
 
 /* priorities of built-in AFTER_LOCKS resources */
-#define RELEASE_PRIO_CATCACHE_REFS			100
-#define RELEASE_PRIO_CATCACHE_LIST_REFS		200
-#define RELEASE_PRIO_PLANCACHE_REFS			300
-#define RELEASE_PRIO_TUPDESC_REFS			400
-#define RELEASE_PRIO_SNAPSHOT_REFS			500
-#define RELEASE_PRIO_FILES					600
-#define RELEASE_PRIO_WAITEVENTSETS			700
+#define RELEASE_PRIO_CATCACHE_REFS      100
+#define RELEASE_PRIO_CATCACHE_LIST_REFS   200
+#define RELEASE_PRIO_PLANCACHE_REFS     300
+#define RELEASE_PRIO_TUPDESC_REFS     400
+#define RELEASE_PRIO_SNAPSHOT_REFS      500
+#define RELEASE_PRIO_FILES          600
+#define RELEASE_PRIO_WAITEVENTSETS      700
 
 /* 0 is considered invalid */
-#define RELEASE_PRIO_FIRST					1
-#define RELEASE_PRIO_LAST					UINT32_MAX
+#define RELEASE_PRIO_FIRST          1
+#define RELEASE_PRIO_LAST         UINT32_MAX
 
 /*
  * In order to track an object, resowner.c needs a few callbacks for it.
@@ -90,43 +90,43 @@ typedef uint32 ResourceReleasePriority;
  */
 typedef struct ResourceOwnerDesc
 {
-	const char *name;			/* name for the object kind, for debugging */
+  const char *name;     /* name for the object kind, for debugging */
 
-	/* when are these objects released? */
-	ResourceReleasePhase release_phase;
-	ResourceReleasePriority release_priority;
+  /* when are these objects released? */
+  ResourceReleasePhase release_phase;
+  ResourceReleasePriority release_priority;
 
-	/*
-	 * Release resource.
-	 *
-	 * This is called for each resource in the resource owner, in the order
-	 * specified by 'release_phase' and 'release_priority' when the whole
-	 * resource owner is been released or when ResourceOwnerReleaseAllOfKind()
-	 * is called.  The resource is implicitly removed from the owner, the
-	 * callback function doesn't need to call ResourceOwnerForget.
-	 */
-	void		(*ReleaseResource) (Datum res);
+  /*
+   * Release resource.
+   *
+   * This is called for each resource in the resource owner, in the order
+   * specified by 'release_phase' and 'release_priority' when the whole
+   * resource owner is been released or when ResourceOwnerReleaseAllOfKind()
+   * is called.  The resource is implicitly removed from the owner, the
+   * callback function doesn't need to call ResourceOwnerForget.
+   */
+  void    (*ReleaseResource) (Datum res);
 
-	/*
-	 * Format a string describing the resource, for debugging purposes.  If a
-	 * resource has not been properly released before commit, this is used to
-	 * print a WARNING.
-	 *
-	 * This can be left to NULL, in which case a generic "[resource name]: %p"
-	 * format is used.
-	 */
-	char	   *(*DebugPrint) (Datum res);
+  /*
+   * Format a string describing the resource, for debugging purposes.  If a
+   * resource has not been properly released before commit, this is used to
+   * print a WARNING.
+   *
+   * This can be left to NULL, in which case a generic "[resource name]: %p"
+   * format is used.
+   */
+  char     *(*DebugPrint) (Datum res);
 
 } ResourceOwnerDesc;
 
 /*
- *	Dynamically loaded modules can get control during ResourceOwnerRelease
- *	by providing a callback of this form.
+ *  Dynamically loaded modules can get control during ResourceOwnerRelease
+ *  by providing a callback of this form.
  */
 typedef void (*ResourceReleaseCallback) (ResourceReleasePhase phase,
-										 bool isCommit,
-										 bool isTopLevel,
-										 void *arg);
+    bool isCommit,
+    bool isTopLevel,
+    void *arg);
 
 
 /*
@@ -135,15 +135,15 @@ typedef void (*ResourceReleaseCallback) (ResourceReleasePhase phase,
 
 /* generic routines */
 extern ResourceOwner ResourceOwnerCreate(ResourceOwner parent,
-										 const char *name);
+    const char *name);
 extern void ResourceOwnerRelease(ResourceOwner owner,
-								 ResourceReleasePhase phase,
-								 bool isCommit,
-								 bool isTopLevel);
+                                 ResourceReleasePhase phase,
+                                 bool isCommit,
+                                 bool isTopLevel);
 extern void ResourceOwnerDelete(ResourceOwner owner);
 extern ResourceOwner ResourceOwnerGetParent(ResourceOwner owner);
 extern void ResourceOwnerNewParent(ResourceOwner owner,
-								   ResourceOwner newparent);
+                                   ResourceOwner newparent);
 
 extern void ResourceOwnerEnlarge(ResourceOwner owner);
 extern void ResourceOwnerRemember(ResourceOwner owner, Datum value, const ResourceOwnerDesc *kind);
@@ -152,9 +152,9 @@ extern void ResourceOwnerForget(ResourceOwner owner, Datum value, const Resource
 extern void ResourceOwnerReleaseAllOfKind(ResourceOwner owner, const ResourceOwnerDesc *kind);
 
 extern void RegisterResourceReleaseCallback(ResourceReleaseCallback callback,
-											void *arg);
+    void *arg);
 extern void UnregisterResourceReleaseCallback(ResourceReleaseCallback callback,
-											  void *arg);
+    void *arg);
 
 extern void CreateAuxProcessResourceOwner(void);
 extern void ReleaseAuxProcessResources(bool isCommit);
@@ -169,4 +169,4 @@ struct dlist_node;
 extern void ResourceOwnerRememberAioHandle(ResourceOwner owner, struct dlist_node *ioh_node);
 extern void ResourceOwnerForgetAioHandle(ResourceOwner owner, struct dlist_node *ioh_node);
 
-#endif							/* RESOWNER_H */
+#endif              /* RESOWNER_H */

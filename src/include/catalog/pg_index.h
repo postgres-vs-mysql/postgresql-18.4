@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_index.h
- *	  definition of the "index" system catalog (pg_index)
+ *    definition of the "index" system catalog (pg_index)
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -10,8 +10,8 @@
  * src/include/catalog/pg_index.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -22,49 +22,49 @@
 #include "catalog/pg_index_d.h" /* IWYU pragma: export */
 
 /* ----------------
- *		pg_index definition.  cpp turns this into
- *		typedef struct FormData_pg_index.
+ *    pg_index definition.  cpp turns this into
+ *    typedef struct FormData_pg_index.
  * ----------------
  */
-CATALOG(pg_index,2610,IndexRelationId) BKI_SCHEMA_MACRO
+CATALOG(pg_index, 2610, IndexRelationId) BKI_SCHEMA_MACRO
 {
-	Oid			indexrelid BKI_LOOKUP(pg_class);	/* OID of the index */
-	Oid			indrelid BKI_LOOKUP(pg_class);	/* OID of the relation it
-												 * indexes */
-	int16		indnatts;		/* total number of columns in index */
-	int16		indnkeyatts;	/* number of key columns in index */
-	bool		indisunique;	/* is this a unique index? */
-	bool		indnullsnotdistinct;	/* null treatment in unique index */
-	bool		indisprimary;	/* is this index for primary key? */
-	bool		indisexclusion; /* is this index for exclusion constraint? */
-	bool		indimmediate;	/* is uniqueness enforced immediately? */
-	bool		indisclustered; /* is this the index last clustered by? */
-	bool		indisvalid;		/* is this index valid for use by queries? */
-	bool		indcheckxmin;	/* must we wait for xmin to be old? */
-	bool		indisready;		/* is this index ready for inserts? */
-	bool		indislive;		/* is this index alive at all? */
-	bool		indisreplident; /* is this index the identity for replication? */
+  Oid     indexrelid BKI_LOOKUP(pg_class);  /* OID of the index */
+  Oid     indrelid BKI_LOOKUP(pg_class);  /* OID of the relation it
+                         * indexes */
+  int16   indnatts;   /* total number of columns in index */
+  int16   indnkeyatts;  /* number of key columns in index */
+  bool    indisunique;  /* is this a unique index? */
+  bool    indnullsnotdistinct;  /* null treatment in unique index */
+  bool    indisprimary; /* is this index for primary key? */
+  bool    indisexclusion; /* is this index for exclusion constraint? */
+  bool    indimmediate; /* is uniqueness enforced immediately? */
+  bool    indisclustered; /* is this the index last clustered by? */
+  bool    indisvalid;   /* is this index valid for use by queries? */
+  bool    indcheckxmin; /* must we wait for xmin to be old? */
+  bool    indisready;   /* is this index ready for inserts? */
+  bool    indislive;    /* is this index alive at all? */
+  bool    indisreplident; /* is this index the identity for replication? */
 
-	/* variable-length fields start here, but we allow direct access to indkey */
-	int2vector	indkey BKI_FORCE_NOT_NULL;	/* column numbers of indexed cols,
-											 * or 0 */
+  /* variable-length fields start here, but we allow direct access to indkey */
+  int2vector  indkey BKI_FORCE_NOT_NULL;  /* column numbers of indexed cols,
+                       * or 0 */
 
 #ifdef CATALOG_VARLEN
-	oidvector	indcollation BKI_LOOKUP_OPT(pg_collation) BKI_FORCE_NOT_NULL;	/* collation identifiers */
-	oidvector	indclass BKI_LOOKUP(pg_opclass) BKI_FORCE_NOT_NULL; /* opclass identifiers */
-	int2vector	indoption BKI_FORCE_NOT_NULL;	/* per-column flags
-												 * (AM-specific meanings) */
-	pg_node_tree indexprs;		/* expression trees for index attributes that
-								 * are not simple column references; one for
-								 * each zero entry in indkey[] */
-	pg_node_tree indpred;		/* expression tree for predicate, if a partial
-								 * index; else NULL */
+  oidvector indcollation BKI_LOOKUP_OPT(pg_collation) BKI_FORCE_NOT_NULL; /* collation identifiers */
+  oidvector indclass BKI_LOOKUP(pg_opclass) BKI_FORCE_NOT_NULL; /* opclass identifiers */
+  int2vector  indoption BKI_FORCE_NOT_NULL; /* per-column flags
+                         * (AM-specific meanings) */
+  pg_node_tree indexprs;    /* expression trees for index attributes that
+                 * are not simple column references; one for
+                 * each zero entry in indkey[] */
+  pg_node_tree indpred;   /* expression tree for predicate, if a partial
+                 * index; else NULL */
 #endif
 } FormData_pg_index;
 
 /* ----------------
- *		Form_pg_index corresponds to a pointer to a tuple with
- *		the format of pg_index relation.
+ *    Form_pg_index corresponds to a pointer to a tuple with
+ *    the format of pg_index relation.
  * ----------------
  */
 typedef FormData_pg_index *Form_pg_index;
@@ -86,9 +86,9 @@ DECLARE_ARRAY_FOREIGN_KEY_OPT((indrelid, indkey), pg_attribute, (attrelid, attnu
  * bits.  Otherwise, the content of the per-column indoption fields is
  * open for future definition.
  */
-#define INDOPTION_DESC			0x0001	/* values are in reverse order */
-#define INDOPTION_NULLS_FIRST	0x0002	/* NULLs are first instead of last */
+#define INDOPTION_DESC      0x0001  /* values are in reverse order */
+#define INDOPTION_NULLS_FIRST 0x0002  /* NULLs are first instead of last */
 
-#endif							/* EXPOSE_TO_CLIENT_CODE */
+#endif              /* EXPOSE_TO_CLIENT_CODE */
 
-#endif							/* PG_INDEX_H */
+#endif              /* PG_INDEX_H */

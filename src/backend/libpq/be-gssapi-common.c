@@ -24,37 +24,37 @@
 static void
 pg_GSS_error_int(char *s, size_t len, OM_uint32 stat, int type)
 {
-	gss_buffer_desc gmsg;
-	size_t		i = 0;
-	OM_uint32	lmin_s,
-				msg_ctx = 0;
+  gss_buffer_desc gmsg;
+  size_t    i = 0;
+  OM_uint32 lmin_s,
+            msg_ctx = 0;
 
-	do
-	{
-		if (gss_display_status(&lmin_s, stat, type, GSS_C_NO_OID,
-							   &msg_ctx, &gmsg) != GSS_S_COMPLETE)
-			break;
-		if (i > 0)
-		{
-			if (i < len)
-				s[i] = ' ';
-			i++;
-		}
-		if (i < len)
-			memcpy(s + i, gmsg.value, Min(len - i, gmsg.length));
-		i += gmsg.length;
-		gss_release_buffer(&lmin_s, &gmsg);
-	}
-	while (msg_ctx);
+  do {
+    if (gss_display_status(&lmin_s, stat, type, GSS_C_NO_OID,
+                           &msg_ctx, &gmsg) != GSS_S_COMPLETE)
+      break;
 
-	/* add nul termination */
-	if (i < len)
-		s[i] = '\0';
-	else
-	{
-		elog(COMMERROR, "incomplete GSS error report");
-		s[len - 1] = '\0';
-	}
+    if (i > 0) {
+      if (i < len)
+        s[i] = ' ';
+
+      i++;
+    }
+
+    if (i < len)
+      memcpy(s + i, gmsg.value, Min(len - i, gmsg.length));
+
+    i += gmsg.length;
+    gss_release_buffer(&lmin_s, &gmsg);
+  } while (msg_ctx);
+
+  /* add nul termination */
+  if (i < len)
+    s[i] = '\0';
+  else {
+    elog(COMMERROR, "incomplete GSS error report");
+    s[len - 1] = '\0';
+  }
 }
 
 /*
@@ -73,24 +73,24 @@ pg_GSS_error_int(char *s, size_t len, OM_uint32 stat, int type)
  */
 void
 pg_GSS_error(const char *errmsg,
-			 OM_uint32 maj_stat, OM_uint32 min_stat)
+             OM_uint32 maj_stat, OM_uint32 min_stat)
 {
-	char		msg_major[128],
-				msg_minor[128];
+  char    msg_major[128],
+          msg_minor[128];
 
-	/* Fetch major status message */
-	pg_GSS_error_int(msg_major, sizeof(msg_major), maj_stat, GSS_C_GSS_CODE);
+  /* Fetch major status message */
+  pg_GSS_error_int(msg_major, sizeof(msg_major), maj_stat, GSS_C_GSS_CODE);
 
-	/* Fetch mechanism minor status message */
-	pg_GSS_error_int(msg_minor, sizeof(msg_minor), min_stat, GSS_C_MECH_CODE);
+  /* Fetch mechanism minor status message */
+  pg_GSS_error_int(msg_minor, sizeof(msg_minor), min_stat, GSS_C_MECH_CODE);
 
-	/*
-	 * errmsg_internal, since translation of the first part must be done
-	 * before calling this function anyway.
-	 */
-	ereport(COMMERROR,
-			(errmsg_internal("%s", errmsg),
-			 errdetail_internal("%s: %s", msg_major, msg_minor)));
+  /*
+   * errmsg_internal, since translation of the first part must be done
+   * before calling this function anyway.
+   */
+  ereport(COMMERROR,
+          (errmsg_internal("%s", errmsg),
+           errdetail_internal("%s: %s", msg_major, msg_minor)));
 }
 
 /*
@@ -103,45 +103,44 @@ pg_GSS_error(const char *errmsg,
 void
 pg_store_delegated_credential(gss_cred_id_t cred)
 {
-	OM_uint32	major,
-				minor;
-	gss_OID_set mech;
-	gss_cred_usage_t usage;
-	gss_key_value_element_desc cc;
-	gss_key_value_set_desc ccset;
+  OM_uint32 major,
+            minor;
+  gss_OID_set mech;
+  gss_cred_usage_t usage;
+  gss_key_value_element_desc cc;
+  gss_key_value_set_desc ccset;
 
-	cc.key = "ccache";
-	cc.value = GSS_MEMORY_CACHE;
-	ccset.count = 1;
-	ccset.elements = &cc;
+  cc.key = "ccache";
+  cc.value = GSS_MEMORY_CACHE;
+  ccset.count = 1;
+  ccset.elements = &cc;
 
-	/* Make the delegated credential only available to current process */
-	major = gss_store_cred_into(&minor,
-								cred,
-								GSS_C_INITIATE, /* credential only used for
-												 * starting libpq connection */
-								GSS_C_NULL_OID, /* store all */
-								true,	/* overwrite */
-								true,	/* make default */
-								&ccset,
-								&mech,
-								&usage);
+  /* Make the delegated credential only available to current process */
+  major = gss_store_cred_into(&minor,
+                              cred,
+                              GSS_C_INITIATE, /* credential only used for
+                         * starting libpq connection */
+                              GSS_C_NULL_OID, /* store all */
+                              true, /* overwrite */
+                              true, /* make default */
+                              &ccset,
+                              &mech,
+                              &usage);
 
-	if (major != GSS_S_COMPLETE)
-	{
-		pg_GSS_error("gss_store_cred", major, minor);
-	}
+  if (major != GSS_S_COMPLETE) {
+    pg_GSS_error("gss_store_cred", major, minor);
+  }
 
-	/* Credential stored, so we can release our credential handle. */
-	major = gss_release_cred(&minor, &cred);
-	if (major != GSS_S_COMPLETE)
-	{
-		pg_GSS_error("gss_release_cred", major, minor);
-	}
+  /* Credential stored, so we can release our credential handle. */
+  major = gss_release_cred(&minor, &cred);
 
-	/*
-	 * Set KRB5CCNAME for this backend, so that later calls to
-	 * gss_acquire_cred will find the delegated credentials we stored.
-	 */
-	setenv("KRB5CCNAME", GSS_MEMORY_CACHE, 1);
+  if (major != GSS_S_COMPLETE) {
+    pg_GSS_error("gss_release_cred", major, minor);
+  }
+
+  /*
+   * Set KRB5CCNAME for this backend, so that later calls to
+   * gss_acquire_cred will find the delegated credentials we stored.
+   */
+  setenv("KRB5CCNAME", GSS_MEMORY_CACHE, 1);
 }

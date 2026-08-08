@@ -11,7 +11,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/storage/aio/method_sync.c
+ *    src/backend/storage/aio/method_sync.c
  *
  *-------------------------------------------------------------------------
  */
@@ -22,12 +22,12 @@
 #include "storage/aio_internal.h"
 
 static bool pgaio_sync_needs_synchronous_execution(PgAioHandle *ioh);
-static int	pgaio_sync_submit(uint16 num_staged_ios, PgAioHandle **staged_ios);
+static int  pgaio_sync_submit(uint16 num_staged_ios, PgAioHandle **staged_ios);
 
 
 const IoMethodOps pgaio_sync_ops = {
-	.needs_synchronous_execution = pgaio_sync_needs_synchronous_execution,
-	.submit = pgaio_sync_submit,
+  .needs_synchronous_execution = pgaio_sync_needs_synchronous_execution,
+  .submit = pgaio_sync_submit,
 };
 
 
@@ -35,13 +35,13 @@ const IoMethodOps pgaio_sync_ops = {
 static bool
 pgaio_sync_needs_synchronous_execution(PgAioHandle *ioh)
 {
-	return true;
+  return true;
 }
 
 static int
 pgaio_sync_submit(uint16 num_staged_ios, PgAioHandle **staged_ios)
 {
-	elog(ERROR, "IO should have been executed synchronously");
+  elog(ERROR, "IO should have been executed synchronously");
 
-	return 0;
+  return 0;
 }

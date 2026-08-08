@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * htup.h
- *	  POSTGRES heap tuple definitions.
+ *    POSTGRES heap tuple definitions.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -33,26 +33,26 @@ typedef MinimalTupleData *MinimalTuple;
  * There are several ways in which this data structure is used:
  *
  * * Pointer to a tuple in a disk buffer: t_data points directly into the
- *	 buffer (which the code had better be holding a pin on, but this is not
- *	 reflected in HeapTupleData itself).
+ *   buffer (which the code had better be holding a pin on, but this is not
+ *   reflected in HeapTupleData itself).
  *
  * * Pointer to nothing: t_data is NULL.  This is used as a failure indication
- *	 in some functions.
+ *   in some functions.
  *
  * * Part of a palloc'd tuple: the HeapTupleData itself and the tuple
- *	 form a single palloc'd chunk.  t_data points to the memory location
- *	 immediately following the HeapTupleData struct (at offset HEAPTUPLESIZE).
- *	 This is the output format of heap_form_tuple and related routines.
+ *   form a single palloc'd chunk.  t_data points to the memory location
+ *   immediately following the HeapTupleData struct (at offset HEAPTUPLESIZE).
+ *   This is the output format of heap_form_tuple and related routines.
  *
  * * Separately allocated tuple: t_data points to a palloc'd chunk that
- *	 is not adjacent to the HeapTupleData.  (This case is deprecated since
- *	 it's difficult to tell apart from case #1.  It should be used only in
- *	 limited contexts where the code knows that case #1 will never apply.)
+ *   is not adjacent to the HeapTupleData.  (This case is deprecated since
+ *   it's difficult to tell apart from case #1.  It should be used only in
+ *   limited contexts where the code knows that case #1 will never apply.)
  *
  * * Separately allocated minimal tuple: t_data points MINIMAL_TUPLE_OFFSET
- *	 bytes before the start of a MinimalTuple.  As with the previous case,
- *	 this can't be told apart from case #1 by inspection; code setting up
- *	 or destroying this representation has to know what it's doing.
+ *   bytes before the start of a MinimalTuple.  As with the previous case,
+ *   this can't be told apart from case #1 by inspection; code setting up
+ *   or destroying this representation has to know what it's doing.
  *
  * t_len should always be valid, except in the pointer-to-nothing case.
  * t_self and t_tableOid should be valid if the HeapTupleData points to
@@ -61,16 +61,16 @@ typedef MinimalTupleData *MinimalTuple;
  */
 typedef struct HeapTupleData
 {
-	uint32		t_len;			/* length of *t_data */
-	ItemPointerData t_self;		/* SelfItemPointer */
-	Oid			t_tableOid;		/* table the tuple came from */
+  uint32    t_len;      /* length of *t_data */
+  ItemPointerData t_self;   /* SelfItemPointer */
+  Oid     t_tableOid;   /* table the tuple came from */
 #define FIELDNO_HEAPTUPLEDATA_DATA 3
-	HeapTupleHeader t_data;		/* -> tuple header and data */
+  HeapTupleHeader t_data;   /* -> tuple header and data */
 } HeapTupleData;
 
 typedef HeapTupleData *HeapTuple;
 
-#define HEAPTUPLESIZE	MAXALIGN(sizeof(HeapTupleData))
+#define HEAPTUPLESIZE MAXALIGN(sizeof(HeapTupleData))
 
 /*
  * Accessor macros to be used with HeapTuple pointers.
@@ -81,9 +81,9 @@ typedef HeapTupleData *HeapTuple;
 extern CommandId HeapTupleHeaderGetCmin(const HeapTupleHeaderData *tup);
 extern CommandId HeapTupleHeaderGetCmax(const HeapTupleHeaderData *tup);
 extern void HeapTupleHeaderAdjustCmax(const HeapTupleHeaderData *tup,
-									  CommandId *cmax, bool *iscombo);
+                                      CommandId *cmax, bool *iscombo);
 
 /* Prototype for HeapTupleHeader accessors in heapam.c */
 extern TransactionId HeapTupleGetUpdateXid(const HeapTupleHeaderData *tup);
 
-#endif							/* HTUP_H */
+#endif              /* HTUP_H */

@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * evtcache.h
- *	  Special-purpose cache for event trigger data.
+ *    Special-purpose cache for event trigger data.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/include/utils/evtcache.h
+ *    src/include/utils/evtcache.h
  *
  *-------------------------------------------------------------------------
  */
@@ -19,20 +19,20 @@
 
 typedef enum
 {
-	EVT_DDLCommandStart,
-	EVT_DDLCommandEnd,
-	EVT_SQLDrop,
-	EVT_TableRewrite,
-	EVT_Login,
+  EVT_DDLCommandStart,
+  EVT_DDLCommandEnd,
+  EVT_SQLDrop,
+  EVT_TableRewrite,
+  EVT_Login,
 } EventTriggerEvent;
 
 typedef struct
 {
-	Oid			fnoid;			/* function to be called */
-	char		enabled;		/* as SESSION_REPLICATION_ROLE_* */
-	Bitmapset  *tagset;			/* command tags, or NULL if empty */
+  Oid     fnoid;      /* function to be called */
+  char    enabled;    /* as SESSION_REPLICATION_ROLE_* */
+  Bitmapset  *tagset;     /* command tags, or NULL if empty */
 } EventTriggerCacheItem;
 
 extern List *EventCacheLookup(EventTriggerEvent event);
 
-#endif							/* EVTCACHE_H */
+#endif              /* EVTCACHE_H */

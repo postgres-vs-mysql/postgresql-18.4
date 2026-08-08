@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * tuplesort.h
- *	  Generalized tuple sorting routines.
+ *    Generalized tuple sorting routines.
  *
  * This module handles sorting of heap tuples, index tuples, or single
  * Datums (and could easily support other kinds of sortable objects,
@@ -45,19 +45,19 @@ typedef struct Sharedsort Sharedsort;
  */
 typedef struct SortCoordinateData
 {
-	/* Worker process?  If not, must be leader. */
-	bool		isWorker;
+  /* Worker process?  If not, must be leader. */
+  bool    isWorker;
 
-	/*
-	 * Leader-process-passed number of participants known launched (workers
-	 * set this to -1).  Includes state within leader needed for it to
-	 * participate as a worker, if any.
-	 */
-	int			nParticipants;
+  /*
+   * Leader-process-passed number of participants known launched (workers
+   * set this to -1).  Includes state within leader needed for it to
+   * participate as a worker, if any.
+   */
+  int     nParticipants;
 
-	/* Private opaque state (points to shared memory) */
-	Sharedsort *sharedsort;
-}			SortCoordinateData;
+  /* Private opaque state (points to shared memory) */
+  Sharedsort *sharedsort;
+}     SortCoordinateData;
 
 typedef struct SortCoordinateData *SortCoordinate;
 
@@ -75,29 +75,29 @@ typedef struct SortCoordinateData *SortCoordinate;
  */
 typedef enum
 {
-	SORT_TYPE_STILL_IN_PROGRESS = 0,
-	SORT_TYPE_TOP_N_HEAPSORT = 1 << 0,
-	SORT_TYPE_QUICKSORT = 1 << 1,
-	SORT_TYPE_EXTERNAL_SORT = 1 << 2,
-	SORT_TYPE_EXTERNAL_MERGE = 1 << 3,
+  SORT_TYPE_STILL_IN_PROGRESS = 0,
+  SORT_TYPE_TOP_N_HEAPSORT = 1 << 0,
+  SORT_TYPE_QUICKSORT = 1 << 1,
+  SORT_TYPE_EXTERNAL_SORT = 1 << 2,
+  SORT_TYPE_EXTERNAL_MERGE = 1 << 3,
 } TuplesortMethod;
 
 #define NUM_TUPLESORTMETHODS 4
 
 typedef enum
 {
-	SORT_SPACE_TYPE_DISK,
-	SORT_SPACE_TYPE_MEMORY,
+  SORT_SPACE_TYPE_DISK,
+  SORT_SPACE_TYPE_MEMORY,
 } TuplesortSpaceType;
 
 /* Bitwise option flags for tuple sorts */
-#define TUPLESORT_NONE					0
+#define TUPLESORT_NONE          0
 
 /* specifies whether non-sequential access to the sort result is required */
-#define	TUPLESORT_RANDOMACCESS			(1 << 0)
+#define TUPLESORT_RANDOMACCESS      (1 << 0)
 
 /* specifies if the tuplesort is able to support bounded sorts */
-#define TUPLESORT_ALLOWBOUNDED			(1 << 1)
+#define TUPLESORT_ALLOWBOUNDED      (1 << 1)
 
 /*
  * For bounded sort, tuples get pfree'd when they fall outside of the bound.
@@ -110,9 +110,9 @@ typedef enum
 
 typedef struct TuplesortInstrumentation
 {
-	TuplesortMethod sortMethod; /* sort algorithm used */
-	TuplesortSpaceType spaceType;	/* type of space spaceUsed represents */
-	int64		spaceUsed;		/* space consumption, in kB */
+  TuplesortMethod sortMethod; /* sort algorithm used */
+  TuplesortSpaceType spaceType; /* type of space spaceUsed represents */
+  int64   spaceUsed;    /* space consumption, in kB */
 } TuplesortInstrumentation;
 
 /*
@@ -147,14 +147,14 @@ typedef struct TuplesortInstrumentation
  */
 typedef struct
 {
-	void	   *tuple;			/* the tuple itself */
-	Datum		datum1;			/* value of first key column */
-	bool		isnull1;		/* is first key column NULL? */
-	int			srctape;		/* source tape number */
+  void     *tuple;      /* the tuple itself */
+  Datum   datum1;     /* value of first key column */
+  bool    isnull1;    /* is first key column NULL? */
+  int     srctape;    /* source tape number */
 } SortTuple;
 
 typedef int (*SortTupleComparator) (const SortTuple *a, const SortTuple *b,
-									Tuplesortstate *state);
+                                    Tuplesortstate *state);
 
 /*
  * The public part of a Tuple sort operation state.  This data structure
@@ -163,108 +163,108 @@ typedef int (*SortTupleComparator) (const SortTuple *a, const SortTuple *b,
  */
 typedef struct
 {
-	/*
-	 * These function pointers decouple the routines that must know what kind
-	 * of tuple we are sorting from the routines that don't need to know it.
-	 * They are set up by the tuplesort_begin_xxx routines.
-	 *
-	 * Function to compare two tuples; result is per qsort() convention, ie:
-	 * <0, 0, >0 according as a<b, a=b, a>b.  The API must match
-	 * qsort_arg_comparator.
-	 */
-	SortTupleComparator comparetup;
+  /*
+   * These function pointers decouple the routines that must know what kind
+   * of tuple we are sorting from the routines that don't need to know it.
+   * They are set up by the tuplesort_begin_xxx routines.
+   *
+   * Function to compare two tuples; result is per qsort() convention, ie:
+   * <0, 0, >0 according as a<b, a=b, a>b.  The API must match
+   * qsort_arg_comparator.
+   */
+  SortTupleComparator comparetup;
 
-	/*
-	 * Fall back to the full tuple for comparison, but only compare the first
-	 * sortkey if it was abbreviated. Otherwise, only compare second and later
-	 * sortkeys.
-	 */
-	SortTupleComparator comparetup_tiebreak;
+  /*
+   * Fall back to the full tuple for comparison, but only compare the first
+   * sortkey if it was abbreviated. Otherwise, only compare second and later
+   * sortkeys.
+   */
+  SortTupleComparator comparetup_tiebreak;
 
-	/*
-	 * Alter datum1 representation in the SortTuple's array back from the
-	 * abbreviated key to the first column value.
-	 */
-	void		(*removeabbrev) (Tuplesortstate *state, SortTuple *stups,
-								 int count);
+  /*
+   * Alter datum1 representation in the SortTuple's array back from the
+   * abbreviated key to the first column value.
+   */
+  void    (*removeabbrev) (Tuplesortstate *state, SortTuple *stups,
+                           int count);
 
-	/*
-	 * Function to write a stored tuple onto tape.  The representation of the
-	 * tuple on tape need not be the same as it is in memory.
-	 */
-	void		(*writetup) (Tuplesortstate *state, LogicalTape *tape,
-							 SortTuple *stup);
+  /*
+   * Function to write a stored tuple onto tape.  The representation of the
+   * tuple on tape need not be the same as it is in memory.
+   */
+  void    (*writetup) (Tuplesortstate *state, LogicalTape *tape,
+                       SortTuple *stup);
 
-	/*
-	 * Function to read a stored tuple from tape back into memory. 'len' is
-	 * the already-read length of the stored tuple.  The tuple is allocated
-	 * from the slab memory arena, or is palloc'd, see
-	 * tuplesort_readtup_alloc().
-	 */
-	void		(*readtup) (Tuplesortstate *state, SortTuple *stup,
-							LogicalTape *tape, unsigned int len);
+  /*
+   * Function to read a stored tuple from tape back into memory. 'len' is
+   * the already-read length of the stored tuple.  The tuple is allocated
+   * from the slab memory arena, or is palloc'd, see
+   * tuplesort_readtup_alloc().
+   */
+  void    (*readtup) (Tuplesortstate *state, SortTuple *stup,
+                      LogicalTape *tape, unsigned int len);
 
-	/*
-	 * Function to do some specific release of resources for the sort variant.
-	 * In particular, this function should free everything stored in the "arg"
-	 * field, which wouldn't be cleared on reset of the Tuple sort memory
-	 * contexts.  This can be NULL if nothing specific needs to be done.
-	 */
-	void		(*freestate) (Tuplesortstate *state);
+  /*
+   * Function to do some specific release of resources for the sort variant.
+   * In particular, this function should free everything stored in the "arg"
+   * field, which wouldn't be cleared on reset of the Tuple sort memory
+   * contexts.  This can be NULL if nothing specific needs to be done.
+   */
+  void    (*freestate) (Tuplesortstate *state);
 
-	/*
-	 * The subsequent fields are used in the implementations of the functions
-	 * above.
-	 */
-	MemoryContext maincontext;	/* memory context for tuple sort metadata that
-								 * persists across multiple batches */
-	MemoryContext sortcontext;	/* memory context holding most sort data */
-	MemoryContext tuplecontext; /* sub-context of sortcontext for tuple data */
+  /*
+   * The subsequent fields are used in the implementations of the functions
+   * above.
+   */
+  MemoryContext maincontext;  /* memory context for tuple sort metadata that
+                 * persists across multiple batches */
+  MemoryContext sortcontext;  /* memory context holding most sort data */
+  MemoryContext tuplecontext; /* sub-context of sortcontext for tuple data */
 
-	/*
-	 * Whether SortTuple's datum1 and isnull1 members are maintained by the
-	 * above routines.  If not, some sort specializations are disabled.
-	 */
-	bool		haveDatum1;
+  /*
+   * Whether SortTuple's datum1 and isnull1 members are maintained by the
+   * above routines.  If not, some sort specializations are disabled.
+   */
+  bool    haveDatum1;
 
-	/*
-	 * The sortKeys variable is used by every case other than the hash index
-	 * case; it is set by tuplesort_begin_xxx.  tupDesc is only used by the
-	 * MinimalTuple and CLUSTER routines, though.
-	 */
-	int			nKeys;			/* number of columns in sort key */
-	SortSupport sortKeys;		/* array of length nKeys */
+  /*
+   * The sortKeys variable is used by every case other than the hash index
+   * case; it is set by tuplesort_begin_xxx.  tupDesc is only used by the
+   * MinimalTuple and CLUSTER routines, though.
+   */
+  int     nKeys;      /* number of columns in sort key */
+  SortSupport sortKeys;   /* array of length nKeys */
 
-	/*
-	 * This variable is shared by the single-key MinimalTuple case and the
-	 * Datum case (which both use qsort_ssup()).  Otherwise, it's NULL.  The
-	 * presence of a value in this field is also checked by various sort
-	 * specialization functions as an optimization when comparing the leading
-	 * key in a tiebreak situation to determine if there are any subsequent
-	 * keys to sort on.
-	 */
-	SortSupport onlyKey;
+  /*
+   * This variable is shared by the single-key MinimalTuple case and the
+   * Datum case (which both use qsort_ssup()).  Otherwise, it's NULL.  The
+   * presence of a value in this field is also checked by various sort
+   * specialization functions as an optimization when comparing the leading
+   * key in a tiebreak situation to determine if there are any subsequent
+   * keys to sort on.
+   */
+  SortSupport onlyKey;
 
-	int			sortopt;		/* Bitmask of flags used to setup sort */
+  int     sortopt;    /* Bitmask of flags used to setup sort */
 
-	bool		tuples;			/* Can SortTuple.tuple ever be set? */
+  bool    tuples;     /* Can SortTuple.tuple ever be set? */
 
-	void	   *arg;			/* Specific information for the sort variant */
+  void     *arg;      /* Specific information for the sort variant */
 } TuplesortPublic;
 
 /* Sort parallel code from state for sort__start probes */
-#define PARALLEL_SORT(coordinate)	(coordinate == NULL || \
-									 (coordinate)->sharedsort == NULL ? 0 : \
-									 (coordinate)->isWorker ? 1 : 2)
+#define PARALLEL_SORT(coordinate) (coordinate == NULL || \
+                   (coordinate)->sharedsort == NULL ? 0 : \
+                   (coordinate)->isWorker ? 1 : 2)
 
 #define TuplesortstateGetPublic(state) ((TuplesortPublic *) state)
 
 /* When using this macro, beware of double evaluation of len */
 #define LogicalTapeReadExact(tape, ptr, len) \
-	do { \
-		if (LogicalTapeRead(tape, ptr, len) != (size_t) (len)) \
-			elog(ERROR, "unexpected end of data"); \
-	} while(0)
+  do { \
+    if (LogicalTapeRead(tape, ptr, len) != (size_t) (len)) \
+      elog(ERROR, "unexpected end of data"); \
+  } while(0)
 
 /*
  * We provide multiple interfaces to what is essentially the same code,
@@ -373,31 +373,31 @@ typedef struct
 
 
 extern Tuplesortstate *tuplesort_begin_common(int workMem,
-											  SortCoordinate coordinate,
-											  int sortopt);
+    SortCoordinate coordinate,
+    int sortopt);
 extern void tuplesort_set_bound(Tuplesortstate *state, int64 bound);
 extern bool tuplesort_used_bound(Tuplesortstate *state);
 extern void tuplesort_puttuple_common(Tuplesortstate *state,
-									  SortTuple *tuple, bool useAbbrev,
-									  Size tuplen);
+                                      SortTuple *tuple, bool useAbbrev,
+                                      Size tuplen);
 extern void tuplesort_performsort(Tuplesortstate *state);
 extern bool tuplesort_gettuple_common(Tuplesortstate *state, bool forward,
-									  SortTuple *stup);
+                                      SortTuple *stup);
 extern bool tuplesort_skiptuples(Tuplesortstate *state, int64 ntuples,
-								 bool forward);
+                                 bool forward);
 extern void tuplesort_end(Tuplesortstate *state);
 extern void tuplesort_reset(Tuplesortstate *state);
 
 extern void tuplesort_get_stats(Tuplesortstate *state,
-								TuplesortInstrumentation *stats);
+                                TuplesortInstrumentation *stats);
 extern const char *tuplesort_method_name(TuplesortMethod m);
 extern const char *tuplesort_space_type_name(TuplesortSpaceType t);
 
-extern int	tuplesort_merge_order(int64 allowedMem);
+extern int  tuplesort_merge_order(int64 allowedMem);
 
 extern Size tuplesort_estimate_shared(int nWorkers);
 extern void tuplesort_initialize_shared(Sharedsort *shared, int nWorkers,
-										dsm_segment *seg);
+                                        dsm_segment *seg);
 extern void tuplesort_attach_shared(Sharedsort *shared, dsm_segment *seg);
 
 /*
@@ -416,65 +416,65 @@ extern void *tuplesort_readtup_alloc(Tuplesortstate *state, Size tuplen);
 /* tuplesortvariants.c */
 
 extern Tuplesortstate *tuplesort_begin_heap(TupleDesc tupDesc,
-											int nkeys, AttrNumber *attNums,
-											Oid *sortOperators, Oid *sortCollations,
-											bool *nullsFirstFlags,
-											int workMem, SortCoordinate coordinate,
-											int sortopt);
+    int nkeys, AttrNumber *attNums,
+    Oid *sortOperators, Oid *sortCollations,
+    bool *nullsFirstFlags,
+    int workMem, SortCoordinate coordinate,
+    int sortopt);
 extern Tuplesortstate *tuplesort_begin_cluster(TupleDesc tupDesc,
-											   Relation indexRel, int workMem,
-											   SortCoordinate coordinate,
-											   int sortopt);
+    Relation indexRel, int workMem,
+    SortCoordinate coordinate,
+    int sortopt);
 extern Tuplesortstate *tuplesort_begin_index_btree(Relation heapRel,
-												   Relation indexRel,
-												   bool enforceUnique,
-												   bool uniqueNullsNotDistinct,
-												   int workMem, SortCoordinate coordinate,
-												   int sortopt);
+    Relation indexRel,
+    bool enforceUnique,
+    bool uniqueNullsNotDistinct,
+    int workMem, SortCoordinate coordinate,
+    int sortopt);
 extern Tuplesortstate *tuplesort_begin_index_hash(Relation heapRel,
-												  Relation indexRel,
-												  uint32 high_mask,
-												  uint32 low_mask,
-												  uint32 max_buckets,
-												  int workMem, SortCoordinate coordinate,
-												  int sortopt);
+    Relation indexRel,
+    uint32 high_mask,
+    uint32 low_mask,
+    uint32 max_buckets,
+    int workMem, SortCoordinate coordinate,
+    int sortopt);
 extern Tuplesortstate *tuplesort_begin_index_gist(Relation heapRel,
-												  Relation indexRel,
-												  int workMem, SortCoordinate coordinate,
-												  int sortopt);
+    Relation indexRel,
+    int workMem, SortCoordinate coordinate,
+    int sortopt);
 extern Tuplesortstate *tuplesort_begin_index_brin(int workMem, SortCoordinate coordinate,
-												  int sortopt);
+    int sortopt);
 extern Tuplesortstate *tuplesort_begin_index_gin(Relation heapRel,
-												 Relation indexRel,
-												 int workMem, SortCoordinate coordinate,
-												 int sortopt);
+    Relation indexRel,
+    int workMem, SortCoordinate coordinate,
+    int sortopt);
 extern Tuplesortstate *tuplesort_begin_datum(Oid datumType,
-											 Oid sortOperator, Oid sortCollation,
-											 bool nullsFirstFlag,
-											 int workMem, SortCoordinate coordinate,
-											 int sortopt);
+    Oid sortOperator, Oid sortCollation,
+    bool nullsFirstFlag,
+    int workMem, SortCoordinate coordinate,
+    int sortopt);
 
 extern void tuplesort_puttupleslot(Tuplesortstate *state,
-								   TupleTableSlot *slot);
+                                   TupleTableSlot *slot);
 extern void tuplesort_putheaptuple(Tuplesortstate *state, HeapTuple tup);
 extern void tuplesort_putindextuplevalues(Tuplesortstate *state,
-										  Relation rel, ItemPointer self,
-										  const Datum *values, const bool *isnull);
+    Relation rel, ItemPointer self,
+    const Datum *values, const bool *isnull);
 extern void tuplesort_putbrintuple(Tuplesortstate *state, BrinTuple *tuple, Size size);
 extern void tuplesort_putgintuple(Tuplesortstate *state, GinTuple *tuple, Size size);
 extern void tuplesort_putdatum(Tuplesortstate *state, Datum val,
-							   bool isNull);
+                               bool isNull);
 
 extern bool tuplesort_gettupleslot(Tuplesortstate *state, bool forward,
-								   bool copy, TupleTableSlot *slot, Datum *abbrev);
+                                   bool copy, TupleTableSlot *slot, Datum *abbrev);
 extern HeapTuple tuplesort_getheaptuple(Tuplesortstate *state, bool forward);
 extern IndexTuple tuplesort_getindextuple(Tuplesortstate *state, bool forward);
 extern BrinTuple *tuplesort_getbrintuple(Tuplesortstate *state, Size *len,
-										 bool forward);
+    bool forward);
 extern GinTuple *tuplesort_getgintuple(Tuplesortstate *state, Size *len,
-									   bool forward);
+                                       bool forward);
 extern bool tuplesort_getdatum(Tuplesortstate *state, bool forward, bool copy,
-							   Datum *val, bool *isNull, Datum *abbrev);
+                               Datum *val, bool *isNull, Datum *abbrev);
 
 
-#endif							/* TUPLESORT_H */
+#endif              /* TUPLESORT_H */

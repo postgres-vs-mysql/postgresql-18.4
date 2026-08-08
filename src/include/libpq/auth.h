@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * auth.h
- *	  Definitions for network authentication routines
+ *    Definitions for network authentication routines
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -30,7 +30,7 @@
  * registry setting. Microsoft recommends that it is not set higher than
  * 65535 bytes, so that seems like a reasonable limit for us as well.
  */
-#define PG_MAX_AUTH_TOKEN_LENGTH	65535
+#define PG_MAX_AUTH_TOKEN_LENGTH  65535
 
 extern PGDLLIMPORT char *pg_krb_server_keyfile;
 extern PGDLLIMPORT bool pg_krb_caseins_users;
@@ -38,7 +38,7 @@ extern PGDLLIMPORT bool pg_gss_accept_delegation;
 
 extern void ClientAuthentication(Port *port);
 extern void sendAuthRequest(Port *port, AuthRequest areq, const void *extradata,
-							int extralen);
+                            int extralen);
 extern void set_authn_id(Port *port, const char *id);
 
 /* Hook for plugins to get control in ClientAuthentication() */
@@ -51,4 +51,4 @@ typedef char *(*auth_password_hook_typ) (char *input);
 /* Default LDAP password mutator hook, can be overridden by a shared library */
 extern PGDLLIMPORT auth_password_hook_typ ldap_password_hook;
 
-#endif							/* AUTH_H */
+#endif              /* AUTH_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * archive_module.h
- *		Exports for archive modules.
+ *    Exports for archive modules.
  *
  * Copyright (c) 2022-2025, PostgreSQL Global Development Group
  *
@@ -19,12 +19,12 @@ extern PGDLLIMPORT char *XLogArchiveLibrary;
 
 typedef struct ArchiveModuleState
 {
-	/*
-	 * Private data pointer for use by an archive module.  This can be used to
-	 * store state for the module that will be passed to each of its
-	 * callbacks.
-	 */
-	void	   *private_data;
+  /*
+   * Private data pointer for use by an archive module.  This can be used to
+   * store state for the module that will be passed to each of its
+   * callbacks.
+   */
+  void     *private_data;
 } ArchiveModuleState;
 
 /*
@@ -42,10 +42,10 @@ typedef void (*ArchiveShutdownCB) (ArchiveModuleState *state);
 
 typedef struct ArchiveModuleCallbacks
 {
-	ArchiveStartupCB startup_cb;
-	ArchiveCheckConfiguredCB check_configured_cb;
-	ArchiveFileCB archive_file_cb;
-	ArchiveShutdownCB shutdown_cb;
+  ArchiveStartupCB startup_cb;
+  ArchiveCheckConfiguredCB check_configured_cb;
+  ArchiveFileCB archive_file_cb;
+  ArchiveShutdownCB shutdown_cb;
 } ArchiveModuleCallbacks;
 
 /*
@@ -61,7 +61,7 @@ extern PGDLLEXPORT const ArchiveModuleCallbacks *_PG_archive_module_init(void);
 extern PGDLLIMPORT char *arch_module_check_errdetail_string;
 
 #define arch_module_check_errdetail \
-	pre_format_elog_string(errno, TEXTDOMAIN), \
-	arch_module_check_errdetail_string = format_elog_string
+  pre_format_elog_string(errno, TEXTDOMAIN), \
+  arch_module_check_errdetail_string = format_elog_string
 
-#endif							/* _ARCHIVE_MODULE_H */
+#endif              /* _ARCHIVE_MODULE_H */

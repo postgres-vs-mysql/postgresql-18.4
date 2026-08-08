@@ -1,6 +1,6 @@
 /*
  * brin_bloom.c
- *		Implementation of Bloom opclass for BRIN
+ *    Implementation of Bloom opclass for BRIN
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -110,7 +110,7 @@
  *
  *
  * IDENTIFICATION
- *	  src/backend/access/brin/brin_bloom.c
+ *    src/backend/access/brin/brin_bloom.c
  */
 #include "postgres.h"
 
@@ -129,7 +129,7 @@
 #include "utils/fmgrprotos.h"
 #include "utils/rel.h"
 
-#define BloomEqualStrategyNumber	1
+#define BloomEqualStrategyNumber  1
 
 /*
  * Additional SQL level support functions. We only have one, which is
@@ -138,23 +138,22 @@
  * Procedure numbers must not use values reserved for BRIN itself; see
  * brin_internal.h.
  */
-#define		BLOOM_MAX_PROCNUMS		1	/* maximum support procs we need */
-#define		PROCNUM_HASH			11	/* required */
+#define   BLOOM_MAX_PROCNUMS    1 /* maximum support procs we need */
+#define   PROCNUM_HASH      11  /* required */
 
 /*
  * Subtract this from procnum to obtain index in BloomOpaque arrays
  * (Must be equal to minimum of private procnums).
  */
-#define		PROCNUM_BASE			11
+#define   PROCNUM_BASE      11
 
 /*
  * Storage type for BRIN's reloptions.
  */
-typedef struct BloomOptions
-{
-	int32		vl_len_;		/* varlena header (do not touch directly!) */
-	double		nDistinctPerRange;	/* number of distinct values per range */
-	double		falsePositiveRate;	/* false positive for bloom filter */
+typedef struct BloomOptions {
+  int32   vl_len_;    /* varlena header (do not touch directly!) */
+  double    nDistinctPerRange;  /* number of distinct values per range */
+  double    falsePositiveRate;  /* false positive for bloom filter */
 } BloomOptions;
 
 /*
@@ -165,14 +164,14 @@ typedef struct BloomOptions
  * any case, the min should not be larger than MaxHeapTuplesPerPage
  * (~290), which is the theoretical maximum for single-page ranges.
  */
-#define		BLOOM_MIN_NDISTINCT_PER_RANGE		16
+#define   BLOOM_MIN_NDISTINCT_PER_RANGE   16
 
 /*
  * Used to determine number of distinct items, based on the number of rows
  * in a page range. The 10% is somewhat similar to what estimate_num_groups
  * does, so we use the same factor here.
  */
-#define		BLOOM_DEFAULT_NDISTINCT_PER_RANGE	-0.1	/* 10% of values */
+#define   BLOOM_DEFAULT_NDISTINCT_PER_RANGE -0.1  /* 10% of values */
 
 /*
  * Allowed range and default value for the false positive range. The exact
@@ -188,19 +187,19 @@ typedef struct BloomOptions
  * the table has to be scanned due to mismatches - at 25% we're probably
  * close to sequential scan being cheaper.
  */
-#define		BLOOM_MIN_FALSE_POSITIVE_RATE	0.0001	/* 0.01% fp rate */
-#define		BLOOM_MAX_FALSE_POSITIVE_RATE	0.25	/* 25% fp rate */
-#define		BLOOM_DEFAULT_FALSE_POSITIVE_RATE	0.01	/* 1% fp rate */
+#define   BLOOM_MIN_FALSE_POSITIVE_RATE 0.0001  /* 0.01% fp rate */
+#define   BLOOM_MAX_FALSE_POSITIVE_RATE 0.25  /* 25% fp rate */
+#define   BLOOM_DEFAULT_FALSE_POSITIVE_RATE 0.01  /* 1% fp rate */
 
 #define BloomGetNDistinctPerRange(opts) \
-	((opts) && (((BloomOptions *) (opts))->nDistinctPerRange != 0) ? \
-	 (((BloomOptions *) (opts))->nDistinctPerRange) : \
-	 BLOOM_DEFAULT_NDISTINCT_PER_RANGE)
+  ((opts) && (((BloomOptions *) (opts))->nDistinctPerRange != 0) ? \
+   (((BloomOptions *) (opts))->nDistinctPerRange) : \
+   BLOOM_DEFAULT_NDISTINCT_PER_RANGE)
 
 #define BloomGetFalsePositiveRate(opts) \
-	((opts) && (((BloomOptions *) (opts))->falsePositiveRate != 0.0) ? \
-	 (((BloomOptions *) (opts))->falsePositiveRate) : \
-	 BLOOM_DEFAULT_FALSE_POSITIVE_RATE)
+  ((opts) && (((BloomOptions *) (opts))->falsePositiveRate != 0.0) ? \
+   (((BloomOptions *) (opts))->falsePositiveRate) : \
+   BLOOM_DEFAULT_FALSE_POSITIVE_RATE)
 
 /*
  * And estimate of the largest bloom we can fit onto a page. This is not
@@ -208,18 +207,18 @@ typedef struct BloomOptions
  * be larger because the index has multiple columns.
  */
 #define BloomMaxFilterSize \
-	MAXALIGN_DOWN(BLCKSZ - \
-				  (MAXALIGN(SizeOfPageHeaderData + \
-							sizeof(ItemIdData)) + \
-				   MAXALIGN(sizeof(BrinSpecialSpace)) + \
-				   SizeOfBrinTuple))
+  MAXALIGN_DOWN(BLCKSZ - \
+          (MAXALIGN(SizeOfPageHeaderData + \
+              sizeof(ItemIdData)) + \
+           MAXALIGN(sizeof(BrinSpecialSpace)) + \
+           SizeOfBrinTuple))
 
 /*
  * Seeds used to calculate two hash functions h1 and h2, which are then used
  * to generate k hashes using the (h1 + i * h2) scheme.
  */
-#define BLOOM_SEED_1	0x71d924af
-#define BLOOM_SEED_2	0xba48b314
+#define BLOOM_SEED_1  0x71d924af
+#define BLOOM_SEED_2  0xba48b314
 
 /*
  * Bloom Filter
@@ -238,26 +237,25 @@ typedef struct BloomOptions
  * positive rate gets too high. But even if the false positive rate exceeds the
  * desired value, it still can eliminate some page ranges.
  */
-typedef struct BloomFilter
-{
-	/* varlena header (do not touch directly!) */
-	int32		vl_len_;
+typedef struct BloomFilter {
+  /* varlena header (do not touch directly!) */
+  int32   vl_len_;
 
-	/* space for various flags (unused for now) */
-	uint16		flags;
+  /* space for various flags (unused for now) */
+  uint16    flags;
 
-	/* fields for the HASHED phase */
-	uint8		nhashes;		/* number of hash functions */
-	uint32		nbits;			/* number of bits in the bitmap (size) */
-	uint32		nbits_set;		/* number of bits set to 1 */
+  /* fields for the HASHED phase */
+  uint8   nhashes;    /* number of hash functions */
+  uint32    nbits;      /* number of bits in the bitmap (size) */
+  uint32    nbits_set;    /* number of bits set to 1 */
 
-	/* data of the bloom filter */
-	char		data[FLEXIBLE_ARRAY_MEMBER];
+  /* data of the bloom filter */
+  char    data[FLEXIBLE_ARRAY_MEMBER];
 } BloomFilter;
 
 /*
  * bloom_filter_size
- *		Calculate Bloom filter parameters (nbits, nbytes, nhashes).
+ *    Calculate Bloom filter parameters (nbits, nbytes, nhashes).
  *
  * Given expected number of distinct values and desired false positive rate,
  * calculates the optimal parameters of the Bloom filter.
@@ -268,39 +266,39 @@ typedef struct BloomFilter
  */
 static void
 bloom_filter_size(int ndistinct, double false_positive_rate,
-				  int *nbytesp, int *nbitsp, int *nhashesp)
+                  int *nbytesp, int *nbitsp, int *nhashesp)
 {
-	double		k;
-	int			nbits,
-				nbytes;
+  double    k;
+  int     nbits,
+          nbytes;
 
-	/* sizing bloom filter: -(n * ln(p)) / (ln(2))^2 */
-	nbits = ceil(-(ndistinct * log(false_positive_rate)) / pow(log(2.0), 2));
+  /* sizing bloom filter: -(n * ln(p)) / (ln(2))^2 */
+  nbits = ceil(-(ndistinct * log(false_positive_rate)) / pow(log(2.0), 2));
 
-	/* round m to whole bytes */
-	nbytes = ((nbits + 7) / 8);
-	nbits = nbytes * 8;
+  /* round m to whole bytes */
+  nbytes = ((nbits + 7) / 8);
+  nbits = nbytes * 8;
 
-	/*
-	 * round(log(2.0) * m / ndistinct), but assume round() may not be
-	 * available on Windows
-	 */
-	k = log(2.0) * nbits / ndistinct;
-	k = (k - floor(k) >= 0.5) ? ceil(k) : floor(k);
+  /*
+   * round(log(2.0) * m / ndistinct), but assume round() may not be
+   * available on Windows
+   */
+  k = log(2.0) * nbits / ndistinct;
+  k = (k - floor(k) >= 0.5) ? ceil(k) : floor(k);
 
-	if (nbytesp)
-		*nbytesp = nbytes;
+  if (nbytesp)
+    *nbytesp = nbytes;
 
-	if (nbitsp)
-		*nbitsp = nbits;
+  if (nbitsp)
+    *nbitsp = nbits;
 
-	if (nhashesp)
-		*nhashesp = (int) k;
+  if (nhashesp)
+    *nhashesp = (int) k;
 }
 
 /*
  * bloom_init
- * 		Initialize the Bloom Filter, allocate all the memory.
+ *    Initialize the Bloom Filter, allocate all the memory.
  *
  * The filter is initialized with optimal size for ndistinct expected values
  * and the requested false positive rate. The filter is stored as varlena.
@@ -308,168 +306,165 @@ bloom_filter_size(int ndistinct, double false_positive_rate,
 static BloomFilter *
 bloom_init(int ndistinct, double false_positive_rate)
 {
-	Size		len;
-	BloomFilter *filter;
+  Size    len;
+  BloomFilter *filter;
 
-	int			nbits;			/* size of filter / number of bits */
-	int			nbytes;			/* size of filter / number of bytes */
-	int			nhashes;		/* number of hash functions */
+  int     nbits;      /* size of filter / number of bits */
+  int     nbytes;     /* size of filter / number of bytes */
+  int     nhashes;    /* number of hash functions */
 
-	Assert(ndistinct > 0);
-	Assert(false_positive_rate > 0 && false_positive_rate < 1);
+  Assert(ndistinct > 0);
+  Assert(false_positive_rate > 0 && false_positive_rate < 1);
 
-	/* calculate bloom filter size / parameters */
-	bloom_filter_size(ndistinct, false_positive_rate,
-					  &nbytes, &nbits, &nhashes);
+  /* calculate bloom filter size / parameters */
+  bloom_filter_size(ndistinct, false_positive_rate,
+                    &nbytes, &nbits, &nhashes);
 
-	/*
-	 * Reject filters that are obviously too large to store on a page.
-	 *
-	 * Initially the bloom filter is just zeroes and so very compressible, but
-	 * as we add values it gets more and more random, and so less and less
-	 * compressible. So initially everything fits on the page, but we might
-	 * get surprising failures later - we want to prevent that, so we reject
-	 * bloom filter that are obviously too large.
-	 *
-	 * XXX It's not uncommon to oversize the bloom filter a bit, to defend
-	 * against unexpected data anomalies (parts of table with more distinct
-	 * values per range etc.). But we still need to make sure even the
-	 * oversized filter fits on page, if such need arises.
-	 *
-	 * XXX This check is not perfect, because the index may have multiple
-	 * filters that are small individually, but too large when combined.
-	 */
-	if (nbytes > BloomMaxFilterSize)
-		elog(ERROR, "the bloom filter is too large (%d > %zu)", nbytes,
-			 BloomMaxFilterSize);
+  /*
+   * Reject filters that are obviously too large to store on a page.
+   *
+   * Initially the bloom filter is just zeroes and so very compressible, but
+   * as we add values it gets more and more random, and so less and less
+   * compressible. So initially everything fits on the page, but we might
+   * get surprising failures later - we want to prevent that, so we reject
+   * bloom filter that are obviously too large.
+   *
+   * XXX It's not uncommon to oversize the bloom filter a bit, to defend
+   * against unexpected data anomalies (parts of table with more distinct
+   * values per range etc.). But we still need to make sure even the
+   * oversized filter fits on page, if such need arises.
+   *
+   * XXX This check is not perfect, because the index may have multiple
+   * filters that are small individually, but too large when combined.
+   */
+  if (nbytes > BloomMaxFilterSize)
+    elog(ERROR, "the bloom filter is too large (%d > %zu)", nbytes,
+         BloomMaxFilterSize);
 
-	/*
-	 * We allocate the whole filter. Most of it is going to be 0 bits, so the
-	 * varlena is easy to compress.
-	 */
-	len = offsetof(BloomFilter, data) + nbytes;
+  /*
+   * We allocate the whole filter. Most of it is going to be 0 bits, so the
+   * varlena is easy to compress.
+   */
+  len = offsetof(BloomFilter, data) + nbytes;
 
-	filter = (BloomFilter *) palloc0(len);
+  filter = (BloomFilter *) palloc0(len);
 
-	filter->flags = 0;
-	filter->nhashes = nhashes;
-	filter->nbits = nbits;
+  filter->flags = 0;
+  filter->nhashes = nhashes;
+  filter->nbits = nbits;
 
-	SET_VARSIZE(filter, len);
+  SET_VARSIZE(filter, len);
 
-	return filter;
+  return filter;
 }
 
 
 /*
  * bloom_add_value
- * 		Add value to the bloom filter.
+ *    Add value to the bloom filter.
  */
 static BloomFilter *
 bloom_add_value(BloomFilter *filter, uint32 value, bool *updated)
 {
-	int			i;
-	uint64		h1,
-				h2;
+  int     i;
+  uint64    h1,
+            h2;
 
-	/* compute the hashes, used for the bloom filter */
-	h1 = hash_bytes_uint32_extended(value, BLOOM_SEED_1) % filter->nbits;
-	h2 = hash_bytes_uint32_extended(value, BLOOM_SEED_2) % filter->nbits;
+  /* compute the hashes, used for the bloom filter */
+  h1 = hash_bytes_uint32_extended(value, BLOOM_SEED_1) % filter->nbits;
+  h2 = hash_bytes_uint32_extended(value, BLOOM_SEED_2) % filter->nbits;
 
-	/* compute the requested number of hashes */
-	for (i = 0; i < filter->nhashes; i++)
-	{
-		/* h1 + h2 + f(i) */
-		uint32		h = (h1 + i * h2) % filter->nbits;
-		uint32		byte = (h / 8);
-		uint32		bit = (h % 8);
+  /* compute the requested number of hashes */
+  for (i = 0; i < filter->nhashes; i++) {
+    /* h1 + h2 + f(i) */
+    uint32    h = (h1 + i * h2) % filter->nbits;
+    uint32    byte = (h / 8);
+    uint32    bit = (h % 8);
 
-		/* if the bit is not set, set it and remember we did that */
-		if (!(filter->data[byte] & (0x01 << bit)))
-		{
-			filter->data[byte] |= (0x01 << bit);
-			filter->nbits_set++;
-			if (updated)
-				*updated = true;
-		}
-	}
+    /* if the bit is not set, set it and remember we did that */
+    if (!(filter->data[byte] & (0x01 << bit))) {
+      filter->data[byte] |= (0x01 << bit);
+      filter->nbits_set++;
 
-	return filter;
+      if (updated)
+        *updated = true;
+    }
+  }
+
+  return filter;
 }
 
 
 /*
  * bloom_contains_value
- * 		Check if the bloom filter contains a particular value.
+ *    Check if the bloom filter contains a particular value.
  */
 static bool
 bloom_contains_value(BloomFilter *filter, uint32 value)
 {
-	int			i;
-	uint64		h1,
-				h2;
+  int     i;
+  uint64    h1,
+            h2;
 
-	/* calculate the two hashes */
-	h1 = hash_bytes_uint32_extended(value, BLOOM_SEED_1) % filter->nbits;
-	h2 = hash_bytes_uint32_extended(value, BLOOM_SEED_2) % filter->nbits;
+  /* calculate the two hashes */
+  h1 = hash_bytes_uint32_extended(value, BLOOM_SEED_1) % filter->nbits;
+  h2 = hash_bytes_uint32_extended(value, BLOOM_SEED_2) % filter->nbits;
 
-	/* compute the requested number of hashes */
-	for (i = 0; i < filter->nhashes; i++)
-	{
-		/* h1 + h2 + f(i) */
-		uint32		h = (h1 + i * h2) % filter->nbits;
-		uint32		byte = (h / 8);
-		uint32		bit = (h % 8);
+  /* compute the requested number of hashes */
+  for (i = 0; i < filter->nhashes; i++) {
+    /* h1 + h2 + f(i) */
+    uint32    h = (h1 + i * h2) % filter->nbits;
+    uint32    byte = (h / 8);
+    uint32    bit = (h % 8);
 
-		/* if the bit is not set, the value is not there */
-		if (!(filter->data[byte] & (0x01 << bit)))
-			return false;
-	}
+    /* if the bit is not set, the value is not there */
+    if (!(filter->data[byte] & (0x01 << bit)))
+      return false;
+  }
 
-	/* all hashes found in bloom filter */
-	return true;
+  /* all hashes found in bloom filter */
+  return true;
 }
 
-typedef struct BloomOpaque
-{
-	/*
-	 * XXX At this point we only need a single proc (to compute the hash), but
-	 * let's keep the array just like inclusion and minmax opclasses, for
-	 * consistency. We may need additional procs in the future.
-	 */
-	FmgrInfo	extra_procinfos[BLOOM_MAX_PROCNUMS];
+typedef struct BloomOpaque {
+  /*
+   * XXX At this point we only need a single proc (to compute the hash), but
+   * let's keep the array just like inclusion and minmax opclasses, for
+   * consistency. We may need additional procs in the future.
+   */
+  FmgrInfo  extra_procinfos[BLOOM_MAX_PROCNUMS];
 } BloomOpaque;
 
 static FmgrInfo *bloom_get_procinfo(BrinDesc *bdesc, uint16 attno,
-									uint16 procnum);
+                                    uint16 procnum);
 
 
 Datum
 brin_bloom_opcinfo(PG_FUNCTION_ARGS)
 {
-	BrinOpcInfo *result;
+  BrinOpcInfo *result;
 
-	/*
-	 * opaque->strategy_procinfos is initialized lazily; here it is set to
-	 * all-uninitialized by palloc0 which sets fn_oid to InvalidOid.
-	 *
-	 * bloom indexes only store the filter as a single BYTEA column
-	 */
+  /*
+   * opaque->strategy_procinfos is initialized lazily; here it is set to
+   * all-uninitialized by palloc0 which sets fn_oid to InvalidOid.
+   *
+   * bloom indexes only store the filter as a single BYTEA column
+   */
 
-	result = palloc0(MAXALIGN(SizeofBrinOpcInfo(1)) +
-					 sizeof(BloomOpaque));
-	result->oi_nstored = 1;
-	result->oi_regular_nulls = true;
-	result->oi_opaque = (BloomOpaque *)
-		MAXALIGN((char *) result + SizeofBrinOpcInfo(1));
-	result->oi_typcache[0] = lookup_type_cache(PG_BRIN_BLOOM_SUMMARYOID, 0);
+  result = palloc0(MAXALIGN(SizeofBrinOpcInfo(1)) +
+                   sizeof(BloomOpaque));
+  result->oi_nstored = 1;
+  result->oi_regular_nulls = true;
+  result->oi_opaque = (BloomOpaque *)
+                      MAXALIGN((char *) result + SizeofBrinOpcInfo(1));
+  result->oi_typcache[0] = lookup_type_cache(PG_BRIN_BLOOM_SUMMARYOID, 0);
 
-	PG_RETURN_POINTER(result);
+  PG_RETURN_POINTER(result);
 }
 
 /*
  * brin_bloom_get_ndistinct
- *		Determine the ndistinct value used to size bloom filter.
+ *    Determine the ndistinct value used to size bloom filter.
  *
  * Adjust the ndistinct value based on the pagesPerRange value. First,
  * if it's negative, it's assumed to be relative to maximum number of
@@ -494,37 +489,37 @@ brin_bloom_opcinfo(PG_FUNCTION_ARGS)
 static int
 brin_bloom_get_ndistinct(BrinDesc *bdesc, BloomOptions *opts)
 {
-	double		ndistinct;
-	double		maxtuples;
-	BlockNumber pagesPerRange;
+  double    ndistinct;
+  double    maxtuples;
+  BlockNumber pagesPerRange;
 
-	pagesPerRange = BrinGetPagesPerRange(bdesc->bd_index);
-	ndistinct = BloomGetNDistinctPerRange(opts);
+  pagesPerRange = BrinGetPagesPerRange(bdesc->bd_index);
+  ndistinct = BloomGetNDistinctPerRange(opts);
 
-	Assert(BlockNumberIsValid(pagesPerRange));
+  Assert(BlockNumberIsValid(pagesPerRange));
 
-	maxtuples = MaxHeapTuplesPerPage * pagesPerRange;
+  maxtuples = MaxHeapTuplesPerPage * pagesPerRange;
 
-	/*
-	 * Similarly to n_distinct, negative values are relative - in this case to
-	 * maximum number of tuples in the page range (maxtuples).
-	 */
-	if (ndistinct < 0)
-		ndistinct = (-ndistinct) * maxtuples;
+  /*
+   * Similarly to n_distinct, negative values are relative - in this case to
+   * maximum number of tuples in the page range (maxtuples).
+   */
+  if (ndistinct < 0)
+    ndistinct = (-ndistinct) * maxtuples;
 
-	/*
-	 * Positive values are to be used directly, but we still apply a couple of
-	 * safeties to avoid using unreasonably small bloom filters.
-	 */
-	ndistinct = Max(ndistinct, BLOOM_MIN_NDISTINCT_PER_RANGE);
+  /*
+   * Positive values are to be used directly, but we still apply a couple of
+   * safeties to avoid using unreasonably small bloom filters.
+   */
+  ndistinct = Max(ndistinct, BLOOM_MIN_NDISTINCT_PER_RANGE);
 
-	/*
-	 * And don't use more than the maximum possible number of tuples, in the
-	 * range, which would be entirely wasteful.
-	 */
-	ndistinct = Min(ndistinct, maxtuples);
+  /*
+   * And don't use more than the maximum possible number of tuples, in the
+   * range, which would be entirely wasteful.
+   */
+  ndistinct = Min(ndistinct, maxtuples);
 
-	return (int) ndistinct;
+  return (int) ndistinct;
 }
 
 /*
@@ -537,51 +532,49 @@ brin_bloom_get_ndistinct(BrinDesc *bdesc, BloomOptions *opts)
 Datum
 brin_bloom_add_value(PG_FUNCTION_ARGS)
 {
-	BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
-	BrinValues *column = (BrinValues *) PG_GETARG_POINTER(1);
-	Datum		newval = PG_GETARG_DATUM(2);
-	bool		isnull PG_USED_FOR_ASSERTS_ONLY = PG_GETARG_DATUM(3);
-	BloomOptions *opts = (BloomOptions *) PG_GET_OPCLASS_OPTIONS();
-	Oid			colloid = PG_GET_COLLATION();
-	FmgrInfo   *hashFn;
-	uint32		hashValue;
-	bool		updated = false;
-	AttrNumber	attno;
-	BloomFilter *filter;
+  BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
+  BrinValues *column = (BrinValues *) PG_GETARG_POINTER(1);
+  Datum   newval = PG_GETARG_DATUM(2);
+  bool    isnull PG_USED_FOR_ASSERTS_ONLY = PG_GETARG_DATUM(3);
+  BloomOptions *opts = (BloomOptions *) PG_GET_OPCLASS_OPTIONS();
+  Oid     colloid = PG_GET_COLLATION();
+  FmgrInfo   *hashFn;
+  uint32    hashValue;
+  bool    updated = false;
+  AttrNumber  attno;
+  BloomFilter *filter;
 
-	Assert(!isnull);
+  Assert(!isnull);
 
-	attno = column->bv_attno;
+  attno = column->bv_attno;
 
-	/*
-	 * If this is the first non-null value, we need to initialize the bloom
-	 * filter. Otherwise just extract the existing bloom filter from
-	 * BrinValues.
-	 */
-	if (column->bv_allnulls)
-	{
-		filter = bloom_init(brin_bloom_get_ndistinct(bdesc, opts),
-							BloomGetFalsePositiveRate(opts));
-		column->bv_values[0] = PointerGetDatum(filter);
-		column->bv_allnulls = false;
-		updated = true;
-	}
-	else
-		filter = (BloomFilter *) PG_DETOAST_DATUM(column->bv_values[0]);
+  /*
+   * If this is the first non-null value, we need to initialize the bloom
+   * filter. Otherwise just extract the existing bloom filter from
+   * BrinValues.
+   */
+  if (column->bv_allnulls) {
+    filter = bloom_init(brin_bloom_get_ndistinct(bdesc, opts),
+                        BloomGetFalsePositiveRate(opts));
+    column->bv_values[0] = PointerGetDatum(filter);
+    column->bv_allnulls = false;
+    updated = true;
+  } else
+    filter = (BloomFilter *) PG_DETOAST_DATUM(column->bv_values[0]);
 
-	/*
-	 * Compute the hash of the new value, using the supplied hash function,
-	 * and then add the hash value to the bloom filter.
-	 */
-	hashFn = bloom_get_procinfo(bdesc, attno, PROCNUM_HASH);
+  /*
+   * Compute the hash of the new value, using the supplied hash function,
+   * and then add the hash value to the bloom filter.
+   */
+  hashFn = bloom_get_procinfo(bdesc, attno, PROCNUM_HASH);
 
-	hashValue = DatumGetUInt32(FunctionCall1Coll(hashFn, colloid, newval));
+  hashValue = DatumGetUInt32(FunctionCall1Coll(hashFn, colloid, newval));
 
-	filter = bloom_add_value(filter, hashValue, &updated);
+  filter = bloom_add_value(filter, hashValue, &updated);
 
-	column->bv_values[0] = PointerGetDatum(filter);
+  column->bv_values[0] = PointerGetDatum(filter);
 
-	PG_RETURN_BOOL(updated);
+  PG_RETURN_BOOL(updated);
 }
 
 /*
@@ -592,65 +585,64 @@ brin_bloom_add_value(PG_FUNCTION_ARGS)
 Datum
 brin_bloom_consistent(PG_FUNCTION_ARGS)
 {
-	BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
-	BrinValues *column = (BrinValues *) PG_GETARG_POINTER(1);
-	ScanKey    *keys = (ScanKey *) PG_GETARG_POINTER(2);
-	int			nkeys = PG_GETARG_INT32(3);
-	Oid			colloid = PG_GET_COLLATION();
-	AttrNumber	attno;
-	Datum		value;
-	bool		matches;
-	FmgrInfo   *finfo;
-	uint32		hashValue;
-	BloomFilter *filter;
-	int			keyno;
+  BrinDesc   *bdesc = (BrinDesc *) PG_GETARG_POINTER(0);
+  BrinValues *column = (BrinValues *) PG_GETARG_POINTER(1);
+  ScanKey    *keys = (ScanKey *) PG_GETARG_POINTER(2);
+  int     nkeys = PG_GETARG_INT32(3);
+  Oid     colloid = PG_GET_COLLATION();
+  AttrNumber  attno;
+  Datum   value;
+  bool    matches;
+  FmgrInfo   *finfo;
+  uint32    hashValue;
+  BloomFilter *filter;
+  int     keyno;
 
-	filter = (BloomFilter *) PG_DETOAST_DATUM(column->bv_values[0]);
+  filter = (BloomFilter *) PG_DETOAST_DATUM(column->bv_values[0]);
 
-	Assert(filter);
+  Assert(filter);
 
-	/*
-	 * Assume all scan keys match. We'll be searching for a scan key
-	 * eliminating the page range (we can stop on the first such key).
-	 */
-	matches = true;
+  /*
+   * Assume all scan keys match. We'll be searching for a scan key
+   * eliminating the page range (we can stop on the first such key).
+   */
+  matches = true;
 
-	for (keyno = 0; keyno < nkeys; keyno++)
-	{
-		ScanKey		key = keys[keyno];
+  for (keyno = 0; keyno < nkeys; keyno++) {
+    ScanKey   key = keys[keyno];
 
-		/* NULL keys are handled and filtered-out in bringetbitmap */
-		Assert(!(key->sk_flags & SK_ISNULL));
+    /* NULL keys are handled and filtered-out in bringetbitmap */
+    Assert(!(key->sk_flags & SK_ISNULL));
 
-		attno = key->sk_attno;
-		value = key->sk_argument;
+    attno = key->sk_attno;
+    value = key->sk_argument;
 
-		switch (key->sk_strategy)
-		{
-			case BloomEqualStrategyNumber:
+    switch (key->sk_strategy) {
+      case BloomEqualStrategyNumber:
 
-				/*
-				 * We want to return the current page range if the bloom
-				 * filter seems to contain the value.
-				 */
-				finfo = bloom_get_procinfo(bdesc, attno, PROCNUM_HASH);
+        /*
+         * We want to return the current page range if the bloom
+         * filter seems to contain the value.
+         */
+        finfo = bloom_get_procinfo(bdesc, attno, PROCNUM_HASH);
 
-				hashValue = DatumGetUInt32(FunctionCall1Coll(finfo, colloid, value));
-				matches &= bloom_contains_value(filter, hashValue);
+        hashValue = DatumGetUInt32(FunctionCall1Coll(finfo, colloid, value));
+        matches &= bloom_contains_value(filter, hashValue);
 
-				break;
-			default:
-				/* shouldn't happen */
-				elog(ERROR, "invalid strategy number %d", key->sk_strategy);
-				matches = false;
-				break;
-		}
+        break;
 
-		if (!matches)
-			break;
-	}
+      default:
+        /* shouldn't happen */
+        elog(ERROR, "invalid strategy number %d", key->sk_strategy);
+        matches = false;
+        break;
+    }
 
-	PG_RETURN_BOOL(matches);
+    if (!matches)
+      break;
+  }
+
+  PG_RETURN_BOOL(matches);
 }
 
 /*
@@ -664,46 +656,45 @@ brin_bloom_consistent(PG_FUNCTION_ARGS)
 Datum
 brin_bloom_union(PG_FUNCTION_ARGS)
 {
-	int			i;
-	int			nbytes;
-	BrinValues *col_a = (BrinValues *) PG_GETARG_POINTER(1);
-	BrinValues *col_b = (BrinValues *) PG_GETARG_POINTER(2);
-	BloomFilter *filter_a;
-	BloomFilter *filter_b;
+  int     i;
+  int     nbytes;
+  BrinValues *col_a = (BrinValues *) PG_GETARG_POINTER(1);
+  BrinValues *col_b = (BrinValues *) PG_GETARG_POINTER(2);
+  BloomFilter *filter_a;
+  BloomFilter *filter_b;
 
-	Assert(col_a->bv_attno == col_b->bv_attno);
-	Assert(!col_a->bv_allnulls && !col_b->bv_allnulls);
+  Assert(col_a->bv_attno == col_b->bv_attno);
+  Assert(!col_a->bv_allnulls && !col_b->bv_allnulls);
 
-	filter_a = (BloomFilter *) PG_DETOAST_DATUM(col_a->bv_values[0]);
-	filter_b = (BloomFilter *) PG_DETOAST_DATUM(col_b->bv_values[0]);
+  filter_a = (BloomFilter *) PG_DETOAST_DATUM(col_a->bv_values[0]);
+  filter_b = (BloomFilter *) PG_DETOAST_DATUM(col_b->bv_values[0]);
 
-	/* make sure the filters use the same parameters */
-	Assert(filter_a && filter_b);
-	Assert(filter_a->nbits == filter_b->nbits);
-	Assert(filter_a->nhashes == filter_b->nhashes);
-	Assert((filter_a->nbits > 0) && (filter_a->nbits % 8 == 0));
+  /* make sure the filters use the same parameters */
+  Assert(filter_a && filter_b);
+  Assert(filter_a->nbits == filter_b->nbits);
+  Assert(filter_a->nhashes == filter_b->nhashes);
+  Assert((filter_a->nbits > 0) && (filter_a->nbits % 8 == 0));
 
-	nbytes = (filter_a->nbits) / 8;
+  nbytes = (filter_a->nbits) / 8;
 
-	/* simply OR the bitmaps */
-	for (i = 0; i < nbytes; i++)
-		filter_a->data[i] |= filter_b->data[i];
+  /* simply OR the bitmaps */
+  for (i = 0; i < nbytes; i++)
+    filter_a->data[i] |= filter_b->data[i];
 
-	/* update the number of bits set in the filter */
-	filter_a->nbits_set = pg_popcount((const char *) filter_a->data, nbytes);
+  /* update the number of bits set in the filter */
+  filter_a->nbits_set = pg_popcount((const char *) filter_a->data, nbytes);
 
-	/* if we decompressed filter_a, update the summary */
-	if (PointerGetDatum(filter_a) != col_a->bv_values[0])
-	{
-		pfree(DatumGetPointer(col_a->bv_values[0]));
-		col_a->bv_values[0] = PointerGetDatum(filter_a);
-	}
+  /* if we decompressed filter_a, update the summary */
+  if (PointerGetDatum(filter_a) != col_a->bv_values[0]) {
+    pfree(DatumGetPointer(col_a->bv_values[0]));
+    col_a->bv_values[0] = PointerGetDatum(filter_a);
+  }
 
-	/* also free filter_b, if it was decompressed */
-	if (PointerGetDatum(filter_b) != col_b->bv_values[0])
-		pfree(filter_b);
+  /* also free filter_b, if it was decompressed */
+  if (PointerGetDatum(filter_b) != col_b->bv_values[0])
+    pfree(filter_b);
 
-	PG_RETURN_VOID();
+  PG_RETURN_VOID();
 }
 
 /*
@@ -715,58 +706,57 @@ brin_bloom_union(PG_FUNCTION_ARGS)
 static FmgrInfo *
 bloom_get_procinfo(BrinDesc *bdesc, uint16 attno, uint16 procnum)
 {
-	BloomOpaque *opaque;
-	uint16		basenum = procnum - PROCNUM_BASE;
+  BloomOpaque *opaque;
+  uint16    basenum = procnum - PROCNUM_BASE;
 
-	/*
-	 * We cache these in the opaque struct, to avoid repetitive syscache
-	 * lookups.
-	 */
-	opaque = (BloomOpaque *) bdesc->bd_info[attno - 1]->oi_opaque;
+  /*
+   * We cache these in the opaque struct, to avoid repetitive syscache
+   * lookups.
+   */
+  opaque = (BloomOpaque *) bdesc->bd_info[attno - 1]->oi_opaque;
 
-	if (opaque->extra_procinfos[basenum].fn_oid == InvalidOid)
-	{
-		if (RegProcedureIsValid(index_getprocid(bdesc->bd_index, attno,
-												procnum)))
-			fmgr_info_copy(&opaque->extra_procinfos[basenum],
-						   index_getprocinfo(bdesc->bd_index, attno, procnum),
-						   bdesc->bd_context);
-		else
-			ereport(ERROR,
-					errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-					errmsg_internal("invalid opclass definition"),
-					errdetail_internal("The operator class is missing support function %d for column %d.",
-									   procnum, attno));
-	}
+  if (opaque->extra_procinfos[basenum].fn_oid == InvalidOid) {
+    if (RegProcedureIsValid(index_getprocid(bdesc->bd_index, attno,
+                                            procnum)))
+      fmgr_info_copy(&opaque->extra_procinfos[basenum],
+                     index_getprocinfo(bdesc->bd_index, attno, procnum),
+                     bdesc->bd_context);
+    else
+      ereport(ERROR,
+              errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+              errmsg_internal("invalid opclass definition"),
+              errdetail_internal("The operator class is missing support function %d for column %d.",
+                                 procnum, attno));
+  }
 
-	return &opaque->extra_procinfos[basenum];
+  return &opaque->extra_procinfos[basenum];
 }
 
 Datum
 brin_bloom_options(PG_FUNCTION_ARGS)
 {
-	local_relopts *relopts = (local_relopts *) PG_GETARG_POINTER(0);
+  local_relopts *relopts = (local_relopts *) PG_GETARG_POINTER(0);
 
-	init_local_reloptions(relopts, sizeof(BloomOptions));
+  init_local_reloptions(relopts, sizeof(BloomOptions));
 
-	add_local_real_reloption(relopts, "n_distinct_per_range",
-							 "number of distinct items expected in a BRIN page range",
-							 BLOOM_DEFAULT_NDISTINCT_PER_RANGE,
-							 -1.0, INT_MAX, offsetof(BloomOptions, nDistinctPerRange));
+  add_local_real_reloption(relopts, "n_distinct_per_range",
+                           "number of distinct items expected in a BRIN page range",
+                           BLOOM_DEFAULT_NDISTINCT_PER_RANGE,
+                           -1.0, INT_MAX, offsetof(BloomOptions, nDistinctPerRange));
 
-	add_local_real_reloption(relopts, "false_positive_rate",
-							 "desired false-positive rate for the bloom filters",
-							 BLOOM_DEFAULT_FALSE_POSITIVE_RATE,
-							 BLOOM_MIN_FALSE_POSITIVE_RATE,
-							 BLOOM_MAX_FALSE_POSITIVE_RATE,
-							 offsetof(BloomOptions, falsePositiveRate));
+  add_local_real_reloption(relopts, "false_positive_rate",
+                           "desired false-positive rate for the bloom filters",
+                           BLOOM_DEFAULT_FALSE_POSITIVE_RATE,
+                           BLOOM_MIN_FALSE_POSITIVE_RATE,
+                           BLOOM_MAX_FALSE_POSITIVE_RATE,
+                           offsetof(BloomOptions, falsePositiveRate));
 
-	PG_RETURN_VOID();
+  PG_RETURN_VOID();
 }
 
 /*
  * brin_bloom_summary_in
- *		- input routine for type brin_bloom_summary.
+ *    - input routine for type brin_bloom_summary.
  *
  * brin_bloom_summary is only used internally to represent summaries
  * in BRIN bloom indexes, so it has no operations of its own, and we
@@ -775,21 +765,21 @@ brin_bloom_options(PG_FUNCTION_ARGS)
 Datum
 brin_bloom_summary_in(PG_FUNCTION_ARGS)
 {
-	/*
-	 * brin_bloom_summary stores the data in binary form and parsing text
-	 * input is not needed, so disallow this.
-	 */
-	ereport(ERROR,
-			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-			 errmsg("cannot accept a value of type %s", "pg_brin_bloom_summary")));
+  /*
+   * brin_bloom_summary stores the data in binary form and parsing text
+   * input is not needed, so disallow this.
+   */
+  ereport(ERROR,
+          (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+           errmsg("cannot accept a value of type %s", "pg_brin_bloom_summary")));
 
-	PG_RETURN_VOID();			/* keep compiler quiet */
+  PG_RETURN_VOID();     /* keep compiler quiet */
 }
 
 
 /*
  * brin_bloom_summary_out
- *		- output routine for type brin_bloom_summary.
+ *    - output routine for type brin_bloom_summary.
  *
  * BRIN bloom summaries are serialized into a bytea value, but we want
  * to output something nicer humans can understand.
@@ -797,40 +787,40 @@ brin_bloom_summary_in(PG_FUNCTION_ARGS)
 Datum
 brin_bloom_summary_out(PG_FUNCTION_ARGS)
 {
-	BloomFilter *filter;
-	StringInfoData str;
+  BloomFilter *filter;
+  StringInfoData str;
 
-	/* detoast the data to get value with a full 4B header */
-	filter = (BloomFilter *) PG_DETOAST_DATUM(PG_GETARG_DATUM(0));
+  /* detoast the data to get value with a full 4B header */
+  filter = (BloomFilter *) PG_DETOAST_DATUM(PG_GETARG_DATUM(0));
 
-	initStringInfo(&str);
-	appendStringInfoChar(&str, '{');
+  initStringInfo(&str);
+  appendStringInfoChar(&str, '{');
 
-	appendStringInfo(&str, "mode: hashed  nhashes: %u  nbits: %u  nbits_set: %u",
-					 filter->nhashes, filter->nbits, filter->nbits_set);
+  appendStringInfo(&str, "mode: hashed  nhashes: %u  nbits: %u  nbits_set: %u",
+                   filter->nhashes, filter->nbits, filter->nbits_set);
 
-	appendStringInfoChar(&str, '}');
+  appendStringInfoChar(&str, '}');
 
-	PG_RETURN_CSTRING(str.data);
+  PG_RETURN_CSTRING(str.data);
 }
 
 /*
  * brin_bloom_summary_recv
- *		- binary input routine for type brin_bloom_summary.
+ *    - binary input routine for type brin_bloom_summary.
  */
 Datum
 brin_bloom_summary_recv(PG_FUNCTION_ARGS)
 {
-	ereport(ERROR,
-			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-			 errmsg("cannot accept a value of type %s", "pg_brin_bloom_summary")));
+  ereport(ERROR,
+          (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+           errmsg("cannot accept a value of type %s", "pg_brin_bloom_summary")));
 
-	PG_RETURN_VOID();			/* keep compiler quiet */
+  PG_RETURN_VOID();     /* keep compiler quiet */
 }
 
 /*
  * brin_bloom_summary_send
- *		- binary output routine for type brin_bloom_summary.
+ *    - binary output routine for type brin_bloom_summary.
  *
  * BRIN bloom summaries are serialized in a bytea value (although the
  * type is named differently), so let's just send that.
@@ -838,5 +828,5 @@ brin_bloom_summary_recv(PG_FUNCTION_ARGS)
 Datum
 brin_bloom_summary_send(PG_FUNCTION_ARGS)
 {
-	return byteasend(fcinfo);
+  return byteasend(fcinfo);
 }

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * bytea.h
- *	  Declarations for BYTEA data type support.
+ *    Declarations for BYTEA data type support.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -18,11 +18,11 @@
 
 typedef enum
 {
-	BYTEA_OUTPUT_ESCAPE,
-	BYTEA_OUTPUT_HEX,
-}			ByteaOutputType;
+  BYTEA_OUTPUT_ESCAPE,
+  BYTEA_OUTPUT_HEX,
+}     ByteaOutputType;
 
-extern PGDLLIMPORT int bytea_output;	/* ByteaOutputType, but int for GUC
-										 * enum */
+extern PGDLLIMPORT int bytea_output;  /* ByteaOutputType, but int for GUC
+                     * enum */
 
-#endif							/* BYTEA_H */
+#endif              /* BYTEA_H */

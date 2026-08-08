@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * basebackup_target.h
- *	  Extensibility framework for adding base backup targets.
+ *    Extensibility framework for adding base backup targets.
  *
  * Portions Copyright (c) 2010-2025, PostgreSQL Global Development Group
  *
@@ -41,8 +41,8 @@ typedef struct BaseBackupTargetHandle BaseBackupTargetHandle;
  * second argument to the get_sink callback.
  */
 extern void BaseBackupAddTarget(char *name,
-								void *(*check_detail) (char *, char *),
-								bbsink *(*get_sink) (bbsink *, void *));
+                                void *(*check_detail) (char *, char *),
+                                bbsink * (*get_sink) (bbsink *, void *));
 
 /*
  * These functions are used by the core code to access base backup targets
@@ -59,8 +59,8 @@ extern void BaseBackupAddTarget(char *name,
  * that implements the base backup target.
  */
 extern BaseBackupTargetHandle *BaseBackupGetTargetHandle(char *target,
-														 char *target_detail);
+    char *target_detail);
 extern bbsink *BaseBackupGetSink(BaseBackupTargetHandle *handle,
-								 bbsink *next_sink);
+                                 bbsink *next_sink);
 
 #endif

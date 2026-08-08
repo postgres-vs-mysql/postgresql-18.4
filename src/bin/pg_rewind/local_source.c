@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * local_source.c
- *	  Functions for using a local data directory as the source.
+ *    Functions for using a local data directory as the source.
  *
  * Portions Copyright (c) 2013-2025, PostgreSQL Global Development Group
  *
@@ -16,54 +16,53 @@
 #include "file_ops.h"
 #include "rewind_source.h"
 
-typedef struct
-{
-	rewind_source common;		/* common interface functions */
+typedef struct {
+  rewind_source common;   /* common interface functions */
 
-	const char *datadir;		/* path to the source data directory */
+  const char *datadir;    /* path to the source data directory */
 } local_source;
 
 static void local_traverse_files(rewind_source *source,
-								 process_file_callback_t callback);
+                                 process_file_callback_t callback);
 static char *local_fetch_file(rewind_source *source, const char *path,
-							  size_t *filesize);
+                              size_t *filesize);
 static void local_queue_fetch_file(rewind_source *source, const char *path,
-								   size_t len);
+                                   size_t len);
 static void local_queue_fetch_range(rewind_source *source, const char *path,
-									off_t off, size_t len);
+                                    off_t off, size_t len);
 static void local_finish_fetch(rewind_source *source);
 static void local_destroy(rewind_source *source);
 
 rewind_source *
 init_local_source(const char *datadir)
 {
-	local_source *src;
+  local_source *src;
 
-	src = pg_malloc0(sizeof(local_source));
+  src = pg_malloc0(sizeof(local_source));
 
-	src->common.traverse_files = local_traverse_files;
-	src->common.fetch_file = local_fetch_file;
-	src->common.queue_fetch_file = local_queue_fetch_file;
-	src->common.queue_fetch_range = local_queue_fetch_range;
-	src->common.finish_fetch = local_finish_fetch;
-	src->common.get_current_wal_insert_lsn = NULL;
-	src->common.destroy = local_destroy;
+  src->common.traverse_files = local_traverse_files;
+  src->common.fetch_file = local_fetch_file;
+  src->common.queue_fetch_file = local_queue_fetch_file;
+  src->common.queue_fetch_range = local_queue_fetch_range;
+  src->common.finish_fetch = local_finish_fetch;
+  src->common.get_current_wal_insert_lsn = NULL;
+  src->common.destroy = local_destroy;
 
-	src->datadir = datadir;
+  src->datadir = datadir;
 
-	return &src->common;
+  return &src->common;
 }
 
 static void
 local_traverse_files(rewind_source *source, process_file_callback_t callback)
 {
-	traverse_datadir(((local_source *) source)->datadir, callback);
+  traverse_datadir(((local_source *) source)->datadir, callback);
 }
 
 static char *
 local_fetch_file(rewind_source *source, const char *path, size_t *filesize)
 {
-	return slurpFile(((local_source *) source)->datadir, path, filesize);
+  return slurpFile(((local_source *) source)->datadir, path, filesize);
 }
 
 /*
@@ -74,49 +73,50 @@ local_fetch_file(rewind_source *source, const char *path, size_t *filesize)
 static void
 local_queue_fetch_file(rewind_source *source, const char *path, size_t len)
 {
-	const char *datadir = ((local_source *) source)->datadir;
-	PGIOAlignedBlock buf;
-	char		srcpath[MAXPGPATH];
-	int			srcfd;
-	size_t		written_len;
+  const char *datadir = ((local_source *) source)->datadir;
+  PGIOAlignedBlock buf;
+  char    srcpath[MAXPGPATH];
+  int     srcfd;
+  size_t    written_len;
 
-	snprintf(srcpath, sizeof(srcpath), "%s/%s", datadir, path);
+  snprintf(srcpath, sizeof(srcpath), "%s/%s", datadir, path);
 
-	/* Open source file for reading */
-	srcfd = open(srcpath, O_RDONLY | PG_BINARY, 0);
-	if (srcfd < 0)
-		pg_fatal("could not open source file \"%s\": %m",
-				 srcpath);
+  /* Open source file for reading */
+  srcfd = open(srcpath, O_RDONLY | PG_BINARY, 0);
 
-	/* Truncate and open the target file for writing */
-	open_target_file(path, true);
+  if (srcfd < 0)
+    pg_fatal("could not open source file \"%s\": %m",
+             srcpath);
 
-	written_len = 0;
-	for (;;)
-	{
-		ssize_t		read_len;
+  /* Truncate and open the target file for writing */
+  open_target_file(path, true);
 
-		read_len = read(srcfd, buf.data, sizeof(buf));
+  written_len = 0;
 
-		if (read_len < 0)
-			pg_fatal("could not read file \"%s\": %m", srcpath);
-		else if (read_len == 0)
-			break;				/* EOF reached */
+  for (;;) {
+    ssize_t   read_len;
 
-		write_target_range(buf.data, written_len, read_len);
-		written_len += read_len;
-	}
+    read_len = read(srcfd, buf.data, sizeof(buf));
 
-	/*
-	 * A local source is not expected to change while we're rewinding, so
-	 * check that the size of the file matches our earlier expectation.
-	 */
-	if (written_len != len)
-		pg_fatal("size of source file \"%s\" changed concurrently: %d bytes expected, %d copied",
-				 srcpath, (int) len, (int) written_len);
+    if (read_len < 0)
+      pg_fatal("could not read file \"%s\": %m", srcpath);
+    else if (read_len == 0)
+      break;        /* EOF reached */
 
-	if (close(srcfd) != 0)
-		pg_fatal("could not close file \"%s\": %m", srcpath);
+    write_target_range(buf.data, written_len, read_len);
+    written_len += read_len;
+  }
+
+  /*
+   * A local source is not expected to change while we're rewinding, so
+   * check that the size of the file matches our earlier expectation.
+   */
+  if (written_len != len)
+    pg_fatal("size of source file \"%s\" changed concurrently: %d bytes expected, %d copied",
+             srcpath, (int) len, (int) written_len);
+
+  if (close(srcfd) != 0)
+    pg_fatal("could not close file \"%s\": %m", srcpath);
 }
 
 /*
@@ -124,62 +124,62 @@ local_queue_fetch_file(rewind_source *source, const char *path, size_t len)
  */
 static void
 local_queue_fetch_range(rewind_source *source, const char *path, off_t off,
-						size_t len)
+                        size_t len)
 {
-	const char *datadir = ((local_source *) source)->datadir;
-	PGIOAlignedBlock buf;
-	char		srcpath[MAXPGPATH];
-	int			srcfd;
-	off_t		begin = off;
-	off_t		end = off + len;
+  const char *datadir = ((local_source *) source)->datadir;
+  PGIOAlignedBlock buf;
+  char    srcpath[MAXPGPATH];
+  int     srcfd;
+  off_t   begin = off;
+  off_t   end = off + len;
 
-	snprintf(srcpath, sizeof(srcpath), "%s/%s", datadir, path);
+  snprintf(srcpath, sizeof(srcpath), "%s/%s", datadir, path);
 
-	srcfd = open(srcpath, O_RDONLY | PG_BINARY, 0);
-	if (srcfd < 0)
-		pg_fatal("could not open source file \"%s\": %m",
-				 srcpath);
+  srcfd = open(srcpath, O_RDONLY | PG_BINARY, 0);
 
-	if (lseek(srcfd, begin, SEEK_SET) == -1)
-		pg_fatal("could not seek in source file: %m");
+  if (srcfd < 0)
+    pg_fatal("could not open source file \"%s\": %m",
+             srcpath);
 
-	open_target_file(path, false);
+  if (lseek(srcfd, begin, SEEK_SET) == -1)
+    pg_fatal("could not seek in source file: %m");
 
-	while (end - begin > 0)
-	{
-		ssize_t		readlen;
-		size_t		thislen;
+  open_target_file(path, false);
 
-		if (end - begin > sizeof(buf))
-			thislen = sizeof(buf);
-		else
-			thislen = end - begin;
+  while (end - begin > 0) {
+    ssize_t   readlen;
+    size_t    thislen;
 
-		readlen = read(srcfd, buf.data, thislen);
+    if (end - begin > sizeof(buf))
+      thislen = sizeof(buf);
+    else
+      thislen = end - begin;
 
-		if (readlen < 0)
-			pg_fatal("could not read file \"%s\": %m", srcpath);
-		else if (readlen == 0)
-			pg_fatal("unexpected EOF while reading file \"%s\"", srcpath);
+    readlen = read(srcfd, buf.data, thislen);
 
-		write_target_range(buf.data, begin, readlen);
-		begin += readlen;
-	}
+    if (readlen < 0)
+      pg_fatal("could not read file \"%s\": %m", srcpath);
+    else if (readlen == 0)
+      pg_fatal("unexpected EOF while reading file \"%s\"", srcpath);
 
-	if (close(srcfd) != 0)
-		pg_fatal("could not close file \"%s\": %m", srcpath);
+    write_target_range(buf.data, begin, readlen);
+    begin += readlen;
+  }
+
+  if (close(srcfd) != 0)
+    pg_fatal("could not close file \"%s\": %m", srcpath);
 }
 
 static void
 local_finish_fetch(rewind_source *source)
 {
-	/*
-	 * Nothing to do, local_queue_fetch_range() copies the ranges immediately.
-	 */
+  /*
+   * Nothing to do, local_queue_fetch_range() copies the ranges immediately.
+   */
 }
 
 static void
 local_destroy(rewind_source *source)
 {
-	pfree(source);
+  pfree(source);
 }

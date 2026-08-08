@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * kwlookup.h
- *	  Key word lookup for PostgreSQL
+ *    Key word lookup for PostgreSQL
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -24,21 +24,21 @@ typedef int (*ScanKeywordHashFunc) (const void *key, size_t keylen);
  */
 typedef struct ScanKeywordList
 {
-	const char *kw_string;		/* all keywords in order, separated by \0 */
-	const uint16 *kw_offsets;	/* offsets to the start of each keyword */
-	ScanKeywordHashFunc hash;	/* perfect hash function for keywords */
-	int			num_keywords;	/* number of keywords */
-	int			max_kw_len;		/* length of longest keyword */
+  const char *kw_string;    /* all keywords in order, separated by \0 */
+  const uint16 *kw_offsets; /* offsets to the start of each keyword */
+  ScanKeywordHashFunc hash; /* perfect hash function for keywords */
+  int     num_keywords; /* number of keywords */
+  int     max_kw_len;   /* length of longest keyword */
 } ScanKeywordList;
 
 
-extern int	ScanKeywordLookup(const char *str, const ScanKeywordList *keywords);
+extern int  ScanKeywordLookup(const char *str, const ScanKeywordList *keywords);
 
 /* Code that wants to retrieve the text of the N'th keyword should use this. */
 static inline const char *
 GetScanKeyword(int n, const ScanKeywordList *keywords)
 {
-	return keywords->kw_string + keywords->kw_offsets[n];
+  return keywords->kw_string + keywords->kw_offsets[n];
 }
 
-#endif							/* KWLOOKUP_H */
+#endif              /* KWLOOKUP_H */

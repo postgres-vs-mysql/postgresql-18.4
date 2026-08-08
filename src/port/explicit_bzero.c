@@ -7,12 +7,12 @@
  *
  *
  * IDENTIFICATION
- *	  src/port/explicit_bzero.c
+ *    src/port/explicit_bzero.c
  *
  *-------------------------------------------------------------------------
  */
 
-#define __STDC_WANT_LIB_EXT1__ 1	/* needed to access memset_s() */
+#define __STDC_WANT_LIB_EXT1__ 1  /* needed to access memset_s() */
 
 #include "c.h"
 
@@ -21,7 +21,7 @@
 void
 explicit_bzero(void *buf, size_t len)
 {
-	(void) memset_s(buf, len, 0, len);
+  (void) memset_s(buf, len, 0, len);
 }
 
 #elif defined(WIN32)
@@ -29,7 +29,7 @@ explicit_bzero(void *buf, size_t len)
 void
 explicit_bzero(void *buf, size_t len)
 {
-	(void) SecureZeroMemory(buf, len);
+  (void) SecureZeroMemory(buf, len);
 }
 
 #else
@@ -43,7 +43,7 @@ explicit_bzero(void *buf, size_t len)
 static void
 bzero2(void *buf, size_t len)
 {
-	memset(buf, 0, len);
+  memset(buf, 0, len);
 }
 
 static void (*volatile bzero_p) (void *, size_t) = bzero2;
@@ -51,7 +51,7 @@ static void (*volatile bzero_p) (void *, size_t) = bzero2;
 void
 explicit_bzero(void *buf, size_t len)
 {
-	bzero_p(buf, len);
+  bzero_p(buf, len);
 }
 
 #endif

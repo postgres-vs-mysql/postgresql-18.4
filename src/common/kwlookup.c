@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * kwlookup.c
- *	  Key word lookup for PostgreSQL
+ *    Key word lookup for PostgreSQL
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -9,7 +9,7 @@
  *
  *
  * IDENTIFICATION
- *	  src/common/kwlookup.c
+ *    src/common/kwlookup.c
  *
  *-------------------------------------------------------------------------
  */
@@ -36,50 +36,53 @@
  */
 int
 ScanKeywordLookup(const char *str,
-				  const ScanKeywordList *keywords)
+                  const ScanKeywordList *keywords)
 {
-	size_t		len;
-	int			h;
-	const char *kw;
+  size_t    len;
+  int     h;
+  const char *kw;
 
-	/*
-	 * Reject immediately if too long to be any keyword.  This saves useless
-	 * hashing and downcasing work on long strings.
-	 */
-	len = strlen(str);
-	if (len > keywords->max_kw_len)
-		return -1;
+  /*
+   * Reject immediately if too long to be any keyword.  This saves useless
+   * hashing and downcasing work on long strings.
+   */
+  len = strlen(str);
 
-	/*
-	 * Compute the hash function.  We assume it was generated to produce
-	 * case-insensitive results.  Since it's a perfect hash, we need only
-	 * match to the specific keyword it identifies.
-	 */
-	h = keywords->hash(str, len);
+  if (len > keywords->max_kw_len)
+    return -1;
 
-	/* An out-of-range result implies no match */
-	if (h < 0 || h >= keywords->num_keywords)
-		return -1;
+  /*
+   * Compute the hash function.  We assume it was generated to produce
+   * case-insensitive results.  Since it's a perfect hash, we need only
+   * match to the specific keyword it identifies.
+   */
+  h = keywords->hash(str, len);
 
-	/*
-	 * Compare character-by-character to see if we have a match, applying an
-	 * ASCII-only downcasing to the input characters.  We must not use
-	 * tolower() since it may produce the wrong translation in some locales
-	 * (eg, Turkish).
-	 */
-	kw = GetScanKeyword(h, keywords);
-	while (*str != '\0')
-	{
-		char		ch = *str++;
+  /* An out-of-range result implies no match */
+  if (h < 0 || h >= keywords->num_keywords)
+    return -1;
 
-		if (ch >= 'A' && ch <= 'Z')
-			ch += 'a' - 'A';
-		if (ch != *kw++)
-			return -1;
-	}
-	if (*kw != '\0')
-		return -1;
+  /*
+   * Compare character-by-character to see if we have a match, applying an
+   * ASCII-only downcasing to the input characters.  We must not use
+   * tolower() since it may produce the wrong translation in some locales
+   * (eg, Turkish).
+   */
+  kw = GetScanKeyword(h, keywords);
 
-	/* Success! */
-	return h;
+  while (*str != '\0') {
+    char    ch = *str++;
+
+    if (ch >= 'A' && ch <= 'Z')
+      ch += 'a' - 'A';
+
+    if (ch != *kw++)
+      return -1;
+  }
+
+  if (*kw != '\0')
+    return -1;
+
+  /* Success! */
+  return h;
 }

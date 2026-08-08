@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * catalog.h
- *	  prototypes for functions in backend/catalog/catalog.c
+ *    prototypes for functions in backend/catalog/catalog.c
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -39,10 +39,10 @@ extern bool IsSharedRelation(Oid relationId);
 
 extern bool IsPinnedObject(Oid classId, Oid objectId);
 
-extern Oid	GetNewOidWithIndex(Relation relation, Oid indexId,
-							   AttrNumber oidcolumn);
+extern Oid  GetNewOidWithIndex(Relation relation, Oid indexId,
+                               AttrNumber oidcolumn);
 extern RelFileNumber GetNewRelFileNumber(Oid reltablespace,
-										 Relation pg_class,
-										 char relpersistence);
+    Relation pg_class,
+    char relpersistence);
 
-#endif							/* CATALOG_H */
+#endif              /* CATALOG_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * relfilelocator.h
- *	  Physical access information for relations.
+ *    Physical access information for relations.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -57,9 +57,9 @@
  */
 typedef struct RelFileLocator
 {
-	Oid			spcOid;			/* tablespace */
-	Oid			dbOid;			/* database */
-	RelFileNumber relNumber;	/* relation */
+  Oid     spcOid;     /* tablespace */
+  Oid     dbOid;      /* database */
+  RelFileNumber relNumber;  /* relation */
 } RelFileLocator;
 
 /*
@@ -72,12 +72,12 @@ typedef struct RelFileLocator
  */
 typedef struct RelFileLocatorBackend
 {
-	RelFileLocator locator;
-	ProcNumber	backend;
+  RelFileLocator locator;
+  ProcNumber  backend;
 } RelFileLocatorBackend;
 
 #define RelFileLocatorBackendIsTemp(rlocator) \
-	((rlocator).backend != INVALID_PROC_NUMBER)
+  ((rlocator).backend != INVALID_PROC_NUMBER)
 
 /*
  * Note: RelFileLocatorEquals and RelFileLocatorBackendEquals compare relNumber
@@ -87,14 +87,14 @@ typedef struct RelFileLocatorBackend
  * the backend number in RelFileLocatorBackendEquals.
  */
 #define RelFileLocatorEquals(locator1, locator2) \
-	((locator1).relNumber == (locator2).relNumber && \
-	 (locator1).dbOid == (locator2).dbOid && \
-	 (locator1).spcOid == (locator2).spcOid)
+  ((locator1).relNumber == (locator2).relNumber && \
+   (locator1).dbOid == (locator2).dbOid && \
+   (locator1).spcOid == (locator2).spcOid)
 
 #define RelFileLocatorBackendEquals(locator1, locator2) \
-	((locator1).locator.relNumber == (locator2).locator.relNumber && \
-	 (locator1).locator.dbOid == (locator2).locator.dbOid && \
-	 (locator1).backend == (locator2).backend && \
-	 (locator1).locator.spcOid == (locator2).locator.spcOid)
+  ((locator1).locator.relNumber == (locator2).locator.relNumber && \
+   (locator1).locator.dbOid == (locator2).locator.dbOid && \
+   (locator1).backend == (locator2).backend && \
+   (locator1).locator.spcOid == (locator2).locator.spcOid)
 
-#endif							/* RELFILELOCATOR_H */
+#endif              /* RELFILELOCATOR_H */

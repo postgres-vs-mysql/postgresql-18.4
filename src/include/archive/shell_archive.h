@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * shell_archive.h
- *		Exports for archiving via shell.
+ *    Exports for archiving via shell.
  *
  * Copyright (c) 2022-2025, PostgreSQL Global Development Group
  *
@@ -21,4 +21,4 @@
  */
 extern const ArchiveModuleCallbacks *shell_archive_init(void);
 
-#endif							/* _SHELL_ARCHIVE_H */
+#endif              /* _SHELL_ARCHIVE_H */

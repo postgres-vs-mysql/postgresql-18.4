@@ -22,11 +22,11 @@ extern void ExecEndMemoize(MemoizeState *node);
 extern void ExecReScanMemoize(MemoizeState *node);
 extern double ExecEstimateCacheEntryOverheadBytes(double ntuples);
 extern void ExecMemoizeEstimate(MemoizeState *node,
-								ParallelContext *pcxt);
+                                ParallelContext *pcxt);
 extern void ExecMemoizeInitializeDSM(MemoizeState *node,
-									 ParallelContext *pcxt);
+                                     ParallelContext *pcxt);
 extern void ExecMemoizeInitializeWorker(MemoizeState *node,
-										ParallelWorkerContext *pwcxt);
+                                        ParallelWorkerContext *pwcxt);
 extern void ExecMemoizeRetrieveInstrumentation(MemoizeState *node);
 
-#endif							/* NODEMEMOIZE_H */
+#endif              /* NODEMEMOIZE_H */

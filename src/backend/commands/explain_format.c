@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * explain_format.c
- *	  Format routines for explaining query execution plans
+ *    Format routines for explaining query execution plans
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994-5, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/commands/explain_format.c
+ *    src/backend/commands/explain_format.c
  *
  *-------------------------------------------------------------------------
  */
@@ -37,67 +37,72 @@ static void escape_yaml(StringInfo buf, const char *str);
 void
 ExplainPropertyList(const char *qlabel, List *data, ExplainState *es)
 {
-	ListCell   *lc;
-	bool		first = true;
+  ListCell   *lc;
+  bool    first = true;
 
-	switch (es->format)
-	{
-		case EXPLAIN_FORMAT_TEXT:
-			ExplainIndentText(es);
-			appendStringInfo(es->str, "%s: ", qlabel);
-			foreach(lc, data)
-			{
-				if (!first)
-					appendStringInfoString(es->str, ", ");
-				appendStringInfoString(es->str, (const char *) lfirst(lc));
-				first = false;
-			}
-			appendStringInfoChar(es->str, '\n');
-			break;
+  switch (es->format) {
+    case EXPLAIN_FORMAT_TEXT:
+      ExplainIndentText(es);
+      appendStringInfo(es->str, "%s: ", qlabel);
 
-		case EXPLAIN_FORMAT_XML:
-			ExplainXMLTag(qlabel, X_OPENING, es);
-			foreach(lc, data)
-			{
-				char	   *str;
+      foreach(lc, data) {
+        if (!first)
+          appendStringInfoString(es->str, ", ");
 
-				appendStringInfoSpaces(es->str, es->indent * 2 + 2);
-				appendStringInfoString(es->str, "<Item>");
-				str = escape_xml((const char *) lfirst(lc));
-				appendStringInfoString(es->str, str);
-				pfree(str);
-				appendStringInfoString(es->str, "</Item>\n");
-			}
-			ExplainXMLTag(qlabel, X_CLOSING, es);
-			break;
+        appendStringInfoString(es->str, (const char *) lfirst(lc));
+        first = false;
+      }
 
-		case EXPLAIN_FORMAT_JSON:
-			ExplainJSONLineEnding(es);
-			appendStringInfoSpaces(es->str, es->indent * 2);
-			escape_json(es->str, qlabel);
-			appendStringInfoString(es->str, ": [");
-			foreach(lc, data)
-			{
-				if (!first)
-					appendStringInfoString(es->str, ", ");
-				escape_json(es->str, (const char *) lfirst(lc));
-				first = false;
-			}
-			appendStringInfoChar(es->str, ']');
-			break;
+      appendStringInfoChar(es->str, '\n');
+      break;
 
-		case EXPLAIN_FORMAT_YAML:
-			ExplainYAMLLineStarting(es);
-			appendStringInfo(es->str, "%s: ", qlabel);
-			foreach(lc, data)
-			{
-				appendStringInfoChar(es->str, '\n');
-				appendStringInfoSpaces(es->str, es->indent * 2 + 2);
-				appendStringInfoString(es->str, "- ");
-				escape_yaml(es->str, (const char *) lfirst(lc));
-			}
-			break;
-	}
+    case EXPLAIN_FORMAT_XML:
+      ExplainXMLTag(qlabel, X_OPENING, es);
+
+      foreach(lc, data) {
+        char     *str;
+
+        appendStringInfoSpaces(es->str, es->indent * 2 + 2);
+        appendStringInfoString(es->str, "<Item>");
+        str = escape_xml((const char *) lfirst(lc));
+        appendStringInfoString(es->str, str);
+        pfree(str);
+        appendStringInfoString(es->str, "</Item>\n");
+      }
+
+      ExplainXMLTag(qlabel, X_CLOSING, es);
+      break;
+
+    case EXPLAIN_FORMAT_JSON:
+      ExplainJSONLineEnding(es);
+      appendStringInfoSpaces(es->str, es->indent * 2);
+      escape_json(es->str, qlabel);
+      appendStringInfoString(es->str, ": [");
+
+      foreach(lc, data) {
+        if (!first)
+          appendStringInfoString(es->str, ", ");
+
+        escape_json(es->str, (const char *) lfirst(lc));
+        first = false;
+      }
+
+      appendStringInfoChar(es->str, ']');
+      break;
+
+    case EXPLAIN_FORMAT_YAML:
+      ExplainYAMLLineStarting(es);
+      appendStringInfo(es->str, "%s: ", qlabel);
+
+      foreach(lc, data) {
+        appendStringInfoChar(es->str, '\n');
+        appendStringInfoSpaces(es->str, es->indent * 2 + 2);
+        appendStringInfoString(es->str, "- ");
+        escape_yaml(es->str, (const char *) lfirst(lc));
+      }
+
+      break;
+  }
 }
 
 /*
@@ -107,43 +112,46 @@ ExplainPropertyList(const char *qlabel, List *data, ExplainState *es)
 void
 ExplainPropertyListNested(const char *qlabel, List *data, ExplainState *es)
 {
-	ListCell   *lc;
-	bool		first = true;
+  ListCell   *lc;
+  bool    first = true;
 
-	switch (es->format)
-	{
-		case EXPLAIN_FORMAT_TEXT:
-		case EXPLAIN_FORMAT_XML:
-			ExplainPropertyList(qlabel, data, es);
-			return;
+  switch (es->format) {
+    case EXPLAIN_FORMAT_TEXT:
+    case EXPLAIN_FORMAT_XML:
+      ExplainPropertyList(qlabel, data, es);
+      return;
 
-		case EXPLAIN_FORMAT_JSON:
-			ExplainJSONLineEnding(es);
-			appendStringInfoSpaces(es->str, es->indent * 2);
-			appendStringInfoChar(es->str, '[');
-			foreach(lc, data)
-			{
-				if (!first)
-					appendStringInfoString(es->str, ", ");
-				escape_json(es->str, (const char *) lfirst(lc));
-				first = false;
-			}
-			appendStringInfoChar(es->str, ']');
-			break;
+    case EXPLAIN_FORMAT_JSON:
+      ExplainJSONLineEnding(es);
+      appendStringInfoSpaces(es->str, es->indent * 2);
+      appendStringInfoChar(es->str, '[');
 
-		case EXPLAIN_FORMAT_YAML:
-			ExplainYAMLLineStarting(es);
-			appendStringInfoString(es->str, "- [");
-			foreach(lc, data)
-			{
-				if (!first)
-					appendStringInfoString(es->str, ", ");
-				escape_yaml(es->str, (const char *) lfirst(lc));
-				first = false;
-			}
-			appendStringInfoChar(es->str, ']');
-			break;
-	}
+      foreach(lc, data) {
+        if (!first)
+          appendStringInfoString(es->str, ", ");
+
+        escape_json(es->str, (const char *) lfirst(lc));
+        first = false;
+      }
+
+      appendStringInfoChar(es->str, ']');
+      break;
+
+    case EXPLAIN_FORMAT_YAML:
+      ExplainYAMLLineStarting(es);
+      appendStringInfoString(es->str, "- [");
+
+      foreach(lc, data) {
+        if (!first)
+          appendStringInfoString(es->str, ", ");
+
+        escape_yaml(es->str, (const char *) lfirst(lc));
+        first = false;
+      }
+
+      appendStringInfoChar(es->str, ']');
+      break;
+  }
 }
 
 /*
@@ -159,52 +167,56 @@ ExplainPropertyListNested(const char *qlabel, List *data, ExplainState *es)
  */
 static void
 ExplainProperty(const char *qlabel, const char *unit, const char *value,
-				bool numeric, ExplainState *es)
+                bool numeric, ExplainState *es)
 {
-	switch (es->format)
-	{
-		case EXPLAIN_FORMAT_TEXT:
-			ExplainIndentText(es);
-			if (unit)
-				appendStringInfo(es->str, "%s: %s %s\n", qlabel, value, unit);
-			else
-				appendStringInfo(es->str, "%s: %s\n", qlabel, value);
-			break;
+  switch (es->format) {
+    case EXPLAIN_FORMAT_TEXT:
+      ExplainIndentText(es);
 
-		case EXPLAIN_FORMAT_XML:
-			{
-				char	   *str;
+      if (unit)
+        appendStringInfo(es->str, "%s: %s %s\n", qlabel, value, unit);
+      else
+        appendStringInfo(es->str, "%s: %s\n", qlabel, value);
 
-				appendStringInfoSpaces(es->str, es->indent * 2);
-				ExplainXMLTag(qlabel, X_OPENING | X_NOWHITESPACE, es);
-				str = escape_xml(value);
-				appendStringInfoString(es->str, str);
-				pfree(str);
-				ExplainXMLTag(qlabel, X_CLOSING | X_NOWHITESPACE, es);
-				appendStringInfoChar(es->str, '\n');
-			}
-			break;
+      break;
 
-		case EXPLAIN_FORMAT_JSON:
-			ExplainJSONLineEnding(es);
-			appendStringInfoSpaces(es->str, es->indent * 2);
-			escape_json(es->str, qlabel);
-			appendStringInfoString(es->str, ": ");
-			if (numeric)
-				appendStringInfoString(es->str, value);
-			else
-				escape_json(es->str, value);
-			break;
+    case EXPLAIN_FORMAT_XML: {
+      char     *str;
 
-		case EXPLAIN_FORMAT_YAML:
-			ExplainYAMLLineStarting(es);
-			appendStringInfo(es->str, "%s: ", qlabel);
-			if (numeric)
-				appendStringInfoString(es->str, value);
-			else
-				escape_yaml(es->str, value);
-			break;
-	}
+      appendStringInfoSpaces(es->str, es->indent * 2);
+      ExplainXMLTag(qlabel, X_OPENING | X_NOWHITESPACE, es);
+      str = escape_xml(value);
+      appendStringInfoString(es->str, str);
+      pfree(str);
+      ExplainXMLTag(qlabel, X_CLOSING | X_NOWHITESPACE, es);
+      appendStringInfoChar(es->str, '\n');
+    }
+    break;
+
+    case EXPLAIN_FORMAT_JSON:
+      ExplainJSONLineEnding(es);
+      appendStringInfoSpaces(es->str, es->indent * 2);
+      escape_json(es->str, qlabel);
+      appendStringInfoString(es->str, ": ");
+
+      if (numeric)
+        appendStringInfoString(es->str, value);
+      else
+        escape_json(es->str, value);
+
+      break;
+
+    case EXPLAIN_FORMAT_YAML:
+      ExplainYAMLLineStarting(es);
+      appendStringInfo(es->str, "%s: ", qlabel);
+
+      if (numeric)
+        appendStringInfoString(es->str, value);
+      else
+        escape_yaml(es->str, value);
+
+      break;
+  }
 }
 
 /*
@@ -213,7 +225,7 @@ ExplainProperty(const char *qlabel, const char *unit, const char *value,
 void
 ExplainPropertyText(const char *qlabel, const char *value, ExplainState *es)
 {
-	ExplainProperty(qlabel, NULL, value, false, es);
+  ExplainProperty(qlabel, NULL, value, false, es);
 }
 
 /*
@@ -221,12 +233,12 @@ ExplainPropertyText(const char *qlabel, const char *value, ExplainState *es)
  */
 void
 ExplainPropertyInteger(const char *qlabel, const char *unit, int64 value,
-					   ExplainState *es)
+                       ExplainState *es)
 {
-	char		buf[32];
+  char    buf[32];
 
-	snprintf(buf, sizeof(buf), INT64_FORMAT, value);
-	ExplainProperty(qlabel, unit, buf, true, es);
+  snprintf(buf, sizeof(buf), INT64_FORMAT, value);
+  ExplainProperty(qlabel, unit, buf, true, es);
 }
 
 /*
@@ -234,12 +246,12 @@ ExplainPropertyInteger(const char *qlabel, const char *unit, int64 value,
  */
 void
 ExplainPropertyUInteger(const char *qlabel, const char *unit, uint64 value,
-						ExplainState *es)
+                        ExplainState *es)
 {
-	char		buf[32];
+  char    buf[32];
 
-	snprintf(buf, sizeof(buf), UINT64_FORMAT, value);
-	ExplainProperty(qlabel, unit, buf, true, es);
+  snprintf(buf, sizeof(buf), UINT64_FORMAT, value);
+  ExplainProperty(qlabel, unit, buf, true, es);
 }
 
 /*
@@ -248,13 +260,13 @@ ExplainPropertyUInteger(const char *qlabel, const char *unit, uint64 value,
  */
 void
 ExplainPropertyFloat(const char *qlabel, const char *unit, double value,
-					 int ndigits, ExplainState *es)
+                     int ndigits, ExplainState *es)
 {
-	char	   *buf;
+  char     *buf;
 
-	buf = psprintf("%.*f", ndigits, value);
-	ExplainProperty(qlabel, unit, buf, true, es);
-	pfree(buf);
+  buf = psprintf("%.*f", ndigits, value);
+  ExplainProperty(qlabel, unit, buf, true, es);
+  pfree(buf);
 }
 
 /*
@@ -263,7 +275,7 @@ ExplainPropertyFloat(const char *qlabel, const char *unit, double value,
 void
 ExplainPropertyBool(const char *qlabel, bool value, ExplainState *es)
 {
-	ExplainProperty(qlabel, NULL, value ? "true" : "false", true, es);
+  ExplainProperty(qlabel, NULL, value ? "true" : "false", true, es);
 }
 
 /*
@@ -277,61 +289,60 @@ ExplainPropertyBool(const char *qlabel, bool value, ExplainState *es)
  */
 void
 ExplainOpenGroup(const char *objtype, const char *labelname,
-				 bool labeled, ExplainState *es)
+                 bool labeled, ExplainState *es)
 {
-	switch (es->format)
-	{
-		case EXPLAIN_FORMAT_TEXT:
-			/* nothing to do */
-			break;
+  switch (es->format) {
+    case EXPLAIN_FORMAT_TEXT:
+      /* nothing to do */
+      break;
 
-		case EXPLAIN_FORMAT_XML:
-			ExplainXMLTag(objtype, X_OPENING, es);
-			es->indent++;
-			break;
+    case EXPLAIN_FORMAT_XML:
+      ExplainXMLTag(objtype, X_OPENING, es);
+      es->indent++;
+      break;
 
-		case EXPLAIN_FORMAT_JSON:
-			ExplainJSONLineEnding(es);
-			appendStringInfoSpaces(es->str, 2 * es->indent);
-			if (labelname)
-			{
-				escape_json(es->str, labelname);
-				appendStringInfoString(es->str, ": ");
-			}
-			appendStringInfoChar(es->str, labeled ? '{' : '[');
+    case EXPLAIN_FORMAT_JSON:
+      ExplainJSONLineEnding(es);
+      appendStringInfoSpaces(es->str, 2 * es->indent);
 
-			/*
-			 * In JSON format, the grouping_stack is an integer list.  0 means
-			 * we've emitted nothing at this grouping level, 1 means we've
-			 * emitted something (and so the next item needs a comma). See
-			 * ExplainJSONLineEnding().
-			 */
-			es->grouping_stack = lcons_int(0, es->grouping_stack);
-			es->indent++;
-			break;
+      if (labelname) {
+        escape_json(es->str, labelname);
+        appendStringInfoString(es->str, ": ");
+      }
 
-		case EXPLAIN_FORMAT_YAML:
+      appendStringInfoChar(es->str, labeled ? '{' : '[');
 
-			/*
-			 * In YAML format, the grouping stack is an integer list.  0 means
-			 * we've emitted nothing at this grouping level AND this grouping
-			 * level is unlabeled and must be marked with "- ".  See
-			 * ExplainYAMLLineStarting().
-			 */
-			ExplainYAMLLineStarting(es);
-			if (labelname)
-			{
-				appendStringInfo(es->str, "%s: ", labelname);
-				es->grouping_stack = lcons_int(1, es->grouping_stack);
-			}
-			else
-			{
-				appendStringInfoString(es->str, "- ");
-				es->grouping_stack = lcons_int(0, es->grouping_stack);
-			}
-			es->indent++;
-			break;
-	}
+      /*
+       * In JSON format, the grouping_stack is an integer list.  0 means
+       * we've emitted nothing at this grouping level, 1 means we've
+       * emitted something (and so the next item needs a comma). See
+       * ExplainJSONLineEnding().
+       */
+      es->grouping_stack = lcons_int(0, es->grouping_stack);
+      es->indent++;
+      break;
+
+    case EXPLAIN_FORMAT_YAML:
+
+      /*
+       * In YAML format, the grouping stack is an integer list.  0 means
+       * we've emitted nothing at this grouping level AND this grouping
+       * level is unlabeled and must be marked with "- ".  See
+       * ExplainYAMLLineStarting().
+       */
+      ExplainYAMLLineStarting(es);
+
+      if (labelname) {
+        appendStringInfo(es->str, "%s: ", labelname);
+        es->grouping_stack = lcons_int(1, es->grouping_stack);
+      } else {
+        appendStringInfoString(es->str, "- ");
+        es->grouping_stack = lcons_int(0, es->grouping_stack);
+      }
+
+      es->indent++;
+      break;
+  }
 }
 
 /*
@@ -340,32 +351,31 @@ ExplainOpenGroup(const char *objtype, const char *labelname,
  */
 void
 ExplainCloseGroup(const char *objtype, const char *labelname,
-				  bool labeled, ExplainState *es)
+                  bool labeled, ExplainState *es)
 {
-	switch (es->format)
-	{
-		case EXPLAIN_FORMAT_TEXT:
-			/* nothing to do */
-			break;
+  switch (es->format) {
+    case EXPLAIN_FORMAT_TEXT:
+      /* nothing to do */
+      break;
 
-		case EXPLAIN_FORMAT_XML:
-			es->indent--;
-			ExplainXMLTag(objtype, X_CLOSING, es);
-			break;
+    case EXPLAIN_FORMAT_XML:
+      es->indent--;
+      ExplainXMLTag(objtype, X_CLOSING, es);
+      break;
 
-		case EXPLAIN_FORMAT_JSON:
-			es->indent--;
-			appendStringInfoChar(es->str, '\n');
-			appendStringInfoSpaces(es->str, 2 * es->indent);
-			appendStringInfoChar(es->str, labeled ? '}' : ']');
-			es->grouping_stack = list_delete_first(es->grouping_stack);
-			break;
+    case EXPLAIN_FORMAT_JSON:
+      es->indent--;
+      appendStringInfoChar(es->str, '\n');
+      appendStringInfoSpaces(es->str, 2 * es->indent);
+      appendStringInfoChar(es->str, labeled ? '}' : ']');
+      es->grouping_stack = list_delete_first(es->grouping_stack);
+      break;
 
-		case EXPLAIN_FORMAT_YAML:
-			es->indent--;
-			es->grouping_stack = list_delete_first(es->grouping_stack);
-			break;
-	}
+    case EXPLAIN_FORMAT_YAML:
+      es->indent--;
+      es->grouping_stack = list_delete_first(es->grouping_stack);
+      break;
+  }
 }
 
 /*
@@ -387,31 +397,31 @@ ExplainCloseGroup(const char *objtype, const char *labelname,
  */
 void
 ExplainOpenSetAsideGroup(const char *objtype, const char *labelname,
-						 bool labeled, int depth, ExplainState *es)
+                         bool labeled, int depth, ExplainState *es)
 {
-	switch (es->format)
-	{
-		case EXPLAIN_FORMAT_TEXT:
-			/* nothing to do */
-			break;
+  switch (es->format) {
+    case EXPLAIN_FORMAT_TEXT:
+      /* nothing to do */
+      break;
 
-		case EXPLAIN_FORMAT_XML:
-			es->indent += depth;
-			break;
+    case EXPLAIN_FORMAT_XML:
+      es->indent += depth;
+      break;
 
-		case EXPLAIN_FORMAT_JSON:
-			es->grouping_stack = lcons_int(0, es->grouping_stack);
-			es->indent += depth;
-			break;
+    case EXPLAIN_FORMAT_JSON:
+      es->grouping_stack = lcons_int(0, es->grouping_stack);
+      es->indent += depth;
+      break;
 
-		case EXPLAIN_FORMAT_YAML:
-			if (labelname)
-				es->grouping_stack = lcons_int(1, es->grouping_stack);
-			else
-				es->grouping_stack = lcons_int(0, es->grouping_stack);
-			es->indent += depth;
-			break;
-	}
+    case EXPLAIN_FORMAT_YAML:
+      if (labelname)
+        es->grouping_stack = lcons_int(1, es->grouping_stack);
+      else
+        es->grouping_stack = lcons_int(0, es->grouping_stack);
+
+      es->indent += depth;
+      break;
+  }
 }
 
 /*
@@ -427,28 +437,27 @@ ExplainOpenSetAsideGroup(const char *objtype, const char *labelname,
 void
 ExplainSaveGroup(ExplainState *es, int depth, int *state_save)
 {
-	switch (es->format)
-	{
-		case EXPLAIN_FORMAT_TEXT:
-			/* nothing to do */
-			break;
+  switch (es->format) {
+    case EXPLAIN_FORMAT_TEXT:
+      /* nothing to do */
+      break;
 
-		case EXPLAIN_FORMAT_XML:
-			es->indent -= depth;
-			break;
+    case EXPLAIN_FORMAT_XML:
+      es->indent -= depth;
+      break;
 
-		case EXPLAIN_FORMAT_JSON:
-			es->indent -= depth;
-			*state_save = linitial_int(es->grouping_stack);
-			es->grouping_stack = list_delete_first(es->grouping_stack);
-			break;
+    case EXPLAIN_FORMAT_JSON:
+      es->indent -= depth;
+      *state_save = linitial_int(es->grouping_stack);
+      es->grouping_stack = list_delete_first(es->grouping_stack);
+      break;
 
-		case EXPLAIN_FORMAT_YAML:
-			es->indent -= depth;
-			*state_save = linitial_int(es->grouping_stack);
-			es->grouping_stack = list_delete_first(es->grouping_stack);
-			break;
-	}
+    case EXPLAIN_FORMAT_YAML:
+      es->indent -= depth;
+      *state_save = linitial_int(es->grouping_stack);
+      es->grouping_stack = list_delete_first(es->grouping_stack);
+      break;
+  }
 }
 
 /*
@@ -457,26 +466,25 @@ ExplainSaveGroup(ExplainState *es, int depth, int *state_save)
 void
 ExplainRestoreGroup(ExplainState *es, int depth, int *state_save)
 {
-	switch (es->format)
-	{
-		case EXPLAIN_FORMAT_TEXT:
-			/* nothing to do */
-			break;
+  switch (es->format) {
+    case EXPLAIN_FORMAT_TEXT:
+      /* nothing to do */
+      break;
 
-		case EXPLAIN_FORMAT_XML:
-			es->indent += depth;
-			break;
+    case EXPLAIN_FORMAT_XML:
+      es->indent += depth;
+      break;
 
-		case EXPLAIN_FORMAT_JSON:
-			es->grouping_stack = lcons_int(*state_save, es->grouping_stack);
-			es->indent += depth;
-			break;
+    case EXPLAIN_FORMAT_JSON:
+      es->grouping_stack = lcons_int(*state_save, es->grouping_stack);
+      es->indent += depth;
+      break;
 
-		case EXPLAIN_FORMAT_YAML:
-			es->grouping_stack = lcons_int(*state_save, es->grouping_stack);
-			es->indent += depth;
-			break;
-	}
+    case EXPLAIN_FORMAT_YAML:
+      es->grouping_stack = lcons_int(*state_save, es->grouping_stack);
+      es->indent += depth;
+      break;
+  }
 }
 
 /*
@@ -488,41 +496,40 @@ ExplainRestoreGroup(ExplainState *es, int depth, int *state_save)
 void
 ExplainDummyGroup(const char *objtype, const char *labelname, ExplainState *es)
 {
-	switch (es->format)
-	{
-		case EXPLAIN_FORMAT_TEXT:
-			/* nothing to do */
-			break;
+  switch (es->format) {
+    case EXPLAIN_FORMAT_TEXT:
+      /* nothing to do */
+      break;
 
-		case EXPLAIN_FORMAT_XML:
-			ExplainXMLTag(objtype, X_CLOSE_IMMEDIATE, es);
-			break;
+    case EXPLAIN_FORMAT_XML:
+      ExplainXMLTag(objtype, X_CLOSE_IMMEDIATE, es);
+      break;
 
-		case EXPLAIN_FORMAT_JSON:
-			ExplainJSONLineEnding(es);
-			appendStringInfoSpaces(es->str, 2 * es->indent);
-			if (labelname)
-			{
-				escape_json(es->str, labelname);
-				appendStringInfoString(es->str, ": ");
-			}
-			escape_json(es->str, objtype);
-			break;
+    case EXPLAIN_FORMAT_JSON:
+      ExplainJSONLineEnding(es);
+      appendStringInfoSpaces(es->str, 2 * es->indent);
 
-		case EXPLAIN_FORMAT_YAML:
-			ExplainYAMLLineStarting(es);
-			if (labelname)
-			{
-				escape_yaml(es->str, labelname);
-				appendStringInfoString(es->str, ": ");
-			}
-			else
-			{
-				appendStringInfoString(es->str, "- ");
-			}
-			escape_yaml(es->str, objtype);
-			break;
-	}
+      if (labelname) {
+        escape_json(es->str, labelname);
+        appendStringInfoString(es->str, ": ");
+      }
+
+      escape_json(es->str, objtype);
+      break;
+
+    case EXPLAIN_FORMAT_YAML:
+      ExplainYAMLLineStarting(es);
+
+      if (labelname) {
+        escape_yaml(es->str, labelname);
+        appendStringInfoString(es->str, ": ");
+      } else {
+        appendStringInfoString(es->str, "- ");
+      }
+
+      escape_yaml(es->str, objtype);
+      break;
+  }
 }
 
 /*
@@ -534,29 +541,28 @@ ExplainDummyGroup(const char *objtype, const char *labelname, ExplainState *es)
 void
 ExplainBeginOutput(ExplainState *es)
 {
-	switch (es->format)
-	{
-		case EXPLAIN_FORMAT_TEXT:
-			/* nothing to do */
-			break;
+  switch (es->format) {
+    case EXPLAIN_FORMAT_TEXT:
+      /* nothing to do */
+      break;
 
-		case EXPLAIN_FORMAT_XML:
-			appendStringInfoString(es->str,
-								   "<explain xmlns=\"http://www.postgresql.org/2009/explain\">\n");
-			es->indent++;
-			break;
+    case EXPLAIN_FORMAT_XML:
+      appendStringInfoString(es->str,
+                             "<explain xmlns=\"http://www.postgresql.org/2009/explain\">\n");
+      es->indent++;
+      break;
 
-		case EXPLAIN_FORMAT_JSON:
-			/* top-level structure is an array of plans */
-			appendStringInfoChar(es->str, '[');
-			es->grouping_stack = lcons_int(0, es->grouping_stack);
-			es->indent++;
-			break;
+    case EXPLAIN_FORMAT_JSON:
+      /* top-level structure is an array of plans */
+      appendStringInfoChar(es->str, '[');
+      es->grouping_stack = lcons_int(0, es->grouping_stack);
+      es->indent++;
+      break;
 
-		case EXPLAIN_FORMAT_YAML:
-			es->grouping_stack = lcons_int(0, es->grouping_stack);
-			break;
-	}
+    case EXPLAIN_FORMAT_YAML:
+      es->grouping_stack = lcons_int(0, es->grouping_stack);
+      break;
+  }
 }
 
 /*
@@ -565,27 +571,26 @@ ExplainBeginOutput(ExplainState *es)
 void
 ExplainEndOutput(ExplainState *es)
 {
-	switch (es->format)
-	{
-		case EXPLAIN_FORMAT_TEXT:
-			/* nothing to do */
-			break;
+  switch (es->format) {
+    case EXPLAIN_FORMAT_TEXT:
+      /* nothing to do */
+      break;
 
-		case EXPLAIN_FORMAT_XML:
-			es->indent--;
-			appendStringInfoString(es->str, "</explain>");
-			break;
+    case EXPLAIN_FORMAT_XML:
+      es->indent--;
+      appendStringInfoString(es->str, "</explain>");
+      break;
 
-		case EXPLAIN_FORMAT_JSON:
-			es->indent--;
-			appendStringInfoString(es->str, "\n]");
-			es->grouping_stack = list_delete_first(es->grouping_stack);
-			break;
+    case EXPLAIN_FORMAT_JSON:
+      es->indent--;
+      appendStringInfoString(es->str, "\n]");
+      es->grouping_stack = list_delete_first(es->grouping_stack);
+      break;
 
-		case EXPLAIN_FORMAT_YAML:
-			es->grouping_stack = list_delete_first(es->grouping_stack);
-			break;
-	}
+    case EXPLAIN_FORMAT_YAML:
+      es->grouping_stack = list_delete_first(es->grouping_stack);
+      break;
+  }
 }
 
 /*
@@ -594,19 +599,18 @@ ExplainEndOutput(ExplainState *es)
 void
 ExplainSeparatePlans(ExplainState *es)
 {
-	switch (es->format)
-	{
-		case EXPLAIN_FORMAT_TEXT:
-			/* add a blank line */
-			appendStringInfoChar(es->str, '\n');
-			break;
+  switch (es->format) {
+    case EXPLAIN_FORMAT_TEXT:
+      /* add a blank line */
+      appendStringInfoChar(es->str, '\n');
+      break;
 
-		case EXPLAIN_FORMAT_XML:
-		case EXPLAIN_FORMAT_JSON:
-		case EXPLAIN_FORMAT_YAML:
-			/* nothing to do */
-			break;
-	}
+    case EXPLAIN_FORMAT_XML:
+    case EXPLAIN_FORMAT_JSON:
+    case EXPLAIN_FORMAT_YAML:
+      /* nothing to do */
+      break;
+  }
 }
 
 /*
@@ -623,21 +627,27 @@ ExplainSeparatePlans(ExplainState *es)
 static void
 ExplainXMLTag(const char *tagname, int flags, ExplainState *es)
 {
-	const char *s;
-	const char *valid = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.";
+  const char *s;
+  const char *valid = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.";
 
-	if ((flags & X_NOWHITESPACE) == 0)
-		appendStringInfoSpaces(es->str, 2 * es->indent);
-	appendStringInfoCharMacro(es->str, '<');
-	if ((flags & X_CLOSING) != 0)
-		appendStringInfoCharMacro(es->str, '/');
-	for (s = tagname; *s; s++)
-		appendStringInfoChar(es->str, strchr(valid, *s) ? *s : '-');
-	if ((flags & X_CLOSE_IMMEDIATE) != 0)
-		appendStringInfoString(es->str, " /");
-	appendStringInfoCharMacro(es->str, '>');
-	if ((flags & X_NOWHITESPACE) == 0)
-		appendStringInfoCharMacro(es->str, '\n');
+  if ((flags & X_NOWHITESPACE) == 0)
+    appendStringInfoSpaces(es->str, 2 * es->indent);
+
+  appendStringInfoCharMacro(es->str, '<');
+
+  if ((flags & X_CLOSING) != 0)
+    appendStringInfoCharMacro(es->str, '/');
+
+  for (s = tagname; *s; s++)
+    appendStringInfoChar(es->str, strchr(valid, *s) ? *s : '-');
+
+  if ((flags & X_CLOSE_IMMEDIATE) != 0)
+    appendStringInfoString(es->str, " /");
+
+  appendStringInfoCharMacro(es->str, '>');
+
+  if ((flags & X_NOWHITESPACE) == 0)
+    appendStringInfoCharMacro(es->str, '\n');
 }
 
 /*
@@ -650,9 +660,10 @@ ExplainXMLTag(const char *tagname, int flags, ExplainState *es)
 void
 ExplainIndentText(ExplainState *es)
 {
-	Assert(es->format == EXPLAIN_FORMAT_TEXT);
-	if (es->str->len == 0 || es->str->data[es->str->len - 1] == '\n')
-		appendStringInfoSpaces(es->str, es->indent * 2);
+  Assert(es->format == EXPLAIN_FORMAT_TEXT);
+
+  if (es->str->len == 0 || es->str->data[es->str->len - 1] == '\n')
+    appendStringInfoSpaces(es->str, es->indent * 2);
 }
 
 /*
@@ -665,12 +676,14 @@ ExplainIndentText(ExplainState *es)
 static void
 ExplainJSONLineEnding(ExplainState *es)
 {
-	Assert(es->format == EXPLAIN_FORMAT_JSON);
-	if (linitial_int(es->grouping_stack) != 0)
-		appendStringInfoChar(es->str, ',');
-	else
-		linitial_int(es->grouping_stack) = 1;
-	appendStringInfoChar(es->str, '\n');
+  Assert(es->format == EXPLAIN_FORMAT_JSON);
+
+  if (linitial_int(es->grouping_stack) != 0)
+    appendStringInfoChar(es->str, ',');
+  else
+    linitial_int(es->grouping_stack) = 1;
+
+  appendStringInfoChar(es->str, '\n');
 }
 
 /*
@@ -685,16 +698,14 @@ ExplainJSONLineEnding(ExplainState *es)
 static void
 ExplainYAMLLineStarting(ExplainState *es)
 {
-	Assert(es->format == EXPLAIN_FORMAT_YAML);
-	if (linitial_int(es->grouping_stack) == 0)
-	{
-		linitial_int(es->grouping_stack) = 1;
-	}
-	else
-	{
-		appendStringInfoChar(es->str, '\n');
-		appendStringInfoSpaces(es->str, es->indent * 2);
-	}
+  Assert(es->format == EXPLAIN_FORMAT_YAML);
+
+  if (linitial_int(es->grouping_stack) == 0) {
+    linitial_int(es->grouping_stack) = 1;
+  } else {
+    appendStringInfoChar(es->str, '\n');
+    appendStringInfoSpaces(es->str, es->indent * 2);
+  }
 }
 
 /*
@@ -710,5 +721,5 @@ ExplainYAMLLineStarting(ExplainState *es)
 static void
 escape_yaml(StringInfo buf, const char *str)
 {
-	escape_json(buf, str);
+  escape_json(buf, str);
 }

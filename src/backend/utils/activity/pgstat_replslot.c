@@ -1,7 +1,7 @@
 /* -------------------------------------------------------------------------
  *
  * pgstat_replslot.c
- *	  Implementation of replication slot statistics.
+ *    Implementation of replication slot statistics.
  *
  * This file contains the implementation of replication slot statistics. It is kept
  * separate from pgstat.c to enforce the line between the statistics access /
@@ -19,7 +19,7 @@
  * Copyright (c) 2001-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/backend/utils/activity/pgstat_replslot.c
+ *    src/backend/utils/activity/pgstat_replslot.c
  * -------------------------------------------------------------------------
  */
 
@@ -29,7 +29,7 @@
 #include "utils/pgstat_internal.h"
 
 
-static int	get_replslot_index(const char *name, bool need_lock);
+static int  get_replslot_index(const char *name, bool need_lock);
 
 
 /*
@@ -41,30 +41,30 @@ static int	get_replslot_index(const char *name, bool need_lock);
 void
 pgstat_reset_replslot(const char *name)
 {
-	ReplicationSlot *slot;
+  ReplicationSlot *slot;
 
-	Assert(name != NULL);
+  Assert(name != NULL);
 
-	LWLockAcquire(ReplicationSlotControlLock, LW_SHARED);
+  LWLockAcquire(ReplicationSlotControlLock, LW_SHARED);
 
-	/* Check if the slot exits with the given name. */
-	slot = SearchNamedReplicationSlot(name, false);
+  /* Check if the slot exits with the given name. */
+  slot = SearchNamedReplicationSlot(name, false);
 
-	if (!slot)
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("replication slot \"%s\" does not exist",
-						name)));
+  if (!slot)
+    ereport(ERROR,
+            (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+             errmsg("replication slot \"%s\" does not exist",
+                    name)));
 
-	/*
-	 * Reset stats if it is a logical slot. Nothing to do for physical slots
-	 * as we collect stats only for logical slots.
-	 */
-	if (SlotIsLogical(slot))
-		pgstat_reset(PGSTAT_KIND_REPLSLOT, InvalidOid,
-					 ReplicationSlotIndex(slot));
+  /*
+   * Reset stats if it is a logical slot. Nothing to do for physical slots
+   * as we collect stats only for logical slots.
+   */
+  if (SlotIsLogical(slot))
+    pgstat_reset(PGSTAT_KIND_REPLSLOT, InvalidOid,
+                 ReplicationSlotIndex(slot));
 
-	LWLockRelease(ReplicationSlotControlLock);
+  LWLockRelease(ReplicationSlotControlLock);
 }
 
 /*
@@ -77,28 +77,28 @@ pgstat_reset_replslot(const char *name)
 void
 pgstat_report_replslot(ReplicationSlot *slot, const PgStat_StatReplSlotEntry *repSlotStat)
 {
-	PgStat_EntryRef *entry_ref;
-	PgStatShared_ReplSlot *shstatent;
-	PgStat_StatReplSlotEntry *statent;
+  PgStat_EntryRef *entry_ref;
+  PgStatShared_ReplSlot *shstatent;
+  PgStat_StatReplSlotEntry *statent;
 
-	entry_ref = pgstat_get_entry_ref_locked(PGSTAT_KIND_REPLSLOT, InvalidOid,
-											ReplicationSlotIndex(slot), false);
-	shstatent = (PgStatShared_ReplSlot *) entry_ref->shared_stats;
-	statent = &shstatent->stats;
+  entry_ref = pgstat_get_entry_ref_locked(PGSTAT_KIND_REPLSLOT, InvalidOid,
+                                          ReplicationSlotIndex(slot), false);
+  shstatent = (PgStatShared_ReplSlot *) entry_ref->shared_stats;
+  statent = &shstatent->stats;
 
-	/* Update the replication slot statistics */
+  /* Update the replication slot statistics */
 #define REPLSLOT_ACC(fld) statent->fld += repSlotStat->fld
-	REPLSLOT_ACC(spill_txns);
-	REPLSLOT_ACC(spill_count);
-	REPLSLOT_ACC(spill_bytes);
-	REPLSLOT_ACC(stream_txns);
-	REPLSLOT_ACC(stream_count);
-	REPLSLOT_ACC(stream_bytes);
-	REPLSLOT_ACC(total_txns);
-	REPLSLOT_ACC(total_bytes);
+  REPLSLOT_ACC(spill_txns);
+  REPLSLOT_ACC(spill_count);
+  REPLSLOT_ACC(spill_bytes);
+  REPLSLOT_ACC(stream_txns);
+  REPLSLOT_ACC(stream_count);
+  REPLSLOT_ACC(stream_bytes);
+  REPLSLOT_ACC(total_txns);
+  REPLSLOT_ACC(total_bytes);
 #undef REPLSLOT_ACC
 
-	pgstat_unlock_entry(entry_ref);
+  pgstat_unlock_entry(entry_ref);
 }
 
 /*
@@ -110,22 +110,22 @@ pgstat_report_replslot(ReplicationSlot *slot, const PgStat_StatReplSlotEntry *re
 void
 pgstat_create_replslot(ReplicationSlot *slot)
 {
-	PgStat_EntryRef *entry_ref;
-	PgStatShared_ReplSlot *shstatent;
+  PgStat_EntryRef *entry_ref;
+  PgStatShared_ReplSlot *shstatent;
 
-	Assert(LWLockHeldByMeInMode(ReplicationSlotAllocationLock, LW_EXCLUSIVE));
+  Assert(LWLockHeldByMeInMode(ReplicationSlotAllocationLock, LW_EXCLUSIVE));
 
-	entry_ref = pgstat_get_entry_ref_locked(PGSTAT_KIND_REPLSLOT, InvalidOid,
-											ReplicationSlotIndex(slot), false);
-	shstatent = (PgStatShared_ReplSlot *) entry_ref->shared_stats;
+  entry_ref = pgstat_get_entry_ref_locked(PGSTAT_KIND_REPLSLOT, InvalidOid,
+                                          ReplicationSlotIndex(slot), false);
+  shstatent = (PgStatShared_ReplSlot *) entry_ref->shared_stats;
 
-	/*
-	 * NB: need to accept that there might be stats from an older slot, e.g.
-	 * if we previously crashed after dropping a slot.
-	 */
-	memset(&shstatent->stats, 0, sizeof(shstatent->stats));
+  /*
+   * NB: need to accept that there might be stats from an older slot, e.g.
+   * if we previously crashed after dropping a slot.
+   */
+  memset(&shstatent->stats, 0, sizeof(shstatent->stats));
 
-	pgstat_unlock_entry(entry_ref);
+  pgstat_unlock_entry(entry_ref);
 }
 
 /*
@@ -145,8 +145,8 @@ pgstat_create_replslot(ReplicationSlot *slot)
 void
 pgstat_acquire_replslot(ReplicationSlot *slot)
 {
-	pgstat_get_entry_ref(PGSTAT_KIND_REPLSLOT, InvalidOid,
-						 ReplicationSlotIndex(slot), true, NULL);
+  pgstat_get_entry_ref(PGSTAT_KIND_REPLSLOT, InvalidOid,
+                       ReplicationSlotIndex(slot), true, NULL);
 }
 
 /*
@@ -155,11 +155,11 @@ pgstat_acquire_replslot(ReplicationSlot *slot)
 void
 pgstat_drop_replslot(ReplicationSlot *slot)
 {
-	Assert(LWLockHeldByMeInMode(ReplicationSlotAllocationLock, LW_EXCLUSIVE));
+  Assert(LWLockHeldByMeInMode(ReplicationSlotAllocationLock, LW_EXCLUSIVE));
 
-	if (!pgstat_drop_entry(PGSTAT_KIND_REPLSLOT, InvalidOid,
-						   ReplicationSlotIndex(slot)))
-		pgstat_request_entry_refs_gc();
+  if (!pgstat_drop_entry(PGSTAT_KIND_REPLSLOT, InvalidOid,
+                         ReplicationSlotIndex(slot)))
+    pgstat_request_entry_refs_gc();
 }
 
 /*
@@ -169,68 +169,68 @@ pgstat_drop_replslot(ReplicationSlot *slot)
 PgStat_StatReplSlotEntry *
 pgstat_fetch_replslot(NameData slotname)
 {
-	int			idx;
-	PgStat_StatReplSlotEntry *slotentry = NULL;
+  int     idx;
+  PgStat_StatReplSlotEntry *slotentry = NULL;
 
-	LWLockAcquire(ReplicationSlotControlLock, LW_SHARED);
+  LWLockAcquire(ReplicationSlotControlLock, LW_SHARED);
 
-	idx = get_replslot_index(NameStr(slotname), false);
+  idx = get_replslot_index(NameStr(slotname), false);
 
-	if (idx != -1)
-		slotentry = (PgStat_StatReplSlotEntry *) pgstat_fetch_entry(PGSTAT_KIND_REPLSLOT,
-																	InvalidOid, idx);
+  if (idx != -1)
+    slotentry = (PgStat_StatReplSlotEntry *) pgstat_fetch_entry(PGSTAT_KIND_REPLSLOT,
+                InvalidOid, idx);
 
-	LWLockRelease(ReplicationSlotControlLock);
+  LWLockRelease(ReplicationSlotControlLock);
 
-	return slotentry;
+  return slotentry;
 }
 
 void
 pgstat_replslot_to_serialized_name_cb(const PgStat_HashKey *key, const PgStatShared_Common *header, NameData *name)
 {
-	/*
-	 * This is only called late during shutdown. The set of existing slots
-	 * isn't allowed to change at this point, we can assume that a slot exists
-	 * at the offset.
-	 */
-	if (!ReplicationSlotName(key->objid, name))
-		elog(ERROR, "could not find name for replication slot index %" PRIu64,
-			 key->objid);
+  /*
+   * This is only called late during shutdown. The set of existing slots
+   * isn't allowed to change at this point, we can assume that a slot exists
+   * at the offset.
+   */
+  if (!ReplicationSlotName(key->objid, name))
+    elog(ERROR, "could not find name for replication slot index %" PRIu64,
+         key->objid);
 }
 
 bool
 pgstat_replslot_from_serialized_name_cb(const NameData *name, PgStat_HashKey *key)
 {
-	int			idx = get_replslot_index(NameStr(*name), true);
+  int     idx = get_replslot_index(NameStr(*name), true);
 
-	/* slot might have been deleted */
-	if (idx == -1)
-		return false;
+  /* slot might have been deleted */
+  if (idx == -1)
+    return false;
 
-	key->kind = PGSTAT_KIND_REPLSLOT;
-	key->dboid = InvalidOid;
-	key->objid = idx;
+  key->kind = PGSTAT_KIND_REPLSLOT;
+  key->dboid = InvalidOid;
+  key->objid = idx;
 
-	return true;
+  return true;
 }
 
 void
 pgstat_replslot_reset_timestamp_cb(PgStatShared_Common *header, TimestampTz ts)
 {
-	((PgStatShared_ReplSlot *) header)->stats.stat_reset_timestamp = ts;
+  ((PgStatShared_ReplSlot *) header)->stats.stat_reset_timestamp = ts;
 }
 
 static int
 get_replslot_index(const char *name, bool need_lock)
 {
-	ReplicationSlot *slot;
+  ReplicationSlot *slot;
 
-	Assert(name != NULL);
+  Assert(name != NULL);
 
-	slot = SearchNamedReplicationSlot(name, need_lock);
+  slot = SearchNamedReplicationSlot(name, need_lock);
 
-	if (!slot)
-		return -1;
+  if (!slot)
+    return -1;
 
-	return ReplicationSlotIndex(slot);
+  return ReplicationSlotIndex(slot);
 }

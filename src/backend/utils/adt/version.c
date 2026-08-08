@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * version.c
- *	 Returns the PostgreSQL version string
+ *   Returns the PostgreSQL version string
  *
  * Copyright (c) 1998-2025, PostgreSQL Global Development Group
  *
@@ -20,5 +20,5 @@
 Datum
 pgsql_version(PG_FUNCTION_ARGS)
 {
-	PG_RETURN_TEXT_P(cstring_to_text(PG_VERSION_STR));
+  PG_RETURN_TEXT_P(cstring_to_text(PG_VERSION_STR));
 }

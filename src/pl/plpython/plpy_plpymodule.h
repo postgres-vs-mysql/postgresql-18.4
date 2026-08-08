@@ -15,4 +15,4 @@ extern HTAB *PLy_spi_exceptions;
 PyMODINIT_FUNC PyInit_plpy(void);
 extern void PLy_init_plpy(void);
 
-#endif							/* PLPY_PLPYMODULE_H */
+#endif              /* PLPY_PLPYMODULE_H */

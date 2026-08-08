@@ -14,14 +14,14 @@
 #define CONFFILES_H
 
 /* recursion nesting depth for configuration files */
-#define CONF_FILE_START_DEPTH	0
-#define CONF_FILE_MAX_DEPTH		10
+#define CONF_FILE_START_DEPTH 0
+#define CONF_FILE_MAX_DEPTH   10
 
 extern char *AbsoluteConfigLocation(const char *location,
-									const char *calling_file);
+                                    const char *calling_file);
 extern char **GetConfFilesInDir(const char *includedir,
-								const char *calling_file,
-								int elevel, int *num_filenames,
-								char **err_msg);
+                                const char *calling_file,
+                                int elevel, int *num_filenames,
+                                char **err_msg);
 
-#endif							/* CONFFILES_H */
+#endif              /* CONFFILES_H */

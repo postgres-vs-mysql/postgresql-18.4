@@ -51,10 +51,10 @@
 /* struct for shared statistics hash entry key. */
 typedef struct PgStat_HashKey
 {
-	PgStat_Kind kind;			/* statistics entry kind */
-	Oid			dboid;			/* database ID. InvalidOid for shared objects. */
-	uint64		objid;			/* object ID (table, function, etc.), or
-								 * identifier. */
+  PgStat_Kind kind;     /* statistics entry kind */
+  Oid     dboid;      /* database ID. InvalidOid for shared objects. */
+  uint64    objid;      /* object ID (table, function, etc.), or
+                 * identifier. */
 } PgStat_HashKey;
 
 /*
@@ -64,55 +64,55 @@ typedef struct PgStat_HashKey
  */
 typedef struct PgStatShared_HashEntry
 {
-	PgStat_HashKey key;			/* hash key */
+  PgStat_HashKey key;     /* hash key */
 
-	/*
-	 * If dropped is set, backends need to release their references so that
-	 * the memory for the entry can be freed. No new references may be made
-	 * once marked as dropped.
-	 */
-	bool		dropped;
+  /*
+   * If dropped is set, backends need to release their references so that
+   * the memory for the entry can be freed. No new references may be made
+   * once marked as dropped.
+   */
+  bool    dropped;
 
-	/*
-	 * Refcount managing lifetime of the entry itself (as opposed to the
-	 * dshash entry pointing to it). The stats lifetime has to be separate
-	 * from the hash table entry lifetime because we allow backends to point
-	 * to a stats entry without holding a hash table lock (and some other
-	 * reasons).
-	 *
-	 * As long as the entry is not dropped, 1 is added to the refcount
-	 * representing that the entry should not be dropped. In addition each
-	 * backend that has a reference to the entry needs to increment the
-	 * refcount as long as it does.
-	 *
-	 * May only be incremented / decremented while holding at least a shared
-	 * lock on the dshash partition containing the entry. It needs to be an
-	 * atomic variable because multiple backends can increment the refcount
-	 * with just a shared lock.
-	 *
-	 * When the refcount reaches 0 the entry needs to be freed.
-	 */
-	pg_atomic_uint32 refcount;
+  /*
+   * Refcount managing lifetime of the entry itself (as opposed to the
+   * dshash entry pointing to it). The stats lifetime has to be separate
+   * from the hash table entry lifetime because we allow backends to point
+   * to a stats entry without holding a hash table lock (and some other
+   * reasons).
+   *
+   * As long as the entry is not dropped, 1 is added to the refcount
+   * representing that the entry should not be dropped. In addition each
+   * backend that has a reference to the entry needs to increment the
+   * refcount as long as it does.
+   *
+   * May only be incremented / decremented while holding at least a shared
+   * lock on the dshash partition containing the entry. It needs to be an
+   * atomic variable because multiple backends can increment the refcount
+   * with just a shared lock.
+   *
+   * When the refcount reaches 0 the entry needs to be freed.
+   */
+  pg_atomic_uint32 refcount;
 
-	/*
-	 * Counter tracking the number of times the entry has been reused.
-	 *
-	 * Set to 0 when the entry is created, and incremented by one each time
-	 * the shared entry is reinitialized with pgstat_reinit_entry().
-	 *
-	 * May only be incremented / decremented while holding at least a shared
-	 * lock on the dshash partition containing the entry. Like refcount, it
-	 * needs to be an atomic variable because multiple backends can increment
-	 * the generation with just a shared lock.
-	 */
-	pg_atomic_uint32 generation;
+  /*
+   * Counter tracking the number of times the entry has been reused.
+   *
+   * Set to 0 when the entry is created, and incremented by one each time
+   * the shared entry is reinitialized with pgstat_reinit_entry().
+   *
+   * May only be incremented / decremented while holding at least a shared
+   * lock on the dshash partition containing the entry. Like refcount, it
+   * needs to be an atomic variable because multiple backends can increment
+   * the generation with just a shared lock.
+   */
+  pg_atomic_uint32 generation;
 
-	/*
-	 * Pointer to shared stats. The stats entry always starts with
-	 * PgStatShared_Common, embedded in a larger struct containing the
-	 * PgStat_Kind specific stats fields.
-	 */
-	dsa_pointer body;
+  /*
+   * Pointer to shared stats. The stats entry always starts with
+   * PgStatShared_Common, embedded in a larger struct containing the
+   * PgStat_Kind specific stats fields.
+   */
+  dsa_pointer body;
 } PgStatShared_HashEntry;
 
 /*
@@ -120,9 +120,9 @@ typedef struct PgStatShared_HashEntry
  */
 typedef struct PgStatShared_Common
 {
-	uint32		magic;			/* just a validity cross-check */
-	/* lock protecting stats contents (i.e. data following the header) */
-	LWLock		lock;
+  uint32    magic;      /* just a validity cross-check */
+  /* lock protecting stats contents (i.e. data following the header) */
+  LWLock    lock;
 } PgStatShared_Common;
 
 /*
@@ -134,33 +134,33 @@ typedef struct PgStatShared_Common
  */
 typedef struct PgStat_EntryRef
 {
-	/*
-	 * Pointer to the PgStatShared_HashEntry entry in the shared stats
-	 * hashtable.
-	 */
-	PgStatShared_HashEntry *shared_entry;
+  /*
+   * Pointer to the PgStatShared_HashEntry entry in the shared stats
+   * hashtable.
+   */
+  PgStatShared_HashEntry *shared_entry;
 
-	/*
-	 * Pointer to the stats data (i.e. PgStatShared_HashEntry->body), resolved
-	 * as a local pointer, to avoid repeated dsa_get_address() calls.
-	 */
-	PgStatShared_Common *shared_stats;
+  /*
+   * Pointer to the stats data (i.e. PgStatShared_HashEntry->body), resolved
+   * as a local pointer, to avoid repeated dsa_get_address() calls.
+   */
+  PgStatShared_Common *shared_stats;
 
-	/*
-	 * Copy of PgStatShared_HashEntry->generation, keeping locally track of
-	 * the shared stats entry "generation" retrieved (number of times reused).
-	 */
-	uint32		generation;
+  /*
+   * Copy of PgStatShared_HashEntry->generation, keeping locally track of
+   * the shared stats entry "generation" retrieved (number of times reused).
+   */
+  uint32    generation;
 
-	/*
-	 * Pending statistics data that will need to be flushed to shared memory
-	 * stats eventually. Each stats kind utilizing pending data defines what
-	 * format its pending data has and needs to provide a
-	 * PgStat_KindInfo->flush_pending_cb callback to merge pending entries
-	 * into the shared stats hash table.
-	 */
-	void	   *pending;
-	dlist_node	pending_node;	/* membership in pgStatPending list */
+  /*
+   * Pending statistics data that will need to be flushed to shared memory
+   * stats eventually. Each stats kind utilizing pending data defines what
+   * format its pending data has and needs to provide a
+   * PgStat_KindInfo->flush_pending_cb callback to merge pending entries
+   * into the shared stats hash table.
+   */
+  void     *pending;
+  dlist_node  pending_node; /* membership in pgStatPending list */
 } PgStat_EntryRef;
 
 
@@ -171,28 +171,28 @@ typedef struct PgStat_EntryRef
  */
 typedef struct PgStat_SubXactStatus
 {
-	int			nest_level;		/* subtransaction nest level */
+  int     nest_level;   /* subtransaction nest level */
 
-	struct PgStat_SubXactStatus *prev;	/* higher-level subxact if any */
+  struct PgStat_SubXactStatus *prev;  /* higher-level subxact if any */
 
-	/*
-	 * Statistics for transactionally dropped objects need to be
-	 * transactionally dropped as well. Collect the stats dropped in the
-	 * current (sub-)transaction and only execute the stats drop when we know
-	 * if the transaction commits/aborts. To handle replicas and crashes,
-	 * stats drops are included in commit / abort records.
-	 */
-	dclist_head pending_drops;
+  /*
+   * Statistics for transactionally dropped objects need to be
+   * transactionally dropped as well. Collect the stats dropped in the
+   * current (sub-)transaction and only execute the stats drop when we know
+   * if the transaction commits/aborts. To handle replicas and crashes,
+   * stats drops are included in commit / abort records.
+   */
+  dclist_head pending_drops;
 
-	/*
-	 * Tuple insertion/deletion counts for an open transaction can't be
-	 * propagated into PgStat_TableStatus counters until we know if it is
-	 * going to commit or abort.  Hence, we keep these counts in per-subxact
-	 * structs that live in TopTransactionContext.  This data structure is
-	 * designed on the assumption that subxacts won't usually modify very many
-	 * tables.
-	 */
-	PgStat_TableXactStatus *first;	/* head of list for this subxact */
+  /*
+   * Tuple insertion/deletion counts for an open transaction can't be
+   * propagated into PgStat_TableStatus counters until we know if it is
+   * going to commit or abort.  Hence, we keep these counts in per-subxact
+   * structs that live in TopTransactionContext.  This data structure is
+   * designed on the assumption that subxacts won't usually modify very many
+   * tables.
+   */
+  PgStat_TableXactStatus *first;  /* head of list for this subxact */
 } PgStat_SubXactStatus;
 
 
@@ -201,118 +201,118 @@ typedef struct PgStat_SubXactStatus
  */
 typedef struct PgStat_KindInfo
 {
-	/*
-	 * Do a fixed number of stats objects exist for this kind of stats (e.g.
-	 * bgwriter stats) or not (e.g. tables).
-	 */
-	bool		fixed_amount:1;
+  /*
+   * Do a fixed number of stats objects exist for this kind of stats (e.g.
+   * bgwriter stats) or not (e.g. tables).
+   */
+  bool    fixed_amount: 1;
 
-	/*
-	 * Can stats of this kind be accessed from another database? Determines
-	 * whether a stats object gets included in stats snapshots.
-	 */
-	bool		accessed_across_databases:1;
+  /*
+   * Can stats of this kind be accessed from another database? Determines
+   * whether a stats object gets included in stats snapshots.
+   */
+  bool    accessed_across_databases: 1;
 
-	/* Should stats be written to the on-disk stats file? */
-	bool		write_to_file:1;
+  /* Should stats be written to the on-disk stats file? */
+  bool    write_to_file: 1;
 
-	/*
-	 * The size of an entry in the shared stats hash table (pointed to by
-	 * PgStatShared_HashEntry->body).  For fixed-numbered statistics, this is
-	 * the size of an entry in PgStat_ShmemControl->custom_data.
-	 */
-	uint32		shared_size;
+  /*
+   * The size of an entry in the shared stats hash table (pointed to by
+   * PgStatShared_HashEntry->body).  For fixed-numbered statistics, this is
+   * the size of an entry in PgStat_ShmemControl->custom_data.
+   */
+  uint32    shared_size;
 
-	/*
-	 * The offset of the statistics struct in the cached statistics snapshot
-	 * PgStat_Snapshot, for fixed-numbered statistics.
-	 */
-	uint32		snapshot_ctl_off;
+  /*
+   * The offset of the statistics struct in the cached statistics snapshot
+   * PgStat_Snapshot, for fixed-numbered statistics.
+   */
+  uint32    snapshot_ctl_off;
 
-	/*
-	 * The offset of the statistics struct in the containing shared memory
-	 * control structure PgStat_ShmemControl, for fixed-numbered statistics.
-	 */
-	uint32		shared_ctl_off;
+  /*
+   * The offset of the statistics struct in the containing shared memory
+   * control structure PgStat_ShmemControl, for fixed-numbered statistics.
+   */
+  uint32    shared_ctl_off;
 
-	/*
-	 * The offset/size of statistics inside the shared stats entry. Used when
-	 * [de-]serializing statistics to / from disk respectively. Separate from
-	 * shared_size because [de-]serialization may not include in-memory state
-	 * like lwlocks.
-	 */
-	uint32		shared_data_off;
-	uint32		shared_data_len;
+  /*
+   * The offset/size of statistics inside the shared stats entry. Used when
+   * [de-]serializing statistics to / from disk respectively. Separate from
+   * shared_size because [de-]serialization may not include in-memory state
+   * like lwlocks.
+   */
+  uint32    shared_data_off;
+  uint32    shared_data_len;
 
-	/*
-	 * The size of the pending data for this kind. E.g. how large
-	 * PgStat_EntryRef->pending is. Used for allocations.
-	 *
-	 * 0 signals that an entry of this kind should never have a pending entry.
-	 */
-	uint32		pending_size;
+  /*
+   * The size of the pending data for this kind. E.g. how large
+   * PgStat_EntryRef->pending is. Used for allocations.
+   *
+   * 0 signals that an entry of this kind should never have a pending entry.
+   */
+  uint32    pending_size;
 
-	/*
-	 * Perform custom actions when initializing a backend (standalone or under
-	 * postmaster). Optional.
-	 */
-	void		(*init_backend_cb) (void);
+  /*
+   * Perform custom actions when initializing a backend (standalone or under
+   * postmaster). Optional.
+   */
+  void    (*init_backend_cb) (void);
 
-	/*
-	 * For variable-numbered stats: flush pending stats. Required if pending
-	 * data is used. See flush_static_cb when dealing with stats data that
-	 * that cannot use PgStat_EntryRef->pending.
-	 */
-	bool		(*flush_pending_cb) (PgStat_EntryRef *sr, bool nowait);
+  /*
+   * For variable-numbered stats: flush pending stats. Required if pending
+   * data is used. See flush_static_cb when dealing with stats data that
+   * that cannot use PgStat_EntryRef->pending.
+   */
+  bool    (*flush_pending_cb) (PgStat_EntryRef *sr, bool nowait);
 
-	/*
-	 * For variable-numbered stats: delete pending stats. Optional.
-	 */
-	void		(*delete_pending_cb) (PgStat_EntryRef *sr);
+  /*
+   * For variable-numbered stats: delete pending stats. Optional.
+   */
+  void    (*delete_pending_cb) (PgStat_EntryRef *sr);
 
-	/*
-	 * For variable-numbered stats: reset the reset timestamp. Optional.
-	 */
-	void		(*reset_timestamp_cb) (PgStatShared_Common *header, TimestampTz ts);
+  /*
+   * For variable-numbered stats: reset the reset timestamp. Optional.
+   */
+  void    (*reset_timestamp_cb) (PgStatShared_Common *header, TimestampTz ts);
 
-	/*
-	 * For variable-numbered stats. Optional.
-	 */
-	void		(*to_serialized_name) (const PgStat_HashKey *key,
-									   const PgStatShared_Common *header, NameData *name);
-	bool		(*from_serialized_name) (const NameData *name, PgStat_HashKey *key);
+  /*
+   * For variable-numbered stats. Optional.
+   */
+  void    (*to_serialized_name) (const PgStat_HashKey *key,
+                                 const PgStatShared_Common *header, NameData *name);
+  bool    (*from_serialized_name) (const NameData *name, PgStat_HashKey *key);
 
-	/*
-	 * For fixed-numbered statistics: Initialize shared memory state.
-	 *
-	 * "stats" is the pointer to the allocated shared memory area.
-	 */
-	void		(*init_shmem_cb) (void *stats);
+  /*
+   * For fixed-numbered statistics: Initialize shared memory state.
+   *
+   * "stats" is the pointer to the allocated shared memory area.
+   */
+  void    (*init_shmem_cb) (void *stats);
 
-	/*
-	 * For fixed-numbered or variable-numbered statistics: Flush pending stats
-	 * entries, for stats kinds that do not use PgStat_EntryRef->pending.
-	 *
-	 * Returns true if some of the stats could not be flushed, due to lock
-	 * contention for example. Optional.
-	 *
-	 * "pgstat_report_fixed" needs to be set to trigger the flush of pending
-	 * stats.
-	 */
-	bool		(*flush_static_cb) (bool nowait);
+  /*
+   * For fixed-numbered or variable-numbered statistics: Flush pending stats
+   * entries, for stats kinds that do not use PgStat_EntryRef->pending.
+   *
+   * Returns true if some of the stats could not be flushed, due to lock
+   * contention for example. Optional.
+   *
+   * "pgstat_report_fixed" needs to be set to trigger the flush of pending
+   * stats.
+   */
+  bool    (*flush_static_cb) (bool nowait);
 
-	/*
-	 * For fixed-numbered statistics: Reset All.
-	 */
-	void		(*reset_all_cb) (TimestampTz ts);
+  /*
+   * For fixed-numbered statistics: Reset All.
+   */
+  void    (*reset_all_cb) (TimestampTz ts);
 
-	/*
-	 * For fixed-numbered statistics: Build snapshot for entry
-	 */
-	void		(*snapshot_cb) (void);
+  /*
+   * For fixed-numbered statistics: Build snapshot for entry
+   */
+  void    (*snapshot_cb) (void);
 
-	/* name of the kind of stats */
-	const char *const name;
+  /* name of the kind of stats */
+  const char *const name;
 } PgStat_KindInfo;
 
 
@@ -325,17 +325,17 @@ typedef struct PgStat_KindInfo
  * definitions.
  */
 static const char *const slru_names[] = {
-	"commit_timestamp",
-	"multixact_member",
-	"multixact_offset",
-	"notify",
-	"serializable",
-	"subtransaction",
-	"transaction",
-	"other"						/* has to be last */
+  "commit_timestamp",
+  "multixact_member",
+  "multixact_offset",
+  "notify",
+  "serializable",
+  "subtransaction",
+  "transaction",
+  "other"           /* has to be last */
 };
 
-#define SLRU_NUM_ELEMENTS	lengthof(slru_names)
+#define SLRU_NUM_ELEMENTS lengthof(slru_names)
 
 
 /* ----------
@@ -360,54 +360,54 @@ static const char *const slru_names[] = {
 
 typedef struct PgStatShared_Archiver
 {
-	/* lock protects ->reset_offset as well as stats->stat_reset_timestamp */
-	LWLock		lock;
-	uint32		changecount;
-	PgStat_ArchiverStats stats;
-	PgStat_ArchiverStats reset_offset;
+  /* lock protects ->reset_offset as well as stats->stat_reset_timestamp */
+  LWLock    lock;
+  uint32    changecount;
+  PgStat_ArchiverStats stats;
+  PgStat_ArchiverStats reset_offset;
 } PgStatShared_Archiver;
 
 typedef struct PgStatShared_BgWriter
 {
-	/* lock protects ->reset_offset as well as stats->stat_reset_timestamp */
-	LWLock		lock;
-	uint32		changecount;
-	PgStat_BgWriterStats stats;
-	PgStat_BgWriterStats reset_offset;
+  /* lock protects ->reset_offset as well as stats->stat_reset_timestamp */
+  LWLock    lock;
+  uint32    changecount;
+  PgStat_BgWriterStats stats;
+  PgStat_BgWriterStats reset_offset;
 } PgStatShared_BgWriter;
 
 typedef struct PgStatShared_Checkpointer
 {
-	/* lock protects ->reset_offset as well as stats->stat_reset_timestamp */
-	LWLock		lock;
-	uint32		changecount;
-	PgStat_CheckpointerStats stats;
-	PgStat_CheckpointerStats reset_offset;
+  /* lock protects ->reset_offset as well as stats->stat_reset_timestamp */
+  LWLock    lock;
+  uint32    changecount;
+  PgStat_CheckpointerStats stats;
+  PgStat_CheckpointerStats reset_offset;
 } PgStatShared_Checkpointer;
 
 /* Shared-memory ready PgStat_IO */
 typedef struct PgStatShared_IO
 {
-	/*
-	 * locks[i] protects stats.stats[i]. locks[0] also protects
-	 * stats.stat_reset_timestamp.
-	 */
-	LWLock		locks[BACKEND_NUM_TYPES];
-	PgStat_IO	stats;
+  /*
+   * locks[i] protects stats.stats[i]. locks[0] also protects
+   * stats.stat_reset_timestamp.
+   */
+  LWLock    locks[BACKEND_NUM_TYPES];
+  PgStat_IO stats;
 } PgStatShared_IO;
 
 typedef struct PgStatShared_SLRU
 {
-	/* lock protects ->stats */
-	LWLock		lock;
-	PgStat_SLRUStats stats[SLRU_NUM_ELEMENTS];
+  /* lock protects ->stats */
+  LWLock    lock;
+  PgStat_SLRUStats stats[SLRU_NUM_ELEMENTS];
 } PgStatShared_SLRU;
 
 typedef struct PgStatShared_Wal
 {
-	/* lock protects ->stats */
-	LWLock		lock;
-	PgStat_WalStats stats;
+  /* lock protects ->stats */
+  LWLock    lock;
+  PgStat_WalStats stats;
 } PgStatShared_Wal;
 
 
@@ -422,38 +422,38 @@ typedef struct PgStatShared_Wal
 
 typedef struct PgStatShared_Database
 {
-	PgStatShared_Common header;
-	PgStat_StatDBEntry stats;
+  PgStatShared_Common header;
+  PgStat_StatDBEntry stats;
 } PgStatShared_Database;
 
 typedef struct PgStatShared_Relation
 {
-	PgStatShared_Common header;
-	PgStat_StatTabEntry stats;
+  PgStatShared_Common header;
+  PgStat_StatTabEntry stats;
 } PgStatShared_Relation;
 
 typedef struct PgStatShared_Function
 {
-	PgStatShared_Common header;
-	PgStat_StatFuncEntry stats;
+  PgStatShared_Common header;
+  PgStat_StatFuncEntry stats;
 } PgStatShared_Function;
 
 typedef struct PgStatShared_Subscription
 {
-	PgStatShared_Common header;
-	PgStat_StatSubEntry stats;
+  PgStatShared_Common header;
+  PgStat_StatSubEntry stats;
 } PgStatShared_Subscription;
 
 typedef struct PgStatShared_ReplSlot
 {
-	PgStatShared_Common header;
-	PgStat_StatReplSlotEntry stats;
+  PgStatShared_Common header;
+  PgStat_StatReplSlotEntry stats;
 } PgStatShared_ReplSlot;
 
 typedef struct PgStatShared_Backend
 {
-	PgStatShared_Common header;
-	PgStat_Backend stats;
+  PgStatShared_Common header;
+  PgStat_Backend stats;
 } PgStatShared_Backend;
 
 /*
@@ -465,41 +465,41 @@ typedef struct PgStatShared_Backend
  */
 typedef struct PgStat_ShmemControl
 {
-	void	   *raw_dsa_area;
+  void     *raw_dsa_area;
 
-	/*
-	 * Stats for variable-numbered objects are kept in this shared hash table.
-	 * See comment above PgStat_Kind for details.
-	 */
-	dshash_table_handle hash_handle;	/* shared dbstat hash */
+  /*
+   * Stats for variable-numbered objects are kept in this shared hash table.
+   * See comment above PgStat_Kind for details.
+   */
+  dshash_table_handle hash_handle;  /* shared dbstat hash */
 
-	/* Has the stats system already been shut down? Just a debugging check. */
-	bool		is_shutdown;
+  /* Has the stats system already been shut down? Just a debugging check. */
+  bool    is_shutdown;
 
-	/*
-	 * Whenever statistics for dropped objects could not be freed - because
-	 * backends still have references - the dropping backend calls
-	 * pgstat_request_entry_refs_gc() incrementing this counter. Eventually
-	 * that causes backends to run pgstat_gc_entry_refs(), allowing memory to
-	 * be reclaimed.
-	 */
-	pg_atomic_uint64 gc_request_count;
+  /*
+   * Whenever statistics for dropped objects could not be freed - because
+   * backends still have references - the dropping backend calls
+   * pgstat_request_entry_refs_gc() incrementing this counter. Eventually
+   * that causes backends to run pgstat_gc_entry_refs(), allowing memory to
+   * be reclaimed.
+   */
+  pg_atomic_uint64 gc_request_count;
 
-	/*
-	 * Stats data for fixed-numbered objects.
-	 */
-	PgStatShared_Archiver archiver;
-	PgStatShared_BgWriter bgwriter;
-	PgStatShared_Checkpointer checkpointer;
-	PgStatShared_IO io;
-	PgStatShared_SLRU slru;
-	PgStatShared_Wal wal;
+  /*
+   * Stats data for fixed-numbered objects.
+   */
+  PgStatShared_Archiver archiver;
+  PgStatShared_BgWriter bgwriter;
+  PgStatShared_Checkpointer checkpointer;
+  PgStatShared_IO io;
+  PgStatShared_SLRU slru;
+  PgStatShared_Wal wal;
 
-	/*
-	 * Custom stats data with fixed-numbered objects, indexed by (PgStat_Kind
-	 * - PGSTAT_KIND_CUSTOM_MIN).
-	 */
-	void	   *custom_data[PGSTAT_KIND_CUSTOM_SIZE];
+  /*
+   * Custom stats data with fixed-numbered objects, indexed by (PgStat_Kind
+   * - PGSTAT_KIND_CUSTOM_MIN).
+   */
+  void     *custom_data[PGSTAT_KIND_CUSTOM_SIZE];
 
 } PgStat_ShmemControl;
 
@@ -509,36 +509,36 @@ typedef struct PgStat_ShmemControl
  */
 typedef struct PgStat_Snapshot
 {
-	PgStat_FetchConsistency mode;
+  PgStat_FetchConsistency mode;
 
-	/* time at which snapshot was taken */
-	TimestampTz snapshot_timestamp;
+  /* time at which snapshot was taken */
+  TimestampTz snapshot_timestamp;
 
-	bool		fixed_valid[PGSTAT_KIND_BUILTIN_SIZE];
+  bool    fixed_valid[PGSTAT_KIND_BUILTIN_SIZE];
 
-	PgStat_ArchiverStats archiver;
+  PgStat_ArchiverStats archiver;
 
-	PgStat_BgWriterStats bgwriter;
+  PgStat_BgWriterStats bgwriter;
 
-	PgStat_CheckpointerStats checkpointer;
+  PgStat_CheckpointerStats checkpointer;
 
-	PgStat_IO	io;
+  PgStat_IO io;
 
-	PgStat_SLRUStats slru[SLRU_NUM_ELEMENTS];
+  PgStat_SLRUStats slru[SLRU_NUM_ELEMENTS];
 
-	PgStat_WalStats wal;
+  PgStat_WalStats wal;
 
-	/*
-	 * Data in snapshot for custom fixed-numbered statistics, indexed by
-	 * (PgStat_Kind - PGSTAT_KIND_CUSTOM_MIN).  Each entry is allocated in
-	 * TopMemoryContext, for a size of PgStat_KindInfo->shared_data_len.
-	 */
-	bool		custom_valid[PGSTAT_KIND_CUSTOM_SIZE];
-	void	   *custom_data[PGSTAT_KIND_CUSTOM_SIZE];
+  /*
+   * Data in snapshot for custom fixed-numbered statistics, indexed by
+   * (PgStat_Kind - PGSTAT_KIND_CUSTOM_MIN).  Each entry is allocated in
+   * TopMemoryContext, for a size of PgStat_KindInfo->shared_data_len.
+   */
+  bool    custom_valid[PGSTAT_KIND_CUSTOM_SIZE];
+  void     *custom_data[PGSTAT_KIND_CUSTOM_SIZE];
 
-	/* to free snapshot in bulk */
-	MemoryContext context;
-	struct pgstat_snapshot_hash *stats;
+  /* to free snapshot in bulk */
+  MemoryContext context;
+  struct pgstat_snapshot_hash *stats;
 } PgStat_Snapshot;
 
 
@@ -547,12 +547,12 @@ typedef struct PgStat_Snapshot
  */
 typedef struct PgStat_LocalState
 {
-	PgStat_ShmemControl *shmem;
-	dsa_area   *dsa;
-	dshash_table *shared_hash;
+  PgStat_ShmemControl *shmem;
+  dsa_area   *dsa;
+  dshash_table *shared_hash;
 
-	/* the current statistics snapshot */
-	PgStat_Snapshot snapshot;
+  /* the current statistics snapshot */
+  PgStat_Snapshot snapshot;
 } PgStat_LocalState;
 
 
@@ -566,7 +566,7 @@ static inline uint32 pgstat_begin_changecount_read(uint32 *cc);
 static inline bool pgstat_end_changecount_read(uint32 *cc, uint32 cc_before);
 
 static inline void pgstat_copy_changecounted_stats(void *dst, void *src, size_t len,
-												   uint32 *cc);
+    uint32 *cc);
 
 static inline int pgstat_cmp_hash_key(const void *a, const void *b, size_t size, void *arg);
 static inline uint32 pgstat_hash_hash_key(const void *d, size_t size, void *arg);
@@ -582,7 +582,7 @@ static inline void *pgstat_get_custom_snapshot_data(PgStat_Kind kind);
 
 extern const PgStat_KindInfo *pgstat_get_kind_info(PgStat_Kind kind);
 extern void pgstat_register_kind(PgStat_Kind kind,
-								 const PgStat_KindInfo *kind_info);
+                                 const PgStat_KindInfo *kind_info);
 
 #ifdef USE_ASSERT_CHECKING
 extern void pgstat_assert_is_up(void);
@@ -592,10 +592,10 @@ extern void pgstat_assert_is_up(void);
 
 extern void pgstat_delete_pending_entry(PgStat_EntryRef *entry_ref);
 extern PgStat_EntryRef *pgstat_prep_pending_entry(PgStat_Kind kind, Oid dboid,
-												  uint64 objid,
-												  bool *created_entry);
+    uint64 objid,
+    bool *created_entry);
 extern PgStat_EntryRef *pgstat_fetch_pending_entry(PgStat_Kind kind,
-												   Oid dboid, uint64 objid);
+    Oid dboid, uint64 objid);
 
 extern void *pgstat_fetch_entry(PgStat_Kind kind, Oid dboid, uint64 objid);
 extern void pgstat_snapshot_fixed(PgStat_Kind kind);
@@ -614,14 +614,14 @@ extern void pgstat_archiver_snapshot_cb(void);
  */
 
 /* flags for pgstat_flush_backend() */
-#define PGSTAT_BACKEND_FLUSH_IO		(1 << 0)	/* Flush I/O statistics */
+#define PGSTAT_BACKEND_FLUSH_IO   (1 << 0)  /* Flush I/O statistics */
 #define PGSTAT_BACKEND_FLUSH_WAL   (1 << 1) /* Flush WAL statistics */
 #define PGSTAT_BACKEND_FLUSH_ALL   (PGSTAT_BACKEND_FLUSH_IO | PGSTAT_BACKEND_FLUSH_WAL)
 
 extern bool pgstat_flush_backend(bool nowait, bits32 flags);
 extern bool pgstat_backend_flush_cb(bool nowait);
 extern void pgstat_backend_reset_timestamp_cb(PgStatShared_Common *header,
-											  TimestampTz ts);
+    TimestampTz ts);
 
 /*
  * Functions in pgstat_bgwriter.c
@@ -704,25 +704,25 @@ extern void pgstat_attach_shmem(void);
 extern void pgstat_detach_shmem(void);
 
 extern PgStat_EntryRef *pgstat_get_entry_ref(PgStat_Kind kind, Oid dboid, uint64 objid,
-											 bool create, bool *created_entry);
+    bool create, bool *created_entry);
 extern bool pgstat_lock_entry(PgStat_EntryRef *entry_ref, bool nowait);
 extern bool pgstat_lock_entry_shared(PgStat_EntryRef *entry_ref, bool nowait);
 extern void pgstat_unlock_entry(PgStat_EntryRef *entry_ref);
 extern bool pgstat_drop_entry(PgStat_Kind kind, Oid dboid, uint64 objid);
 extern void pgstat_drop_all_entries(void);
 extern void pgstat_drop_matching_entries(bool (*do_drop) (PgStatShared_HashEntry *, Datum),
-										 Datum match_data);
+    Datum match_data);
 extern PgStat_EntryRef *pgstat_get_entry_ref_locked(PgStat_Kind kind, Oid dboid, uint64 objid,
-													bool nowait);
+    bool nowait);
 extern void pgstat_reset_entry(PgStat_Kind kind, Oid dboid, uint64 objid, TimestampTz ts);
 extern void pgstat_reset_entries_of_kind(PgStat_Kind kind, TimestampTz ts);
 extern void pgstat_reset_matching_entries(bool (*do_reset) (PgStatShared_HashEntry *, Datum),
-										  Datum match_data,
-										  TimestampTz ts);
+    Datum match_data,
+    TimestampTz ts);
 
 extern void pgstat_request_entry_refs_gc(void);
 extern PgStatShared_Common *pgstat_init_entry(PgStat_Kind kind,
-											  PgStatShared_HashEntry *shhashent);
+    PgStatShared_HashEntry *shhashent);
 
 
 /*
@@ -797,35 +797,35 @@ extern PGDLLIMPORT PgStat_LocalState pgStatLocal;
 static inline void
 pgstat_begin_changecount_write(uint32 *cc)
 {
-	Assert((*cc & 1) == 0);
+  Assert((*cc & 1) == 0);
 
-	START_CRIT_SECTION();
-	(*cc)++;
-	pg_write_barrier();
+  START_CRIT_SECTION();
+  (*cc)++;
+  pg_write_barrier();
 }
 
 static inline void
 pgstat_end_changecount_write(uint32 *cc)
 {
-	Assert((*cc & 1) == 1);
+  Assert((*cc & 1) == 1);
 
-	pg_write_barrier();
+  pg_write_barrier();
 
-	(*cc)++;
+  (*cc)++;
 
-	END_CRIT_SECTION();
+  END_CRIT_SECTION();
 }
 
 static inline uint32
 pgstat_begin_changecount_read(uint32 *cc)
 {
-	uint32		before_cc = *cc;
+  uint32    before_cc = *cc;
 
-	CHECK_FOR_INTERRUPTS();
+  CHECK_FOR_INTERRUPTS();
 
-	pg_read_barrier();
+  pg_read_barrier();
 
-	return before_cc;
+  return before_cc;
 }
 
 /*
@@ -834,18 +834,18 @@ pgstat_begin_changecount_read(uint32 *cc)
 static inline bool
 pgstat_end_changecount_read(uint32 *cc, uint32 before_cc)
 {
-	uint32		after_cc;
+  uint32    after_cc;
 
-	pg_read_barrier();
+  pg_read_barrier();
 
-	after_cc = *cc;
+  after_cc = *cc;
 
-	/* was a write in progress when we started? */
-	if (before_cc & 1)
-		return false;
+  /* was a write in progress when we started? */
+  if (before_cc & 1)
+    return false;
 
-	/* did writes start and complete while we read? */
-	return before_cc == after_cc;
+  /* did writes start and complete while we read? */
+  return before_cc == after_cc;
 }
 
 
@@ -857,34 +857,34 @@ pgstat_end_changecount_read(uint32 *cc, uint32 before_cc)
  */
 static inline void
 pgstat_copy_changecounted_stats(void *dst, void *src, size_t len,
-								uint32 *cc)
+                                uint32 *cc)
 {
-	uint32		cc_before;
+  uint32    cc_before;
 
-	do
-	{
-		cc_before = pgstat_begin_changecount_read(cc);
+  do
+  {
+    cc_before = pgstat_begin_changecount_read(cc);
 
-		memcpy(dst, src, len);
-	}
-	while (!pgstat_end_changecount_read(cc, cc_before));
+    memcpy(dst, src, len);
+  }
+  while (!pgstat_end_changecount_read(cc, cc_before));
 }
 
 /* helpers for dshash / simplehash hashtables */
 static inline int
 pgstat_cmp_hash_key(const void *a, const void *b, size_t size, void *arg)
 {
-	Assert(size == sizeof(PgStat_HashKey) && arg == NULL);
-	return memcmp(a, b, sizeof(PgStat_HashKey));
+  Assert(size == sizeof(PgStat_HashKey) && arg == NULL);
+  return memcmp(a, b, sizeof(PgStat_HashKey));
 }
 
 static inline uint32
 pgstat_hash_hash_key(const void *d, size_t size, void *arg)
 {
-	const char *key = (const char *) d;
+  const char *key = (const char *) d;
 
-	Assert(size == sizeof(PgStat_HashKey) && arg == NULL);
-	return fasthash32(key, size, 0);
+  Assert(size == sizeof(PgStat_HashKey) && arg == NULL);
+  return fasthash32(key, size, 0);
 }
 
 /*
@@ -894,7 +894,7 @@ pgstat_hash_hash_key(const void *d, size_t size, void *arg)
 static inline size_t
 pgstat_get_entry_len(PgStat_Kind kind)
 {
-	return pgstat_get_kind_info(kind)->shared_data_len;
+  return pgstat_get_kind_info(kind)->shared_data_len;
 }
 
 /*
@@ -903,11 +903,11 @@ pgstat_get_entry_len(PgStat_Kind kind)
 static inline void *
 pgstat_get_entry_data(PgStat_Kind kind, PgStatShared_Common *entry)
 {
-	size_t		off = pgstat_get_kind_info(kind)->shared_data_off;
+  size_t    off = pgstat_get_kind_info(kind)->shared_data_off;
 
-	Assert(off != 0 && off < PG_UINT32_MAX);
+  Assert(off != 0 && off < PG_UINT32_MAX);
 
-	return ((char *) (entry)) + off;
+  return ((char *) (entry)) + off;
 }
 
 /*
@@ -917,12 +917,12 @@ pgstat_get_entry_data(PgStat_Kind kind, PgStatShared_Common *entry)
 static inline void *
 pgstat_get_custom_shmem_data(PgStat_Kind kind)
 {
-	int			idx = kind - PGSTAT_KIND_CUSTOM_MIN;
+  int     idx = kind - PGSTAT_KIND_CUSTOM_MIN;
 
-	Assert(pgstat_is_kind_custom(kind));
-	Assert(pgstat_get_kind_info(kind)->fixed_amount);
+  Assert(pgstat_is_kind_custom(kind));
+  Assert(pgstat_get_kind_info(kind)->fixed_amount);
 
-	return pgStatLocal.shmem->custom_data[idx];
+  return pgStatLocal.shmem->custom_data[idx];
 }
 
 /*
@@ -932,12 +932,12 @@ pgstat_get_custom_shmem_data(PgStat_Kind kind)
 static inline void *
 pgstat_get_custom_snapshot_data(PgStat_Kind kind)
 {
-	int			idx = kind - PGSTAT_KIND_CUSTOM_MIN;
+  int     idx = kind - PGSTAT_KIND_CUSTOM_MIN;
 
-	Assert(pgstat_is_kind_custom(kind));
-	Assert(pgstat_get_kind_info(kind)->fixed_amount);
+  Assert(pgstat_is_kind_custom(kind));
+  Assert(pgstat_get_kind_info(kind)->fixed_amount);
 
-	return pgStatLocal.snapshot.custom_data[idx];
+  return pgStatLocal.snapshot.custom_data[idx];
 }
 
-#endif							/* PGSTAT_INTERNAL_H */
+#endif              /* PGSTAT_INTERNAL_H */

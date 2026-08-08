@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * fileset.c
- *	  Management of named temporary files.
+ *    Management of named temporary files.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/storage/file/fileset.c
+ *    src/backend/storage/file/fileset.c
  *
  * FileSets provide a temporary namespace (think directory) so that files can
  * be discovered by name.
@@ -31,7 +31,7 @@
 
 static void FileSetPath(char *path, FileSet *fileset, Oid tablespace);
 static void FilePath(char *path, FileSet *fileset, const char *name);
-static Oid	ChooseTablespace(const FileSet *fileset, const char *name);
+static Oid  ChooseTablespace(const FileSet *fileset, const char *name);
 
 /*
  * Initialize a space for temporary files. This API can be used by shared
@@ -51,38 +51,35 @@ static Oid	ChooseTablespace(const FileSet *fileset, const char *name);
 void
 FileSetInit(FileSet *fileset)
 {
-	static uint32 counter = 0;
+  static uint32 counter = 0;
 
-	fileset->creator_pid = MyProcPid;
-	fileset->number = counter;
-	counter = (counter + 1) % INT_MAX;
+  fileset->creator_pid = MyProcPid;
+  fileset->number = counter;
+  counter = (counter + 1) % INT_MAX;
 
-	/* Capture the tablespace OIDs so that all backends agree on them. */
-	PrepareTempTablespaces();
-	fileset->ntablespaces =
-		GetTempTablespaces(&fileset->tablespaces[0],
-						   lengthof(fileset->tablespaces));
-	if (fileset->ntablespaces == 0)
-	{
-		/* If the GUC is empty, use current database's default tablespace */
-		fileset->tablespaces[0] = MyDatabaseTableSpace;
-		fileset->ntablespaces = 1;
-	}
-	else
-	{
-		int			i;
+  /* Capture the tablespace OIDs so that all backends agree on them. */
+  PrepareTempTablespaces();
+  fileset->ntablespaces =
+    GetTempTablespaces(&fileset->tablespaces[0],
+                       lengthof(fileset->tablespaces));
 
-		/*
-		 * An entry of InvalidOid means use the default tablespace for the
-		 * current database.  Replace that now, to be sure that all users of
-		 * the FileSet agree on what to do.
-		 */
-		for (i = 0; i < fileset->ntablespaces; i++)
-		{
-			if (fileset->tablespaces[i] == InvalidOid)
-				fileset->tablespaces[i] = MyDatabaseTableSpace;
-		}
-	}
+  if (fileset->ntablespaces == 0) {
+    /* If the GUC is empty, use current database's default tablespace */
+    fileset->tablespaces[0] = MyDatabaseTableSpace;
+    fileset->ntablespaces = 1;
+  } else {
+    int     i;
+
+    /*
+     * An entry of InvalidOid means use the default tablespace for the
+     * current database.  Replace that now, to be sure that all users of
+     * the FileSet agree on what to do.
+     */
+    for (i = 0; i < fileset->ntablespaces; i++) {
+      if (fileset->tablespaces[i] == InvalidOid)
+        fileset->tablespaces[i] = MyDatabaseTableSpace;
+    }
+  }
 }
 
 /*
@@ -91,26 +88,25 @@ FileSetInit(FileSet *fileset)
 File
 FileSetCreate(FileSet *fileset, const char *name)
 {
-	char		path[MAXPGPATH];
-	File		file;
+  char    path[MAXPGPATH];
+  File    file;
 
-	FilePath(path, fileset, name);
-	file = PathNameCreateTemporaryFile(path, false);
+  FilePath(path, fileset, name);
+  file = PathNameCreateTemporaryFile(path, false);
 
-	/* If we failed, see if we need to create the directory on demand. */
-	if (file <= 0)
-	{
-		char		tempdirpath[MAXPGPATH];
-		char		filesetpath[MAXPGPATH];
-		Oid			tablespace = ChooseTablespace(fileset, name);
+  /* If we failed, see if we need to create the directory on demand. */
+  if (file <= 0) {
+    char    tempdirpath[MAXPGPATH];
+    char    filesetpath[MAXPGPATH];
+    Oid     tablespace = ChooseTablespace(fileset, name);
 
-		TempTablespacePath(tempdirpath, tablespace);
-		FileSetPath(filesetpath, fileset, tablespace);
-		PathNameCreateTemporaryDir(tempdirpath, filesetpath);
-		file = PathNameCreateTemporaryFile(path, true);
-	}
+    TempTablespacePath(tempdirpath, tablespace);
+    FileSetPath(filesetpath, fileset, tablespace);
+    PathNameCreateTemporaryDir(tempdirpath, filesetpath);
+    file = PathNameCreateTemporaryFile(path, true);
+  }
 
-	return file;
+  return file;
 }
 
 /*
@@ -118,13 +114,13 @@ FileSetCreate(FileSet *fileset, const char *name)
 File
 FileSetOpen(FileSet *fileset, const char *name, int mode)
 {
-	char		path[MAXPGPATH];
-	File		file;
+  char    path[MAXPGPATH];
+  File    file;
 
-	FilePath(path, fileset, name);
-	file = PathNameOpenTemporaryFile(path, mode);
+  FilePath(path, fileset, name);
+  file = PathNameOpenTemporaryFile(path, mode);
 
-	return file;
+  return file;
 }
 
 /*
@@ -134,13 +130,13 @@ FileSetOpen(FileSet *fileset, const char *name, int mode)
  */
 bool
 FileSetDelete(FileSet *fileset, const char *name,
-			  bool error_on_failure)
+              bool error_on_failure)
 {
-	char		path[MAXPGPATH];
+  char    path[MAXPGPATH];
 
-	FilePath(path, fileset, name);
+  FilePath(path, fileset, name);
 
-	return PathNameDeleteTemporaryFile(path, error_on_failure);
+  return PathNameDeleteTemporaryFile(path, error_on_failure);
 }
 
 /*
@@ -149,19 +145,18 @@ FileSetDelete(FileSet *fileset, const char *name,
 void
 FileSetDeleteAll(FileSet *fileset)
 {
-	char		dirpath[MAXPGPATH];
-	int			i;
+  char    dirpath[MAXPGPATH];
+  int     i;
 
-	/*
-	 * Delete the directory we created in each tablespace.  Doesn't fail
-	 * because we use this in error cleanup paths, but can generate LOG
-	 * message on IO error.
-	 */
-	for (i = 0; i < fileset->ntablespaces; ++i)
-	{
-		FileSetPath(dirpath, fileset, fileset->tablespaces[i]);
-		PathNameDeleteTemporaryDir(dirpath);
-	}
+  /*
+   * Delete the directory we created in each tablespace.  Doesn't fail
+   * because we use this in error cleanup paths, but can generate LOG
+   * message on IO error.
+   */
+  for (i = 0; i < fileset->ntablespaces; ++i) {
+    FileSetPath(dirpath, fileset, fileset->tablespaces[i]);
+    PathNameDeleteTemporaryDir(dirpath);
+  }
 }
 
 /*
@@ -171,12 +166,12 @@ FileSetDeleteAll(FileSet *fileset)
 static void
 FileSetPath(char *path, FileSet *fileset, Oid tablespace)
 {
-	char		tempdirpath[MAXPGPATH];
+  char    tempdirpath[MAXPGPATH];
 
-	TempTablespacePath(tempdirpath, tablespace);
-	snprintf(path, MAXPGPATH, "%s/%s%lu.%u.fileset",
-			 tempdirpath, PG_TEMP_FILE_PREFIX,
-			 (unsigned long) fileset->creator_pid, fileset->number);
+  TempTablespacePath(tempdirpath, tablespace);
+  snprintf(path, MAXPGPATH, "%s/%s%lu.%u.fileset",
+           tempdirpath, PG_TEMP_FILE_PREFIX,
+           (unsigned long) fileset->creator_pid, fileset->number);
 }
 
 /*
@@ -185,9 +180,9 @@ FileSetPath(char *path, FileSet *fileset, Oid tablespace)
 static Oid
 ChooseTablespace(const FileSet *fileset, const char *name)
 {
-	uint32		hash = hash_any((const unsigned char *) name, strlen(name));
+  uint32    hash = hash_any((const unsigned char *) name, strlen(name));
 
-	return fileset->tablespaces[hash % fileset->ntablespaces];
+  return fileset->tablespaces[hash % fileset->ntablespaces];
 }
 
 /*
@@ -196,8 +191,8 @@ ChooseTablespace(const FileSet *fileset, const char *name)
 static void
 FilePath(char *path, FileSet *fileset, const char *name)
 {
-	char		dirpath[MAXPGPATH];
+  char    dirpath[MAXPGPATH];
 
-	FileSetPath(dirpath, fileset, ChooseTablespace(fileset, name));
-	snprintf(path, MAXPGPATH, "%s/%s", dirpath, name);
+  FileSetPath(dirpath, fileset, ChooseTablespace(fileset, name));
+  snprintf(path, MAXPGPATH, "%s/%s", dirpath, name);
 }

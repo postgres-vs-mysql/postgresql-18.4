@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * arraysubs.c
- *	  Subscripting support functions for arrays.
+ *    Subscripting support functions for arrays.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/backend/utils/adt/arraysubs.c
+ *    src/backend/utils/adt/arraysubs.c
  *
  *-------------------------------------------------------------------------
  */
@@ -27,22 +27,21 @@
 
 
 /* SubscriptingRefState.workspace for array subscripting execution */
-typedef struct ArraySubWorkspace
-{
-	/* Values determined during expression compilation */
-	Oid			refelemtype;	/* OID of the array element type */
-	int16		refattrlength;	/* typlen of array type */
-	int16		refelemlength;	/* typlen of the array element type */
-	bool		refelembyval;	/* is the element type pass-by-value? */
-	char		refelemalign;	/* typalign of the element type */
+typedef struct ArraySubWorkspace {
+  /* Values determined during expression compilation */
+  Oid     refelemtype;  /* OID of the array element type */
+  int16   refattrlength;  /* typlen of array type */
+  int16   refelemlength;  /* typlen of the array element type */
+  bool    refelembyval; /* is the element type pass-by-value? */
+  char    refelemalign; /* typalign of the element type */
 
-	/*
-	 * Subscript values converted to integers.  Note that these arrays must be
-	 * of length MAXDIM even when dealing with fewer subscripts, because
-	 * array_get/set_slice may scribble on the extra entries.
-	 */
-	int			upperindex[MAXDIM];
-	int			lowerindex[MAXDIM];
+  /*
+   * Subscript values converted to integers.  Note that these arrays must be
+   * of length MAXDIM even when dealing with fewer subscripts, because
+   * array_get/set_slice may scribble on the extra entries.
+   */
+  int     upperindex[MAXDIM];
+  int     lowerindex[MAXDIM];
 } ArraySubWorkspace;
 
 
@@ -54,114 +53,108 @@ typedef struct ArraySubWorkspace
  */
 static void
 array_subscript_transform(SubscriptingRef *sbsref,
-						  List *indirection,
-						  ParseState *pstate,
-						  bool isSlice,
-						  bool isAssignment)
+                          List *indirection,
+                          ParseState *pstate,
+                          bool isSlice,
+                          bool isAssignment)
 {
-	List	   *upperIndexpr = NIL;
-	List	   *lowerIndexpr = NIL;
-	ListCell   *idx;
+  List     *upperIndexpr = NIL;
+  List     *lowerIndexpr = NIL;
+  ListCell   *idx;
 
-	/*
-	 * Transform the subscript expressions, and separate upper and lower
-	 * bounds into two lists.
-	 *
-	 * If we have a container slice expression, we convert any non-slice
-	 * indirection items to slices by treating the single subscript as the
-	 * upper bound and supplying an assumed lower bound of 1.
-	 */
-	foreach(idx, indirection)
-	{
-		A_Indices  *ai = lfirst_node(A_Indices, idx);
-		Node	   *subexpr;
+  /*
+   * Transform the subscript expressions, and separate upper and lower
+   * bounds into two lists.
+   *
+   * If we have a container slice expression, we convert any non-slice
+   * indirection items to slices by treating the single subscript as the
+   * upper bound and supplying an assumed lower bound of 1.
+   */
+  foreach(idx, indirection) {
+    A_Indices  *ai = lfirst_node(A_Indices, idx);
+    Node     *subexpr;
 
-		if (isSlice)
-		{
-			if (ai->lidx)
-			{
-				subexpr = transformExpr(pstate, ai->lidx, pstate->p_expr_kind);
-				/* If it's not int4 already, try to coerce */
-				subexpr = coerce_to_target_type(pstate,
-												subexpr, exprType(subexpr),
-												INT4OID, -1,
-												COERCION_ASSIGNMENT,
-												COERCE_IMPLICIT_CAST,
-												-1);
-				if (subexpr == NULL)
-					ereport(ERROR,
-							(errcode(ERRCODE_DATATYPE_MISMATCH),
-							 errmsg("array subscript must have type integer"),
-							 parser_errposition(pstate, exprLocation(ai->lidx))));
-			}
-			else if (!ai->is_slice)
-			{
-				/* Make a constant 1 */
-				subexpr = (Node *) makeConst(INT4OID,
-											 -1,
-											 InvalidOid,
-											 sizeof(int32),
-											 Int32GetDatum(1),
-											 false,
-											 true); /* pass by value */
-			}
-			else
-			{
-				/* Slice with omitted lower bound, put NULL into the list */
-				subexpr = NULL;
-			}
-			lowerIndexpr = lappend(lowerIndexpr, subexpr);
-		}
-		else
-			Assert(ai->lidx == NULL && !ai->is_slice);
+    if (isSlice) {
+      if (ai->lidx) {
+        subexpr = transformExpr(pstate, ai->lidx, pstate->p_expr_kind);
+        /* If it's not int4 already, try to coerce */
+        subexpr = coerce_to_target_type(pstate,
+                                        subexpr, exprType(subexpr),
+                                        INT4OID, -1,
+                                        COERCION_ASSIGNMENT,
+                                        COERCE_IMPLICIT_CAST,
+                                        -1);
 
-		if (ai->uidx)
-		{
-			subexpr = transformExpr(pstate, ai->uidx, pstate->p_expr_kind);
-			/* If it's not int4 already, try to coerce */
-			subexpr = coerce_to_target_type(pstate,
-											subexpr, exprType(subexpr),
-											INT4OID, -1,
-											COERCION_ASSIGNMENT,
-											COERCE_IMPLICIT_CAST,
-											-1);
-			if (subexpr == NULL)
-				ereport(ERROR,
-						(errcode(ERRCODE_DATATYPE_MISMATCH),
-						 errmsg("array subscript must have type integer"),
-						 parser_errposition(pstate, exprLocation(ai->uidx))));
-		}
-		else
-		{
-			/* Slice with omitted upper bound, put NULL into the list */
-			Assert(isSlice && ai->is_slice);
-			subexpr = NULL;
-		}
-		upperIndexpr = lappend(upperIndexpr, subexpr);
-	}
+        if (subexpr == NULL)
+          ereport(ERROR,
+                  (errcode(ERRCODE_DATATYPE_MISMATCH),
+                   errmsg("array subscript must have type integer"),
+                   parser_errposition(pstate, exprLocation(ai->lidx))));
+      } else if (!ai->is_slice) {
+        /* Make a constant 1 */
+        subexpr = (Node *) makeConst(INT4OID,
+                                     -1,
+                                     InvalidOid,
+                                     sizeof(int32),
+                                     Int32GetDatum(1),
+                                     false,
+                                     true); /* pass by value */
+      } else {
+        /* Slice with omitted lower bound, put NULL into the list */
+        subexpr = NULL;
+      }
 
-	/* ... and store the transformed lists into the SubscriptRef node */
-	sbsref->refupperindexpr = upperIndexpr;
-	sbsref->reflowerindexpr = lowerIndexpr;
+      lowerIndexpr = lappend(lowerIndexpr, subexpr);
+    } else
+      Assert(ai->lidx == NULL && !ai->is_slice);
 
-	/* Verify subscript list lengths are within implementation limit */
-	if (list_length(upperIndexpr) > MAXDIM)
-		ereport(ERROR,
-				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-				 errmsg("number of array dimensions (%d) exceeds the maximum allowed (%d)",
-						list_length(upperIndexpr), MAXDIM)));
-	/* We need not check lowerIndexpr separately */
+    if (ai->uidx) {
+      subexpr = transformExpr(pstate, ai->uidx, pstate->p_expr_kind);
+      /* If it's not int4 already, try to coerce */
+      subexpr = coerce_to_target_type(pstate,
+                                      subexpr, exprType(subexpr),
+                                      INT4OID, -1,
+                                      COERCION_ASSIGNMENT,
+                                      COERCE_IMPLICIT_CAST,
+                                      -1);
 
-	/*
-	 * Determine the result type of the subscripting operation.  It's the same
-	 * as the array type if we're slicing, else it's the element type.  In
-	 * either case, the typmod is the same as the array's, so we need not
-	 * change reftypmod.
-	 */
-	if (isSlice)
-		sbsref->refrestype = sbsref->refcontainertype;
-	else
-		sbsref->refrestype = sbsref->refelemtype;
+      if (subexpr == NULL)
+        ereport(ERROR,
+                (errcode(ERRCODE_DATATYPE_MISMATCH),
+                 errmsg("array subscript must have type integer"),
+                 parser_errposition(pstate, exprLocation(ai->uidx))));
+    } else {
+      /* Slice with omitted upper bound, put NULL into the list */
+      Assert(isSlice && ai->is_slice);
+      subexpr = NULL;
+    }
+
+    upperIndexpr = lappend(upperIndexpr, subexpr);
+  }
+
+  /* ... and store the transformed lists into the SubscriptRef node */
+  sbsref->refupperindexpr = upperIndexpr;
+  sbsref->reflowerindexpr = lowerIndexpr;
+
+  /* Verify subscript list lengths are within implementation limit */
+  if (list_length(upperIndexpr) > MAXDIM)
+    ereport(ERROR,
+            (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+             errmsg("number of array dimensions (%d) exceeds the maximum allowed (%d)",
+                    list_length(upperIndexpr), MAXDIM)));
+
+  /* We need not check lowerIndexpr separately */
+
+  /*
+   * Determine the result type of the subscripting operation.  It's the same
+   * as the array type if we're slicing, else it's the element type.  In
+   * either case, the typmod is the same as the array's, so we need not
+   * change reftypmod.
+   */
+  if (isSlice)
+    sbsref->refrestype = sbsref->refcontainertype;
+  else
+    sbsref->refrestype = sbsref->refelemtype;
 }
 
 /*
@@ -179,51 +172,49 @@ array_subscript_transform(SubscriptingRef *sbsref,
  */
 static bool
 array_subscript_check_subscripts(ExprState *state,
-								 ExprEvalStep *op,
-								 ExprContext *econtext)
+                                 ExprEvalStep *op,
+                                 ExprContext *econtext)
 {
-	SubscriptingRefState *sbsrefstate = op->d.sbsref_subscript.state;
-	ArraySubWorkspace *workspace = (ArraySubWorkspace *) sbsrefstate->workspace;
+  SubscriptingRefState *sbsrefstate = op->d.sbsref_subscript.state;
+  ArraySubWorkspace *workspace = (ArraySubWorkspace *) sbsrefstate->workspace;
 
-	/* Process upper subscripts */
-	for (int i = 0; i < sbsrefstate->numupper; i++)
-	{
-		if (sbsrefstate->upperprovided[i])
-		{
-			/* If any index expr yields NULL, result is NULL or error */
-			if (sbsrefstate->upperindexnull[i])
-			{
-				if (sbsrefstate->isassignment)
-					ereport(ERROR,
-							(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
-							 errmsg("array subscript in assignment must not be null")));
-				*op->resnull = true;
-				return false;
-			}
-			workspace->upperindex[i] = DatumGetInt32(sbsrefstate->upperindex[i]);
-		}
-	}
+  /* Process upper subscripts */
+  for (int i = 0; i < sbsrefstate->numupper; i++) {
+    if (sbsrefstate->upperprovided[i]) {
+      /* If any index expr yields NULL, result is NULL or error */
+      if (sbsrefstate->upperindexnull[i]) {
+        if (sbsrefstate->isassignment)
+          ereport(ERROR,
+                  (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+                   errmsg("array subscript in assignment must not be null")));
 
-	/* Likewise for lower subscripts */
-	for (int i = 0; i < sbsrefstate->numlower; i++)
-	{
-		if (sbsrefstate->lowerprovided[i])
-		{
-			/* If any index expr yields NULL, result is NULL or error */
-			if (sbsrefstate->lowerindexnull[i])
-			{
-				if (sbsrefstate->isassignment)
-					ereport(ERROR,
-							(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
-							 errmsg("array subscript in assignment must not be null")));
-				*op->resnull = true;
-				return false;
-			}
-			workspace->lowerindex[i] = DatumGetInt32(sbsrefstate->lowerindex[i]);
-		}
-	}
+        *op->resnull = true;
+        return false;
+      }
 
-	return true;
+      workspace->upperindex[i] = DatumGetInt32(sbsrefstate->upperindex[i]);
+    }
+  }
+
+  /* Likewise for lower subscripts */
+  for (int i = 0; i < sbsrefstate->numlower; i++) {
+    if (sbsrefstate->lowerprovided[i]) {
+      /* If any index expr yields NULL, result is NULL or error */
+      if (sbsrefstate->lowerindexnull[i]) {
+        if (sbsrefstate->isassignment)
+          ereport(ERROR,
+                  (errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED),
+                   errmsg("array subscript in assignment must not be null")));
+
+        *op->resnull = true;
+        return false;
+      }
+
+      workspace->lowerindex[i] = DatumGetInt32(sbsrefstate->lowerindex[i]);
+    }
+  }
+
+  return true;
 }
 
 /*
@@ -235,23 +226,23 @@ array_subscript_check_subscripts(ExprState *state,
  */
 static void
 array_subscript_fetch(ExprState *state,
-					  ExprEvalStep *op,
-					  ExprContext *econtext)
+                      ExprEvalStep *op,
+                      ExprContext *econtext)
 {
-	SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
-	ArraySubWorkspace *workspace = (ArraySubWorkspace *) sbsrefstate->workspace;
+  SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
+  ArraySubWorkspace *workspace = (ArraySubWorkspace *) sbsrefstate->workspace;
 
-	/* Should not get here if source array (or any subscript) is null */
-	Assert(!(*op->resnull));
+  /* Should not get here if source array (or any subscript) is null */
+  Assert(!(*op->resnull));
 
-	*op->resvalue = array_get_element(*op->resvalue,
-									  sbsrefstate->numupper,
-									  workspace->upperindex,
-									  workspace->refattrlength,
-									  workspace->refelemlength,
-									  workspace->refelembyval,
-									  workspace->refelemalign,
-									  op->resnull);
+  *op->resvalue = array_get_element(*op->resvalue,
+                                    sbsrefstate->numupper,
+                                    workspace->upperindex,
+                                    workspace->refattrlength,
+                                    workspace->refelemlength,
+                                    workspace->refelembyval,
+                                    workspace->refelemalign,
+                                    op->resnull);
 }
 
 /*
@@ -263,26 +254,26 @@ array_subscript_fetch(ExprState *state,
  */
 static void
 array_subscript_fetch_slice(ExprState *state,
-							ExprEvalStep *op,
-							ExprContext *econtext)
+                            ExprEvalStep *op,
+                            ExprContext *econtext)
 {
-	SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
-	ArraySubWorkspace *workspace = (ArraySubWorkspace *) sbsrefstate->workspace;
+  SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
+  ArraySubWorkspace *workspace = (ArraySubWorkspace *) sbsrefstate->workspace;
 
-	/* Should not get here if source array (or any subscript) is null */
-	Assert(!(*op->resnull));
+  /* Should not get here if source array (or any subscript) is null */
+  Assert(!(*op->resnull));
 
-	*op->resvalue = array_get_slice(*op->resvalue,
-									sbsrefstate->numupper,
-									workspace->upperindex,
-									workspace->lowerindex,
-									sbsrefstate->upperprovided,
-									sbsrefstate->lowerprovided,
-									workspace->refattrlength,
-									workspace->refelemlength,
-									workspace->refelembyval,
-									workspace->refelemalign);
-	/* The slice is never NULL, so no need to change *op->resnull */
+  *op->resvalue = array_get_slice(*op->resvalue,
+                                  sbsrefstate->numupper,
+                                  workspace->upperindex,
+                                  workspace->lowerindex,
+                                  sbsrefstate->upperprovided,
+                                  sbsrefstate->lowerprovided,
+                                  workspace->refattrlength,
+                                  workspace->refelemlength,
+                                  workspace->refelembyval,
+                                  workspace->refelemalign);
+  /* The slice is never NULL, so no need to change *op->resnull */
 }
 
 /*
@@ -293,46 +284,44 @@ array_subscript_fetch_slice(ExprState *state,
  */
 static void
 array_subscript_assign(ExprState *state,
-					   ExprEvalStep *op,
-					   ExprContext *econtext)
+                       ExprEvalStep *op,
+                       ExprContext *econtext)
 {
-	SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
-	ArraySubWorkspace *workspace = (ArraySubWorkspace *) sbsrefstate->workspace;
-	Datum		arraySource = *op->resvalue;
+  SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
+  ArraySubWorkspace *workspace = (ArraySubWorkspace *) sbsrefstate->workspace;
+  Datum   arraySource = *op->resvalue;
 
-	/*
-	 * For an assignment to a fixed-length array type, both the original array
-	 * and the value to be assigned into it must be non-NULL, else we punt and
-	 * return the original array.
-	 */
-	if (workspace->refattrlength > 0)
-	{
-		if (*op->resnull || sbsrefstate->replacenull)
-			return;
-	}
+  /*
+   * For an assignment to a fixed-length array type, both the original array
+   * and the value to be assigned into it must be non-NULL, else we punt and
+   * return the original array.
+   */
+  if (workspace->refattrlength > 0) {
+    if (*op->resnull || sbsrefstate->replacenull)
+      return;
+  }
 
-	/*
-	 * For assignment to varlena arrays, we handle a NULL original array by
-	 * substituting an empty (zero-dimensional) array; insertion of the new
-	 * element will result in a singleton array value.  It does not matter
-	 * whether the new element is NULL.
-	 */
-	if (*op->resnull)
-	{
-		arraySource = PointerGetDatum(construct_empty_array(workspace->refelemtype));
-		*op->resnull = false;
-	}
+  /*
+   * For assignment to varlena arrays, we handle a NULL original array by
+   * substituting an empty (zero-dimensional) array; insertion of the new
+   * element will result in a singleton array value.  It does not matter
+   * whether the new element is NULL.
+   */
+  if (*op->resnull) {
+    arraySource = PointerGetDatum(construct_empty_array(workspace->refelemtype));
+    *op->resnull = false;
+  }
 
-	*op->resvalue = array_set_element(arraySource,
-									  sbsrefstate->numupper,
-									  workspace->upperindex,
-									  sbsrefstate->replacevalue,
-									  sbsrefstate->replacenull,
-									  workspace->refattrlength,
-									  workspace->refelemlength,
-									  workspace->refelembyval,
-									  workspace->refelemalign);
-	/* The result is never NULL, so no need to change *op->resnull */
+  *op->resvalue = array_set_element(arraySource,
+                                    sbsrefstate->numupper,
+                                    workspace->upperindex,
+                                    sbsrefstate->replacevalue,
+                                    sbsrefstate->replacenull,
+                                    workspace->refattrlength,
+                                    workspace->refelemlength,
+                                    workspace->refelembyval,
+                                    workspace->refelemalign);
+  /* The result is never NULL, so no need to change *op->resnull */
 }
 
 /*
@@ -343,49 +332,47 @@ array_subscript_assign(ExprState *state,
  */
 static void
 array_subscript_assign_slice(ExprState *state,
-							 ExprEvalStep *op,
-							 ExprContext *econtext)
+                             ExprEvalStep *op,
+                             ExprContext *econtext)
 {
-	SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
-	ArraySubWorkspace *workspace = (ArraySubWorkspace *) sbsrefstate->workspace;
-	Datum		arraySource = *op->resvalue;
+  SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
+  ArraySubWorkspace *workspace = (ArraySubWorkspace *) sbsrefstate->workspace;
+  Datum   arraySource = *op->resvalue;
 
-	/*
-	 * For an assignment to a fixed-length array type, both the original array
-	 * and the value to be assigned into it must be non-NULL, else we punt and
-	 * return the original array.
-	 */
-	if (workspace->refattrlength > 0)
-	{
-		if (*op->resnull || sbsrefstate->replacenull)
-			return;
-	}
+  /*
+   * For an assignment to a fixed-length array type, both the original array
+   * and the value to be assigned into it must be non-NULL, else we punt and
+   * return the original array.
+   */
+  if (workspace->refattrlength > 0) {
+    if (*op->resnull || sbsrefstate->replacenull)
+      return;
+  }
 
-	/*
-	 * For assignment to varlena arrays, we handle a NULL original array by
-	 * substituting an empty (zero-dimensional) array; insertion of the new
-	 * element will result in a singleton array value.  It does not matter
-	 * whether the new element is NULL.
-	 */
-	if (*op->resnull)
-	{
-		arraySource = PointerGetDatum(construct_empty_array(workspace->refelemtype));
-		*op->resnull = false;
-	}
+  /*
+   * For assignment to varlena arrays, we handle a NULL original array by
+   * substituting an empty (zero-dimensional) array; insertion of the new
+   * element will result in a singleton array value.  It does not matter
+   * whether the new element is NULL.
+   */
+  if (*op->resnull) {
+    arraySource = PointerGetDatum(construct_empty_array(workspace->refelemtype));
+    *op->resnull = false;
+  }
 
-	*op->resvalue = array_set_slice(arraySource,
-									sbsrefstate->numupper,
-									workspace->upperindex,
-									workspace->lowerindex,
-									sbsrefstate->upperprovided,
-									sbsrefstate->lowerprovided,
-									sbsrefstate->replacevalue,
-									sbsrefstate->replacenull,
-									workspace->refattrlength,
-									workspace->refelemlength,
-									workspace->refelembyval,
-									workspace->refelemalign);
-	/* The result is never NULL, so no need to change *op->resnull */
+  *op->resvalue = array_set_slice(arraySource,
+                                  sbsrefstate->numupper,
+                                  workspace->upperindex,
+                                  workspace->lowerindex,
+                                  sbsrefstate->upperprovided,
+                                  sbsrefstate->lowerprovided,
+                                  sbsrefstate->replacevalue,
+                                  sbsrefstate->replacenull,
+                                  workspace->refattrlength,
+                                  workspace->refelemlength,
+                                  workspace->refelembyval,
+                                  workspace->refelemalign);
+  /* The result is never NULL, so no need to change *op->resnull */
 }
 
 /*
@@ -398,27 +385,25 @@ array_subscript_assign_slice(ExprState *state,
  */
 static void
 array_subscript_fetch_old(ExprState *state,
-						  ExprEvalStep *op,
-						  ExprContext *econtext)
+                          ExprEvalStep *op,
+                          ExprContext *econtext)
 {
-	SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
-	ArraySubWorkspace *workspace = (ArraySubWorkspace *) sbsrefstate->workspace;
+  SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
+  ArraySubWorkspace *workspace = (ArraySubWorkspace *) sbsrefstate->workspace;
 
-	if (*op->resnull)
-	{
-		/* whole array is null, so any element is too */
-		sbsrefstate->prevvalue = (Datum) 0;
-		sbsrefstate->prevnull = true;
-	}
-	else
-		sbsrefstate->prevvalue = array_get_element(*op->resvalue,
-												   sbsrefstate->numupper,
-												   workspace->upperindex,
-												   workspace->refattrlength,
-												   workspace->refelemlength,
-												   workspace->refelembyval,
-												   workspace->refelemalign,
-												   &sbsrefstate->prevnull);
+  if (*op->resnull) {
+    /* whole array is null, so any element is too */
+    sbsrefstate->prevvalue = (Datum) 0;
+    sbsrefstate->prevnull = true;
+  } else
+    sbsrefstate->prevvalue = array_get_element(*op->resvalue,
+                             sbsrefstate->numupper,
+                             workspace->upperindex,
+                             workspace->refattrlength,
+                             workspace->refelemlength,
+                             workspace->refelembyval,
+                             workspace->refelemalign,
+                             &sbsrefstate->prevnull);
 }
 
 /*
@@ -438,33 +423,30 @@ array_subscript_fetch_old(ExprState *state,
  */
 static void
 array_subscript_fetch_old_slice(ExprState *state,
-								ExprEvalStep *op,
-								ExprContext *econtext)
+                                ExprEvalStep *op,
+                                ExprContext *econtext)
 {
-	SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
-	ArraySubWorkspace *workspace = (ArraySubWorkspace *) sbsrefstate->workspace;
+  SubscriptingRefState *sbsrefstate = op->d.sbsref.state;
+  ArraySubWorkspace *workspace = (ArraySubWorkspace *) sbsrefstate->workspace;
 
-	if (*op->resnull)
-	{
-		/* whole array is null, so any slice is too */
-		sbsrefstate->prevvalue = (Datum) 0;
-		sbsrefstate->prevnull = true;
-	}
-	else
-	{
-		sbsrefstate->prevvalue = array_get_slice(*op->resvalue,
-												 sbsrefstate->numupper,
-												 workspace->upperindex,
-												 workspace->lowerindex,
-												 sbsrefstate->upperprovided,
-												 sbsrefstate->lowerprovided,
-												 workspace->refattrlength,
-												 workspace->refelemlength,
-												 workspace->refelembyval,
-												 workspace->refelemalign);
-		/* slices of non-null arrays are never null */
-		sbsrefstate->prevnull = false;
-	}
+  if (*op->resnull) {
+    /* whole array is null, so any slice is too */
+    sbsrefstate->prevvalue = (Datum) 0;
+    sbsrefstate->prevnull = true;
+  } else {
+    sbsrefstate->prevvalue = array_get_slice(*op->resvalue,
+                             sbsrefstate->numupper,
+                             workspace->upperindex,
+                             workspace->lowerindex,
+                             sbsrefstate->upperprovided,
+                             sbsrefstate->lowerprovided,
+                             workspace->refattrlength,
+                             workspace->refelemlength,
+                             workspace->refelembyval,
+                             workspace->refelemalign);
+    /* slices of non-null arrays are never null */
+    sbsrefstate->prevnull = false;
+  }
 }
 
 /*
@@ -472,65 +454,63 @@ array_subscript_fetch_old_slice(ExprState *state,
  */
 static void
 array_exec_setup(const SubscriptingRef *sbsref,
-				 SubscriptingRefState *sbsrefstate,
-				 SubscriptExecSteps *methods)
+                 SubscriptingRefState *sbsrefstate,
+                 SubscriptExecSteps *methods)
 {
-	bool		is_slice = (sbsrefstate->numlower != 0);
-	ArraySubWorkspace *workspace;
+  bool    is_slice = (sbsrefstate->numlower != 0);
+  ArraySubWorkspace *workspace;
 
-	/*
-	 * Enforce the implementation limit on number of array subscripts.  This
-	 * check isn't entirely redundant with checking at parse time; conceivably
-	 * the expression was stored by a backend with a different MAXDIM value.
-	 */
-	if (sbsrefstate->numupper > MAXDIM)
-		ereport(ERROR,
-				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-				 errmsg("number of array dimensions (%d) exceeds the maximum allowed (%d)",
-						sbsrefstate->numupper, MAXDIM)));
+  /*
+   * Enforce the implementation limit on number of array subscripts.  This
+   * check isn't entirely redundant with checking at parse time; conceivably
+   * the expression was stored by a backend with a different MAXDIM value.
+   */
+  if (sbsrefstate->numupper > MAXDIM)
+    ereport(ERROR,
+            (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+             errmsg("number of array dimensions (%d) exceeds the maximum allowed (%d)",
+                    sbsrefstate->numupper, MAXDIM)));
 
-	/* Should be impossible if parser is sane, but check anyway: */
-	if (sbsrefstate->numlower != 0 &&
-		sbsrefstate->numupper != sbsrefstate->numlower)
-		elog(ERROR, "upper and lower index lists are not same length");
+  /* Should be impossible if parser is sane, but check anyway: */
+  if (sbsrefstate->numlower != 0 &&
+      sbsrefstate->numupper != sbsrefstate->numlower)
+    elog(ERROR, "upper and lower index lists are not same length");
 
-	/*
-	 * Allocate type-specific workspace.
-	 */
-	workspace = (ArraySubWorkspace *) palloc(sizeof(ArraySubWorkspace));
-	sbsrefstate->workspace = workspace;
+  /*
+   * Allocate type-specific workspace.
+   */
+  workspace = (ArraySubWorkspace *) palloc(sizeof(ArraySubWorkspace));
+  sbsrefstate->workspace = workspace;
 
-	/*
-	 * Collect datatype details we'll need at execution.
-	 */
-	workspace->refelemtype = sbsref->refelemtype;
-	workspace->refattrlength = get_typlen(sbsref->refcontainertype);
-	get_typlenbyvalalign(sbsref->refelemtype,
-						 &workspace->refelemlength,
-						 &workspace->refelembyval,
-						 &workspace->refelemalign);
+  /*
+   * Collect datatype details we'll need at execution.
+   */
+  workspace->refelemtype = sbsref->refelemtype;
+  workspace->refattrlength = get_typlen(sbsref->refcontainertype);
+  get_typlenbyvalalign(sbsref->refelemtype,
+                       &workspace->refelemlength,
+                       &workspace->refelembyval,
+                       &workspace->refelemalign);
 
-	/*
-	 * Pass back pointers to appropriate step execution functions.
-	 */
-	methods->sbs_check_subscripts = array_subscript_check_subscripts;
-	if (is_slice)
-	{
-		methods->sbs_fetch = array_subscript_fetch_slice;
-		methods->sbs_assign = array_subscript_assign_slice;
-		methods->sbs_fetch_old = array_subscript_fetch_old_slice;
-	}
-	else
-	{
-		methods->sbs_fetch = array_subscript_fetch;
-		methods->sbs_assign = array_subscript_assign;
-		methods->sbs_fetch_old = array_subscript_fetch_old;
-	}
+  /*
+   * Pass back pointers to appropriate step execution functions.
+   */
+  methods->sbs_check_subscripts = array_subscript_check_subscripts;
+
+  if (is_slice) {
+    methods->sbs_fetch = array_subscript_fetch_slice;
+    methods->sbs_assign = array_subscript_assign_slice;
+    methods->sbs_fetch_old = array_subscript_fetch_old_slice;
+  } else {
+    methods->sbs_fetch = array_subscript_fetch;
+    methods->sbs_assign = array_subscript_assign;
+    methods->sbs_fetch_old = array_subscript_fetch_old;
+  }
 }
 
 /*
  * array_subscript_handler
- *		Subscripting handler for standard varlena arrays.
+ *    Subscripting handler for standard varlena arrays.
  *
  * This should be used only for "true" array types, which have array headers
  * as understood by the varlena array routines, and are referenced by the
@@ -539,20 +519,20 @@ array_exec_setup(const SubscriptingRef *sbsref,
 Datum
 array_subscript_handler(PG_FUNCTION_ARGS)
 {
-	static const SubscriptRoutines sbsroutines = {
-		.transform = array_subscript_transform,
-		.exec_setup = array_exec_setup,
-		.fetch_strict = true,	/* fetch returns NULL for NULL inputs */
-		.fetch_leakproof = true,	/* fetch returns NULL for bad subscript */
-		.store_leakproof = false	/* ... but assignment throws error */
-	};
+  static const SubscriptRoutines sbsroutines = {
+    .transform = array_subscript_transform,
+    .exec_setup = array_exec_setup,
+    .fetch_strict = true, /* fetch returns NULL for NULL inputs */
+    .fetch_leakproof = true,  /* fetch returns NULL for bad subscript */
+    .store_leakproof = false  /* ... but assignment throws error */
+  };
 
-	PG_RETURN_POINTER(&sbsroutines);
+  PG_RETURN_POINTER(&sbsroutines);
 }
 
 /*
  * raw_array_subscript_handler
- *		Subscripting handler for "raw" arrays.
+ *    Subscripting handler for "raw" arrays.
  *
  * A "raw" array just contains N independent instances of the element type.
  * Currently we require both the element type and the array type to be fixed
@@ -566,15 +546,15 @@ array_subscript_handler(PG_FUNCTION_ARGS)
 Datum
 raw_array_subscript_handler(PG_FUNCTION_ARGS)
 {
-	static const SubscriptRoutines sbsroutines = {
-		.transform = array_subscript_transform,
-		.exec_setup = array_exec_setup,
-		.fetch_strict = true,	/* fetch returns NULL for NULL inputs */
-		.fetch_leakproof = true,	/* fetch returns NULL for bad subscript */
-		.store_leakproof = false	/* ... but assignment throws error */
-	};
+  static const SubscriptRoutines sbsroutines = {
+    .transform = array_subscript_transform,
+    .exec_setup = array_exec_setup,
+    .fetch_strict = true, /* fetch returns NULL for NULL inputs */
+    .fetch_leakproof = true,  /* fetch returns NULL for bad subscript */
+    .store_leakproof = false  /* ... but assignment throws error */
+  };
 
-	PG_RETURN_POINTER(&sbsroutines);
+  PG_RETURN_POINTER(&sbsroutines);
 }
 
 /*
@@ -585,27 +565,26 @@ raw_array_subscript_handler(PG_FUNCTION_ARGS)
 Datum
 array_subscript_handler_support(PG_FUNCTION_ARGS)
 {
-	Node	   *rawreq = (Node *) PG_GETARG_POINTER(0);
-	Node	   *ret = NULL;
+  Node     *rawreq = (Node *) PG_GETARG_POINTER(0);
+  Node     *ret = NULL;
 
-	if (IsA(rawreq, SupportRequestModifyInPlace))
-	{
-		/*
-		 * We can optimize in-place subscripted assignment if the refexpr is
-		 * the array being assigned to.  We don't need to worry about array
-		 * references within the refassgnexpr or the subscripts; however, if
-		 * there's no refassgnexpr then it's a fetch which there's no need to
-		 * optimize.
-		 */
-		SupportRequestModifyInPlace *req = (SupportRequestModifyInPlace *) rawreq;
-		Param	   *refexpr = (Param *) linitial(req->args);
+  if (IsA(rawreq, SupportRequestModifyInPlace)) {
+    /*
+     * We can optimize in-place subscripted assignment if the refexpr is
+     * the array being assigned to.  We don't need to worry about array
+     * references within the refassgnexpr or the subscripts; however, if
+     * there's no refassgnexpr then it's a fetch which there's no need to
+     * optimize.
+     */
+    SupportRequestModifyInPlace *req = (SupportRequestModifyInPlace *) rawreq;
+    Param    *refexpr = (Param *) linitial(req->args);
 
-		if (refexpr && IsA(refexpr, Param) &&
-			refexpr->paramkind == PARAM_EXTERN &&
-			refexpr->paramid == req->paramid &&
-			lsecond(req->args) != NULL)
-			ret = (Node *) refexpr;
-	}
+    if (refexpr && IsA(refexpr, Param) &&
+        refexpr->paramkind == PARAM_EXTERN &&
+        refexpr->paramid == req->paramid &&
+        lsecond(req->args) != NULL)
+      ret = (Node *) refexpr;
+  }
 
-	PG_RETURN_POINTER(ret);
+  PG_RETURN_POINTER(ret);
 }

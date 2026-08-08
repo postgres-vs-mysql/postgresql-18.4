@@ -30,96 +30,93 @@
  */
 PGconn *
 connectDatabase(const ConnParams *cparams, const char *progname,
-				bool echo, bool fail_ok, bool allow_password_reuse)
+                bool echo, bool fail_ok, bool allow_password_reuse)
 {
-	PGconn	   *conn;
-	bool		new_pass;
-	static char *password = NULL;
+  PGconn     *conn;
+  bool    new_pass;
+  static char *password = NULL;
 
-	/* Callers must supply at least dbname; other params can be NULL */
-	Assert(cparams->dbname);
+  /* Callers must supply at least dbname; other params can be NULL */
+  Assert(cparams->dbname);
 
-	if (!allow_password_reuse && password)
-	{
-		free(password);
-		password = NULL;
-	}
+  if (!allow_password_reuse && password) {
+    free(password);
+    password = NULL;
+  }
 
-	if (cparams->prompt_password == TRI_YES && password == NULL)
-		password = simple_prompt("Password: ", false);
+  if (cparams->prompt_password == TRI_YES && password == NULL)
+    password = simple_prompt("Password: ", false);
 
-	/*
-	 * Start the connection.  Loop until we have a password if requested by
-	 * backend.
-	 */
-	do
-	{
-		const char *keywords[8];
-		const char *values[8];
-		int			i = 0;
+  /*
+   * Start the connection.  Loop until we have a password if requested by
+   * backend.
+   */
+  do {
+    const char *keywords[8];
+    const char *values[8];
+    int     i = 0;
 
-		/*
-		 * If dbname is a connstring, its entries can override the other
-		 * values obtained from cparams; but in turn, override_dbname can
-		 * override the dbname component of it.
-		 */
-		keywords[i] = "host";
-		values[i++] = cparams->pghost;
-		keywords[i] = "port";
-		values[i++] = cparams->pgport;
-		keywords[i] = "user";
-		values[i++] = cparams->pguser;
-		keywords[i] = "password";
-		values[i++] = password;
-		keywords[i] = "dbname";
-		values[i++] = cparams->dbname;
-		if (cparams->override_dbname)
-		{
-			keywords[i] = "dbname";
-			values[i++] = cparams->override_dbname;
-		}
-		keywords[i] = "fallback_application_name";
-		values[i++] = progname;
-		keywords[i] = NULL;
-		values[i++] = NULL;
-		Assert(i <= lengthof(keywords));
+    /*
+     * If dbname is a connstring, its entries can override the other
+     * values obtained from cparams; but in turn, override_dbname can
+     * override the dbname component of it.
+     */
+    keywords[i] = "host";
+    values[i++] = cparams->pghost;
+    keywords[i] = "port";
+    values[i++] = cparams->pgport;
+    keywords[i] = "user";
+    values[i++] = cparams->pguser;
+    keywords[i] = "password";
+    values[i++] = password;
+    keywords[i] = "dbname";
+    values[i++] = cparams->dbname;
 
-		new_pass = false;
-		conn = PQconnectdbParams(keywords, values, true);
+    if (cparams->override_dbname) {
+      keywords[i] = "dbname";
+      values[i++] = cparams->override_dbname;
+    }
 
-		if (!conn)
-			pg_fatal("could not connect to database %s: out of memory",
-					 cparams->dbname);
+    keywords[i] = "fallback_application_name";
+    values[i++] = progname;
+    keywords[i] = NULL;
+    values[i++] = NULL;
+    Assert(i <= lengthof(keywords));
 
-		/*
-		 * No luck?  Trying asking (again) for a password.
-		 */
-		if (PQstatus(conn) == CONNECTION_BAD &&
-			PQconnectionNeedsPassword(conn) &&
-			cparams->prompt_password != TRI_NO)
-		{
-			PQfinish(conn);
-			free(password);
-			password = simple_prompt("Password: ", false);
-			new_pass = true;
-		}
-	} while (new_pass);
+    new_pass = false;
+    conn = PQconnectdbParams(keywords, values, true);
 
-	/* check to see that the backend connection was successfully made */
-	if (PQstatus(conn) == CONNECTION_BAD)
-	{
-		if (fail_ok)
-		{
-			PQfinish(conn);
-			return NULL;
-		}
-		pg_fatal("%s", PQerrorMessage(conn));
-	}
+    if (!conn)
+      pg_fatal("could not connect to database %s: out of memory",
+               cparams->dbname);
 
-	/* Start strict; callers may override this. */
-	PQclear(executeQuery(conn, ALWAYS_SECURE_SEARCH_PATH_SQL, echo));
+    /*
+     * No luck?  Trying asking (again) for a password.
+     */
+    if (PQstatus(conn) == CONNECTION_BAD &&
+        PQconnectionNeedsPassword(conn) &&
+        cparams->prompt_password != TRI_NO) {
+      PQfinish(conn);
+      free(password);
+      password = simple_prompt("Password: ", false);
+      new_pass = true;
+    }
+  } while (new_pass);
 
-	return conn;
+  /* check to see that the backend connection was successfully made */
+  if (PQstatus(conn) == CONNECTION_BAD) {
+    if (fail_ok) {
+      PQfinish(conn);
+      return NULL;
+    }
+
+    pg_fatal("%s", PQerrorMessage(conn));
+  }
+
+  /* Start strict; callers may override this. */
+  PQclear(executeQuery(conn, ALWAYS_SECURE_SEARCH_PATH_SQL, echo));
+
+  return conn;
 }
 
 /*
@@ -132,23 +129,24 @@ connectDatabase(const ConnParams *cparams, const char *progname,
  */
 PGconn *
 connectMaintenanceDatabase(ConnParams *cparams,
-						   const char *progname, bool echo)
+                           const char *progname, bool echo)
 {
-	PGconn	   *conn;
+  PGconn     *conn;
 
-	/* If a maintenance database name was specified, just connect to it. */
-	if (cparams->dbname)
-		return connectDatabase(cparams, progname, echo, false, false);
+  /* If a maintenance database name was specified, just connect to it. */
+  if (cparams->dbname)
+    return connectDatabase(cparams, progname, echo, false, false);
 
-	/* Otherwise, try postgres first and then template1. */
-	cparams->dbname = "postgres";
-	conn = connectDatabase(cparams, progname, echo, true, false);
-	if (!conn)
-	{
-		cparams->dbname = "template1";
-		conn = connectDatabase(cparams, progname, echo, false, false);
-	}
-	return conn;
+  /* Otherwise, try postgres first and then template1. */
+  cparams->dbname = "postgres";
+  conn = connectDatabase(cparams, progname, echo, true, false);
+
+  if (!conn) {
+    cparams->dbname = "template1";
+    conn = connectDatabase(cparams, progname, echo, false, false);
+  }
+
+  return conn;
 }
 
 /*
@@ -157,15 +155,14 @@ connectMaintenanceDatabase(ConnParams *cparams,
 void
 disconnectDatabase(PGconn *conn)
 {
-	Assert(conn != NULL);
+  Assert(conn != NULL);
 
-	if (PQtransactionStatus(conn) == PQTRANS_ACTIVE)
-	{
-		PGcancelConn *cancelConn = PQcancelCreate(conn);
+  if (PQtransactionStatus(conn) == PQTRANS_ACTIVE) {
+    PGcancelConn *cancelConn = PQcancelCreate(conn);
 
-		(void) PQcancelBlocking(cancelConn);
-		PQcancelFinish(cancelConn);
-	}
+    (void) PQcancelBlocking(cancelConn);
+    PQcancelFinish(cancelConn);
+  }
 
-	PQfinish(conn);
+  PQfinish(conn);
 }

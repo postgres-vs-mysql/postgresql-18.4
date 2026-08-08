@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_enum.h
- *	  definition of the "enum" system catalog (pg_enum)
+ *    definition of the "enum" system catalog (pg_enum)
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -10,8 +10,8 @@
  * src/include/catalog/pg_enum.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -19,26 +19,27 @@
 #define PG_ENUM_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_enum_d.h"	/* IWYU pragma: export */
+#include "catalog/pg_enum_d.h"  /* IWYU pragma: export */
 
 #include "nodes/pg_list.h"
 
 /* ----------------
- *		pg_enum definition.  cpp turns this into
- *		typedef struct FormData_pg_enum
+ *    pg_enum definition.  cpp turns this into
+ *    typedef struct FormData_pg_enum
  * ----------------
  */
-CATALOG(pg_enum,3501,EnumRelationId)
+CATALOG(pg_enum, 3501, EnumRelationId)
 {
-	Oid			oid;			/* oid */
-	Oid			enumtypid BKI_LOOKUP(pg_type);	/* OID of owning enum type */
-	float4		enumsortorder;	/* sort position of this enum value */
-	NameData	enumlabel;		/* text representation of enum value */
-} FormData_pg_enum;
+  Oid     oid;      /* oid */
+  Oid     enumtypid BKI_LOOKUP(pg_type);  /* OID of owning enum type */
+  float4    enumsortorder;  /* sort position of this enum value */
+  NameData  enumlabel;    /* text representation of enum value */
+}
+FormData_pg_enum;
 
 /* ----------------
- *		Form_pg_enum corresponds to a pointer to a tuple with
- *		the format of pg_enum relation.
+ *    Form_pg_enum corresponds to a pointer to a tuple with
+ *    the format of pg_enum relation.
  * ----------------
  */
 typedef FormData_pg_enum *Form_pg_enum;
@@ -56,14 +57,14 @@ MAKE_SYSCACHE(ENUMTYPOIDNAME, pg_enum_typid_label_index, 8);
 extern void EnumValuesCreate(Oid enumTypeOid, List *vals);
 extern void EnumValuesDelete(Oid enumTypeOid);
 extern void AddEnumLabel(Oid enumTypeOid, const char *newVal,
-						 const char *neighbor, bool newValIsAfter,
-						 bool skipIfExists);
+                         const char *neighbor, bool newValIsAfter,
+                         bool skipIfExists);
 extern void RenameEnumLabel(Oid enumTypeOid,
-							const char *oldVal, const char *newVal);
+                            const char *oldVal, const char *newVal);
 extern bool EnumUncommitted(Oid enum_id);
 extern Size EstimateUncommittedEnumsSpace(void);
 extern void SerializeUncommittedEnums(void *space, Size size);
 extern void RestoreUncommittedEnums(void *space);
 extern void AtEOXact_Enum(void);
 
-#endif							/* PG_ENUM_H */
+#endif              /* PG_ENUM_H */

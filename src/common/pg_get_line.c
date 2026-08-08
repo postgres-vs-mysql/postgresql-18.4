@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * pg_get_line.c
- *	  fgets() with an expansible result buffer
+ *    fgets() with an expansible result buffer
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/common/pg_get_line.c
+ *    src/common/pg_get_line.c
  *
  *-------------------------------------------------------------------------
  */
@@ -58,21 +58,20 @@
 char *
 pg_get_line(FILE *stream, PromptInterruptContext *prompt_ctx)
 {
-	StringInfoData buf;
+  StringInfoData buf;
 
-	initStringInfo(&buf);
+  initStringInfo(&buf);
 
-	if (!pg_get_line_append(stream, &buf, prompt_ctx))
-	{
-		/* ensure that free() doesn't mess up errno */
-		int			save_errno = errno;
+  if (!pg_get_line_append(stream, &buf, prompt_ctx)) {
+    /* ensure that free() doesn't mess up errno */
+    int     save_errno = errno;
 
-		pfree(buf.data);
-		errno = save_errno;
-		return NULL;
-	}
+    pfree(buf.data);
+    errno = save_errno;
+    return NULL;
+  }
 
-	return buf.data;
+  return buf.data;
 }
 
 /*
@@ -94,9 +93,9 @@ pg_get_line(FILE *stream, PromptInterruptContext *prompt_ctx)
 bool
 pg_get_line_buf(FILE *stream, StringInfo buf)
 {
-	/* We just need to drop any data from the previous call */
-	resetStringInfo(buf);
-	return pg_get_line_append(stream, buf, NULL);
+  /* We just need to drop any data from the previous call */
+  resetStringInfo(buf);
+  return pg_get_line_append(stream, buf, NULL);
 }
 
 /*
@@ -122,59 +121,56 @@ pg_get_line_buf(FILE *stream, StringInfo buf)
  */
 bool
 pg_get_line_append(FILE *stream, StringInfo buf,
-				   PromptInterruptContext *prompt_ctx)
+                   PromptInterruptContext *prompt_ctx)
 {
-	int			orig_len = buf->len;
+  int     orig_len = buf->len;
 
-	if (prompt_ctx && sigsetjmp(*((sigjmp_buf *) prompt_ctx->jmpbuf), 1) != 0)
-	{
-		/* Got here with longjmp */
-		prompt_ctx->canceled = true;
-		/* Discard any data we collected before detecting error */
-		buf->len = orig_len;
-		buf->data[orig_len] = '\0';
-		return false;
-	}
+  if (prompt_ctx && sigsetjmp(*((sigjmp_buf *) prompt_ctx->jmpbuf), 1) != 0) {
+    /* Got here with longjmp */
+    prompt_ctx->canceled = true;
+    /* Discard any data we collected before detecting error */
+    buf->len = orig_len;
+    buf->data[orig_len] = '\0';
+    return false;
+  }
 
-	/* Loop until newline or EOF/error */
-	for (;;)
-	{
-		char	   *res;
+  /* Loop until newline or EOF/error */
+  for (;;) {
+    char     *res;
 
-		/* Enable longjmp while waiting for input */
-		if (prompt_ctx)
-			*(prompt_ctx->enabled) = true;
+    /* Enable longjmp while waiting for input */
+    if (prompt_ctx)
+      *(prompt_ctx->enabled) = true;
 
-		/* Read some data, appending it to whatever we already have */
-		res = fgets(buf->data + buf->len, buf->maxlen - buf->len, stream);
+    /* Read some data, appending it to whatever we already have */
+    res = fgets(buf->data + buf->len, buf->maxlen - buf->len, stream);
 
-		/* Disable longjmp again, then break if fgets failed */
-		if (prompt_ctx)
-			*(prompt_ctx->enabled) = false;
+    /* Disable longjmp again, then break if fgets failed */
+    if (prompt_ctx)
+      *(prompt_ctx->enabled) = false;
 
-		if (res == NULL)
-			break;
+    if (res == NULL)
+      break;
 
-		/* Got data, so update buf->len */
-		buf->len += strlen(buf->data + buf->len);
+    /* Got data, so update buf->len */
+    buf->len += strlen(buf->data + buf->len);
 
-		/* Done if we have collected a newline */
-		if (buf->len > orig_len && buf->data[buf->len - 1] == '\n')
-			return true;
+    /* Done if we have collected a newline */
+    if (buf->len > orig_len && buf->data[buf->len - 1] == '\n')
+      return true;
 
-		/* Make some more room in the buffer, and loop to read more data */
-		enlargeStringInfo(buf, 128);
-	}
+    /* Make some more room in the buffer, and loop to read more data */
+    enlargeStringInfo(buf, 128);
+  }
 
-	/* Check for I/O errors and EOF */
-	if (ferror(stream) || buf->len == orig_len)
-	{
-		/* Discard any data we collected before detecting error */
-		buf->len = orig_len;
-		buf->data[orig_len] = '\0';
-		return false;
-	}
+  /* Check for I/O errors and EOF */
+  if (ferror(stream) || buf->len == orig_len) {
+    /* Discard any data we collected before detecting error */
+    buf->len = orig_len;
+    buf->data[orig_len] = '\0';
+    return false;
+  }
 
-	/* No newline at EOF, but we did collect some data */
-	return true;
+  /* No newline at EOF, but we did collect some data */
+  return true;
 }

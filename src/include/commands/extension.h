@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * extension.h
- *		Extension management commands (create/drop extension).
+ *    Extension management commands (create/drop extension).
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -38,23 +38,23 @@ extern ObjectAddress CreateExtension(ParseState *pstate, CreateExtensionStmt *st
 extern void RemoveExtensionById(Oid extId);
 
 extern ObjectAddress InsertExtensionTuple(const char *extName, Oid extOwner,
-										  Oid schemaOid, bool relocatable, const char *extVersion,
-										  Datum extConfig, Datum extCondition,
-										  List *requiredExtensions);
+    Oid schemaOid, bool relocatable, const char *extVersion,
+    Datum extConfig, Datum extCondition,
+    List *requiredExtensions);
 
 extern ObjectAddress ExecAlterExtensionStmt(ParseState *pstate, AlterExtensionStmt *stmt);
 
 extern ObjectAddress ExecAlterExtensionContentsStmt(AlterExtensionContentsStmt *stmt,
-													ObjectAddress *objAddr);
+    ObjectAddress *objAddr);
 
-extern Oid	get_extension_oid(const char *extname, bool missing_ok);
+extern Oid  get_extension_oid(const char *extname, bool missing_ok);
 extern char *get_extension_name(Oid ext_oid);
-extern Oid	get_extension_schema(Oid ext_oid);
+extern Oid  get_extension_schema(Oid ext_oid);
 extern bool extension_file_exists(const char *extensionName);
 
-extern Oid	get_function_sibling_type(Oid funcoid, const char *typname);
+extern Oid  get_function_sibling_type(Oid funcoid, const char *typname);
 
 extern ObjectAddress AlterExtensionNamespace(const char *extensionName, const char *newschema,
-											 Oid *oldschema);
+    Oid *oldschema);
 
-#endif							/* EXTENSION_H */
+#endif              /* EXTENSION_H */

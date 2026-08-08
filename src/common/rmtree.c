@@ -6,7 +6,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/common/rmtree.c
+ *    src/common/rmtree.c
  *
  *-------------------------------------------------------------------------
  */
@@ -36,97 +36,96 @@
 #endif
 
 /*
- *	rmtree
+ *  rmtree
  *
- *	Delete a directory tree recursively.
- *	Assumes path points to a valid directory.
- *	Deletes everything under path.
- *	If rmtopdir is true deletes the directory too.
- *	Returns true if successful, false if there was any problem.
- *	(The details of the problem are reported already, so caller
- *	doesn't really have to say anything more, but most do.)
+ *  Delete a directory tree recursively.
+ *  Assumes path points to a valid directory.
+ *  Deletes everything under path.
+ *  If rmtopdir is true deletes the directory too.
+ *  Returns true if successful, false if there was any problem.
+ *  (The details of the problem are reported already, so caller
+ *  doesn't really have to say anything more, but most do.)
  */
 bool
 rmtree(const char *path, bool rmtopdir)
 {
-	char		pathbuf[MAXPGPATH];
-	DIR		   *dir;
-	struct dirent *de;
-	bool		result = true;
-	size_t		dirnames_size = 0;
-	size_t		dirnames_capacity = 8;
-	char	  **dirnames;
+  char    pathbuf[MAXPGPATH];
+  DIR      *dir;
+  struct dirent *de;
+  bool    result = true;
+  size_t    dirnames_size = 0;
+  size_t    dirnames_capacity = 8;
+  char    **dirnames;
 
-	dir = OPENDIR(path);
-	if (dir == NULL)
-	{
-		pg_log_warning("could not open directory \"%s\": %m", path);
-		return false;
-	}
+  dir = OPENDIR(path);
 
-	dirnames = (char **) palloc(sizeof(char *) * dirnames_capacity);
+  if (dir == NULL) {
+    pg_log_warning("could not open directory \"%s\": %m", path);
+    return false;
+  }
 
-	while (errno = 0, (de = readdir(dir)))
-	{
-		if (strcmp(de->d_name, ".") == 0 ||
-			strcmp(de->d_name, "..") == 0)
-			continue;
-		snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, de->d_name);
-		switch (get_dirent_type(pathbuf, de, false, LOG_LEVEL))
-		{
-			case PGFILETYPE_ERROR:
-				/* already logged, press on */
-				break;
-			case PGFILETYPE_DIR:
+  dirnames = (char **) palloc(sizeof(char *) * dirnames_capacity);
 
-				/*
-				 * Defer recursion until after we've closed this directory, to
-				 * avoid using more than one file descriptor at a time.
-				 */
-				if (dirnames_size == dirnames_capacity)
-				{
-					dirnames = repalloc(dirnames,
-										sizeof(char *) * dirnames_capacity * 2);
-					dirnames_capacity *= 2;
-				}
-				dirnames[dirnames_size++] = pstrdup(pathbuf);
-				break;
-			default:
-				if (unlink(pathbuf) != 0 && errno != ENOENT)
-				{
-					pg_log_warning("could not remove file \"%s\": %m", pathbuf);
-					result = false;
-				}
-				break;
-		}
-	}
+  while (errno = 0, (de = readdir(dir))) {
+    if (strcmp(de->d_name, ".") == 0 ||
+        strcmp(de->d_name, "..") == 0)
+      continue;
 
-	if (errno != 0)
-	{
-		pg_log_warning("could not read directory \"%s\": %m", path);
-		result = false;
-	}
+    snprintf(pathbuf, sizeof(pathbuf), "%s/%s", path, de->d_name);
 
-	CLOSEDIR(dir);
+    switch (get_dirent_type(pathbuf, de, false, LOG_LEVEL)) {
+      case PGFILETYPE_ERROR:
+        /* already logged, press on */
+        break;
 
-	/* Now recurse into the subdirectories we found. */
-	for (size_t i = 0; i < dirnames_size; ++i)
-	{
-		if (!rmtree(dirnames[i], true))
-			result = false;
-		pfree(dirnames[i]);
-	}
+      case PGFILETYPE_DIR:
 
-	if (rmtopdir)
-	{
-		if (rmdir(path) != 0)
-		{
-			pg_log_warning("could not remove directory \"%s\": %m", path);
-			result = false;
-		}
-	}
+        /*
+         * Defer recursion until after we've closed this directory, to
+         * avoid using more than one file descriptor at a time.
+         */
+        if (dirnames_size == dirnames_capacity) {
+          dirnames = repalloc(dirnames,
+                              sizeof(char *) * dirnames_capacity * 2);
+          dirnames_capacity *= 2;
+        }
 
-	pfree(dirnames);
+        dirnames[dirnames_size++] = pstrdup(pathbuf);
+        break;
 
-	return result;
+      default:
+        if (unlink(pathbuf) != 0 && errno != ENOENT) {
+          pg_log_warning("could not remove file \"%s\": %m", pathbuf);
+          result = false;
+        }
+
+        break;
+    }
+  }
+
+  if (errno != 0) {
+    pg_log_warning("could not read directory \"%s\": %m", path);
+    result = false;
+  }
+
+  CLOSEDIR(dir);
+
+  /* Now recurse into the subdirectories we found. */
+  for (size_t i = 0; i < dirnames_size; ++i) {
+    if (!rmtree(dirnames[i], true))
+      result = false;
+
+    pfree(dirnames[i]);
+  }
+
+  if (rmtopdir) {
+    if (rmdir(path) != 0) {
+      pg_log_warning("could not remove directory \"%s\": %m", path);
+      result = false;
+    }
+  }
+
+  pfree(dirnames);
+
+  return result;
 }

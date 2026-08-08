@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_amproc.h
- *	  definition of the "access method procedure" system catalog (pg_amproc)
+ *    definition of the "access method procedure" system catalog (pg_amproc)
  *
  * The amproc table identifies support procedures associated with index
  * operator families and classes.  These procedures can't be listed in pg_amop
@@ -24,8 +24,8 @@
  * src/include/catalog/pg_amproc.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -33,36 +33,37 @@
 #define PG_AMPROC_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_amproc_d.h"	/* IWYU pragma: export */
+#include "catalog/pg_amproc_d.h"  /* IWYU pragma: export */
 
 /* ----------------
- *		pg_amproc definition.  cpp turns this into
- *		typedef struct FormData_pg_amproc
+ *    pg_amproc definition.  cpp turns this into
+ *    typedef struct FormData_pg_amproc
  * ----------------
  */
-CATALOG(pg_amproc,2603,AccessMethodProcedureRelationId)
+CATALOG(pg_amproc, 2603, AccessMethodProcedureRelationId)
 {
-	Oid			oid;			/* oid */
+  Oid     oid;      /* oid */
 
-	/* the index opfamily this entry is for */
-	Oid			amprocfamily BKI_LOOKUP(pg_opfamily);
+  /* the index opfamily this entry is for */
+  Oid     amprocfamily BKI_LOOKUP(pg_opfamily);
 
-	/* procedure's left input data type */
-	Oid			amproclefttype BKI_LOOKUP(pg_type);
+  /* procedure's left input data type */
+  Oid     amproclefttype BKI_LOOKUP(pg_type);
 
-	/* procedure's right input data type */
-	Oid			amprocrighttype BKI_LOOKUP(pg_type);
+  /* procedure's right input data type */
+  Oid     amprocrighttype BKI_LOOKUP(pg_type);
 
-	/* support procedure index */
-	int16		amprocnum;
+  /* support procedure index */
+  int16   amprocnum;
 
-	/* OID of the proc */
-	regproc		amproc BKI_LOOKUP(pg_proc);
-} FormData_pg_amproc;
+  /* OID of the proc */
+  regproc   amproc BKI_LOOKUP(pg_proc);
+}
+FormData_pg_amproc;
 
 /* ----------------
- *		Form_pg_amproc corresponds to a pointer to a tuple with
- *		the format of pg_amproc relation.
+ *    Form_pg_amproc corresponds to a pointer to a tuple with
+ *    the format of pg_amproc relation.
  * ----------------
  */
 typedef FormData_pg_amproc *Form_pg_amproc;
@@ -72,4 +73,4 @@ DECLARE_UNIQUE_INDEX_PKEY(pg_amproc_oid_index, 2757, AccessMethodProcedureOidInd
 
 MAKE_SYSCACHE(AMPROCNUM, pg_amproc_fam_proc_index, 16);
 
-#endif							/* PG_AMPROC_H */
+#endif              /* PG_AMPROC_H */

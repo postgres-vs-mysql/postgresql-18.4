@@ -1,17 +1,17 @@
 /*-------------------------------------------------------------------------
  *
  * like.c
- *	  like expression handling code.
+ *    like expression handling code.
  *
- *	 NOTES
- *		A big hack of the regexp.c code!! Contributed by
- *		Keith Parks <emkxp01@mtcc.demon.co.uk> (7/95).
+ *   NOTES
+ *    A big hack of the regexp.c code!! Contributed by
+ *    Keith Parks <emkxp01@mtcc.demon.co.uk> (7/95).
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	src/backend/utils/adt/like.c
+ *  src/backend/utils/adt/like.c
  *
  *-------------------------------------------------------------------------
  */
@@ -27,27 +27,27 @@
 #include "varatt.h"
 
 
-#define LIKE_TRUE						1
-#define LIKE_FALSE						0
-#define LIKE_ABORT						(-1)
+#define LIKE_TRUE           1
+#define LIKE_FALSE            0
+#define LIKE_ABORT            (-1)
 
 
-static int	SB_MatchText(const char *t, int tlen, const char *p, int plen,
-						 pg_locale_t locale);
+static int  SB_MatchText(const char *t, int tlen, const char *p, int plen,
+                         pg_locale_t locale);
 static text *SB_do_like_escape(text *pat, text *esc);
 
-static int	MB_MatchText(const char *t, int tlen, const char *p, int plen,
-						 pg_locale_t locale);
+static int  MB_MatchText(const char *t, int tlen, const char *p, int plen,
+                         pg_locale_t locale);
 static text *MB_do_like_escape(text *pat, text *esc);
 
-static int	UTF8_MatchText(const char *t, int tlen, const char *p, int plen,
-						   pg_locale_t locale);
+static int  UTF8_MatchText(const char *t, int tlen, const char *p, int plen,
+                           pg_locale_t locale);
 
-static int	SB_IMatchText(const char *t, int tlen, const char *p, int plen,
-						  pg_locale_t locale);
+static int  SB_IMatchText(const char *t, int tlen, const char *p, int plen,
+                          pg_locale_t locale);
 
-static int	GenericMatchText(const char *s, int slen, const char *p, int plen, Oid collation);
-static int	Generic_Text_IC_like(text *str, text *pat, Oid collation);
+static int  GenericMatchText(const char *s, int slen, const char *p, int plen, Oid collation);
+static int  Generic_Text_IC_like(text *str, text *pat, Oid collation);
 
 /*--------------------
  * Support routine for MatchText. Compares given multibyte streams
@@ -57,23 +57,24 @@ static int	Generic_Text_IC_like(text *str, text *pat, Oid collation);
 static inline int
 wchareq(const char *p1, int p1len, const char *p2, int p2len)
 {
-	int			p1clen;
+  int     p1clen;
 
-	/* Optimization:  quickly compare the first byte. */
-	if (*p1 != *p2)
-		return 0;
+  /* Optimization:  quickly compare the first byte. */
+  if (*p1 != *p2)
+    return 0;
 
-	p1clen = pg_mblen_with_len(p1, p1len);
-	if (pg_mblen_with_len(p2, p2len) != p1clen)
-		return 0;
+  p1clen = pg_mblen_with_len(p1, p1len);
 
-	/* They are the same length */
-	while (p1clen--)
-	{
-		if (*p1++ != *p2++)
-			return 0;
-	}
-	return 1;
+  if (pg_mblen_with_len(p2, p2len) != p1clen)
+    return 0;
+
+  /* They are the same length */
+  while (p1clen--) {
+    if (*p1++ != *p2++)
+      return 0;
+  }
+
+  return 1;
 }
 
 /*
@@ -93,30 +94,30 @@ wchareq(const char *p1, int p1len, const char *p2, int p2len)
 static char
 SB_lower_char(unsigned char c, pg_locale_t locale)
 {
-	if (locale->ctype_is_c)
-		return pg_ascii_tolower(c);
-	else if (locale->is_default)
-		return pg_tolower(c);
-	else
-		return tolower_l(c, locale->info.lt);
+  if (locale->ctype_is_c)
+    return pg_ascii_tolower(c);
+  else if (locale->is_default)
+    return pg_tolower(c);
+  else
+    return tolower_l(c, locale->info.lt);
 }
 
 
-#define NextByte(p, plen)	((p)++, (plen)--)
+#define NextByte(p, plen) ((p)++, (plen)--)
 
 /* Set up to compile like_match.c for multibyte characters */
 #define CHAREQ(p1, p1len, p2, p2len) wchareq((p1), (p1len), (p2), (p2len))
 #define NextChar(p, plen) \
-	do { int __l = pg_mblen_with_len((p), (plen)); (p) +=__l; (plen) -=__l; } while (0)
+  do { int __l = pg_mblen_with_len((p), (plen)); (p) +=__l; (plen) -=__l; } while (0)
 #define CopyAdvChar(dst, src, srclen) \
-	do { int __l = pg_mblen_with_len((src), (srclen)); \
-		 (srclen) -= __l; \
-		 while (__l-- > 0) \
-			 *(dst)++ = *(src)++; \
-	   } while (0)
+  do { int __l = pg_mblen_with_len((src), (srclen)); \
+     (srclen) -= __l; \
+     while (__l-- > 0) \
+       *(dst)++ = *(src)++; \
+     } while (0)
 
-#define MatchText	MB_MatchText
-#define do_like_escape	MB_do_like_escape
+#define MatchText MB_MatchText
+#define do_like_escape  MB_do_like_escape
 
 #include "like_match.c"
 
@@ -125,8 +126,8 @@ SB_lower_char(unsigned char c, pg_locale_t locale)
 #define NextChar(p, plen) NextByte((p), (plen))
 #define CopyAdvChar(dst, src, srclen) (*(dst)++ = *(src)++, (srclen)--)
 
-#define MatchText	SB_MatchText
-#define do_like_escape	SB_do_like_escape
+#define MatchText SB_MatchText
+#define do_like_escape  SB_do_like_escape
 
 #include "like_match.c"
 
@@ -140,8 +141,8 @@ SB_lower_char(unsigned char c, pg_locale_t locale)
 /* setup to compile like_match.c for UTF8 encoding, using fast NextChar */
 
 #define NextChar(p, plen) \
-	do { (p)++; (plen)--; } while ((plen) > 0 && (*(p) & 0xC0) == 0x80 )
-#define MatchText	UTF8_MatchText
+  do { (p)++; (plen)--; } while ((plen) > 0 && (*(p) & 0xC0) == 0x80 )
+#define MatchText UTF8_MatchText
 
 #include "like_match.c"
 
@@ -149,219 +150,215 @@ SB_lower_char(unsigned char c, pg_locale_t locale)
 static inline int
 GenericMatchText(const char *s, int slen, const char *p, int plen, Oid collation)
 {
-	pg_locale_t locale;
+  pg_locale_t locale;
 
-	if (!OidIsValid(collation))
-	{
-		/*
-		 * This typically means that the parser could not resolve a conflict
-		 * of implicit collations, so report it that way.
-		 */
-		ereport(ERROR,
-				(errcode(ERRCODE_INDETERMINATE_COLLATION),
-				 errmsg("could not determine which collation to use for LIKE"),
-				 errhint("Use the COLLATE clause to set the collation explicitly.")));
-	}
+  if (!OidIsValid(collation)) {
+    /*
+     * This typically means that the parser could not resolve a conflict
+     * of implicit collations, so report it that way.
+     */
+    ereport(ERROR,
+            (errcode(ERRCODE_INDETERMINATE_COLLATION),
+             errmsg("could not determine which collation to use for LIKE"),
+             errhint("Use the COLLATE clause to set the collation explicitly.")));
+  }
 
-	locale = pg_newlocale_from_collation(collation);
+  locale = pg_newlocale_from_collation(collation);
 
-	if (pg_database_encoding_max_length() == 1)
-		return SB_MatchText(s, slen, p, plen, locale);
-	else if (GetDatabaseEncoding() == PG_UTF8)
-		return UTF8_MatchText(s, slen, p, plen, locale);
-	else
-		return MB_MatchText(s, slen, p, plen, locale);
+  if (pg_database_encoding_max_length() == 1)
+    return SB_MatchText(s, slen, p, plen, locale);
+  else if (GetDatabaseEncoding() == PG_UTF8)
+    return UTF8_MatchText(s, slen, p, plen, locale);
+  else
+    return MB_MatchText(s, slen, p, plen, locale);
 }
 
 static inline int
 Generic_Text_IC_like(text *str, text *pat, Oid collation)
 {
-	char	   *s,
-			   *p;
-	int			slen,
-				plen;
-	pg_locale_t locale;
+  char     *s,
+           *p;
+  int     slen,
+          plen;
+  pg_locale_t locale;
 
-	if (!OidIsValid(collation))
-	{
-		/*
-		 * This typically means that the parser could not resolve a conflict
-		 * of implicit collations, so report it that way.
-		 */
-		ereport(ERROR,
-				(errcode(ERRCODE_INDETERMINATE_COLLATION),
-				 errmsg("could not determine which collation to use for ILIKE"),
-				 errhint("Use the COLLATE clause to set the collation explicitly.")));
-	}
+  if (!OidIsValid(collation)) {
+    /*
+     * This typically means that the parser could not resolve a conflict
+     * of implicit collations, so report it that way.
+     */
+    ereport(ERROR,
+            (errcode(ERRCODE_INDETERMINATE_COLLATION),
+             errmsg("could not determine which collation to use for ILIKE"),
+             errhint("Use the COLLATE clause to set the collation explicitly.")));
+  }
 
-	locale = pg_newlocale_from_collation(collation);
+  locale = pg_newlocale_from_collation(collation);
 
-	if (!locale->deterministic)
-		ereport(ERROR,
-				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("nondeterministic collations are not supported for ILIKE")));
+  if (!locale->deterministic)
+    ereport(ERROR,
+            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+             errmsg("nondeterministic collations are not supported for ILIKE")));
 
-	/*
-	 * For efficiency reasons, in the single byte case we don't call lower()
-	 * on the pattern and text, but instead call SB_lower_char on each
-	 * character.  In the multi-byte case we don't have much choice :-(. Also,
-	 * ICU does not support single-character case folding, so we go the long
-	 * way.
-	 */
+  /*
+   * For efficiency reasons, in the single byte case we don't call lower()
+   * on the pattern and text, but instead call SB_lower_char on each
+   * character.  In the multi-byte case we don't have much choice :-(. Also,
+   * ICU does not support single-character case folding, so we go the long
+   * way.
+   */
 
-	if (pg_database_encoding_max_length() > 1 || (locale->provider == COLLPROVIDER_ICU))
-	{
-		pat = DatumGetTextPP(DirectFunctionCall1Coll(lower, collation,
-													 PointerGetDatum(pat)));
-		p = VARDATA_ANY(pat);
-		plen = VARSIZE_ANY_EXHDR(pat);
-		str = DatumGetTextPP(DirectFunctionCall1Coll(lower, collation,
-													 PointerGetDatum(str)));
-		s = VARDATA_ANY(str);
-		slen = VARSIZE_ANY_EXHDR(str);
-		if (GetDatabaseEncoding() == PG_UTF8)
-			return UTF8_MatchText(s, slen, p, plen, 0);
-		else
-			return MB_MatchText(s, slen, p, plen, 0);
-	}
-	else
-	{
-		p = VARDATA_ANY(pat);
-		plen = VARSIZE_ANY_EXHDR(pat);
-		s = VARDATA_ANY(str);
-		slen = VARSIZE_ANY_EXHDR(str);
-		return SB_IMatchText(s, slen, p, plen, locale);
-	}
+  if (pg_database_encoding_max_length() > 1 || (locale->provider == COLLPROVIDER_ICU)) {
+    pat = DatumGetTextPP(DirectFunctionCall1Coll(lower, collation,
+                         PointerGetDatum(pat)));
+    p = VARDATA_ANY(pat);
+    plen = VARSIZE_ANY_EXHDR(pat);
+    str = DatumGetTextPP(DirectFunctionCall1Coll(lower, collation,
+                         PointerGetDatum(str)));
+    s = VARDATA_ANY(str);
+    slen = VARSIZE_ANY_EXHDR(str);
+
+    if (GetDatabaseEncoding() == PG_UTF8)
+      return UTF8_MatchText(s, slen, p, plen, 0);
+    else
+      return MB_MatchText(s, slen, p, plen, 0);
+  } else {
+    p = VARDATA_ANY(pat);
+    plen = VARSIZE_ANY_EXHDR(pat);
+    s = VARDATA_ANY(str);
+    slen = VARSIZE_ANY_EXHDR(str);
+    return SB_IMatchText(s, slen, p, plen, locale);
+  }
 }
 
 /*
- *	interface routines called by the function manager
+ *  interface routines called by the function manager
  */
 
 Datum
 namelike(PG_FUNCTION_ARGS)
 {
-	Name		str = PG_GETARG_NAME(0);
-	text	   *pat = PG_GETARG_TEXT_PP(1);
-	bool		result;
-	char	   *s,
-			   *p;
-	int			slen,
-				plen;
+  Name    str = PG_GETARG_NAME(0);
+  text     *pat = PG_GETARG_TEXT_PP(1);
+  bool    result;
+  char     *s,
+           *p;
+  int     slen,
+          plen;
 
-	s = NameStr(*str);
-	slen = strlen(s);
-	p = VARDATA_ANY(pat);
-	plen = VARSIZE_ANY_EXHDR(pat);
+  s = NameStr(*str);
+  slen = strlen(s);
+  p = VARDATA_ANY(pat);
+  plen = VARSIZE_ANY_EXHDR(pat);
 
-	result = (GenericMatchText(s, slen, p, plen, PG_GET_COLLATION()) == LIKE_TRUE);
+  result = (GenericMatchText(s, slen, p, plen, PG_GET_COLLATION()) == LIKE_TRUE);
 
-	PG_RETURN_BOOL(result);
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 namenlike(PG_FUNCTION_ARGS)
 {
-	Name		str = PG_GETARG_NAME(0);
-	text	   *pat = PG_GETARG_TEXT_PP(1);
-	bool		result;
-	char	   *s,
-			   *p;
-	int			slen,
-				plen;
+  Name    str = PG_GETARG_NAME(0);
+  text     *pat = PG_GETARG_TEXT_PP(1);
+  bool    result;
+  char     *s,
+           *p;
+  int     slen,
+          plen;
 
-	s = NameStr(*str);
-	slen = strlen(s);
-	p = VARDATA_ANY(pat);
-	plen = VARSIZE_ANY_EXHDR(pat);
+  s = NameStr(*str);
+  slen = strlen(s);
+  p = VARDATA_ANY(pat);
+  plen = VARSIZE_ANY_EXHDR(pat);
 
-	result = (GenericMatchText(s, slen, p, plen, PG_GET_COLLATION()) != LIKE_TRUE);
+  result = (GenericMatchText(s, slen, p, plen, PG_GET_COLLATION()) != LIKE_TRUE);
 
-	PG_RETURN_BOOL(result);
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 textlike(PG_FUNCTION_ARGS)
 {
-	text	   *str = PG_GETARG_TEXT_PP(0);
-	text	   *pat = PG_GETARG_TEXT_PP(1);
-	bool		result;
-	char	   *s,
-			   *p;
-	int			slen,
-				plen;
+  text     *str = PG_GETARG_TEXT_PP(0);
+  text     *pat = PG_GETARG_TEXT_PP(1);
+  bool    result;
+  char     *s,
+           *p;
+  int     slen,
+          plen;
 
-	s = VARDATA_ANY(str);
-	slen = VARSIZE_ANY_EXHDR(str);
-	p = VARDATA_ANY(pat);
-	plen = VARSIZE_ANY_EXHDR(pat);
+  s = VARDATA_ANY(str);
+  slen = VARSIZE_ANY_EXHDR(str);
+  p = VARDATA_ANY(pat);
+  plen = VARSIZE_ANY_EXHDR(pat);
 
-	result = (GenericMatchText(s, slen, p, plen, PG_GET_COLLATION()) == LIKE_TRUE);
+  result = (GenericMatchText(s, slen, p, plen, PG_GET_COLLATION()) == LIKE_TRUE);
 
-	PG_RETURN_BOOL(result);
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 textnlike(PG_FUNCTION_ARGS)
 {
-	text	   *str = PG_GETARG_TEXT_PP(0);
-	text	   *pat = PG_GETARG_TEXT_PP(1);
-	bool		result;
-	char	   *s,
-			   *p;
-	int			slen,
-				plen;
+  text     *str = PG_GETARG_TEXT_PP(0);
+  text     *pat = PG_GETARG_TEXT_PP(1);
+  bool    result;
+  char     *s,
+           *p;
+  int     slen,
+          plen;
 
-	s = VARDATA_ANY(str);
-	slen = VARSIZE_ANY_EXHDR(str);
-	p = VARDATA_ANY(pat);
-	plen = VARSIZE_ANY_EXHDR(pat);
+  s = VARDATA_ANY(str);
+  slen = VARSIZE_ANY_EXHDR(str);
+  p = VARDATA_ANY(pat);
+  plen = VARSIZE_ANY_EXHDR(pat);
 
-	result = (GenericMatchText(s, slen, p, plen, PG_GET_COLLATION()) != LIKE_TRUE);
+  result = (GenericMatchText(s, slen, p, plen, PG_GET_COLLATION()) != LIKE_TRUE);
 
-	PG_RETURN_BOOL(result);
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 bytealike(PG_FUNCTION_ARGS)
 {
-	bytea	   *str = PG_GETARG_BYTEA_PP(0);
-	bytea	   *pat = PG_GETARG_BYTEA_PP(1);
-	bool		result;
-	char	   *s,
-			   *p;
-	int			slen,
-				plen;
+  bytea    *str = PG_GETARG_BYTEA_PP(0);
+  bytea    *pat = PG_GETARG_BYTEA_PP(1);
+  bool    result;
+  char     *s,
+           *p;
+  int     slen,
+          plen;
 
-	s = VARDATA_ANY(str);
-	slen = VARSIZE_ANY_EXHDR(str);
-	p = VARDATA_ANY(pat);
-	plen = VARSIZE_ANY_EXHDR(pat);
+  s = VARDATA_ANY(str);
+  slen = VARSIZE_ANY_EXHDR(str);
+  p = VARDATA_ANY(pat);
+  plen = VARSIZE_ANY_EXHDR(pat);
 
-	result = (SB_MatchText(s, slen, p, plen, 0) == LIKE_TRUE);
+  result = (SB_MatchText(s, slen, p, plen, 0) == LIKE_TRUE);
 
-	PG_RETURN_BOOL(result);
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 byteanlike(PG_FUNCTION_ARGS)
 {
-	bytea	   *str = PG_GETARG_BYTEA_PP(0);
-	bytea	   *pat = PG_GETARG_BYTEA_PP(1);
-	bool		result;
-	char	   *s,
-			   *p;
-	int			slen,
-				plen;
+  bytea    *str = PG_GETARG_BYTEA_PP(0);
+  bytea    *pat = PG_GETARG_BYTEA_PP(1);
+  bool    result;
+  char     *s,
+           *p;
+  int     slen,
+          plen;
 
-	s = VARDATA_ANY(str);
-	slen = VARSIZE_ANY_EXHDR(str);
-	p = VARDATA_ANY(pat);
-	plen = VARSIZE_ANY_EXHDR(pat);
+  s = VARDATA_ANY(str);
+  slen = VARSIZE_ANY_EXHDR(str);
+  p = VARDATA_ANY(pat);
+  plen = VARSIZE_ANY_EXHDR(pat);
 
-	result = (SB_MatchText(s, slen, p, plen, 0) != LIKE_TRUE);
+  result = (SB_MatchText(s, slen, p, plen, 0) != LIKE_TRUE);
 
-	PG_RETURN_BOOL(result);
+  PG_RETURN_BOOL(result);
 }
 
 /*
@@ -371,55 +368,55 @@ byteanlike(PG_FUNCTION_ARGS)
 Datum
 nameiclike(PG_FUNCTION_ARGS)
 {
-	Name		str = PG_GETARG_NAME(0);
-	text	   *pat = PG_GETARG_TEXT_PP(1);
-	bool		result;
-	text	   *strtext;
+  Name    str = PG_GETARG_NAME(0);
+  text     *pat = PG_GETARG_TEXT_PP(1);
+  bool    result;
+  text     *strtext;
 
-	strtext = DatumGetTextPP(DirectFunctionCall1(name_text,
-												 NameGetDatum(str)));
-	result = (Generic_Text_IC_like(strtext, pat, PG_GET_COLLATION()) == LIKE_TRUE);
+  strtext = DatumGetTextPP(DirectFunctionCall1(name_text,
+                           NameGetDatum(str)));
+  result = (Generic_Text_IC_like(strtext, pat, PG_GET_COLLATION()) == LIKE_TRUE);
 
-	PG_RETURN_BOOL(result);
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 nameicnlike(PG_FUNCTION_ARGS)
 {
-	Name		str = PG_GETARG_NAME(0);
-	text	   *pat = PG_GETARG_TEXT_PP(1);
-	bool		result;
-	text	   *strtext;
+  Name    str = PG_GETARG_NAME(0);
+  text     *pat = PG_GETARG_TEXT_PP(1);
+  bool    result;
+  text     *strtext;
 
-	strtext = DatumGetTextPP(DirectFunctionCall1(name_text,
-												 NameGetDatum(str)));
-	result = (Generic_Text_IC_like(strtext, pat, PG_GET_COLLATION()) != LIKE_TRUE);
+  strtext = DatumGetTextPP(DirectFunctionCall1(name_text,
+                           NameGetDatum(str)));
+  result = (Generic_Text_IC_like(strtext, pat, PG_GET_COLLATION()) != LIKE_TRUE);
 
-	PG_RETURN_BOOL(result);
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 texticlike(PG_FUNCTION_ARGS)
 {
-	text	   *str = PG_GETARG_TEXT_PP(0);
-	text	   *pat = PG_GETARG_TEXT_PP(1);
-	bool		result;
+  text     *str = PG_GETARG_TEXT_PP(0);
+  text     *pat = PG_GETARG_TEXT_PP(1);
+  bool    result;
 
-	result = (Generic_Text_IC_like(str, pat, PG_GET_COLLATION()) == LIKE_TRUE);
+  result = (Generic_Text_IC_like(str, pat, PG_GET_COLLATION()) == LIKE_TRUE);
 
-	PG_RETURN_BOOL(result);
+  PG_RETURN_BOOL(result);
 }
 
 Datum
 texticnlike(PG_FUNCTION_ARGS)
 {
-	text	   *str = PG_GETARG_TEXT_PP(0);
-	text	   *pat = PG_GETARG_TEXT_PP(1);
-	bool		result;
+  text     *str = PG_GETARG_TEXT_PP(0);
+  text     *pat = PG_GETARG_TEXT_PP(1);
+  bool    result;
 
-	result = (Generic_Text_IC_like(str, pat, PG_GET_COLLATION()) != LIKE_TRUE);
+  result = (Generic_Text_IC_like(str, pat, PG_GET_COLLATION()) != LIKE_TRUE);
 
-	PG_RETURN_BOOL(result);
+  PG_RETURN_BOOL(result);
 }
 
 /*
@@ -429,16 +426,16 @@ texticnlike(PG_FUNCTION_ARGS)
 Datum
 like_escape(PG_FUNCTION_ARGS)
 {
-	text	   *pat = PG_GETARG_TEXT_PP(0);
-	text	   *esc = PG_GETARG_TEXT_PP(1);
-	text	   *result;
+  text     *pat = PG_GETARG_TEXT_PP(0);
+  text     *esc = PG_GETARG_TEXT_PP(1);
+  text     *result;
 
-	if (pg_database_encoding_max_length() == 1)
-		result = SB_do_like_escape(pat, esc);
-	else
-		result = MB_do_like_escape(pat, esc);
+  if (pg_database_encoding_max_length() == 1)
+    result = SB_do_like_escape(pat, esc);
+  else
+    result = MB_do_like_escape(pat, esc);
 
-	PG_RETURN_TEXT_P(result);
+  PG_RETURN_TEXT_P(result);
 }
 
 /*
@@ -448,9 +445,9 @@ like_escape(PG_FUNCTION_ARGS)
 Datum
 like_escape_bytea(PG_FUNCTION_ARGS)
 {
-	bytea	   *pat = PG_GETARG_BYTEA_PP(0);
-	bytea	   *esc = PG_GETARG_BYTEA_PP(1);
-	bytea	   *result = SB_do_like_escape((text *) pat, (text *) esc);
+  bytea    *pat = PG_GETARG_BYTEA_PP(0);
+  bytea    *esc = PG_GETARG_BYTEA_PP(1);
+  bytea    *result = SB_do_like_escape((text *) pat, (text *) esc);
 
-	PG_RETURN_BYTEA_P((bytea *) result);
+  PG_RETURN_BYTEA_P((bytea *) result);
 }

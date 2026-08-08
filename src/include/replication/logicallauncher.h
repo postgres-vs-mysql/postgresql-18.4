@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * logicallauncher.h
- *	  Exports for logical replication launcher.
+ *    Exports for logical replication launcher.
  *
  * Portions Copyright (c) 2016-2025, PostgreSQL Global Development Group
  *
@@ -31,4 +31,4 @@ extern bool IsLogicalLauncher(void);
 
 extern pid_t GetLeaderApplyWorkerPid(pid_t pid);
 
-#endif							/* LOGICALLAUNCHER_H */
+#endif              /* LOGICALLAUNCHER_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * genam.h
- *	  POSTGRES generalized index access method definitions.
+ *    POSTGRES generalized index access method definitions.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -34,8 +34,8 @@ struct IndexInfo;
  */
 typedef struct IndexScanInstrumentation
 {
-	/* Index search count (incremented with pgstat_count_index_scan call) */
-	uint64		nsearches;
+  /* Index search count (incremented with pgstat_count_index_scan call) */
+  uint64    nsearches;
 } IndexScanInstrumentation;
 
 /*
@@ -43,8 +43,8 @@ typedef struct IndexScanInstrumentation
  */
 typedef struct SharedIndexScanInstrumentation
 {
-	int			num_workers;
-	IndexScanInstrumentation winstrument[FLEXIBLE_ARRAY_MEMBER];
+  int     num_workers;
+  IndexScanInstrumentation winstrument[FLEXIBLE_ARRAY_MEMBER];
 } SharedIndexScanInstrumentation;
 
 /*
@@ -52,8 +52,8 @@ typedef struct SharedIndexScanInstrumentation
  */
 typedef struct IndexBuildResult
 {
-	double		heap_tuples;	/* # of tuples seen in parent table */
-	double		index_tuples;	/* # of tuples inserted into index */
+  double    heap_tuples;  /* # of tuples seen in parent table */
+  double    index_tuples; /* # of tuples inserted into index */
 } IndexBuildResult;
 
 /*
@@ -66,14 +66,14 @@ typedef struct IndexBuildResult
  */
 typedef struct IndexVacuumInfo
 {
-	Relation	index;			/* the index being vacuumed */
-	Relation	heaprel;		/* the heap relation the index belongs to */
-	bool		analyze_only;	/* ANALYZE (without any actual vacuum) */
-	bool		report_progress;	/* emit progress.h status reports */
-	bool		estimated_count;	/* num_heap_tuples is an estimate */
-	int			message_level;	/* ereport level for progress messages */
-	double		num_heap_tuples;	/* tuples remaining in heap */
-	BufferAccessStrategy strategy;	/* access strategy for reads */
+  Relation  index;      /* the index being vacuumed */
+  Relation  heaprel;    /* the heap relation the index belongs to */
+  bool    analyze_only; /* ANALYZE (without any actual vacuum) */
+  bool    report_progress;  /* emit progress.h status reports */
+  bool    estimated_count;  /* num_heap_tuples is an estimate */
+  int     message_level;  /* ereport level for progress messages */
+  double    num_heap_tuples;  /* tuples remaining in heap */
+  BufferAccessStrategy strategy;  /* access strategy for reads */
 } IndexVacuumInfo;
 
 /*
@@ -97,13 +97,13 @@ typedef struct IndexVacuumInfo
  */
 typedef struct IndexBulkDeleteResult
 {
-	BlockNumber num_pages;		/* pages remaining in index */
-	bool		estimated_count;	/* num_index_tuples is an estimate */
-	double		num_index_tuples;	/* tuples remaining */
-	double		tuples_removed; /* # removed during vacuum operation */
-	BlockNumber pages_newly_deleted;	/* # pages marked deleted by us  */
-	BlockNumber pages_deleted;	/* # pages marked deleted (could be by us) */
-	BlockNumber pages_free;		/* # pages available for reuse */
+  BlockNumber num_pages;    /* pages remaining in index */
+  bool    estimated_count;  /* num_index_tuples is an estimate */
+  double    num_index_tuples; /* tuples remaining */
+  double    tuples_removed; /* # removed during vacuum operation */
+  BlockNumber pages_newly_deleted;  /* # pages marked deleted by us  */
+  BlockNumber pages_deleted;  /* # pages marked deleted (could be by us) */
+  BlockNumber pages_free;   /* # pages available for reuse */
 } IndexBulkDeleteResult;
 
 /* Typedef for callback function to determine if a tuple is bulk-deletable */
@@ -137,18 +137,18 @@ typedef struct ParallelIndexScanDescData *ParallelIndexScanDesc;
  */
 typedef enum IndexUniqueCheck
 {
-	UNIQUE_CHECK_NO,			/* Don't do any uniqueness checking */
-	UNIQUE_CHECK_YES,			/* Enforce uniqueness at insertion time */
-	UNIQUE_CHECK_PARTIAL,		/* Test uniqueness, but no error */
-	UNIQUE_CHECK_EXISTING,		/* Check if existing tuple is unique */
+  UNIQUE_CHECK_NO,      /* Don't do any uniqueness checking */
+  UNIQUE_CHECK_YES,     /* Enforce uniqueness at insertion time */
+  UNIQUE_CHECK_PARTIAL,   /* Test uniqueness, but no error */
+  UNIQUE_CHECK_EXISTING,    /* Check if existing tuple is unique */
 } IndexUniqueCheck;
 
 
 /* Nullable "ORDER BY col op const" distance */
 typedef struct IndexOrderByDistance
 {
-	double		value;
-	bool		isnull;
+  double    value;
+  bool    isnull;
 } IndexOrderByDistance;
 
 /*
@@ -157,7 +157,7 @@ typedef struct IndexOrderByDistance
 
 /*
  * IndexScanIsValid
- *		True iff the index scan is valid.
+ *    True iff the index scan is valid.
  */
 #define IndexScanIsValid(scan) PointerIsValid(scan)
 
@@ -166,113 +166,113 @@ extern Relation try_index_open(Oid relationId, LOCKMODE lockmode);
 extern void index_close(Relation relation, LOCKMODE lockmode);
 
 extern bool index_insert(Relation indexRelation,
-						 Datum *values, bool *isnull,
-						 ItemPointer heap_t_ctid,
-						 Relation heapRelation,
-						 IndexUniqueCheck checkUnique,
-						 bool indexUnchanged,
-						 struct IndexInfo *indexInfo);
+                         Datum *values, bool *isnull,
+                         ItemPointer heap_t_ctid,
+                         Relation heapRelation,
+                         IndexUniqueCheck checkUnique,
+                         bool indexUnchanged,
+                         struct IndexInfo *indexInfo);
 extern void index_insert_cleanup(Relation indexRelation,
-								 struct IndexInfo *indexInfo);
+                                 struct IndexInfo *indexInfo);
 
 extern IndexScanDesc index_beginscan(Relation heapRelation,
-									 Relation indexRelation,
-									 Snapshot snapshot,
-									 IndexScanInstrumentation *instrument,
-									 int nkeys, int norderbys);
+                                     Relation indexRelation,
+                                     Snapshot snapshot,
+                                     IndexScanInstrumentation *instrument,
+                                     int nkeys, int norderbys);
 extern IndexScanDesc index_beginscan_bitmap(Relation indexRelation,
-											Snapshot snapshot,
-											IndexScanInstrumentation *instrument,
-											int nkeys);
+    Snapshot snapshot,
+    IndexScanInstrumentation *instrument,
+    int nkeys);
 extern void index_rescan(IndexScanDesc scan,
-						 ScanKey keys, int nkeys,
-						 ScanKey orderbys, int norderbys);
+                         ScanKey keys, int nkeys,
+                         ScanKey orderbys, int norderbys);
 extern void index_endscan(IndexScanDesc scan);
 extern void index_markpos(IndexScanDesc scan);
 extern void index_restrpos(IndexScanDesc scan);
 extern Size index_parallelscan_estimate(Relation indexRelation,
-										int nkeys, int norderbys, Snapshot snapshot,
-										bool instrument, bool parallel_aware,
-										int nworkers);
+                                        int nkeys, int norderbys, Snapshot snapshot,
+                                        bool instrument, bool parallel_aware,
+                                        int nworkers);
 extern void index_parallelscan_initialize(Relation heapRelation,
-										  Relation indexRelation, Snapshot snapshot,
-										  bool instrument, bool parallel_aware,
-										  int nworkers,
-										  SharedIndexScanInstrumentation **sharedinfo,
-										  ParallelIndexScanDesc target);
+    Relation indexRelation, Snapshot snapshot,
+    bool instrument, bool parallel_aware,
+    int nworkers,
+    SharedIndexScanInstrumentation **sharedinfo,
+    ParallelIndexScanDesc target);
 extern void index_parallelrescan(IndexScanDesc scan);
 extern IndexScanDesc index_beginscan_parallel(Relation heaprel,
-											  Relation indexrel,
-											  IndexScanInstrumentation *instrument,
-											  int nkeys, int norderbys,
-											  ParallelIndexScanDesc pscan);
+    Relation indexrel,
+    IndexScanInstrumentation *instrument,
+    int nkeys, int norderbys,
+    ParallelIndexScanDesc pscan);
 extern ItemPointer index_getnext_tid(IndexScanDesc scan,
-									 ScanDirection direction);
+                                     ScanDirection direction);
 struct TupleTableSlot;
 extern bool index_fetch_heap(IndexScanDesc scan, struct TupleTableSlot *slot);
 extern bool index_getnext_slot(IndexScanDesc scan, ScanDirection direction,
-							   struct TupleTableSlot *slot);
+                               struct TupleTableSlot *slot);
 extern int64 index_getbitmap(IndexScanDesc scan, TIDBitmap *bitmap);
 
 extern IndexBulkDeleteResult *index_bulk_delete(IndexVacuumInfo *info,
-												IndexBulkDeleteResult *istat,
-												IndexBulkDeleteCallback callback,
-												void *callback_state);
+    IndexBulkDeleteResult *istat,
+    IndexBulkDeleteCallback callback,
+    void *callback_state);
 extern IndexBulkDeleteResult *index_vacuum_cleanup(IndexVacuumInfo *info,
-												   IndexBulkDeleteResult *istat);
+    IndexBulkDeleteResult *istat);
 extern bool index_can_return(Relation indexRelation, int attno);
 extern RegProcedure index_getprocid(Relation irel, AttrNumber attnum,
-									uint16 procnum);
+                                    uint16 procnum);
 extern FmgrInfo *index_getprocinfo(Relation irel, AttrNumber attnum,
-								   uint16 procnum);
+                                   uint16 procnum);
 extern void index_store_float8_orderby_distances(IndexScanDesc scan,
-												 Oid *orderByTypes,
-												 IndexOrderByDistance *distances,
-												 bool recheckOrderBy);
+    Oid *orderByTypes,
+    IndexOrderByDistance *distances,
+    bool recheckOrderBy);
 extern bytea *index_opclass_options(Relation indrel, AttrNumber attnum,
-									Datum attoptions, bool validate);
+                                    Datum attoptions, bool validate);
 
 
 /*
  * index access method support routines (in genam.c)
  */
 extern IndexScanDesc RelationGetIndexScan(Relation indexRelation,
-										  int nkeys, int norderbys);
+    int nkeys, int norderbys);
 extern void IndexScanEnd(IndexScanDesc scan);
 extern char *BuildIndexValueDescription(Relation indexRelation,
-										const Datum *values, const bool *isnull);
+                                        const Datum *values, const bool *isnull);
 extern TransactionId index_compute_xid_horizon_for_tuples(Relation irel,
-														  Relation hrel,
-														  Buffer ibuf,
-														  OffsetNumber *itemnos,
-														  int nitems);
+    Relation hrel,
+    Buffer ibuf,
+    OffsetNumber *itemnos,
+    int nitems);
 
 /*
  * heap-or-index access to system catalogs (in genam.c)
  */
 extern SysScanDesc systable_beginscan(Relation heapRelation,
-									  Oid indexId,
-									  bool indexOK,
-									  Snapshot snapshot,
-									  int nkeys, ScanKey key);
+                                      Oid indexId,
+                                      bool indexOK,
+                                      Snapshot snapshot,
+                                      int nkeys, ScanKey key);
 extern HeapTuple systable_getnext(SysScanDesc sysscan);
 extern bool systable_recheck_tuple(SysScanDesc sysscan, HeapTuple tup);
 extern void systable_endscan(SysScanDesc sysscan);
 extern SysScanDesc systable_beginscan_ordered(Relation heapRelation,
-											  Relation indexRelation,
-											  Snapshot snapshot,
-											  int nkeys, ScanKey key);
+    Relation indexRelation,
+    Snapshot snapshot,
+    int nkeys, ScanKey key);
 extern HeapTuple systable_getnext_ordered(SysScanDesc sysscan,
-										  ScanDirection direction);
+    ScanDirection direction);
 extern void systable_endscan_ordered(SysScanDesc sysscan);
 extern void systable_inplace_update_begin(Relation relation,
-										  Oid indexId,
-										  bool indexOK,
-										  Snapshot snapshot,
-										  int nkeys, const ScanKeyData *key,
-										  HeapTuple *oldtupcopy,
-										  void **state);
+    Oid indexId,
+    bool indexOK,
+    Snapshot snapshot,
+    int nkeys, const ScanKeyData *key,
+    HeapTuple *oldtupcopy,
+    void **state);
 extern void systable_inplace_update_finish(void *state, HeapTuple tuple);
 extern void systable_inplace_update_cancel(void *state);
 
-#endif							/* GENAM_H */
+#endif              /* GENAM_H */

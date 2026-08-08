@@ -22,12 +22,12 @@
  */
 typedef enum
 {
-	RECOVERY_TARGET_UNSET,
-	RECOVERY_TARGET_XID,
-	RECOVERY_TARGET_TIME,
-	RECOVERY_TARGET_NAME,
-	RECOVERY_TARGET_LSN,
-	RECOVERY_TARGET_IMMEDIATE,
+  RECOVERY_TARGET_UNSET,
+  RECOVERY_TARGET_XID,
+  RECOVERY_TARGET_TIME,
+  RECOVERY_TARGET_NAME,
+  RECOVERY_TARGET_LSN,
+  RECOVERY_TARGET_IMMEDIATE,
 } RecoveryTargetType;
 
 /*
@@ -35,17 +35,17 @@ typedef enum
  */
 typedef enum
 {
-	RECOVERY_TARGET_TIMELINE_CONTROLFILE,
-	RECOVERY_TARGET_TIMELINE_LATEST,
-	RECOVERY_TARGET_TIMELINE_NUMERIC,
+  RECOVERY_TARGET_TIMELINE_CONTROLFILE,
+  RECOVERY_TARGET_TIMELINE_LATEST,
+  RECOVERY_TARGET_TIMELINE_NUMERIC,
 } RecoveryTargetTimeLineGoal;
 
 /* Recovery pause states */
 typedef enum RecoveryPauseState
 {
-	RECOVERY_NOT_PAUSED,		/* pause not requested */
-	RECOVERY_PAUSE_REQUESTED,	/* pause requested, but not yet paused */
-	RECOVERY_PAUSED,			/* recovery is paused */
+  RECOVERY_NOT_PAUSED,    /* pause not requested */
+  RECOVERY_PAUSE_REQUESTED, /* pause requested, but not yet paused */
+  RECOVERY_PAUSED,      /* recovery is paused */
 } RecoveryPauseState;
 
 /* User-settable GUC parameters */
@@ -80,8 +80,8 @@ extern Size XLogRecoveryShmemSize(void);
 extern void XLogRecoveryShmemInit(void);
 
 extern void InitWalRecovery(ControlFileData *ControlFile,
-							bool *wasShutdown_ptr, bool *haveBackupLabel_ptr,
-							bool *haveTblspcMap_ptr);
+                            bool *wasShutdown_ptr, bool *haveBackupLabel_ptr,
+                            bool *haveTblspcMap_ptr);
 extern void PerformWalRecovery(void);
 
 /*
@@ -90,45 +90,45 @@ extern void PerformWalRecovery(void);
  */
 typedef struct
 {
-	/*
-	 * Information about the last valid or applied record, after which new WAL
-	 * can be appended.  'lastRec' is the position where the last record
-	 * starts, and 'endOfLog' is its end.  'lastPage' is a copy of the last
-	 * partial page that contains endOfLog (or NULL if endOfLog is exactly at
-	 * page boundary).  'lastPageBeginPtr' is the position where the last page
-	 * begins.
-	 *
-	 * endOfLogTLI is the TLI in the filename of the XLOG segment containing
-	 * the last applied record.  It could be different from lastRecTLI, if
-	 * there was a timeline switch in that segment, and we were reading the
-	 * old WAL from a segment belonging to a higher timeline.
-	 */
-	XLogRecPtr	lastRec;		/* start of last valid or applied record */
-	TimeLineID	lastRecTLI;
-	XLogRecPtr	endOfLog;		/* end of last valid or applied record */
-	TimeLineID	endOfLogTLI;
+  /*
+   * Information about the last valid or applied record, after which new WAL
+   * can be appended.  'lastRec' is the position where the last record
+   * starts, and 'endOfLog' is its end.  'lastPage' is a copy of the last
+   * partial page that contains endOfLog (or NULL if endOfLog is exactly at
+   * page boundary).  'lastPageBeginPtr' is the position where the last page
+   * begins.
+   *
+   * endOfLogTLI is the TLI in the filename of the XLOG segment containing
+   * the last applied record.  It could be different from lastRecTLI, if
+   * there was a timeline switch in that segment, and we were reading the
+   * old WAL from a segment belonging to a higher timeline.
+   */
+  XLogRecPtr  lastRec;    /* start of last valid or applied record */
+  TimeLineID  lastRecTLI;
+  XLogRecPtr  endOfLog;   /* end of last valid or applied record */
+  TimeLineID  endOfLogTLI;
 
-	XLogRecPtr	lastPageBeginPtr;	/* LSN of page that contains endOfLog */
-	char	   *lastPage;		/* copy of the last page, up to endOfLog */
+  XLogRecPtr  lastPageBeginPtr; /* LSN of page that contains endOfLog */
+  char     *lastPage;   /* copy of the last page, up to endOfLog */
 
-	/*
-	 * abortedRecPtr is the start pointer of a broken record at end of WAL
-	 * when recovery completes; missingContrecPtr is the location of the first
-	 * contrecord that went missing.  See CreateOverwriteContrecordRecord for
-	 * details.
-	 */
-	XLogRecPtr	abortedRecPtr;
-	XLogRecPtr	missingContrecPtr;
+  /*
+   * abortedRecPtr is the start pointer of a broken record at end of WAL
+   * when recovery completes; missingContrecPtr is the location of the first
+   * contrecord that went missing.  See CreateOverwriteContrecordRecord for
+   * details.
+   */
+  XLogRecPtr  abortedRecPtr;
+  XLogRecPtr  missingContrecPtr;
 
-	/* short human-readable string describing why recovery ended */
-	char	   *recoveryStopReason;
+  /* short human-readable string describing why recovery ended */
+  char     *recoveryStopReason;
 
-	/*
-	 * If standby or recovery signal file was found, these flags are set
-	 * accordingly.
-	 */
-	bool		standby_signal_file_found;
-	bool		recovery_signal_file_found;
+  /*
+   * If standby or recovery signal file was found, these flags are set
+   * accordingly.
+   */
+  bool    standby_signal_file_found;
+  bool    recovery_signal_file_found;
 } EndOfWalRecoveryInfo;
 
 extern EndOfWalRecoveryInfo *FinishWalRecovery(void);
@@ -155,4 +155,4 @@ extern void RecoveryRequiresIntParameter(const char *param_name, int currValue, 
 
 extern void xlog_outdesc(StringInfo buf, XLogReaderState *record);
 
-#endif							/* XLOGRECOVERY_H */
+#endif              /* XLOGRECOVERY_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * inval.h
- *	  POSTGRES cache invalidation dispatcher definitions.
+ *    POSTGRES cache invalidation dispatcher definitions.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -40,10 +40,10 @@ extern void PostPrepare_Inval(void);
 extern void CommandEndInvalidationMessages(void);
 
 extern void CacheInvalidateHeapTuple(Relation relation,
-									 HeapTuple tuple,
-									 HeapTuple newtuple);
+                                     HeapTuple tuple,
+                                     HeapTuple newtuple);
 extern void CacheInvalidateHeapTupleInplace(Relation relation,
-											HeapTuple key_equivalent_tuple);
+    HeapTuple key_equivalent_tuple);
 
 extern void CacheInvalidateCatalog(Oid catalogId);
 
@@ -64,14 +64,14 @@ extern void CacheInvalidateSmgr(RelFileLocatorBackend rlocator);
 extern void CacheInvalidateRelmap(Oid databaseId);
 
 extern void CacheRegisterSyscacheCallback(int cacheid,
-										  SyscacheCallbackFunction func,
-										  Datum arg);
+    SyscacheCallbackFunction func,
+    Datum arg);
 
 extern void CacheRegisterRelcacheCallback(RelcacheCallbackFunction func,
-										  Datum arg);
+    Datum arg);
 
 extern void CacheRegisterRelSyncCallback(RelSyncCallbackFunction func,
-										 Datum arg);
+    Datum arg);
 
 extern void CallSyscacheCallbacks(int cacheid, uint32 hashvalue);
 
@@ -81,4 +81,4 @@ extern void InvalidateSystemCaches(void);
 extern void InvalidateSystemCachesExtended(bool debug_discard);
 
 extern void LogLogicalInvalidations(void);
-#endif							/* INVAL_H */
+#endif              /* INVAL_H */

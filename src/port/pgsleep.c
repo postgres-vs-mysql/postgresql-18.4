@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pgsleep.c
- *	   Portable delay handling.
+ *     Portable delay handling.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -40,18 +40,17 @@
 void
 pg_usleep(long microsec)
 {
-	if (microsec > 0)
-	{
+  if (microsec > 0) {
 #ifndef WIN32
-		struct timespec delay;
+    struct timespec delay;
 
-		delay.tv_sec = microsec / 1000000L;
-		delay.tv_nsec = (microsec % 1000000L) * 1000;
-		(void) nanosleep(&delay, NULL);
+    delay.tv_sec = microsec / 1000000L;
+    delay.tv_nsec = (microsec % 1000000L) * 1000;
+    (void) nanosleep(&delay, NULL);
 #else
-		SleepEx((microsec < 500 ? 1 : (microsec + 500) / 1000), FALSE);
+    SleepEx((microsec < 500 ? 1 : (microsec + 500) / 1000), FALSE);
 #endif
-	}
+  }
 }
 
-#endif							/* defined(FRONTEND) || !defined(WIN32) */
+#endif              /* defined(FRONTEND) || !defined(WIN32) */

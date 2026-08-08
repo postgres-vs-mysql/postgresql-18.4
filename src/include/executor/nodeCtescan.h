@@ -20,4 +20,4 @@ extern CteScanState *ExecInitCteScan(CteScan *node, EState *estate, int eflags);
 extern void ExecEndCteScan(CteScanState *node);
 extern void ExecReScanCteScan(CteScanState *node);
 
-#endif							/* NODECTESCAN_H */
+#endif              /* NODECTESCAN_H */

@@ -1,6 +1,6 @@
 /* ----------
  * backend_progress.h
- *	  Command progress reporting definition.
+ *    Command progress reporting definition.
  *
  * Note that this file provides the infrastructure for storing a single
  * backend's command progress counters, without ascribing meaning to the
@@ -21,26 +21,26 @@
  */
 typedef enum ProgressCommandType
 {
-	PROGRESS_COMMAND_INVALID,
-	PROGRESS_COMMAND_VACUUM,
-	PROGRESS_COMMAND_ANALYZE,
-	PROGRESS_COMMAND_CLUSTER,
-	PROGRESS_COMMAND_CREATE_INDEX,
-	PROGRESS_COMMAND_BASEBACKUP,
-	PROGRESS_COMMAND_COPY,
+  PROGRESS_COMMAND_INVALID,
+  PROGRESS_COMMAND_VACUUM,
+  PROGRESS_COMMAND_ANALYZE,
+  PROGRESS_COMMAND_CLUSTER,
+  PROGRESS_COMMAND_CREATE_INDEX,
+  PROGRESS_COMMAND_BASEBACKUP,
+  PROGRESS_COMMAND_COPY,
 } ProgressCommandType;
 
-#define PGSTAT_NUM_PROGRESS_PARAM	20
+#define PGSTAT_NUM_PROGRESS_PARAM 20
 
 
 extern void pgstat_progress_start_command(ProgressCommandType cmdtype,
-										  Oid relid);
+    Oid relid);
 extern void pgstat_progress_update_param(int index, int64 val);
 extern void pgstat_progress_incr_param(int index, int64 incr);
 extern void pgstat_progress_parallel_incr_param(int index, int64 incr);
 extern void pgstat_progress_update_multi_param(int nparam, const int *index,
-											   const int64 *val);
+    const int64 *val);
 extern void pgstat_progress_end_command(void);
 
 
-#endif							/* BACKEND_PROGRESS_H */
+#endif              /* BACKEND_PROGRESS_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * expandeddatum.h
- *	  Declarations for access to "expanded" value representations.
+ *    Declarations for access to "expanded" value representations.
  *
  * Complex data types, particularly container types such as arrays and
  * records, usually have on-disk representations that are compact but not
@@ -68,13 +68,13 @@
  */
 typedef Size (*EOM_get_flat_size_method) (ExpandedObjectHeader *eohptr);
 typedef void (*EOM_flatten_into_method) (ExpandedObjectHeader *eohptr,
-										 void *result, Size allocated_size);
+    void *result, Size allocated_size);
 
 /* Struct of function pointers for an expanded object's methods */
 typedef struct ExpandedObjectMethods
 {
-	EOM_get_flat_size_method get_flat_size;
-	EOM_flatten_into_method flatten_into;
+  EOM_get_flat_size_method get_flat_size;
+  EOM_flatten_into_method flatten_into;
 } ExpandedObjectMethods;
 
 /*
@@ -99,20 +99,20 @@ typedef struct ExpandedObjectMethods
  */
 struct ExpandedObjectHeader
 {
-	/* Phony varlena header */
-	int32		vl_len_;		/* always EOH_HEADER_MAGIC, see below */
+  /* Phony varlena header */
+  int32   vl_len_;    /* always EOH_HEADER_MAGIC, see below */
 
-	/* Pointer to methods required for object type */
-	const ExpandedObjectMethods *eoh_methods;
+  /* Pointer to methods required for object type */
+  const ExpandedObjectMethods *eoh_methods;
 
-	/* Memory context containing this header and subsidiary data */
-	MemoryContext eoh_context;
+  /* Memory context containing this header and subsidiary data */
+  MemoryContext eoh_context;
 
-	/* Standard R/W TOAST pointer for this object is kept here */
-	char		eoh_rw_ptr[EXPANDED_POINTER_SIZE];
+  /* Standard R/W TOAST pointer for this object is kept here */
+  char    eoh_rw_ptr[EXPANDED_POINTER_SIZE];
 
-	/* Standard R/O TOAST pointer for this object is kept here */
-	char		eoh_ro_ptr[EXPANDED_POINTER_SIZE];
+  /* Standard R/O TOAST pointer for this object is kept here */
+  char    eoh_ro_ptr[EXPANDED_POINTER_SIZE];
 };
 
 /*
@@ -128,7 +128,7 @@ struct ExpandedObjectHeader
  */
 #define EOH_HEADER_MAGIC (-1)
 #define VARATT_IS_EXPANDED_HEADER(PTR) \
-	(((varattrib_4b *) (PTR))->va_4byte.va_header == (uint32) EOH_HEADER_MAGIC)
+  (((varattrib_4b *) (PTR))->va_4byte.va_header == (uint32) EOH_HEADER_MAGIC)
 
 /*
  * Generic support functions for expanded objects.
@@ -138,33 +138,33 @@ struct ExpandedObjectHeader
 static inline Datum
 EOHPGetRWDatum(const struct ExpandedObjectHeader *eohptr)
 {
-	return PointerGetDatum(eohptr->eoh_rw_ptr);
+  return PointerGetDatum(eohptr->eoh_rw_ptr);
 }
 
 static inline Datum
 EOHPGetRODatum(const struct ExpandedObjectHeader *eohptr)
 {
-	return PointerGetDatum(eohptr->eoh_ro_ptr);
+  return PointerGetDatum(eohptr->eoh_ro_ptr);
 }
 
 /* Does the Datum represent a writable expanded object? */
 #define DatumIsReadWriteExpandedObject(d, isnull, typlen) \
-	(((isnull) || (typlen) != -1) ? false : \
-	 VARATT_IS_EXTERNAL_EXPANDED_RW(DatumGetPointer(d)))
+  (((isnull) || (typlen) != -1) ? false : \
+   VARATT_IS_EXTERNAL_EXPANDED_RW(DatumGetPointer(d)))
 
 #define MakeExpandedObjectReadOnly(d, isnull, typlen) \
-	(((isnull) || (typlen) != -1) ? (d) : \
-	 MakeExpandedObjectReadOnlyInternal(d))
+  (((isnull) || (typlen) != -1) ? (d) : \
+   MakeExpandedObjectReadOnlyInternal(d))
 
 extern ExpandedObjectHeader *DatumGetEOHP(Datum d);
 extern void EOH_init_header(ExpandedObjectHeader *eohptr,
-							const ExpandedObjectMethods *methods,
-							MemoryContext obj_context);
+                            const ExpandedObjectMethods *methods,
+                            MemoryContext obj_context);
 extern Size EOH_get_flat_size(ExpandedObjectHeader *eohptr);
 extern void EOH_flatten_into(ExpandedObjectHeader *eohptr,
-							 void *result, Size allocated_size);
+                             void *result, Size allocated_size);
 extern Datum MakeExpandedObjectReadOnlyInternal(Datum d);
 extern Datum TransferExpandedObject(Datum d, MemoryContext new_parent);
 extern void DeleteExpandedObject(Datum d);
 
-#endif							/* EXPANDEDDATUM_H */
+#endif              /* EXPANDEDDATUM_H */

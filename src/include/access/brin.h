@@ -5,7 +5,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *		src/include/access/brin.h
+ *    src/include/access/brin.h
  */
 #ifndef BRIN_H
 #define BRIN_H
@@ -20,9 +20,9 @@
  */
 typedef struct BrinOptions
 {
-	int32		vl_len_;		/* varlena header (do not touch directly!) */
-	BlockNumber pagesPerRange;
-	bool		autosummarize;
+  int32   vl_len_;    /* varlena header (do not touch directly!) */
+  BlockNumber pagesPerRange;
+  bool    autosummarize;
 } BrinOptions;
 
 
@@ -31,28 +31,28 @@ typedef struct BrinOptions
  */
 typedef struct BrinStatsData
 {
-	BlockNumber pagesPerRange;
-	BlockNumber revmapNumPages;
+  BlockNumber pagesPerRange;
+  BlockNumber revmapNumPages;
 } BrinStatsData;
 
 
-#define BRIN_DEFAULT_PAGES_PER_RANGE	128
+#define BRIN_DEFAULT_PAGES_PER_RANGE  128
 #define BrinGetPagesPerRange(relation) \
-	(AssertMacro(relation->rd_rel->relkind == RELKIND_INDEX && \
-				 relation->rd_rel->relam == BRIN_AM_OID), \
-	 (relation)->rd_options ? \
-	 ((BrinOptions *) (relation)->rd_options)->pagesPerRange : \
-	  BRIN_DEFAULT_PAGES_PER_RANGE)
+  (AssertMacro(relation->rd_rel->relkind == RELKIND_INDEX && \
+         relation->rd_rel->relam == BRIN_AM_OID), \
+   (relation)->rd_options ? \
+   ((BrinOptions *) (relation)->rd_options)->pagesPerRange : \
+    BRIN_DEFAULT_PAGES_PER_RANGE)
 #define BrinGetAutoSummarize(relation) \
-	(AssertMacro(relation->rd_rel->relkind == RELKIND_INDEX && \
-				 relation->rd_rel->relam == BRIN_AM_OID), \
-	 (relation)->rd_options ? \
-	 ((BrinOptions *) (relation)->rd_options)->autosummarize : \
-	  false)
+  (AssertMacro(relation->rd_rel->relkind == RELKIND_INDEX && \
+         relation->rd_rel->relam == BRIN_AM_OID), \
+   (relation)->rd_options ? \
+   ((BrinOptions *) (relation)->rd_options)->autosummarize : \
+    false)
 
 
 extern void brinGetStats(Relation index, BrinStatsData *stats);
 
 extern void _brin_parallel_build_main(dsm_segment *seg, shm_toc *toc);
 
-#endif							/* BRIN_H */
+#endif              /* BRIN_H */

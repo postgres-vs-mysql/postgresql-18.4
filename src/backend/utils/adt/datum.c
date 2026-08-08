@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * datum.c
- *	  POSTGRES Datum (abstract data type) manipulation routines.
+ *    POSTGRES Datum (abstract data type) manipulation routines.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/backend/utils/adt/datum.c
+ *    src/backend/utils/adt/datum.c
  *
  *-------------------------------------------------------------------------
  */
@@ -64,53 +64,43 @@
 Size
 datumGetSize(Datum value, bool typByVal, int typLen)
 {
-	Size		size;
+  Size    size;
 
-	if (typByVal)
-	{
-		/* Pass-by-value types are always fixed-length */
-		Assert(typLen > 0 && typLen <= sizeof(Datum));
-		size = (Size) typLen;
-	}
-	else
-	{
-		if (typLen > 0)
-		{
-			/* Fixed-length pass-by-ref type */
-			size = (Size) typLen;
-		}
-		else if (typLen == -1)
-		{
-			/* It is a varlena datatype */
-			struct varlena *s = (struct varlena *) DatumGetPointer(value);
+  if (typByVal) {
+    /* Pass-by-value types are always fixed-length */
+    Assert(typLen > 0 && typLen <= sizeof(Datum));
+    size = (Size) typLen;
+  } else {
+    if (typLen > 0) {
+      /* Fixed-length pass-by-ref type */
+      size = (Size) typLen;
+    } else if (typLen == -1) {
+      /* It is a varlena datatype */
+      struct varlena *s = (struct varlena *) DatumGetPointer(value);
 
-			if (!PointerIsValid(s))
-				ereport(ERROR,
-						(errcode(ERRCODE_DATA_EXCEPTION),
-						 errmsg("invalid Datum pointer")));
+      if (!PointerIsValid(s))
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_EXCEPTION),
+                 errmsg("invalid Datum pointer")));
 
-			size = (Size) VARSIZE_ANY(s);
-		}
-		else if (typLen == -2)
-		{
-			/* It is a cstring datatype */
-			char	   *s = (char *) DatumGetPointer(value);
+      size = (Size) VARSIZE_ANY(s);
+    } else if (typLen == -2) {
+      /* It is a cstring datatype */
+      char     *s = (char *) DatumGetPointer(value);
 
-			if (!PointerIsValid(s))
-				ereport(ERROR,
-						(errcode(ERRCODE_DATA_EXCEPTION),
-						 errmsg("invalid Datum pointer")));
+      if (!PointerIsValid(s))
+        ereport(ERROR,
+                (errcode(ERRCODE_DATA_EXCEPTION),
+                 errmsg("invalid Datum pointer")));
 
-			size = (Size) (strlen(s) + 1);
-		}
-		else
-		{
-			elog(ERROR, "invalid typLen: %d", typLen);
-			size = 0;			/* keep compiler quiet */
-		}
-	}
+      size = (Size) (strlen(s) + 1);
+    } else {
+      elog(ERROR, "invalid typLen: %d", typLen);
+      size = 0;     /* keep compiler quiet */
+    }
+  }
 
-	return size;
+  return size;
 }
 
 /*-------------------------------------------------------------------------
@@ -131,52 +121,47 @@ datumGetSize(Datum value, bool typByVal, int typLen)
 Datum
 datumCopy(Datum value, bool typByVal, int typLen)
 {
-	Datum		res;
+  Datum   res;
 
-	if (typByVal)
-		res = value;
-	else if (typLen == -1)
-	{
-		/* It is a varlena datatype */
-		struct varlena *vl = (struct varlena *) DatumGetPointer(value);
+  if (typByVal)
+    res = value;
+  else if (typLen == -1) {
+    /* It is a varlena datatype */
+    struct varlena *vl = (struct varlena *) DatumGetPointer(value);
 
-		if (VARATT_IS_EXTERNAL_EXPANDED(vl))
-		{
-			/* Flatten into the caller's memory context */
-			ExpandedObjectHeader *eoh = DatumGetEOHP(value);
-			Size		resultsize;
-			char	   *resultptr;
+    if (VARATT_IS_EXTERNAL_EXPANDED(vl)) {
+      /* Flatten into the caller's memory context */
+      ExpandedObjectHeader *eoh = DatumGetEOHP(value);
+      Size    resultsize;
+      char     *resultptr;
 
-			resultsize = EOH_get_flat_size(eoh);
-			resultptr = (char *) palloc(resultsize);
-			EOH_flatten_into(eoh, resultptr, resultsize);
-			res = PointerGetDatum(resultptr);
-		}
-		else
-		{
-			/* Otherwise, just copy the varlena datum verbatim */
-			Size		realSize;
-			char	   *resultptr;
+      resultsize = EOH_get_flat_size(eoh);
+      resultptr = (char *) palloc(resultsize);
+      EOH_flatten_into(eoh, resultptr, resultsize);
+      res = PointerGetDatum(resultptr);
+    } else {
+      /* Otherwise, just copy the varlena datum verbatim */
+      Size    realSize;
+      char     *resultptr;
 
-			realSize = (Size) VARSIZE_ANY(vl);
-			resultptr = (char *) palloc(realSize);
-			memcpy(resultptr, vl, realSize);
-			res = PointerGetDatum(resultptr);
-		}
-	}
-	else
-	{
-		/* Pass by reference, but not varlena, so not toasted */
-		Size		realSize;
-		char	   *resultptr;
+      realSize = (Size) VARSIZE_ANY(vl);
+      resultptr = (char *) palloc(realSize);
+      memcpy(resultptr, vl, realSize);
+      res = PointerGetDatum(resultptr);
+    }
+  } else {
+    /* Pass by reference, but not varlena, so not toasted */
+    Size    realSize;
+    char     *resultptr;
 
-		realSize = datumGetSize(value, typByVal, typLen);
+    realSize = datumGetSize(value, typByVal, typLen);
 
-		resultptr = (char *) palloc(realSize);
-		memcpy(resultptr, DatumGetPointer(value), realSize);
-		res = PointerGetDatum(resultptr);
-	}
-	return res;
+    resultptr = (char *) palloc(realSize);
+    memcpy(resultptr, DatumGetPointer(value), realSize);
+    res = PointerGetDatum(resultptr);
+  }
+
+  return res;
 }
 
 /*-------------------------------------------------------------------------
@@ -193,12 +178,13 @@ datumCopy(Datum value, bool typByVal, int typLen)
 Datum
 datumTransfer(Datum value, bool typByVal, int typLen)
 {
-	if (!typByVal && typLen == -1 &&
-		VARATT_IS_EXTERNAL_EXPANDED_RW(DatumGetPointer(value)))
-		value = TransferExpandedObject(value, CurrentMemoryContext);
-	else
-		value = datumCopy(value, typByVal, typLen);
-	return value;
+  if (!typByVal && typLen == -1 &&
+      VARATT_IS_EXTERNAL_EXPANDED_RW(DatumGetPointer(value)))
+    value = TransferExpandedObject(value, CurrentMemoryContext);
+  else
+    value = datumCopy(value, typByVal, typLen);
+
+  return value;
 }
 
 /*-------------------------------------------------------------------------
@@ -222,37 +208,37 @@ datumTransfer(Datum value, bool typByVal, int typLen)
 bool
 datumIsEqual(Datum value1, Datum value2, bool typByVal, int typLen)
 {
-	bool		res;
+  bool    res;
 
-	if (typByVal)
-	{
-		/*
-		 * just compare the two datums. NOTE: just comparing "len" bytes will
-		 * not do the work, because we do not know how these bytes are aligned
-		 * inside the "Datum".  We assume instead that any given datatype is
-		 * consistent about how it fills extraneous bits in the Datum.
-		 */
-		res = (value1 == value2);
-	}
-	else
-	{
-		Size		size1,
-					size2;
-		char	   *s1,
-				   *s2;
+  if (typByVal) {
+    /*
+     * just compare the two datums. NOTE: just comparing "len" bytes will
+     * not do the work, because we do not know how these bytes are aligned
+     * inside the "Datum".  We assume instead that any given datatype is
+     * consistent about how it fills extraneous bits in the Datum.
+     */
+    res = (value1 == value2);
+  } else {
+    Size    size1,
+            size2;
+    char     *s1,
+             *s2;
 
-		/*
-		 * Compare the bytes pointed by the pointers stored in the datums.
-		 */
-		size1 = datumGetSize(value1, typByVal, typLen);
-		size2 = datumGetSize(value2, typByVal, typLen);
-		if (size1 != size2)
-			return false;
-		s1 = (char *) DatumGetPointer(value1);
-		s2 = (char *) DatumGetPointer(value2);
-		res = (memcmp(s1, s2, size1) == 0);
-	}
-	return res;
+    /*
+     * Compare the bytes pointed by the pointers stored in the datums.
+     */
+    size1 = datumGetSize(value1, typByVal, typLen);
+    size2 = datumGetSize(value2, typByVal, typLen);
+
+    if (size1 != size2)
+      return false;
+
+    s1 = (char *) DatumGetPointer(value1);
+    s2 = (char *) DatumGetPointer(value2);
+    res = (memcmp(s1, s2, size1) == 0);
+  }
+
+  return res;
 }
 
 /*-------------------------------------------------------------------------
@@ -270,78 +256,75 @@ datumIsEqual(Datum value1, Datum value2, bool typByVal, int typLen)
 bool
 datum_image_eq(Datum value1, Datum value2, bool typByVal, int typLen)
 {
-	Size		len1,
-				len2;
-	bool		result = true;
+  Size    len1,
+          len2;
+  bool    result = true;
 
-	if (typByVal)
-	{
-		switch (typLen)
-		{
-			case sizeof(char):
-				result = (DatumGetChar(value1) == DatumGetChar(value2));
-				break;
-			case sizeof(int16):
-				result = (DatumGetInt16(value1) == DatumGetInt16(value2));
-				break;
-			case sizeof(int32):
-				result = (DatumGetInt32(value1) == DatumGetInt32(value2));
-				break;
-			default:
-				result = (value1 == value2);
-				break;
-		}
-	}
-	else if (typLen > 0)
-	{
-		result = (memcmp(DatumGetPointer(value1),
-						 DatumGetPointer(value2),
-						 typLen) == 0);
-	}
-	else if (typLen == -1)
-	{
-		len1 = toast_raw_datum_size(value1);
-		len2 = toast_raw_datum_size(value2);
-		/* No need to de-toast if lengths don't match. */
-		if (len1 != len2)
-			result = false;
-		else
-		{
-			struct varlena *arg1val;
-			struct varlena *arg2val;
+  if (typByVal) {
+    switch (typLen) {
+      case sizeof(char):
+        result = (DatumGetChar(value1) == DatumGetChar(value2));
+        break;
 
-			arg1val = PG_DETOAST_DATUM_PACKED(value1);
-			arg2val = PG_DETOAST_DATUM_PACKED(value2);
+      case sizeof(int16):
+        result = (DatumGetInt16(value1) == DatumGetInt16(value2));
+        break;
 
-			result = (memcmp(VARDATA_ANY(arg1val),
-							 VARDATA_ANY(arg2val),
-							 len1 - VARHDRSZ) == 0);
+      case sizeof(int32):
+        result = (DatumGetInt32(value1) == DatumGetInt32(value2));
+        break;
 
-			/* Only free memory if it's a copy made here. */
-			if ((Pointer) arg1val != (Pointer) value1)
-				pfree(arg1val);
-			if ((Pointer) arg2val != (Pointer) value2)
-				pfree(arg2val);
-		}
-	}
-	else if (typLen == -2)
-	{
-		char	   *s1,
-				   *s2;
+      default:
+        result = (value1 == value2);
+        break;
+    }
+  } else if (typLen > 0) {
+    result = (memcmp(DatumGetPointer(value1),
+                     DatumGetPointer(value2),
+                     typLen) == 0);
+  } else if (typLen == -1) {
+    len1 = toast_raw_datum_size(value1);
+    len2 = toast_raw_datum_size(value2);
 
-		/* Compare cstring datums */
-		s1 = DatumGetCString(value1);
-		s2 = DatumGetCString(value2);
-		len1 = strlen(s1) + 1;
-		len2 = strlen(s2) + 1;
-		if (len1 != len2)
-			return false;
-		result = (memcmp(s1, s2, len1) == 0);
-	}
-	else
-		elog(ERROR, "unexpected typLen: %d", typLen);
+    /* No need to de-toast if lengths don't match. */
+    if (len1 != len2)
+      result = false;
+    else {
+      struct varlena *arg1val;
+      struct varlena *arg2val;
 
-	return result;
+      arg1val = PG_DETOAST_DATUM_PACKED(value1);
+      arg2val = PG_DETOAST_DATUM_PACKED(value2);
+
+      result = (memcmp(VARDATA_ANY(arg1val),
+                       VARDATA_ANY(arg2val),
+                       len1 - VARHDRSZ) == 0);
+
+      /* Only free memory if it's a copy made here. */
+      if ((Pointer) arg1val != (Pointer) value1)
+        pfree(arg1val);
+
+      if ((Pointer) arg2val != (Pointer) value2)
+        pfree(arg2val);
+    }
+  } else if (typLen == -2) {
+    char     *s1,
+             *s2;
+
+    /* Compare cstring datums */
+    s1 = DatumGetCString(value1);
+    s2 = DatumGetCString(value2);
+    len1 = strlen(s1) + 1;
+    len2 = strlen(s2) + 1;
+
+    if (len1 != len2)
+      return false;
+
+    result = (memcmp(s1, s2, len1) == 0);
+  } else
+    elog(ERROR, "unexpected typLen: %d", typLen);
+
+  return result;
 }
 
 /*-------------------------------------------------------------------------
@@ -357,59 +340,53 @@ datum_image_eq(Datum value1, Datum value2, bool typByVal, int typLen)
 uint32
 datum_image_hash(Datum value, bool typByVal, int typLen)
 {
-	Size		len;
-	uint32		result;
+  Size    len;
+  uint32    result;
 
-	if (typByVal)
-	{
-		switch (typLen)
-		{
-			case sizeof(char):
-				value = CharGetDatum(DatumGetChar(value));
-				break;
-			case sizeof(int16):
-				value = Int16GetDatum(DatumGetInt16(value));
-				break;
-			case sizeof(int32):
-				value = Int32GetDatum(DatumGetInt32(value));
-				break;
-				/* Nothing needs done for 64-bit types */
-		}
+  if (typByVal) {
+    switch (typLen) {
+      case sizeof(char):
+        value = CharGetDatum(DatumGetChar(value));
+        break;
 
-		result = hash_bytes((unsigned char *) &value, sizeof(Datum));
-	}
-	else if (typLen > 0)
-		result = hash_bytes((unsigned char *) DatumGetPointer(value), typLen);
-	else if (typLen == -1)
-	{
-		struct varlena *val;
+      case sizeof(int16):
+        value = Int16GetDatum(DatumGetInt16(value));
+        break;
 
-		len = toast_raw_datum_size(value);
+      case sizeof(int32):
+        value = Int32GetDatum(DatumGetInt32(value));
+        break;
+        /* Nothing needs done for 64-bit types */
+    }
 
-		val = PG_DETOAST_DATUM_PACKED(value);
+    result = hash_bytes((unsigned char *) &value, sizeof(Datum));
+  } else if (typLen > 0)
+    result = hash_bytes((unsigned char *) DatumGetPointer(value), typLen);
+  else if (typLen == -1) {
+    struct varlena *val;
 
-		result = hash_bytes((unsigned char *) VARDATA_ANY(val), len - VARHDRSZ);
+    len = toast_raw_datum_size(value);
 
-		/* Only free memory if it's a copy made here. */
-		if ((Pointer) val != (Pointer) value)
-			pfree(val);
-	}
-	else if (typLen == -2)
-	{
-		char	   *s;
+    val = PG_DETOAST_DATUM_PACKED(value);
 
-		s = DatumGetCString(value);
-		len = strlen(s) + 1;
+    result = hash_bytes((unsigned char *) VARDATA_ANY(val), len - VARHDRSZ);
 
-		result = hash_bytes((unsigned char *) s, len);
-	}
-	else
-	{
-		elog(ERROR, "unexpected typLen: %d", typLen);
-		result = 0;				/* keep compiler quiet */
-	}
+    /* Only free memory if it's a copy made here. */
+    if ((Pointer) val != (Pointer) value)
+      pfree(val);
+  } else if (typLen == -2) {
+    char     *s;
 
-	return result;
+    s = DatumGetCString(value);
+    len = strlen(s) + 1;
+
+    result = hash_bytes((unsigned char *) s, len);
+  } else {
+    elog(ERROR, "unexpected typLen: %d", typLen);
+    result = 0;       /* keep compiler quiet */
+  }
+
+  return result;
 }
 
 /*-------------------------------------------------------------------------
@@ -432,9 +409,9 @@ datum_image_hash(Datum value, bool typByVal, int typLen)
 Datum
 btequalimage(PG_FUNCTION_ARGS)
 {
-	/* Oid		opcintype = PG_GETARG_OID(0); */
+  /* Oid    opcintype = PG_GETARG_OID(0); */
 
-	PG_RETURN_BOOL(true);
+  PG_RETURN_BOOL(true);
 }
 
 /*-------------------------------------------------------------------------
@@ -447,24 +424,21 @@ btequalimage(PG_FUNCTION_ARGS)
 Size
 datumEstimateSpace(Datum value, bool isnull, bool typByVal, int typLen)
 {
-	Size		sz = sizeof(int);
+  Size    sz = sizeof(int);
 
-	if (!isnull)
-	{
-		/* no need to use add_size, can't overflow */
-		if (typByVal)
-			sz += sizeof(Datum);
-		else if (typLen == -1 &&
-				 VARATT_IS_EXTERNAL_EXPANDED(DatumGetPointer(value)))
-		{
-			/* Expanded objects need to be flattened, see comment below */
-			sz += EOH_get_flat_size(DatumGetEOHP(value));
-		}
-		else
-			sz += datumGetSize(value, typByVal, typLen);
-	}
+  if (!isnull) {
+    /* no need to use add_size, can't overflow */
+    if (typByVal)
+      sz += sizeof(Datum);
+    else if (typLen == -1 &&
+             VARATT_IS_EXTERNAL_EXPANDED(DatumGetPointer(value))) {
+      /* Expanded objects need to be flattened, see comment below */
+      sz += EOH_get_flat_size(DatumGetEOHP(value));
+    } else
+      sz += datumGetSize(value, typByVal, typLen);
+  }
 
-	return sz;
+  return sz;
 }
 
 /*-------------------------------------------------------------------------
@@ -493,57 +467,50 @@ datumEstimateSpace(Datum value, bool isnull, bool typByVal, int typLen)
  */
 void
 datumSerialize(Datum value, bool isnull, bool typByVal, int typLen,
-			   char **start_address)
+               char **start_address)
 {
-	ExpandedObjectHeader *eoh = NULL;
-	int			header;
+  ExpandedObjectHeader *eoh = NULL;
+  int     header;
 
-	/* Write header word. */
-	if (isnull)
-		header = -2;
-	else if (typByVal)
-		header = -1;
-	else if (typLen == -1 &&
-			 VARATT_IS_EXTERNAL_EXPANDED(DatumGetPointer(value)))
-	{
-		eoh = DatumGetEOHP(value);
-		header = EOH_get_flat_size(eoh);
-	}
-	else
-		header = datumGetSize(value, typByVal, typLen);
-	memcpy(*start_address, &header, sizeof(int));
-	*start_address += sizeof(int);
+  /* Write header word. */
+  if (isnull)
+    header = -2;
+  else if (typByVal)
+    header = -1;
+  else if (typLen == -1 &&
+           VARATT_IS_EXTERNAL_EXPANDED(DatumGetPointer(value))) {
+    eoh = DatumGetEOHP(value);
+    header = EOH_get_flat_size(eoh);
+  } else
+    header = datumGetSize(value, typByVal, typLen);
 
-	/* If not null, write payload bytes. */
-	if (!isnull)
-	{
-		if (typByVal)
-		{
-			memcpy(*start_address, &value, sizeof(Datum));
-			*start_address += sizeof(Datum);
-		}
-		else if (eoh)
-		{
-			char	   *tmp;
+  memcpy(*start_address, &header, sizeof(int));
+  *start_address += sizeof(int);
 
-			/*
-			 * EOH_flatten_into expects the target address to be maxaligned,
-			 * so we can't store directly to *start_address.
-			 */
-			tmp = (char *) palloc(header);
-			EOH_flatten_into(eoh, tmp, header);
-			memcpy(*start_address, tmp, header);
-			*start_address += header;
+  /* If not null, write payload bytes. */
+  if (!isnull) {
+    if (typByVal) {
+      memcpy(*start_address, &value, sizeof(Datum));
+      *start_address += sizeof(Datum);
+    } else if (eoh) {
+      char     *tmp;
 
-			/* be tidy. */
-			pfree(tmp);
-		}
-		else
-		{
-			memcpy(*start_address, DatumGetPointer(value), header);
-			*start_address += header;
-		}
-	}
+      /*
+       * EOH_flatten_into expects the target address to be maxaligned,
+       * so we can't store directly to *start_address.
+       */
+      tmp = (char *) palloc(header);
+      EOH_flatten_into(eoh, tmp, header);
+      memcpy(*start_address, tmp, header);
+      *start_address += header;
+
+      /* be tidy. */
+      pfree(tmp);
+    } else {
+      memcpy(*start_address, DatumGetPointer(value), header);
+      *start_address += header;
+    }
+  }
 }
 
 /*-------------------------------------------------------------------------
@@ -556,37 +523,35 @@ datumSerialize(Datum value, bool isnull, bool typByVal, int typLen,
 Datum
 datumRestore(char **start_address, bool *isnull)
 {
-	int			header;
-	void	   *d;
+  int     header;
+  void     *d;
 
-	/* Read header word. */
-	memcpy(&header, *start_address, sizeof(int));
-	*start_address += sizeof(int);
+  /* Read header word. */
+  memcpy(&header, *start_address, sizeof(int));
+  *start_address += sizeof(int);
 
-	/* If this datum is NULL, we can stop here. */
-	if (header == -2)
-	{
-		*isnull = true;
-		return (Datum) 0;
-	}
+  /* If this datum is NULL, we can stop here. */
+  if (header == -2) {
+    *isnull = true;
+    return (Datum) 0;
+  }
 
-	/* OK, datum is not null. */
-	*isnull = false;
+  /* OK, datum is not null. */
+  *isnull = false;
 
-	/* If this datum is pass-by-value, sizeof(Datum) bytes follow. */
-	if (header == -1)
-	{
-		Datum		val;
+  /* If this datum is pass-by-value, sizeof(Datum) bytes follow. */
+  if (header == -1) {
+    Datum   val;
 
-		memcpy(&val, *start_address, sizeof(Datum));
-		*start_address += sizeof(Datum);
-		return val;
-	}
+    memcpy(&val, *start_address, sizeof(Datum));
+    *start_address += sizeof(Datum);
+    return val;
+  }
 
-	/* Pass-by-reference case; copy indicated number of bytes. */
-	Assert(header > 0);
-	d = palloc(header);
-	memcpy(d, *start_address, header);
-	*start_address += header;
-	return PointerGetDatum(d);
+  /* Pass-by-reference case; copy indicated number of bytes. */
+  Assert(header > 0);
+  d = palloc(header);
+  memcpy(d, *start_address, header);
+  *start_address += header;
+  return PointerGetDatum(d);
 }

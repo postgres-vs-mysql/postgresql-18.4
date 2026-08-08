@@ -1,20 +1,20 @@
 /*-------------------------------------------------------------------------
  *
  * syscache.c
- *	  System cache management routines
+ *    System cache management routines
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/backend/utils/cache/syscache.c
+ *    src/backend/utils/cache/syscache.c
  *
  * NOTES
- *	  These routines allow the parser/planner/executor to perform
- *	  rapid lookups on the contents of the system catalogs.
+ *    These routines allow the parser/planner/executor to perform
+ *    rapid lookups on the contents of the system catalogs.
  *
- *	  see utils/syscache.h for a list of the cache IDs
+ *    see utils/syscache.h for a list of the cache IDs
  *
  *-------------------------------------------------------------------------
  */
@@ -40,39 +40,38 @@
 
 /*---------------------------------------------------------------------------
 
-	Adding system caches:
+  Adding system caches:
 
-	There must be a unique index underlying each syscache (ie, an index
-	whose key is the same as that of the cache).  If there is not one
-	already, add the definition for it to include/catalog/pg_*.h using
-	DECLARE_UNIQUE_INDEX.
-	(Adding an index requires a catversion.h update, while simply
-	adding/deleting caches only requires a recompile.)
+  There must be a unique index underlying each syscache (ie, an index
+  whose key is the same as that of the cache).  If there is not one
+  already, add the definition for it to include/catalog/pg_*.h using
+  DECLARE_UNIQUE_INDEX.
+  (Adding an index requires a catversion.h update, while simply
+  adding/deleting caches only requires a recompile.)
 
-	Add a MAKE_SYSCACHE call to the same pg_*.h file specifying the name of
-	your cache, the underlying index, and the initial number of hash buckets.
+  Add a MAKE_SYSCACHE call to the same pg_*.h file specifying the name of
+  your cache, the underlying index, and the initial number of hash buckets.
 
-	The number of hash buckets must be a power of 2.  It's reasonable to
-	set this to the number of entries that might be in the particular cache
-	in a medium-size database.
+  The number of hash buckets must be a power of 2.  It's reasonable to
+  set this to the number of entries that might be in the particular cache
+  in a medium-size database.
 
-	Finally, any place your relation gets heap_insert() or
-	heap_update() calls, use CatalogTupleInsert() or CatalogTupleUpdate()
-	instead, which also update indexes.  The heap_* calls do not do that.
+  Finally, any place your relation gets heap_insert() or
+  heap_update() calls, use CatalogTupleInsert() or CatalogTupleUpdate()
+  instead, which also update indexes.  The heap_* calls do not do that.
 
 *---------------------------------------------------------------------------
 */
 
 /*
- *		struct cachedesc: information defining a single syscache
+ *    struct cachedesc: information defining a single syscache
  */
-struct cachedesc
-{
-	Oid			reloid;			/* OID of the relation being cached */
-	Oid			indoid;			/* OID of index relation for this cache */
-	int			nkeys;			/* # of keys needed for cache lookup */
-	int			key[4];			/* attribute numbers of key attrs */
-	int			nbuckets;		/* number of hash buckets for this cache */
+struct cachedesc {
+  Oid     reloid;     /* OID of the relation being cached */
+  Oid     indoid;     /* OID of index relation for this cache */
+  int     nkeys;      /* # of keys needed for cache lookup */
+  int     key[4];     /* attribute numbers of key attrs */
+  int     nbuckets;   /* number of hash buckets for this cache */
 };
 
 /* Macro to provide nkeys and key array with convenient syntax. */
@@ -81,21 +80,21 @@ struct cachedesc
 #include "catalog/syscache_info.h"
 
 StaticAssertDecl(lengthof(cacheinfo) == SysCacheSize,
-				 "SysCacheSize does not match syscache.c's array");
+                 "SysCacheSize does not match syscache.c's array");
 
 static CatCache *SysCache[SysCacheSize];
 
 static bool CacheInitialized = false;
 
 /* Sorted array of OIDs of tables that have caches on them */
-static Oid	SysCacheRelationOid[SysCacheSize];
-static int	SysCacheRelationOidSize;
+static Oid  SysCacheRelationOid[SysCacheSize];
+static int  SysCacheRelationOidSize;
 
 /* Sorted array of OIDs of tables and indexes used by caches */
-static Oid	SysCacheSupportingRelOid[SysCacheSize * 2];
-static int	SysCacheSupportingRelOidSize;
+static Oid  SysCacheSupportingRelOid[SysCacheSize * 2];
+static int  SysCacheSupportingRelOidSize;
 
-static int	oid_compare(const void *a, const void *b);
+static int  oid_compare(const void *a, const void *b);
 
 
 /*
@@ -109,59 +108,60 @@ static int	oid_compare(const void *a, const void *b);
 void
 InitCatalogCache(void)
 {
-	int			cacheId;
+  int     cacheId;
 
-	Assert(!CacheInitialized);
+  Assert(!CacheInitialized);
 
-	SysCacheRelationOidSize = SysCacheSupportingRelOidSize = 0;
+  SysCacheRelationOidSize = SysCacheSupportingRelOidSize = 0;
 
-	for (cacheId = 0; cacheId < SysCacheSize; cacheId++)
-	{
-		/*
-		 * Assert that every enumeration value defined in syscache.h has been
-		 * populated in the cacheinfo array.
-		 */
-		Assert(OidIsValid(cacheinfo[cacheId].reloid));
-		Assert(OidIsValid(cacheinfo[cacheId].indoid));
-		/* .nbuckets and .key[] are checked by InitCatCache() */
+  for (cacheId = 0; cacheId < SysCacheSize; cacheId++) {
+    /*
+     * Assert that every enumeration value defined in syscache.h has been
+     * populated in the cacheinfo array.
+     */
+    Assert(OidIsValid(cacheinfo[cacheId].reloid));
+    Assert(OidIsValid(cacheinfo[cacheId].indoid));
+    /* .nbuckets and .key[] are checked by InitCatCache() */
 
-		SysCache[cacheId] = InitCatCache(cacheId,
-										 cacheinfo[cacheId].reloid,
-										 cacheinfo[cacheId].indoid,
-										 cacheinfo[cacheId].nkeys,
-										 cacheinfo[cacheId].key,
-										 cacheinfo[cacheId].nbuckets);
-		if (!PointerIsValid(SysCache[cacheId]))
-			elog(ERROR, "could not initialize cache %u (%d)",
-				 cacheinfo[cacheId].reloid, cacheId);
-		/* Accumulate data for OID lists, too */
-		SysCacheRelationOid[SysCacheRelationOidSize++] =
-			cacheinfo[cacheId].reloid;
-		SysCacheSupportingRelOid[SysCacheSupportingRelOidSize++] =
-			cacheinfo[cacheId].reloid;
-		SysCacheSupportingRelOid[SysCacheSupportingRelOidSize++] =
-			cacheinfo[cacheId].indoid;
-		/* see comments for RelationInvalidatesSnapshotsOnly */
-		Assert(!RelationInvalidatesSnapshotsOnly(cacheinfo[cacheId].reloid));
-	}
+    SysCache[cacheId] = InitCatCache(cacheId,
+                                     cacheinfo[cacheId].reloid,
+                                     cacheinfo[cacheId].indoid,
+                                     cacheinfo[cacheId].nkeys,
+                                     cacheinfo[cacheId].key,
+                                     cacheinfo[cacheId].nbuckets);
 
-	Assert(SysCacheRelationOidSize <= lengthof(SysCacheRelationOid));
-	Assert(SysCacheSupportingRelOidSize <= lengthof(SysCacheSupportingRelOid));
+    if (!PointerIsValid(SysCache[cacheId]))
+      elog(ERROR, "could not initialize cache %u (%d)",
+           cacheinfo[cacheId].reloid, cacheId);
 
-	/* Sort and de-dup OID arrays, so we can use binary search. */
-	qsort(SysCacheRelationOid, SysCacheRelationOidSize,
-		  sizeof(Oid), oid_compare);
-	SysCacheRelationOidSize =
-		qunique(SysCacheRelationOid, SysCacheRelationOidSize, sizeof(Oid),
-				oid_compare);
+    /* Accumulate data for OID lists, too */
+    SysCacheRelationOid[SysCacheRelationOidSize++] =
+      cacheinfo[cacheId].reloid;
+    SysCacheSupportingRelOid[SysCacheSupportingRelOidSize++] =
+      cacheinfo[cacheId].reloid;
+    SysCacheSupportingRelOid[SysCacheSupportingRelOidSize++] =
+      cacheinfo[cacheId].indoid;
+    /* see comments for RelationInvalidatesSnapshotsOnly */
+    Assert(!RelationInvalidatesSnapshotsOnly(cacheinfo[cacheId].reloid));
+  }
 
-	qsort(SysCacheSupportingRelOid, SysCacheSupportingRelOidSize,
-		  sizeof(Oid), oid_compare);
-	SysCacheSupportingRelOidSize =
-		qunique(SysCacheSupportingRelOid, SysCacheSupportingRelOidSize,
-				sizeof(Oid), oid_compare);
+  Assert(SysCacheRelationOidSize <= lengthof(SysCacheRelationOid));
+  Assert(SysCacheSupportingRelOidSize <= lengthof(SysCacheSupportingRelOid));
 
-	CacheInitialized = true;
+  /* Sort and de-dup OID arrays, so we can use binary search. */
+  qsort(SysCacheRelationOid, SysCacheRelationOidSize,
+        sizeof(Oid), oid_compare);
+  SysCacheRelationOidSize =
+    qunique(SysCacheRelationOid, SysCacheRelationOidSize, sizeof(Oid),
+            oid_compare);
+
+  qsort(SysCacheSupportingRelOid, SysCacheSupportingRelOidSize,
+        sizeof(Oid), oid_compare);
+  SysCacheSupportingRelOidSize =
+    qunique(SysCacheSupportingRelOid, SysCacheSupportingRelOidSize,
+            sizeof(Oid), oid_compare);
+
+  CacheInitialized = true;
 }
 
 /*
@@ -179,96 +179,96 @@ InitCatalogCache(void)
 void
 InitCatalogCachePhase2(void)
 {
-	int			cacheId;
+  int     cacheId;
 
-	Assert(CacheInitialized);
+  Assert(CacheInitialized);
 
-	for (cacheId = 0; cacheId < SysCacheSize; cacheId++)
-		InitCatCachePhase2(SysCache[cacheId], true);
+  for (cacheId = 0; cacheId < SysCacheSize; cacheId++)
+    InitCatCachePhase2(SysCache[cacheId], true);
 }
 
 
 /*
  * SearchSysCache
  *
- *	A layer on top of SearchCatCache that does the initialization and
- *	key-setting for you.
+ *  A layer on top of SearchCatCache that does the initialization and
+ *  key-setting for you.
  *
- *	Returns the cache copy of the tuple if one is found, NULL if not.
- *	The tuple is the 'cache' copy and must NOT be modified!
+ *  Returns the cache copy of the tuple if one is found, NULL if not.
+ *  The tuple is the 'cache' copy and must NOT be modified!
  *
- *	When the caller is done using the tuple, call ReleaseSysCache()
- *	to release the reference count grabbed by SearchSysCache().  If this
- *	is not done, the tuple will remain locked in cache until end of
- *	transaction, which is tolerable but not desirable.
+ *  When the caller is done using the tuple, call ReleaseSysCache()
+ *  to release the reference count grabbed by SearchSysCache().  If this
+ *  is not done, the tuple will remain locked in cache until end of
+ *  transaction, which is tolerable but not desirable.
  *
- *	CAUTION: The tuple that is returned must NOT be freed by the caller!
+ *  CAUTION: The tuple that is returned must NOT be freed by the caller!
  */
 HeapTuple
 SearchSysCache(int cacheId,
-			   Datum key1,
-			   Datum key2,
-			   Datum key3,
-			   Datum key4)
+               Datum key1,
+               Datum key2,
+               Datum key3,
+               Datum key4)
 {
-	Assert(cacheId >= 0 && cacheId < SysCacheSize &&
-		   PointerIsValid(SysCache[cacheId]));
+  Assert(cacheId >= 0 && cacheId < SysCacheSize &&
+         PointerIsValid(SysCache[cacheId]));
 
-	return SearchCatCache(SysCache[cacheId], key1, key2, key3, key4);
+  return SearchCatCache(SysCache[cacheId], key1, key2, key3, key4);
 }
 
 HeapTuple
 SearchSysCache1(int cacheId,
-				Datum key1)
+                Datum key1)
 {
-	Assert(cacheId >= 0 && cacheId < SysCacheSize &&
-		   PointerIsValid(SysCache[cacheId]));
-	Assert(SysCache[cacheId]->cc_nkeys == 1);
+  Assert(cacheId >= 0 && cacheId < SysCacheSize &&
+         PointerIsValid(SysCache[cacheId]));
+  Assert(SysCache[cacheId]->cc_nkeys == 1);
 
-	return SearchCatCache1(SysCache[cacheId], key1);
+  return SearchCatCache1(SysCache[cacheId], key1);
 }
 
 HeapTuple
 SearchSysCache2(int cacheId,
-				Datum key1, Datum key2)
+                Datum key1, Datum key2)
 {
-	Assert(cacheId >= 0 && cacheId < SysCacheSize &&
-		   PointerIsValid(SysCache[cacheId]));
-	Assert(SysCache[cacheId]->cc_nkeys == 2);
+  Assert(cacheId >= 0 && cacheId < SysCacheSize &&
+         PointerIsValid(SysCache[cacheId]));
+  Assert(SysCache[cacheId]->cc_nkeys == 2);
 
-	return SearchCatCache2(SysCache[cacheId], key1, key2);
+  return SearchCatCache2(SysCache[cacheId], key1, key2);
 }
 
 HeapTuple
 SearchSysCache3(int cacheId,
-				Datum key1, Datum key2, Datum key3)
+                Datum key1, Datum key2, Datum key3)
 {
-	Assert(cacheId >= 0 && cacheId < SysCacheSize &&
-		   PointerIsValid(SysCache[cacheId]));
-	Assert(SysCache[cacheId]->cc_nkeys == 3);
+  Assert(cacheId >= 0 && cacheId < SysCacheSize &&
+         PointerIsValid(SysCache[cacheId]));
+  Assert(SysCache[cacheId]->cc_nkeys == 3);
 
-	return SearchCatCache3(SysCache[cacheId], key1, key2, key3);
+  return SearchCatCache3(SysCache[cacheId], key1, key2, key3);
 }
 
 HeapTuple
 SearchSysCache4(int cacheId,
-				Datum key1, Datum key2, Datum key3, Datum key4)
+                Datum key1, Datum key2, Datum key3, Datum key4)
 {
-	Assert(cacheId >= 0 && cacheId < SysCacheSize &&
-		   PointerIsValid(SysCache[cacheId]));
-	Assert(SysCache[cacheId]->cc_nkeys == 4);
+  Assert(cacheId >= 0 && cacheId < SysCacheSize &&
+         PointerIsValid(SysCache[cacheId]));
+  Assert(SysCache[cacheId]->cc_nkeys == 4);
 
-	return SearchCatCache4(SysCache[cacheId], key1, key2, key3, key4);
+  return SearchCatCache4(SysCache[cacheId], key1, key2, key3, key4);
 }
 
 /*
  * ReleaseSysCache
- *		Release previously grabbed reference count on a tuple
+ *    Release previously grabbed reference count on a tuple
  */
 void
 ReleaseSysCache(HeapTuple tuple)
 {
-	ReleaseCatCache(tuple);
+  ReleaseCatCache(tuple);
 }
 
 /*
@@ -285,86 +285,86 @@ ReleaseSysCache(HeapTuple tuple)
  */
 HeapTuple
 SearchSysCacheLocked1(int cacheId,
-					  Datum key1)
+                      Datum key1)
 {
-	CatCache   *cache = SysCache[cacheId];
-	ItemPointerData tid;
-	LOCKTAG		tag;
+  CatCache   *cache = SysCache[cacheId];
+  ItemPointerData tid;
+  LOCKTAG   tag;
 
-	/*----------
-	 * Since inplace updates may happen just before our LockTuple(), we must
-	 * return content acquired after LockTuple() of the TID we return.  If we
-	 * just fetched twice instead of looping, the following sequence would
-	 * defeat our locking:
-	 *
-	 * GRANT:   SearchSysCache1() = TID (1,5)
-	 * GRANT:   LockTuple(pg_class, (1,5))
-	 * [no more inplace update of (1,5) until we release the lock]
-	 * CLUSTER: SearchSysCache1() = TID (1,5)
-	 * CLUSTER: heap_update() = TID (1,8)
-	 * CLUSTER: COMMIT
-	 * GRANT:   SearchSysCache1() = TID (1,8)
-	 * GRANT:   return (1,8) from SearchSysCacheLocked1()
-	 * VACUUM:  SearchSysCache1() = TID (1,8)
-	 * VACUUM:  LockTuple(pg_class, (1,8))  # two TIDs now locked for one rel
-	 * VACUUM:  inplace update
-	 * GRANT:   heap_update() = (1,9)  # lose inplace update
-	 *
-	 * In the happy case, this takes two fetches, one to determine the TID to
-	 * lock and another to get the content and confirm the TID didn't change.
-	 *
-	 * This is valid even if the row gets updated to a new TID, the old TID
-	 * becomes LP_UNUSED, and the row gets updated back to its old TID.  We'd
-	 * still hold the right LOCKTAG_TUPLE and a copy of the row captured after
-	 * the LOCKTAG_TUPLE.
-	 */
-	ItemPointerSetInvalid(&tid);
-	for (;;)
-	{
-		HeapTuple	tuple;
-		LOCKMODE	lockmode = InplaceUpdateTupleLock;
+  /*----------
+   * Since inplace updates may happen just before our LockTuple(), we must
+   * return content acquired after LockTuple() of the TID we return.  If we
+   * just fetched twice instead of looping, the following sequence would
+   * defeat our locking:
+   *
+   * GRANT:   SearchSysCache1() = TID (1,5)
+   * GRANT:   LockTuple(pg_class, (1,5))
+   * [no more inplace update of (1,5) until we release the lock]
+   * CLUSTER: SearchSysCache1() = TID (1,5)
+   * CLUSTER: heap_update() = TID (1,8)
+   * CLUSTER: COMMIT
+   * GRANT:   SearchSysCache1() = TID (1,8)
+   * GRANT:   return (1,8) from SearchSysCacheLocked1()
+   * VACUUM:  SearchSysCache1() = TID (1,8)
+   * VACUUM:  LockTuple(pg_class, (1,8))  # two TIDs now locked for one rel
+   * VACUUM:  inplace update
+   * GRANT:   heap_update() = (1,9)  # lose inplace update
+   *
+   * In the happy case, this takes two fetches, one to determine the TID to
+   * lock and another to get the content and confirm the TID didn't change.
+   *
+   * This is valid even if the row gets updated to a new TID, the old TID
+   * becomes LP_UNUSED, and the row gets updated back to its old TID.  We'd
+   * still hold the right LOCKTAG_TUPLE and a copy of the row captured after
+   * the LOCKTAG_TUPLE.
+   */
+  ItemPointerSetInvalid(&tid);
 
-		tuple = SearchSysCache1(cacheId, key1);
-		if (ItemPointerIsValid(&tid))
-		{
-			if (!HeapTupleIsValid(tuple))
-			{
-				LockRelease(&tag, lockmode, false);
-				return tuple;
-			}
-			if (ItemPointerEquals(&tid, &tuple->t_self))
-				return tuple;
-			LockRelease(&tag, lockmode, false);
-		}
-		else if (!HeapTupleIsValid(tuple))
-			return tuple;
+  for (;;) {
+    HeapTuple tuple;
+    LOCKMODE  lockmode = InplaceUpdateTupleLock;
 
-		tid = tuple->t_self;
-		ReleaseSysCache(tuple);
+    tuple = SearchSysCache1(cacheId, key1);
 
-		/*
-		 * Do like LockTuple(rel, &tid, lockmode).  While cc_relisshared won't
-		 * change from one iteration to another, it may have been a temporary
-		 * "false" until our first SearchSysCache1().
-		 */
-		SET_LOCKTAG_TUPLE(tag,
-						  cache->cc_relisshared ? InvalidOid : MyDatabaseId,
-						  cache->cc_reloid,
-						  ItemPointerGetBlockNumber(&tid),
-						  ItemPointerGetOffsetNumber(&tid));
-		(void) LockAcquire(&tag, lockmode, false, false);
+    if (ItemPointerIsValid(&tid)) {
+      if (!HeapTupleIsValid(tuple)) {
+        LockRelease(&tag, lockmode, false);
+        return tuple;
+      }
 
-		/*
-		 * If an inplace update just finished, ensure we process the syscache
-		 * inval.
-		 *
-		 * If a heap_update() call just released its LOCKTAG_TUPLE, we'll
-		 * probably find the old tuple and reach "tuple concurrently updated".
-		 * If that heap_update() aborts, our LOCKTAG_TUPLE blocks inplace
-		 * updates while our caller works.
-		 */
-		AcceptInvalidationMessages();
-	}
+      if (ItemPointerEquals(&tid, &tuple->t_self))
+        return tuple;
+
+      LockRelease(&tag, lockmode, false);
+    } else if (!HeapTupleIsValid(tuple))
+      return tuple;
+
+    tid = tuple->t_self;
+    ReleaseSysCache(tuple);
+
+    /*
+     * Do like LockTuple(rel, &tid, lockmode).  While cc_relisshared won't
+     * change from one iteration to another, it may have been a temporary
+     * "false" until our first SearchSysCache1().
+     */
+    SET_LOCKTAG_TUPLE(tag,
+                      cache->cc_relisshared ? InvalidOid : MyDatabaseId,
+                      cache->cc_reloid,
+                      ItemPointerGetBlockNumber(&tid),
+                      ItemPointerGetOffsetNumber(&tid));
+    (void) LockAcquire(&tag, lockmode, false, false);
+
+    /*
+     * If an inplace update just finished, ensure we process the syscache
+     * inval.
+     *
+     * If a heap_update() call just released its LOCKTAG_TUPLE, we'll
+     * probably find the old tuple and reach "tuple concurrently updated".
+     * If that heap_update() aborts, our LOCKTAG_TUPLE blocks inplace
+     * updates while our caller works.
+     */
+    AcceptInvalidationMessages();
+  }
 }
 
 /*
@@ -377,20 +377,22 @@ SearchSysCacheLocked1(int cacheId,
  */
 HeapTuple
 SearchSysCacheCopy(int cacheId,
-				   Datum key1,
-				   Datum key2,
-				   Datum key3,
-				   Datum key4)
+                   Datum key1,
+                   Datum key2,
+                   Datum key3,
+                   Datum key4)
 {
-	HeapTuple	tuple,
-				newtuple;
+  HeapTuple tuple,
+            newtuple;
 
-	tuple = SearchSysCache(cacheId, key1, key2, key3, key4);
-	if (!HeapTupleIsValid(tuple))
-		return tuple;
-	newtuple = heap_copytuple(tuple);
-	ReleaseSysCache(tuple);
-	return newtuple;
+  tuple = SearchSysCache(cacheId, key1, key2, key3, key4);
+
+  if (!HeapTupleIsValid(tuple))
+    return tuple;
+
+  newtuple = heap_copytuple(tuple);
+  ReleaseSysCache(tuple);
+  return newtuple;
 }
 
 /*
@@ -402,17 +404,19 @@ SearchSysCacheCopy(int cacheId,
  */
 HeapTuple
 SearchSysCacheLockedCopy1(int cacheId,
-						  Datum key1)
+                          Datum key1)
 {
-	HeapTuple	tuple,
-				newtuple;
+  HeapTuple tuple,
+            newtuple;
 
-	tuple = SearchSysCacheLocked1(cacheId, key1);
-	if (!HeapTupleIsValid(tuple))
-		return tuple;
-	newtuple = heap_copytuple(tuple);
-	ReleaseSysCache(tuple);
-	return newtuple;
+  tuple = SearchSysCacheLocked1(cacheId, key1);
+
+  if (!HeapTupleIsValid(tuple))
+    return tuple;
+
+  newtuple = heap_copytuple(tuple);
+  ReleaseSysCache(tuple);
+  return newtuple;
 }
 
 /*
@@ -423,18 +427,20 @@ SearchSysCacheLockedCopy1(int cacheId,
  */
 bool
 SearchSysCacheExists(int cacheId,
-					 Datum key1,
-					 Datum key2,
-					 Datum key3,
-					 Datum key4)
+                     Datum key1,
+                     Datum key2,
+                     Datum key3,
+                     Datum key4)
 {
-	HeapTuple	tuple;
+  HeapTuple tuple;
 
-	tuple = SearchSysCache(cacheId, key1, key2, key3, key4);
-	if (!HeapTupleIsValid(tuple))
-		return false;
-	ReleaseSysCache(tuple);
-	return true;
+  tuple = SearchSysCache(cacheId, key1, key2, key3, key4);
+
+  if (!HeapTupleIsValid(tuple))
+    return false;
+
+  ReleaseSysCache(tuple);
+  return true;
 }
 
 /*
@@ -446,25 +452,27 @@ SearchSysCacheExists(int cacheId,
  */
 Oid
 GetSysCacheOid(int cacheId,
-			   AttrNumber oidcol,
-			   Datum key1,
-			   Datum key2,
-			   Datum key3,
-			   Datum key4)
+               AttrNumber oidcol,
+               Datum key1,
+               Datum key2,
+               Datum key3,
+               Datum key4)
 {
-	HeapTuple	tuple;
-	bool		isNull;
-	Oid			result;
+  HeapTuple tuple;
+  bool    isNull;
+  Oid     result;
 
-	tuple = SearchSysCache(cacheId, key1, key2, key3, key4);
-	if (!HeapTupleIsValid(tuple))
-		return InvalidOid;
-	result = heap_getattr(tuple, oidcol,
-						  SysCache[cacheId]->cc_tupdesc,
-						  &isNull);
-	Assert(!isNull);			/* columns used as oids should never be NULL */
-	ReleaseSysCache(tuple);
-	return result;
+  tuple = SearchSysCache(cacheId, key1, key2, key3, key4);
+
+  if (!HeapTupleIsValid(tuple))
+    return InvalidOid;
+
+  result = heap_getattr(tuple, oidcol,
+                        SysCache[cacheId]->cc_tupdesc,
+                        &isNull);
+  Assert(!isNull);      /* columns used as oids should never be NULL */
+  ReleaseSysCache(tuple);
+  return result;
 }
 
 
@@ -479,19 +487,21 @@ GetSysCacheOid(int cacheId,
 HeapTuple
 SearchSysCacheAttName(Oid relid, const char *attname)
 {
-	HeapTuple	tuple;
+  HeapTuple tuple;
 
-	tuple = SearchSysCache2(ATTNAME,
-							ObjectIdGetDatum(relid),
-							CStringGetDatum(attname));
-	if (!HeapTupleIsValid(tuple))
-		return NULL;
-	if (((Form_pg_attribute) GETSTRUCT(tuple))->attisdropped)
-	{
-		ReleaseSysCache(tuple);
-		return NULL;
-	}
-	return tuple;
+  tuple = SearchSysCache2(ATTNAME,
+                          ObjectIdGetDatum(relid),
+                          CStringGetDatum(attname));
+
+  if (!HeapTupleIsValid(tuple))
+    return NULL;
+
+  if (((Form_pg_attribute) GETSTRUCT(tuple))->attisdropped) {
+    ReleaseSysCache(tuple);
+    return NULL;
+  }
+
+  return tuple;
 }
 
 /*
@@ -502,15 +512,17 @@ SearchSysCacheAttName(Oid relid, const char *attname)
 HeapTuple
 SearchSysCacheCopyAttName(Oid relid, const char *attname)
 {
-	HeapTuple	tuple,
-				newtuple;
+  HeapTuple tuple,
+            newtuple;
 
-	tuple = SearchSysCacheAttName(relid, attname);
-	if (!HeapTupleIsValid(tuple))
-		return tuple;
-	newtuple = heap_copytuple(tuple);
-	ReleaseSysCache(tuple);
-	return newtuple;
+  tuple = SearchSysCacheAttName(relid, attname);
+
+  if (!HeapTupleIsValid(tuple))
+    return tuple;
+
+  newtuple = heap_copytuple(tuple);
+  ReleaseSysCache(tuple);
+  return newtuple;
 }
 
 /*
@@ -521,13 +533,15 @@ SearchSysCacheCopyAttName(Oid relid, const char *attname)
 bool
 SearchSysCacheExistsAttName(Oid relid, const char *attname)
 {
-	HeapTuple	tuple;
+  HeapTuple tuple;
 
-	tuple = SearchSysCacheAttName(relid, attname);
-	if (!HeapTupleIsValid(tuple))
-		return false;
-	ReleaseSysCache(tuple);
-	return true;
+  tuple = SearchSysCacheAttName(relid, attname);
+
+  if (!HeapTupleIsValid(tuple))
+    return false;
+
+  ReleaseSysCache(tuple);
+  return true;
 }
 
 
@@ -542,19 +556,21 @@ SearchSysCacheExistsAttName(Oid relid, const char *attname)
 HeapTuple
 SearchSysCacheAttNum(Oid relid, int16 attnum)
 {
-	HeapTuple	tuple;
+  HeapTuple tuple;
 
-	tuple = SearchSysCache2(ATTNUM,
-							ObjectIdGetDatum(relid),
-							Int16GetDatum(attnum));
-	if (!HeapTupleIsValid(tuple))
-		return NULL;
-	if (((Form_pg_attribute) GETSTRUCT(tuple))->attisdropped)
-	{
-		ReleaseSysCache(tuple);
-		return NULL;
-	}
-	return tuple;
+  tuple = SearchSysCache2(ATTNUM,
+                          ObjectIdGetDatum(relid),
+                          Int16GetDatum(attnum));
+
+  if (!HeapTupleIsValid(tuple))
+    return NULL;
+
+  if (((Form_pg_attribute) GETSTRUCT(tuple))->attisdropped) {
+    ReleaseSysCache(tuple);
+    return NULL;
+  }
+
+  return tuple;
 }
 
 /*
@@ -565,23 +581,25 @@ SearchSysCacheAttNum(Oid relid, int16 attnum)
 HeapTuple
 SearchSysCacheCopyAttNum(Oid relid, int16 attnum)
 {
-	HeapTuple	tuple,
-				newtuple;
+  HeapTuple tuple,
+            newtuple;
 
-	tuple = SearchSysCacheAttNum(relid, attnum);
-	if (!HeapTupleIsValid(tuple))
-		return NULL;
-	newtuple = heap_copytuple(tuple);
-	ReleaseSysCache(tuple);
-	return newtuple;
+  tuple = SearchSysCacheAttNum(relid, attnum);
+
+  if (!HeapTupleIsValid(tuple))
+    return NULL;
+
+  newtuple = heap_copytuple(tuple);
+  ReleaseSysCache(tuple);
+  return newtuple;
 }
 
 
 /*
  * SysCacheGetAttr
  *
- *		Given a tuple previously fetched by SearchSysCache(),
- *		extract a specific attribute.
+ *    Given a tuple previously fetched by SearchSysCache(),
+ *    extract a specific attribute.
  *
  * This is equivalent to using heap_getattr() on a tuple fetched
  * from a non-cached relation.  Usually, this is only used for attributes
@@ -598,27 +616,27 @@ SearchSysCacheCopyAttNum(Oid relid, int16 attnum)
  */
 Datum
 SysCacheGetAttr(int cacheId, HeapTuple tup,
-				AttrNumber attributeNumber,
-				bool *isNull)
+                AttrNumber attributeNumber,
+                bool *isNull)
 {
-	/*
-	 * We just need to get the TupleDesc out of the cache entry, and then we
-	 * can apply heap_getattr().  Normally the cache control data is already
-	 * valid (because the caller recently fetched the tuple via this same
-	 * cache), but there are cases where we have to initialize the cache here.
-	 */
-	if (cacheId < 0 || cacheId >= SysCacheSize ||
-		!PointerIsValid(SysCache[cacheId]))
-		elog(ERROR, "invalid cache ID: %d", cacheId);
-	if (!PointerIsValid(SysCache[cacheId]->cc_tupdesc))
-	{
-		InitCatCachePhase2(SysCache[cacheId], false);
-		Assert(PointerIsValid(SysCache[cacheId]->cc_tupdesc));
-	}
+  /*
+   * We just need to get the TupleDesc out of the cache entry, and then we
+   * can apply heap_getattr().  Normally the cache control data is already
+   * valid (because the caller recently fetched the tuple via this same
+   * cache), but there are cases where we have to initialize the cache here.
+   */
+  if (cacheId < 0 || cacheId >= SysCacheSize ||
+      !PointerIsValid(SysCache[cacheId]))
+    elog(ERROR, "invalid cache ID: %d", cacheId);
 
-	return heap_getattr(tup, attributeNumber,
-						SysCache[cacheId]->cc_tupdesc,
-						isNull);
+  if (!PointerIsValid(SysCache[cacheId]->cc_tupdesc)) {
+    InitCatCachePhase2(SysCache[cacheId], false);
+    Assert(PointerIsValid(SysCache[cacheId]->cc_tupdesc));
+  }
+
+  return heap_getattr(tup, attributeNumber,
+                      SysCache[cacheId]->cc_tupdesc,
+                      isNull);
 }
 
 /*
@@ -629,22 +647,21 @@ SysCacheGetAttr(int cacheId, HeapTuple tup,
  */
 Datum
 SysCacheGetAttrNotNull(int cacheId, HeapTuple tup,
-					   AttrNumber attributeNumber)
+                       AttrNumber attributeNumber)
 {
-	bool		isnull;
-	Datum		attr;
+  bool    isnull;
+  Datum   attr;
 
-	attr = SysCacheGetAttr(cacheId, tup, attributeNumber, &isnull);
+  attr = SysCacheGetAttr(cacheId, tup, attributeNumber, &isnull);
 
-	if (isnull)
-	{
-		elog(ERROR,
-			 "unexpected null value in cached tuple for catalog %s column %s",
-			 get_rel_name(cacheinfo[cacheId].reloid),
-			 NameStr(TupleDescAttr(SysCache[cacheId]->cc_tupdesc, attributeNumber - 1)->attname));
-	}
+  if (isnull) {
+    elog(ERROR,
+         "unexpected null value in cached tuple for catalog %s column %s",
+         get_rel_name(cacheinfo[cacheId].reloid),
+         NameStr(TupleDescAttr(SysCache[cacheId]->cc_tupdesc, attributeNumber - 1)->attname));
+  }
 
-	return attr;
+  return attr;
 }
 
 /*
@@ -659,16 +676,16 @@ SysCacheGetAttrNotNull(int cacheId, HeapTuple tup,
  */
 uint32
 GetSysCacheHashValue(int cacheId,
-					 Datum key1,
-					 Datum key2,
-					 Datum key3,
-					 Datum key4)
+                     Datum key1,
+                     Datum key2,
+                     Datum key3,
+                     Datum key4)
 {
-	if (cacheId < 0 || cacheId >= SysCacheSize ||
-		!PointerIsValid(SysCache[cacheId]))
-		elog(ERROR, "invalid cache ID: %d", cacheId);
+  if (cacheId < 0 || cacheId >= SysCacheSize ||
+      !PointerIsValid(SysCache[cacheId]))
+    elog(ERROR, "invalid cache ID: %d", cacheId);
 
-	return GetCatCacheHashValue(SysCache[cacheId], key1, key2, key3, key4);
+  return GetCatCacheHashValue(SysCache[cacheId], key1, key2, key3, key4);
 }
 
 /*
@@ -676,35 +693,35 @@ GetSysCacheHashValue(int cacheId,
  */
 struct catclist *
 SearchSysCacheList(int cacheId, int nkeys,
-				   Datum key1, Datum key2, Datum key3)
+                   Datum key1, Datum key2, Datum key3)
 {
-	if (cacheId < 0 || cacheId >= SysCacheSize ||
-		!PointerIsValid(SysCache[cacheId]))
-		elog(ERROR, "invalid cache ID: %d", cacheId);
+  if (cacheId < 0 || cacheId >= SysCacheSize ||
+      !PointerIsValid(SysCache[cacheId]))
+    elog(ERROR, "invalid cache ID: %d", cacheId);
 
-	return SearchCatCacheList(SysCache[cacheId], nkeys,
-							  key1, key2, key3);
+  return SearchCatCacheList(SysCache[cacheId], nkeys,
+                            key1, key2, key3);
 }
 
 /*
  * SysCacheInvalidate
  *
- *	Invalidate entries in the specified cache, given a hash value.
- *	See CatCacheInvalidate() for more info.
+ *  Invalidate entries in the specified cache, given a hash value.
+ *  See CatCacheInvalidate() for more info.
  *
- *	This routine is only quasi-public: it should only be used by inval.c.
+ *  This routine is only quasi-public: it should only be used by inval.c.
  */
 void
 SysCacheInvalidate(int cacheId, uint32 hashValue)
 {
-	if (cacheId < 0 || cacheId >= SysCacheSize)
-		elog(ERROR, "invalid cache ID: %d", cacheId);
+  if (cacheId < 0 || cacheId >= SysCacheSize)
+    elog(ERROR, "invalid cache ID: %d", cacheId);
 
-	/* if this cache isn't initialized yet, no need to do anything */
-	if (!PointerIsValid(SysCache[cacheId]))
-		return;
+  /* if this cache isn't initialized yet, no need to do anything */
+  if (!PointerIsValid(SysCache[cacheId]))
+    return;
 
-	CatCacheInvalidate(SysCache[cacheId], hashValue);
+  CatCacheInvalidate(SysCache[cacheId], hashValue);
 }
 
 /*
@@ -721,21 +738,21 @@ SysCacheInvalidate(int cacheId, uint32 hashValue)
 bool
 RelationInvalidatesSnapshotsOnly(Oid relid)
 {
-	switch (relid)
-	{
-		case DbRoleSettingRelationId:
-		case DependRelationId:
-		case SharedDependRelationId:
-		case DescriptionRelationId:
-		case SharedDescriptionRelationId:
-		case SecLabelRelationId:
-		case SharedSecLabelRelationId:
-			return true;
-		default:
-			break;
-	}
+  switch (relid) {
+    case DbRoleSettingRelationId:
+    case DependRelationId:
+    case SharedDependRelationId:
+    case DescriptionRelationId:
+    case SharedDescriptionRelationId:
+    case SecLabelRelationId:
+    case SharedSecLabelRelationId:
+      return true;
 
-	return false;
+    default:
+      break;
+  }
+
+  return false;
 }
 
 /*
@@ -744,22 +761,22 @@ RelationInvalidatesSnapshotsOnly(Oid relid)
 bool
 RelationHasSysCache(Oid relid)
 {
-	int			low = 0,
-				high = SysCacheRelationOidSize - 1;
+  int     low = 0,
+          high = SysCacheRelationOidSize - 1;
 
-	while (low <= high)
-	{
-		int			middle = low + (high - low) / 2;
+  while (low <= high) {
+    int     middle = low + (high - low) / 2;
 
-		if (SysCacheRelationOid[middle] == relid)
-			return true;
-		if (SysCacheRelationOid[middle] < relid)
-			low = middle + 1;
-		else
-			high = middle - 1;
-	}
+    if (SysCacheRelationOid[middle] == relid)
+      return true;
 
-	return false;
+    if (SysCacheRelationOid[middle] < relid)
+      low = middle + 1;
+    else
+      high = middle - 1;
+  }
+
+  return false;
 }
 
 /*
@@ -769,22 +786,22 @@ RelationHasSysCache(Oid relid)
 bool
 RelationSupportsSysCache(Oid relid)
 {
-	int			low = 0,
-				high = SysCacheSupportingRelOidSize - 1;
+  int     low = 0,
+          high = SysCacheSupportingRelOidSize - 1;
 
-	while (low <= high)
-	{
-		int			middle = low + (high - low) / 2;
+  while (low <= high) {
+    int     middle = low + (high - low) / 2;
 
-		if (SysCacheSupportingRelOid[middle] == relid)
-			return true;
-		if (SysCacheSupportingRelOid[middle] < relid)
-			low = middle + 1;
-		else
-			high = middle - 1;
-	}
+    if (SysCacheSupportingRelOid[middle] == relid)
+      return true;
 
-	return false;
+    if (SysCacheSupportingRelOid[middle] < relid)
+      low = middle + 1;
+    else
+      high = middle - 1;
+  }
+
+  return false;
 }
 
 
@@ -794,8 +811,8 @@ RelationSupportsSysCache(Oid relid)
 static int
 oid_compare(const void *a, const void *b)
 {
-	Oid			oa = *((const Oid *) a);
-	Oid			ob = *((const Oid *) b);
+  Oid     oa = *((const Oid *) a);
+  Oid     ob = *((const Oid *) b);
 
-	return pg_cmp_u32(oa, ob);
+  return pg_cmp_u32(oa, ob);
 }

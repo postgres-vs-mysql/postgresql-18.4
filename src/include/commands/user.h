@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * user.h
- *	  Commands for manipulating roles (formerly called users).
+ *    Commands for manipulating roles (formerly called users).
  *
  *
  * src/include/commands/user.h
@@ -26,9 +26,9 @@ typedef void (*check_password_hook_type) (const char *username, const char *shad
 
 extern PGDLLIMPORT check_password_hook_type check_password_hook;
 
-extern Oid	CreateRole(ParseState *pstate, CreateRoleStmt *stmt);
-extern Oid	AlterRole(ParseState *pstate, AlterRoleStmt *stmt);
-extern Oid	AlterRoleSet(AlterRoleSetStmt *stmt);
+extern Oid  CreateRole(ParseState *pstate, CreateRoleStmt *stmt);
+extern Oid  AlterRole(ParseState *pstate, AlterRoleStmt *stmt);
+extern Oid  AlterRoleSet(AlterRoleSetStmt *stmt);
 extern void DropRole(DropRoleStmt *stmt);
 extern void GrantRole(ParseState *pstate, GrantRoleStmt *stmt);
 extern ObjectAddress RenameRole(const char *oldname, const char *newname);
@@ -37,7 +37,7 @@ extern void ReassignOwnedObjects(ReassignOwnedStmt *stmt);
 extern List *roleSpecsToIds(List *memberNames);
 
 extern bool check_createrole_self_grant(char **newval, void **extra,
-										GucSource source);
+                                        GucSource source);
 extern void assign_createrole_self_grant(const char *newval, void *extra);
 
-#endif							/* USER_H */
+#endif              /* USER_H */

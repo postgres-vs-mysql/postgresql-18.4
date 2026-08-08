@@ -20,12 +20,12 @@ extern char *datadir_target;
 extern bool showprogress;
 extern bool dry_run;
 extern bool do_sync;
-extern int	WalSegSz;
+extern int  WalSegSz;
 extern DataDirSyncMethod sync_method;
 
 /* Target history */
 extern TimeLineHistoryEntry *targetHistory;
-extern int	targetNentries;
+extern int  targetNentries;
 
 /* Progress counters */
 extern uint64 fetch_size;
@@ -33,22 +33,22 @@ extern uint64 fetch_done;
 
 /* in parsexlog.c */
 extern void extractPageMap(const char *datadir, XLogRecPtr startpoint,
-						   int tliIndex, XLogRecPtr endpoint,
-						   const char *restoreCommand);
+                           int tliIndex, XLogRecPtr endpoint,
+                           const char *restoreCommand);
 extern void findLastCheckpoint(const char *datadir, XLogRecPtr forkptr,
-							   int tliIndex,
-							   XLogRecPtr *lastchkptrec, TimeLineID *lastchkpttli,
-							   XLogRecPtr *lastchkptredo,
-							   const char *restoreCommand);
+                               int tliIndex,
+                               XLogRecPtr *lastchkptrec, TimeLineID *lastchkpttli,
+                               XLogRecPtr *lastchkptredo,
+                               const char *restoreCommand);
 extern XLogRecPtr readOneRecord(const char *datadir, XLogRecPtr ptr,
-								int tliIndex, const char *restoreCommand);
+                                int tliIndex, const char *restoreCommand);
 
 /* in pg_rewind.c */
 extern void progress_report(bool finished);
 
 /* in timeline.c */
 extern TimeLineHistoryEntry *rewind_parseTimeLineHistory(char *buffer,
-														 TimeLineID targetTLI,
-														 int *nentries);
+    TimeLineID targetTLI,
+    int *nentries);
 
-#endif							/* PG_REWIND_H */
+#endif              /* PG_REWIND_H */

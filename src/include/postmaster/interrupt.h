@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * interrupt.h
- *	  Interrupt handling routines.
+ *    Interrupt handling routines.
  *
  * Responses to interrupts are fairly varied and many types of backends
  * have their own implementations, but we provide a few generic things
@@ -11,7 +11,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/include/postmaster/interrupt.h
+ *    src/include/postmaster/interrupt.h
  *
  *-------------------------------------------------------------------------
  */

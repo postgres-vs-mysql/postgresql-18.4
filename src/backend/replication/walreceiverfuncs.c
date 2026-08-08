@@ -10,7 +10,7 @@
  *
  *
  * IDENTIFICATION
- *	  src/backend/replication/walreceiverfuncs.c
+ *    src/backend/replication/walreceiverfuncs.c
  *
  *-------------------------------------------------------------------------
  */
@@ -43,80 +43,78 @@ WalRcvData *WalRcv = NULL;
 Size
 WalRcvShmemSize(void)
 {
-	Size		size = 0;
+  Size    size = 0;
 
-	size = add_size(size, sizeof(WalRcvData));
+  size = add_size(size, sizeof(WalRcvData));
 
-	return size;
+  return size;
 }
 
 /* Allocate and initialize walreceiver-related shared memory */
 void
 WalRcvShmemInit(void)
 {
-	bool		found;
+  bool    found;
 
-	WalRcv = (WalRcvData *)
-		ShmemInitStruct("Wal Receiver Ctl", WalRcvShmemSize(), &found);
+  WalRcv = (WalRcvData *)
+           ShmemInitStruct("Wal Receiver Ctl", WalRcvShmemSize(), &found);
 
-	if (!found)
-	{
-		/* First time through, so initialize */
-		MemSet(WalRcv, 0, WalRcvShmemSize());
-		WalRcv->walRcvState = WALRCV_STOPPED;
-		ConditionVariableInit(&WalRcv->walRcvStoppedCV);
-		SpinLockInit(&WalRcv->mutex);
-		pg_atomic_init_u64(&WalRcv->writtenUpto, 0);
-		WalRcv->procno = INVALID_PROC_NUMBER;
-	}
+  if (!found) {
+    /* First time through, so initialize */
+    MemSet(WalRcv, 0, WalRcvShmemSize());
+    WalRcv->walRcvState = WALRCV_STOPPED;
+    ConditionVariableInit(&WalRcv->walRcvStoppedCV);
+    SpinLockInit(&WalRcv->mutex);
+    pg_atomic_init_u64(&WalRcv->writtenUpto, 0);
+    WalRcv->procno = INVALID_PROC_NUMBER;
+  }
 }
 
 /* Is walreceiver running (or starting up)? */
 bool
 WalRcvRunning(void)
 {
-	WalRcvData *walrcv = WalRcv;
-	WalRcvState state;
-	pg_time_t	startTime;
+  WalRcvData *walrcv = WalRcv;
+  WalRcvState state;
+  pg_time_t startTime;
 
-	SpinLockAcquire(&walrcv->mutex);
+  SpinLockAcquire(&walrcv->mutex);
 
-	state = walrcv->walRcvState;
-	startTime = walrcv->startTime;
+  state = walrcv->walRcvState;
+  startTime = walrcv->startTime;
 
-	SpinLockRelease(&walrcv->mutex);
+  SpinLockRelease(&walrcv->mutex);
 
-	/*
-	 * If it has taken too long for walreceiver to start up, give up. Setting
-	 * the state to STOPPED ensures that if walreceiver later does start up
-	 * after all, it will see that it's not supposed to be running and die
-	 * without doing anything.
-	 */
-	if (state == WALRCV_STARTING)
-	{
-		pg_time_t	now = (pg_time_t) time(NULL);
+  /*
+   * If it has taken too long for walreceiver to start up, give up. Setting
+   * the state to STOPPED ensures that if walreceiver later does start up
+   * after all, it will see that it's not supposed to be running and die
+   * without doing anything.
+   */
+  if (state == WALRCV_STARTING) {
+    pg_time_t now = (pg_time_t) time(NULL);
 
-		if ((now - startTime) > WALRCV_STARTUP_TIMEOUT)
-		{
-			bool		stopped = false;
+    if ((now - startTime) > WALRCV_STARTUP_TIMEOUT) {
+      bool    stopped = false;
 
-			SpinLockAcquire(&walrcv->mutex);
-			if (walrcv->walRcvState == WALRCV_STARTING)
-			{
-				state = walrcv->walRcvState = WALRCV_STOPPED;
-				stopped = true;
-			}
-			SpinLockRelease(&walrcv->mutex);
+      SpinLockAcquire(&walrcv->mutex);
 
-			if (stopped)
-				ConditionVariableBroadcast(&walrcv->walRcvStoppedCV);
-		}
-	}
+      if (walrcv->walRcvState == WALRCV_STARTING) {
+        state = walrcv->walRcvState = WALRCV_STOPPED;
+        stopped = true;
+      }
 
-	if (state != WALRCV_STOPPED)
-		return true;
-	else
-		return false;
+      SpinLockRelease(&walrcv->mutex);
+
+      if (stopped)
+        ConditionVariableBroadcast(&walrcv->walRcvStoppedCV);
+    }
+  }
+
+  if (state != WALRCV_STOPPED)
+    return true;
+  else
+    return false;
 }
 
 /*
@@ -126,49 +124,48 @@ WalRcvRunning(void)
 bool
 WalRcvStreaming(void)
 {
-	WalRcvData *walrcv = WalRcv;
-	WalRcvState state;
-	pg_time_t	startTime;
+  WalRcvData *walrcv = WalRcv;
+  WalRcvState state;
+  pg_time_t startTime;
 
-	SpinLockAcquire(&walrcv->mutex);
+  SpinLockAcquire(&walrcv->mutex);
 
-	state = walrcv->walRcvState;
-	startTime = walrcv->startTime;
+  state = walrcv->walRcvState;
+  startTime = walrcv->startTime;
 
-	SpinLockRelease(&walrcv->mutex);
+  SpinLockRelease(&walrcv->mutex);
 
-	/*
-	 * If it has taken too long for walreceiver to start up, give up. Setting
-	 * the state to STOPPED ensures that if walreceiver later does start up
-	 * after all, it will see that it's not supposed to be running and die
-	 * without doing anything.
-	 */
-	if (state == WALRCV_STARTING)
-	{
-		pg_time_t	now = (pg_time_t) time(NULL);
+  /*
+   * If it has taken too long for walreceiver to start up, give up. Setting
+   * the state to STOPPED ensures that if walreceiver later does start up
+   * after all, it will see that it's not supposed to be running and die
+   * without doing anything.
+   */
+  if (state == WALRCV_STARTING) {
+    pg_time_t now = (pg_time_t) time(NULL);
 
-		if ((now - startTime) > WALRCV_STARTUP_TIMEOUT)
-		{
-			bool		stopped = false;
+    if ((now - startTime) > WALRCV_STARTUP_TIMEOUT) {
+      bool    stopped = false;
 
-			SpinLockAcquire(&walrcv->mutex);
-			if (walrcv->walRcvState == WALRCV_STARTING)
-			{
-				state = walrcv->walRcvState = WALRCV_STOPPED;
-				stopped = true;
-			}
-			SpinLockRelease(&walrcv->mutex);
+      SpinLockAcquire(&walrcv->mutex);
 
-			if (stopped)
-				ConditionVariableBroadcast(&walrcv->walRcvStoppedCV);
-		}
-	}
+      if (walrcv->walRcvState == WALRCV_STARTING) {
+        state = walrcv->walRcvState = WALRCV_STOPPED;
+        stopped = true;
+      }
 
-	if (state == WALRCV_STREAMING || state == WALRCV_STARTING ||
-		state == WALRCV_RESTARTING)
-		return true;
-	else
-		return false;
+      SpinLockRelease(&walrcv->mutex);
+
+      if (stopped)
+        ConditionVariableBroadcast(&walrcv->walRcvStoppedCV);
+    }
+  }
+
+  if (state == WALRCV_STREAMING || state == WALRCV_STARTING ||
+      state == WALRCV_RESTARTING)
+    return true;
+  else
+    return false;
 }
 
 /*
@@ -178,55 +175,60 @@ WalRcvStreaming(void)
 void
 ShutdownWalRcv(void)
 {
-	WalRcvData *walrcv = WalRcv;
-	pid_t		walrcvpid = 0;
-	bool		stopped = false;
+  WalRcvData *walrcv = WalRcv;
+  pid_t   walrcvpid = 0;
+  bool    stopped = false;
 
-	/*
-	 * Request walreceiver to stop. Walreceiver will switch to WALRCV_STOPPED
-	 * mode once it's finished, and will also request postmaster to not
-	 * restart itself.
-	 */
-	SpinLockAcquire(&walrcv->mutex);
-	switch (walrcv->walRcvState)
-	{
-		case WALRCV_STOPPED:
-			break;
-		case WALRCV_STARTING:
-			walrcv->walRcvState = WALRCV_STOPPED;
-			stopped = true;
-			break;
+  /*
+   * Request walreceiver to stop. Walreceiver will switch to WALRCV_STOPPED
+   * mode once it's finished, and will also request postmaster to not
+   * restart itself.
+   */
+  SpinLockAcquire(&walrcv->mutex);
 
-		case WALRCV_STREAMING:
-		case WALRCV_WAITING:
-		case WALRCV_RESTARTING:
-			walrcv->walRcvState = WALRCV_STOPPING;
-			/* fall through */
-		case WALRCV_STOPPING:
-			walrcvpid = walrcv->pid;
-			break;
-	}
-	SpinLockRelease(&walrcv->mutex);
+  switch (walrcv->walRcvState) {
+    case WALRCV_STOPPED:
+      break;
 
-	/* Unnecessary but consistent. */
-	if (stopped)
-		ConditionVariableBroadcast(&walrcv->walRcvStoppedCV);
+    case WALRCV_STARTING:
+      walrcv->walRcvState = WALRCV_STOPPED;
+      stopped = true;
+      break;
 
-	/*
-	 * Signal walreceiver process if it was still running.
-	 */
-	if (walrcvpid != 0)
-		kill(walrcvpid, SIGTERM);
+    case WALRCV_STREAMING:
+    case WALRCV_WAITING:
+    case WALRCV_RESTARTING:
+      walrcv->walRcvState = WALRCV_STOPPING;
 
-	/*
-	 * Wait for walreceiver to acknowledge its death by setting state to
-	 * WALRCV_STOPPED.
-	 */
-	ConditionVariablePrepareToSleep(&walrcv->walRcvStoppedCV);
-	while (WalRcvRunning())
-		ConditionVariableSleep(&walrcv->walRcvStoppedCV,
-							   WAIT_EVENT_WAL_RECEIVER_EXIT);
-	ConditionVariableCancelSleep();
+    /* fall through */
+    case WALRCV_STOPPING:
+      walrcvpid = walrcv->pid;
+      break;
+  }
+
+  SpinLockRelease(&walrcv->mutex);
+
+  /* Unnecessary but consistent. */
+  if (stopped)
+    ConditionVariableBroadcast(&walrcv->walRcvStoppedCV);
+
+  /*
+   * Signal walreceiver process if it was still running.
+   */
+  if (walrcvpid != 0)
+    kill(walrcvpid, SIGTERM);
+
+  /*
+   * Wait for walreceiver to acknowledge its death by setting state to
+   * WALRCV_STOPPED.
+   */
+  ConditionVariablePrepareToSleep(&walrcv->walRcvStoppedCV);
+
+  while (WalRcvRunning())
+    ConditionVariableSleep(&walrcv->walRcvStoppedCV,
+                           WAIT_EVENT_WAL_RECEIVER_EXIT);
+
+  ConditionVariableCancelSleep();
 }
 
 /*
@@ -244,80 +246,76 @@ ShutdownWalRcv(void)
  */
 void
 RequestXLogStreaming(TimeLineID tli, XLogRecPtr recptr, const char *conninfo,
-					 const char *slotname, bool create_temp_slot)
+                     const char *slotname, bool create_temp_slot)
 {
-	WalRcvData *walrcv = WalRcv;
-	bool		launch = false;
-	pg_time_t	now = (pg_time_t) time(NULL);
-	ProcNumber	walrcv_proc;
+  WalRcvData *walrcv = WalRcv;
+  bool    launch = false;
+  pg_time_t now = (pg_time_t) time(NULL);
+  ProcNumber  walrcv_proc;
 
-	/*
-	 * We always start at the beginning of the segment. That prevents a broken
-	 * segment (i.e., with no records in the first half of a segment) from
-	 * being created by XLOG streaming, which might cause trouble later on if
-	 * the segment is e.g archived.
-	 */
-	if (XLogSegmentOffset(recptr, wal_segment_size) != 0)
-		recptr -= XLogSegmentOffset(recptr, wal_segment_size);
+  /*
+   * We always start at the beginning of the segment. That prevents a broken
+   * segment (i.e., with no records in the first half of a segment) from
+   * being created by XLOG streaming, which might cause trouble later on if
+   * the segment is e.g archived.
+   */
+  if (XLogSegmentOffset(recptr, wal_segment_size) != 0)
+    recptr -= XLogSegmentOffset(recptr, wal_segment_size);
 
-	SpinLockAcquire(&walrcv->mutex);
+  SpinLockAcquire(&walrcv->mutex);
 
-	/* It better be stopped if we try to restart it */
-	Assert(walrcv->walRcvState == WALRCV_STOPPED ||
-		   walrcv->walRcvState == WALRCV_WAITING);
+  /* It better be stopped if we try to restart it */
+  Assert(walrcv->walRcvState == WALRCV_STOPPED ||
+         walrcv->walRcvState == WALRCV_WAITING);
 
-	if (conninfo != NULL)
-		strlcpy(walrcv->conninfo, conninfo, MAXCONNINFO);
-	else
-		walrcv->conninfo[0] = '\0';
+  if (conninfo != NULL)
+    strlcpy(walrcv->conninfo, conninfo, MAXCONNINFO);
+  else
+    walrcv->conninfo[0] = '\0';
 
-	/*
-	 * Use configured replication slot if present, and ignore the value of
-	 * create_temp_slot as the slot name should be persistent.  Otherwise, use
-	 * create_temp_slot to determine whether this WAL receiver should create a
-	 * temporary slot by itself and use it, or not.
-	 */
-	if (slotname != NULL && slotname[0] != '\0')
-	{
-		strlcpy(walrcv->slotname, slotname, NAMEDATALEN);
-		walrcv->is_temp_slot = false;
-	}
-	else
-	{
-		walrcv->slotname[0] = '\0';
-		walrcv->is_temp_slot = create_temp_slot;
-	}
+  /*
+   * Use configured replication slot if present, and ignore the value of
+   * create_temp_slot as the slot name should be persistent.  Otherwise, use
+   * create_temp_slot to determine whether this WAL receiver should create a
+   * temporary slot by itself and use it, or not.
+   */
+  if (slotname != NULL && slotname[0] != '\0') {
+    strlcpy(walrcv->slotname, slotname, NAMEDATALEN);
+    walrcv->is_temp_slot = false;
+  } else {
+    walrcv->slotname[0] = '\0';
+    walrcv->is_temp_slot = create_temp_slot;
+  }
 
-	if (walrcv->walRcvState == WALRCV_STOPPED)
-	{
-		launch = true;
-		walrcv->walRcvState = WALRCV_STARTING;
-	}
-	else
-		walrcv->walRcvState = WALRCV_RESTARTING;
-	walrcv->startTime = now;
+  if (walrcv->walRcvState == WALRCV_STOPPED) {
+    launch = true;
+    walrcv->walRcvState = WALRCV_STARTING;
+  } else
+    walrcv->walRcvState = WALRCV_RESTARTING;
 
-	/*
-	 * If this is the first startup of walreceiver (on this timeline),
-	 * initialize flushedUpto and latestChunkStart to the starting point.
-	 */
-	if (walrcv->receiveStart == 0 || walrcv->receivedTLI != tli)
-	{
-		walrcv->flushedUpto = recptr;
-		walrcv->receivedTLI = tli;
-		walrcv->latestChunkStart = recptr;
-	}
-	walrcv->receiveStart = recptr;
-	walrcv->receiveStartTLI = tli;
+  walrcv->startTime = now;
 
-	walrcv_proc = walrcv->procno;
+  /*
+   * If this is the first startup of walreceiver (on this timeline),
+   * initialize flushedUpto and latestChunkStart to the starting point.
+   */
+  if (walrcv->receiveStart == 0 || walrcv->receivedTLI != tli) {
+    walrcv->flushedUpto = recptr;
+    walrcv->receivedTLI = tli;
+    walrcv->latestChunkStart = recptr;
+  }
 
-	SpinLockRelease(&walrcv->mutex);
+  walrcv->receiveStart = recptr;
+  walrcv->receiveStartTLI = tli;
 
-	if (launch)
-		SendPostmasterSignal(PMSIGNAL_START_WALRECEIVER);
-	else if (walrcv_proc != INVALID_PROC_NUMBER)
-		SetLatch(&GetPGProcByNumber(walrcv_proc)->procLatch);
+  walrcv_proc = walrcv->procno;
+
+  SpinLockRelease(&walrcv->mutex);
+
+  if (launch)
+    SendPostmasterSignal(PMSIGNAL_START_WALRECEIVER);
+  else if (walrcv_proc != INVALID_PROC_NUMBER)
+    SetLatch(&GetPGProcByNumber(walrcv_proc)->procLatch);
 }
 
 /*
@@ -331,18 +329,21 @@ RequestXLogStreaming(TimeLineID tli, XLogRecPtr recptr, const char *conninfo,
 XLogRecPtr
 GetWalRcvFlushRecPtr(XLogRecPtr *latestChunkStart, TimeLineID *receiveTLI)
 {
-	WalRcvData *walrcv = WalRcv;
-	XLogRecPtr	recptr;
+  WalRcvData *walrcv = WalRcv;
+  XLogRecPtr  recptr;
 
-	SpinLockAcquire(&walrcv->mutex);
-	recptr = walrcv->flushedUpto;
-	if (latestChunkStart)
-		*latestChunkStart = walrcv->latestChunkStart;
-	if (receiveTLI)
-		*receiveTLI = walrcv->receivedTLI;
-	SpinLockRelease(&walrcv->mutex);
+  SpinLockAcquire(&walrcv->mutex);
+  recptr = walrcv->flushedUpto;
 
-	return recptr;
+  if (latestChunkStart)
+    *latestChunkStart = walrcv->latestChunkStart;
+
+  if (receiveTLI)
+    *receiveTLI = walrcv->receivedTLI;
+
+  SpinLockRelease(&walrcv->mutex);
+
+  return recptr;
 }
 
 /*
@@ -352,9 +353,9 @@ GetWalRcvFlushRecPtr(XLogRecPtr *latestChunkStart, TimeLineID *receiveTLI)
 XLogRecPtr
 GetWalRcvWriteRecPtr(void)
 {
-	WalRcvData *walrcv = WalRcv;
+  WalRcvData *walrcv = WalRcv;
 
-	return pg_atomic_read_u64(&walrcv->writtenUpto);
+  return pg_atomic_read_u64(&walrcv->writtenUpto);
 }
 
 /*
@@ -364,27 +365,27 @@ GetWalRcvWriteRecPtr(void)
 int
 GetReplicationApplyDelay(void)
 {
-	WalRcvData *walrcv = WalRcv;
-	XLogRecPtr	receivePtr;
-	XLogRecPtr	replayPtr;
-	TimestampTz chunkReplayStartTime;
+  WalRcvData *walrcv = WalRcv;
+  XLogRecPtr  receivePtr;
+  XLogRecPtr  replayPtr;
+  TimestampTz chunkReplayStartTime;
 
-	SpinLockAcquire(&walrcv->mutex);
-	receivePtr = walrcv->flushedUpto;
-	SpinLockRelease(&walrcv->mutex);
+  SpinLockAcquire(&walrcv->mutex);
+  receivePtr = walrcv->flushedUpto;
+  SpinLockRelease(&walrcv->mutex);
 
-	replayPtr = GetXLogReplayRecPtr(NULL);
+  replayPtr = GetXLogReplayRecPtr(NULL);
 
-	if (receivePtr == replayPtr)
-		return 0;
+  if (receivePtr == replayPtr)
+    return 0;
 
-	chunkReplayStartTime = GetCurrentChunkReplayStartTime();
+  chunkReplayStartTime = GetCurrentChunkReplayStartTime();
 
-	if (chunkReplayStartTime == 0)
-		return -1;
+  if (chunkReplayStartTime == 0)
+    return -1;
 
-	return TimestampDifferenceMilliseconds(chunkReplayStartTime,
-										   GetCurrentTimestamp());
+  return TimestampDifferenceMilliseconds(chunkReplayStartTime,
+                                         GetCurrentTimestamp());
 }
 
 /*
@@ -394,15 +395,15 @@ GetReplicationApplyDelay(void)
 int
 GetReplicationTransferLatency(void)
 {
-	WalRcvData *walrcv = WalRcv;
-	TimestampTz lastMsgSendTime;
-	TimestampTz lastMsgReceiptTime;
+  WalRcvData *walrcv = WalRcv;
+  TimestampTz lastMsgSendTime;
+  TimestampTz lastMsgReceiptTime;
 
-	SpinLockAcquire(&walrcv->mutex);
-	lastMsgSendTime = walrcv->lastMsgSendTime;
-	lastMsgReceiptTime = walrcv->lastMsgReceiptTime;
-	SpinLockRelease(&walrcv->mutex);
+  SpinLockAcquire(&walrcv->mutex);
+  lastMsgSendTime = walrcv->lastMsgSendTime;
+  lastMsgReceiptTime = walrcv->lastMsgReceiptTime;
+  SpinLockRelease(&walrcv->mutex);
 
-	return TimestampDifferenceMilliseconds(lastMsgSendTime,
-										   lastMsgReceiptTime);
+  return TimestampDifferenceMilliseconds(lastMsgSendTime,
+                                         lastMsgReceiptTime);
 }

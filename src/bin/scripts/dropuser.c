@@ -24,165 +24,168 @@ static void help(const char *progname);
 int
 main(int argc, char *argv[])
 {
-	static int	if_exists = 0;
+  static int  if_exists = 0;
 
-	static struct option long_options[] = {
-		{"host", required_argument, NULL, 'h'},
-		{"port", required_argument, NULL, 'p'},
-		{"username", required_argument, NULL, 'U'},
-		{"no-password", no_argument, NULL, 'w'},
-		{"password", no_argument, NULL, 'W'},
-		{"echo", no_argument, NULL, 'e'},
-		{"interactive", no_argument, NULL, 'i'},
-		{"if-exists", no_argument, &if_exists, 1},
-		{NULL, 0, NULL, 0}
-	};
+  static struct option long_options[] = {
+    {"host", required_argument, NULL, 'h'},
+    {"port", required_argument, NULL, 'p'},
+    {"username", required_argument, NULL, 'U'},
+    {"no-password", no_argument, NULL, 'w'},
+    {"password", no_argument, NULL, 'W'},
+    {"echo", no_argument, NULL, 'e'},
+    {"interactive", no_argument, NULL, 'i'},
+    {"if-exists", no_argument, &if_exists, 1},
+    {NULL, 0, NULL, 0}
+  };
 
-	const char *progname;
-	int			optindex;
-	int			c;
+  const char *progname;
+  int     optindex;
+  int     c;
 
-	char	   *dropuser = NULL;
-	char	   *host = NULL;
-	char	   *port = NULL;
-	char	   *username = NULL;
-	enum trivalue prompt_password = TRI_DEFAULT;
-	ConnParams	cparams;
-	bool		echo = false;
-	bool		interactive = false;
+  char     *dropuser = NULL;
+  char     *host = NULL;
+  char     *port = NULL;
+  char     *username = NULL;
+  enum trivalue prompt_password = TRI_DEFAULT;
+  ConnParams  cparams;
+  bool    echo = false;
+  bool    interactive = false;
 
-	PQExpBufferData sql;
+  PQExpBufferData sql;
 
-	PGconn	   *conn;
-	PGresult   *result;
+  PGconn     *conn;
+  PGresult   *result;
 
-	pg_logging_init(argv[0]);
-	progname = get_progname(argv[0]);
-	set_pglocale_pgservice(argv[0], PG_TEXTDOMAIN("pgscripts"));
+  pg_logging_init(argv[0]);
+  progname = get_progname(argv[0]);
+  set_pglocale_pgservice(argv[0], PG_TEXTDOMAIN("pgscripts"));
 
-	handle_help_version_opts(argc, argv, "dropuser", help);
+  handle_help_version_opts(argc, argv, "dropuser", help);
 
-	while ((c = getopt_long(argc, argv, "eh:ip:U:wW", long_options, &optindex)) != -1)
-	{
-		switch (c)
-		{
-			case 'e':
-				echo = true;
-				break;
-			case 'h':
-				host = pg_strdup(optarg);
-				break;
-			case 'i':
-				interactive = true;
-				break;
-			case 'p':
-				port = pg_strdup(optarg);
-				break;
-			case 'U':
-				username = pg_strdup(optarg);
-				break;
-			case 'w':
-				prompt_password = TRI_NO;
-				break;
-			case 'W':
-				prompt_password = TRI_YES;
-				break;
-			case 0:
-				/* this covers the long options */
-				break;
-			default:
-				/* getopt_long already emitted a complaint */
-				pg_log_error_hint("Try \"%s --help\" for more information.", progname);
-				exit(1);
-		}
-	}
+  while ((c = getopt_long(argc, argv, "eh:ip:U:wW", long_options, &optindex)) != -1) {
+    switch (c) {
+      case 'e':
+        echo = true;
+        break;
 
-	switch (argc - optind)
-	{
-		case 0:
-			break;
-		case 1:
-			dropuser = argv[optind];
-			break;
-		default:
-			pg_log_error("too many command-line arguments (first is \"%s\")",
-						 argv[optind + 1]);
-			pg_log_error_hint("Try \"%s --help\" for more information.", progname);
-			exit(1);
-	}
+      case 'h':
+        host = pg_strdup(optarg);
+        break;
 
-	if (dropuser == NULL)
-	{
-		if (interactive)
-		{
-			dropuser = simple_prompt("Enter name of role to drop: ", true);
-		}
-		else
-		{
-			pg_log_error("missing required argument role name");
-			pg_log_error_hint("Try \"%s --help\" for more information.", progname);
-			exit(1);
-		}
-	}
+      case 'i':
+        interactive = true;
+        break;
 
-	if (interactive)
-	{
-		printf(_("Role \"%s\" will be permanently removed.\n"), dropuser);
-		if (!yesno_prompt("Are you sure?"))
-			exit(0);
-	}
+      case 'p':
+        port = pg_strdup(optarg);
+        break;
 
-	cparams.dbname = NULL;		/* this program lacks any dbname option... */
-	cparams.pghost = host;
-	cparams.pgport = port;
-	cparams.pguser = username;
-	cparams.prompt_password = prompt_password;
-	cparams.override_dbname = NULL;
+      case 'U':
+        username = pg_strdup(optarg);
+        break;
 
-	conn = connectMaintenanceDatabase(&cparams, progname, echo);
+      case 'w':
+        prompt_password = TRI_NO;
+        break;
 
-	initPQExpBuffer(&sql);
-	appendPQExpBuffer(&sql, "DROP ROLE %s%s;",
-					  (if_exists ? "IF EXISTS " : ""),
-					  fmtIdEnc(dropuser, PQclientEncoding(conn)));
+      case 'W':
+        prompt_password = TRI_YES;
+        break;
 
-	if (echo)
-		printf("%s\n", sql.data);
-	result = PQexec(conn, sql.data);
+      case 0:
+        /* this covers the long options */
+        break;
 
-	if (PQresultStatus(result) != PGRES_COMMAND_OK)
-	{
-		pg_log_error("removal of role \"%s\" failed: %s",
-					 dropuser, PQerrorMessage(conn));
-		PQfinish(conn);
-		exit(1);
-	}
+      default:
+        /* getopt_long already emitted a complaint */
+        pg_log_error_hint("Try \"%s --help\" for more information.", progname);
+        exit(1);
+    }
+  }
 
-	PQclear(result);
-	PQfinish(conn);
-	exit(0);
+  switch (argc - optind) {
+    case 0:
+      break;
+
+    case 1:
+      dropuser = argv[optind];
+      break;
+
+    default:
+      pg_log_error("too many command-line arguments (first is \"%s\")",
+                   argv[optind + 1]);
+      pg_log_error_hint("Try \"%s --help\" for more information.", progname);
+      exit(1);
+  }
+
+  if (dropuser == NULL) {
+    if (interactive) {
+      dropuser = simple_prompt("Enter name of role to drop: ", true);
+    } else {
+      pg_log_error("missing required argument role name");
+      pg_log_error_hint("Try \"%s --help\" for more information.", progname);
+      exit(1);
+    }
+  }
+
+  if (interactive) {
+    printf(_("Role \"%s\" will be permanently removed.\n"), dropuser);
+
+    if (!yesno_prompt("Are you sure?"))
+      exit(0);
+  }
+
+  cparams.dbname = NULL;    /* this program lacks any dbname option... */
+  cparams.pghost = host;
+  cparams.pgport = port;
+  cparams.pguser = username;
+  cparams.prompt_password = prompt_password;
+  cparams.override_dbname = NULL;
+
+  conn = connectMaintenanceDatabase(&cparams, progname, echo);
+
+  initPQExpBuffer(&sql);
+  appendPQExpBuffer(&sql, "DROP ROLE %s%s;",
+                    (if_exists ? "IF EXISTS " : ""),
+                    fmtIdEnc(dropuser, PQclientEncoding(conn)));
+
+  if (echo)
+    printf("%s\n", sql.data);
+
+  result = PQexec(conn, sql.data);
+
+  if (PQresultStatus(result) != PGRES_COMMAND_OK) {
+    pg_log_error("removal of role \"%s\" failed: %s",
+                 dropuser, PQerrorMessage(conn));
+    PQfinish(conn);
+    exit(1);
+  }
+
+  PQclear(result);
+  PQfinish(conn);
+  exit(0);
 }
 
 
 static void
 help(const char *progname)
 {
-	printf(_("%s removes a PostgreSQL role.\n\n"), progname);
-	printf(_("Usage:\n"));
-	printf(_("  %s [OPTION]... [ROLENAME]\n"), progname);
-	printf(_("\nOptions:\n"));
-	printf(_("  -e, --echo                show the commands being sent to the server\n"));
-	printf(_("  -i, --interactive         prompt before deleting anything, and prompt for\n"
-			 "                            role name if not specified\n"));
-	printf(_("  -V, --version             output version information, then exit\n"));
-	printf(_("  --if-exists               don't report error if user doesn't exist\n"));
-	printf(_("  -?, --help                show this help, then exit\n"));
-	printf(_("\nConnection options:\n"));
-	printf(_("  -h, --host=HOSTNAME       database server host or socket directory\n"));
-	printf(_("  -p, --port=PORT           database server port\n"));
-	printf(_("  -U, --username=USERNAME   user name to connect as (not the one to drop)\n"));
-	printf(_("  -w, --no-password         never prompt for password\n"));
-	printf(_("  -W, --password            force password prompt\n"));
-	printf(_("\nReport bugs to <%s>.\n"), PACKAGE_BUGREPORT);
-	printf(_("%s home page: <%s>\n"), PACKAGE_NAME, PACKAGE_URL);
+  printf(_("%s removes a PostgreSQL role.\n\n"), progname);
+  printf(_("Usage:\n"));
+  printf(_("  %s [OPTION]... [ROLENAME]\n"), progname);
+  printf(_("\nOptions:\n"));
+  printf(_("  -e, --echo                show the commands being sent to the server\n"));
+  printf(_("  -i, --interactive         prompt before deleting anything, and prompt for\n"
+           "                            role name if not specified\n"));
+  printf(_("  -V, --version             output version information, then exit\n"));
+  printf(_("  --if-exists               don't report error if user doesn't exist\n"));
+  printf(_("  -?, --help                show this help, then exit\n"));
+  printf(_("\nConnection options:\n"));
+  printf(_("  -h, --host=HOSTNAME       database server host or socket directory\n"));
+  printf(_("  -p, --port=PORT           database server port\n"));
+  printf(_("  -U, --username=USERNAME   user name to connect as (not the one to drop)\n"));
+  printf(_("  -w, --no-password         never prompt for password\n"));
+  printf(_("  -W, --password            force password prompt\n"));
+  printf(_("\nReport bugs to <%s>.\n"), PACKAGE_BUGREPORT);
+  printf(_("%s home page: <%s>\n"), PACKAGE_NAME, PACKAGE_URL);
 }

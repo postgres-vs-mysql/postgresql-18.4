@@ -19,9 +19,9 @@
 #include "libpq/pg-gssapi.h"
 
 extern void pg_GSS_error(const char *errmsg,
-						 OM_uint32 maj_stat, OM_uint32 min_stat);
+                         OM_uint32 maj_stat, OM_uint32 min_stat);
 
 extern void pg_store_delegated_credential(gss_cred_id_t cred);
-#endif							/* ENABLE_GSS */
+#endif              /* ENABLE_GSS */
 
-#endif							/* BE_GSSAPI_COMMON_H */
+#endif              /* BE_GSSAPI_COMMON_H */

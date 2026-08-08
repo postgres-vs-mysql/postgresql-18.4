@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_collation.h
- *	  definition of the "collation" system catalog (pg_collation)
+ *    definition of the "collation" system catalog (pg_collation)
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -10,8 +10,8 @@
  * src/include/catalog/pg_collation.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -22,37 +22,38 @@
 #include "catalog/pg_collation_d.h" /* IWYU pragma: export */
 
 /* ----------------
- *		pg_collation definition.  cpp turns this into
- *		typedef struct FormData_pg_collation
+ *    pg_collation definition.  cpp turns this into
+ *    typedef struct FormData_pg_collation
  * ----------------
  */
-CATALOG(pg_collation,3456,CollationRelationId)
+CATALOG(pg_collation, 3456, CollationRelationId)
 {
-	Oid			oid;			/* oid */
-	NameData	collname;		/* collation name */
+  Oid     oid;      /* oid */
+  NameData  collname;   /* collation name */
 
-	/* OID of namespace containing this collation */
-	Oid			collnamespace BKI_DEFAULT(pg_catalog) BKI_LOOKUP(pg_namespace);
+  /* OID of namespace containing this collation */
+  Oid     collnamespace BKI_DEFAULT(pg_catalog) BKI_LOOKUP(pg_namespace);
 
-	/* owner of collation */
-	Oid			collowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
-	char		collprovider;	/* see constants below */
-	bool		collisdeterministic BKI_DEFAULT(t);
-	int32		collencoding;	/* encoding for this collation; -1 = "all" */
-#ifdef CATALOG_VARLEN			/* variable-length fields start here */
-	text		collcollate BKI_DEFAULT(_null_);	/* LC_COLLATE setting */
-	text		collctype BKI_DEFAULT(_null_);	/* LC_CTYPE setting */
-	text		colllocale BKI_DEFAULT(_null_); /* locale ID */
-	text		collicurules BKI_DEFAULT(_null_);	/* ICU collation rules */
-	text		collversion BKI_DEFAULT(_null_);	/* provider-dependent
-													 * version of collation
-													 * data */
+  /* owner of collation */
+  Oid     collowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
+  char    collprovider; /* see constants below */
+  bool    collisdeterministic BKI_DEFAULT(t);
+  int32   collencoding; /* encoding for this collation; -1 = "all" */
+#ifdef CATALOG_VARLEN     /* variable-length fields start here */
+  text    collcollate BKI_DEFAULT(_null_);  /* LC_COLLATE setting */
+  text    collctype BKI_DEFAULT(_null_);  /* LC_CTYPE setting */
+  text    colllocale BKI_DEFAULT(_null_); /* locale ID */
+  text    collicurules BKI_DEFAULT(_null_); /* ICU collation rules */
+  text    collversion BKI_DEFAULT(_null_);  /* provider-dependent
+                           * version of collation
+                           * data */
 #endif
-} FormData_pg_collation;
+}
+FormData_pg_collation;
 
 /* ----------------
- *		Form_pg_collation corresponds to a pointer to a row with
- *		the format of pg_collation relation.
+ *    Form_pg_collation corresponds to a pointer to a row with
+ *    the format of pg_collation relation.
  * ----------------
  */
 typedef FormData_pg_collation *Form_pg_collation;
@@ -67,40 +68,43 @@ MAKE_SYSCACHE(COLLOID, pg_collation_oid_index, 8);
 
 #ifdef EXPOSE_TO_CLIENT_CODE
 
-#define COLLPROVIDER_DEFAULT	'd'
-#define COLLPROVIDER_BUILTIN	'b'
-#define COLLPROVIDER_ICU		'i'
-#define COLLPROVIDER_LIBC		'c'
+#define COLLPROVIDER_DEFAULT  'd'
+#define COLLPROVIDER_BUILTIN  'b'
+#define COLLPROVIDER_ICU    'i'
+#define COLLPROVIDER_LIBC   'c'
 
 static inline const char *
 collprovider_name(char c)
 {
-	switch (c)
-	{
-		case COLLPROVIDER_BUILTIN:
-			return "builtin";
-		case COLLPROVIDER_ICU:
-			return "icu";
-		case COLLPROVIDER_LIBC:
-			return "libc";
-		default:
-			return "???";
-	}
+  switch (c)
+  {
+    case COLLPROVIDER_BUILTIN:
+      return "builtin";
+
+    case COLLPROVIDER_ICU:
+      return "icu";
+
+    case COLLPROVIDER_LIBC:
+      return "libc";
+
+    default:
+      return "???";
+  }
 }
 
-#endif							/* EXPOSE_TO_CLIENT_CODE */
+#endif              /* EXPOSE_TO_CLIENT_CODE */
 
 
-extern Oid	CollationCreate(const char *collname, Oid collnamespace,
-							Oid collowner,
-							char collprovider,
-							bool collisdeterministic,
-							int32 collencoding,
-							const char *collcollate, const char *collctype,
-							const char *colllocale,
-							const char *collicurules,
-							const char *collversion,
-							bool if_not_exists,
-							bool quiet);
+extern Oid  CollationCreate(const char *collname, Oid collnamespace,
+                            Oid collowner,
+                            char collprovider,
+                            bool collisdeterministic,
+                            int32 collencoding,
+                            const char *collcollate, const char *collctype,
+                            const char *colllocale,
+                            const char *collicurules,
+                            const char *collversion,
+                            bool if_not_exists,
+                            bool quiet);
 
-#endif							/* PG_COLLATION_H */
+#endif              /* PG_COLLATION_H */

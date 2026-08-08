@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * md.h
- *	  magnetic disk storage manager public interface declarations.
+ *    magnetic disk storage manager public interface declarations.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -30,36 +30,36 @@ extern void mdcreate(SMgrRelation reln, ForkNumber forknum, bool isRedo);
 extern bool mdexists(SMgrRelation reln, ForkNumber forknum);
 extern void mdunlink(RelFileLocatorBackend rlocator, ForkNumber forknum, bool isRedo);
 extern void mdextend(SMgrRelation reln, ForkNumber forknum,
-					 BlockNumber blocknum, const void *buffer, bool skipFsync);
+                     BlockNumber blocknum, const void *buffer, bool skipFsync);
 extern void mdzeroextend(SMgrRelation reln, ForkNumber forknum,
-						 BlockNumber blocknum, int nblocks, bool skipFsync);
+                         BlockNumber blocknum, int nblocks, bool skipFsync);
 extern bool mdprefetch(SMgrRelation reln, ForkNumber forknum,
-					   BlockNumber blocknum, int nblocks);
+                       BlockNumber blocknum, int nblocks);
 extern uint32 mdmaxcombine(SMgrRelation reln, ForkNumber forknum,
-						   BlockNumber blocknum);
+                           BlockNumber blocknum);
 extern void mdreadv(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
-					void **buffers, BlockNumber nblocks);
+                    void **buffers, BlockNumber nblocks);
 extern void mdstartreadv(PgAioHandle *ioh,
-						 SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
-						 void **buffers, BlockNumber nblocks);
+                         SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+                         void **buffers, BlockNumber nblocks);
 extern void mdwritev(SMgrRelation reln, ForkNumber forknum,
-					 BlockNumber blocknum,
-					 const void **buffers, BlockNumber nblocks, bool skipFsync);
+                     BlockNumber blocknum,
+                     const void **buffers, BlockNumber nblocks, bool skipFsync);
 extern void mdwriteback(SMgrRelation reln, ForkNumber forknum,
-						BlockNumber blocknum, BlockNumber nblocks);
+                        BlockNumber blocknum, BlockNumber nblocks);
 extern BlockNumber mdnblocks(SMgrRelation reln, ForkNumber forknum);
 extern void mdtruncate(SMgrRelation reln, ForkNumber forknum,
-					   BlockNumber curnblk, BlockNumber nblocks);
+                       BlockNumber curnblk, BlockNumber nblocks);
 extern void mdimmedsync(SMgrRelation reln, ForkNumber forknum);
 extern void mdregistersync(SMgrRelation reln, ForkNumber forknum);
-extern int	mdfd(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, uint32 *off);
+extern int  mdfd(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, uint32 *off);
 
 extern void ForgetDatabaseSyncRequests(Oid dbid);
 extern void DropRelationFiles(RelFileLocator *delrels, int ndelrels, bool isRedo);
 
 /* md sync callbacks */
-extern int	mdsyncfiletag(const FileTag *ftag, char *path);
-extern int	mdunlinkfiletag(const FileTag *ftag, char *path);
+extern int  mdsyncfiletag(const FileTag *ftag, char *path);
+extern int  mdunlinkfiletag(const FileTag *ftag, char *path);
 extern bool mdfiletagmatches(const FileTag *ftag, const FileTag *candidate);
 
-#endif							/* MD_H */
+#endif              /* MD_H */

@@ -62,17 +62,17 @@ static void pgaio_io_wait(PgAioHandle *ioh, uint64 ref_generation);
 
 /* Options for io_method. */
 const struct config_enum_entry io_method_options[] = {
-	{"sync", IOMETHOD_SYNC, false},
-	{"worker", IOMETHOD_WORKER, false},
+  {"sync", IOMETHOD_SYNC, false},
+  {"worker", IOMETHOD_WORKER, false},
 #ifdef IOMETHOD_IO_URING_ENABLED
-	{"io_uring", IOMETHOD_IO_URING, false},
+  {"io_uring", IOMETHOD_IO_URING, false},
 #endif
-	{NULL, 0, false}
+  {NULL, 0, false}
 };
 
 /* GUCs */
-int			io_method = DEFAULT_IO_METHOD;
-int			io_max_concurrency = -1;
+int     io_method = DEFAULT_IO_METHOD;
+int     io_max_concurrency = -1;
 
 /* global control for AIO */
 PgAioCtl   *pgaio_ctl;
@@ -82,15 +82,15 @@ PgAioBackend *pgaio_my_backend;
 
 
 static const IoMethodOps *const pgaio_method_ops_table[] = {
-	[IOMETHOD_SYNC] = &pgaio_sync_ops,
-	[IOMETHOD_WORKER] = &pgaio_worker_ops,
+  [IOMETHOD_SYNC] = &pgaio_sync_ops,
+  [IOMETHOD_WORKER] = &pgaio_worker_ops,
 #ifdef IOMETHOD_IO_URING_ENABLED
-	[IOMETHOD_IO_URING] = &pgaio_uring_ops,
+  [IOMETHOD_IO_URING] = &pgaio_uring_ops,
 #endif
 };
 
 StaticAssertDecl(lengthof(io_method_options) == lengthof(pgaio_method_ops_table) + 1,
-				 "io_method_options out of sync with pgaio_method_ops_table");
+                 "io_method_options out of sync with pgaio_method_ops_table");
 
 /* callbacks for the configured io_method, set by assign_io_method */
 const IoMethodOps *pgaio_method_ops;
@@ -161,21 +161,20 @@ const IoMethodOps *pgaio_method_ops;
 PgAioHandle *
 pgaio_io_acquire(struct ResourceOwnerData *resowner, PgAioReturn *ret)
 {
-	PgAioHandle *h;
+  PgAioHandle *h;
 
-	while (true)
-	{
-		h = pgaio_io_acquire_nb(resowner, ret);
+  while (true) {
+    h = pgaio_io_acquire_nb(resowner, ret);
 
-		if (h != NULL)
-			return h;
+    if (h != NULL)
+      return h;
 
-		/*
-		 * Evidently all handles by this backend are in use. Just wait for
-		 * some to complete.
-		 */
-		pgaio_io_wait_for_free();
-	}
+    /*
+     * Evidently all handles by this backend are in use. Just wait for
+     * some to complete.
+     */
+    pgaio_io_wait_for_free();
+  }
 }
 
 /*
@@ -187,48 +186,45 @@ pgaio_io_acquire(struct ResourceOwnerData *resowner, PgAioReturn *ret)
 PgAioHandle *
 pgaio_io_acquire_nb(struct ResourceOwnerData *resowner, PgAioReturn *ret)
 {
-	PgAioHandle *ioh = NULL;
+  PgAioHandle *ioh = NULL;
 
-	if (pgaio_my_backend->num_staged_ios >= PGAIO_SUBMIT_BATCH_SIZE)
-	{
-		Assert(pgaio_my_backend->num_staged_ios == PGAIO_SUBMIT_BATCH_SIZE);
-		pgaio_submit_staged();
-	}
+  if (pgaio_my_backend->num_staged_ios >= PGAIO_SUBMIT_BATCH_SIZE) {
+    Assert(pgaio_my_backend->num_staged_ios == PGAIO_SUBMIT_BATCH_SIZE);
+    pgaio_submit_staged();
+  }
 
-	if (pgaio_my_backend->handed_out_io)
-		elog(ERROR, "API violation: Only one IO can be handed out");
+  if (pgaio_my_backend->handed_out_io)
+    elog(ERROR, "API violation: Only one IO can be handed out");
 
-	/*
-	 * Probably not needed today, as interrupts should not process this IO,
-	 * but...
-	 */
-	HOLD_INTERRUPTS();
+  /*
+   * Probably not needed today, as interrupts should not process this IO,
+   * but...
+   */
+  HOLD_INTERRUPTS();
 
-	if (!dclist_is_empty(&pgaio_my_backend->idle_ios))
-	{
-		dlist_node *ion = dclist_pop_head_node(&pgaio_my_backend->idle_ios);
+  if (!dclist_is_empty(&pgaio_my_backend->idle_ios)) {
+    dlist_node *ion = dclist_pop_head_node(&pgaio_my_backend->idle_ios);
 
-		ioh = dclist_container(PgAioHandle, node, ion);
+    ioh = dclist_container(PgAioHandle, node, ion);
 
-		Assert(ioh->state == PGAIO_HS_IDLE);
-		Assert(ioh->owner_procno == MyProcNumber);
+    Assert(ioh->state == PGAIO_HS_IDLE);
+    Assert(ioh->owner_procno == MyProcNumber);
 
-		pgaio_io_update_state(ioh, PGAIO_HS_HANDED_OUT);
-		pgaio_my_backend->handed_out_io = ioh;
+    pgaio_io_update_state(ioh, PGAIO_HS_HANDED_OUT);
+    pgaio_my_backend->handed_out_io = ioh;
 
-		if (resowner)
-			pgaio_io_resowner_register(ioh, resowner);
+    if (resowner)
+      pgaio_io_resowner_register(ioh, resowner);
 
-		if (ret)
-		{
-			ioh->report_return = ret;
-			ret->result.status = PGAIO_RS_UNKNOWN;
-		}
-	}
+    if (ret) {
+      ioh->report_return = ret;
+      ret->result.status = PGAIO_RS_UNKNOWN;
+    }
+  }
 
-	RESUME_INTERRUPTS();
+  RESUME_INTERRUPTS();
 
-	return ioh;
+  return ioh;
 }
 
 /*
@@ -239,24 +235,21 @@ pgaio_io_acquire_nb(struct ResourceOwnerData *resowner, PgAioReturn *ret)
 void
 pgaio_io_release(PgAioHandle *ioh)
 {
-	if (ioh == pgaio_my_backend->handed_out_io)
-	{
-		Assert(ioh->state == PGAIO_HS_HANDED_OUT);
-		Assert(ioh->resowner);
+  if (ioh == pgaio_my_backend->handed_out_io) {
+    Assert(ioh->state == PGAIO_HS_HANDED_OUT);
+    Assert(ioh->resowner);
 
-		pgaio_my_backend->handed_out_io = NULL;
+    pgaio_my_backend->handed_out_io = NULL;
 
-		/*
-		 * Note that no interrupts are processed between the handed_out_io
-		 * check and the call to reclaim - that's important as otherwise an
-		 * interrupt could have already reclaimed the handle.
-		 */
-		pgaio_io_reclaim(ioh);
-	}
-	else
-	{
-		elog(ERROR, "release in unexpected state");
-	}
+    /*
+     * Note that no interrupts are processed between the handed_out_io
+     * check and the call to reclaim - that's important as otherwise an
+     * interrupt could have already reclaimed the handle.
+     */
+    pgaio_io_reclaim(ioh);
+  } else {
+    elog(ERROR, "release in unexpected state");
+  }
 }
 
 /*
@@ -265,58 +258,61 @@ pgaio_io_release(PgAioHandle *ioh)
 void
 pgaio_io_release_resowner(dlist_node *ioh_node, bool on_error)
 {
-	PgAioHandle *ioh = dlist_container(PgAioHandle, resowner_node, ioh_node);
+  PgAioHandle *ioh = dlist_container(PgAioHandle, resowner_node, ioh_node);
 
-	Assert(ioh->resowner);
+  Assert(ioh->resowner);
 
-	/*
-	 * Otherwise an interrupt, in the middle of releasing the IO, could end up
-	 * trying to wait for the IO, leading to state confusion.
-	 */
-	HOLD_INTERRUPTS();
+  /*
+   * Otherwise an interrupt, in the middle of releasing the IO, could end up
+   * trying to wait for the IO, leading to state confusion.
+   */
+  HOLD_INTERRUPTS();
 
-	ResourceOwnerForgetAioHandle(ioh->resowner, &ioh->resowner_node);
-	ioh->resowner = NULL;
+  ResourceOwnerForgetAioHandle(ioh->resowner, &ioh->resowner_node);
+  ioh->resowner = NULL;
 
-	switch ((PgAioHandleState) ioh->state)
-	{
-		case PGAIO_HS_IDLE:
-			elog(ERROR, "unexpected");
-			break;
-		case PGAIO_HS_HANDED_OUT:
-			Assert(ioh == pgaio_my_backend->handed_out_io || pgaio_my_backend->handed_out_io == NULL);
+  switch ((PgAioHandleState) ioh->state) {
+    case PGAIO_HS_IDLE:
+      elog(ERROR, "unexpected");
+      break;
 
-			if (ioh == pgaio_my_backend->handed_out_io)
-			{
-				pgaio_my_backend->handed_out_io = NULL;
-				if (!on_error)
-					elog(WARNING, "leaked AIO handle");
-			}
+    case PGAIO_HS_HANDED_OUT:
+      Assert(ioh == pgaio_my_backend->handed_out_io || pgaio_my_backend->handed_out_io == NULL);
 
-			pgaio_io_reclaim(ioh);
-			break;
-		case PGAIO_HS_DEFINED:
-		case PGAIO_HS_STAGED:
-			if (!on_error)
-				elog(WARNING, "AIO handle was not submitted");
-			pgaio_submit_staged();
-			break;
-		case PGAIO_HS_SUBMITTED:
-		case PGAIO_HS_COMPLETED_IO:
-		case PGAIO_HS_COMPLETED_SHARED:
-		case PGAIO_HS_COMPLETED_LOCAL:
-			/* this is expected to happen */
-			break;
-	}
+      if (ioh == pgaio_my_backend->handed_out_io) {
+        pgaio_my_backend->handed_out_io = NULL;
 
-	/*
-	 * Need to unregister the reporting of the IO's result, the memory it's
-	 * referencing likely has gone away.
-	 */
-	if (ioh->report_return)
-		ioh->report_return = NULL;
+        if (!on_error)
+          elog(WARNING, "leaked AIO handle");
+      }
 
-	RESUME_INTERRUPTS();
+      pgaio_io_reclaim(ioh);
+      break;
+
+    case PGAIO_HS_DEFINED:
+    case PGAIO_HS_STAGED:
+      if (!on_error)
+        elog(WARNING, "AIO handle was not submitted");
+
+      pgaio_submit_staged();
+      break;
+
+    case PGAIO_HS_SUBMITTED:
+    case PGAIO_HS_COMPLETED_IO:
+    case PGAIO_HS_COMPLETED_SHARED:
+    case PGAIO_HS_COMPLETED_LOCAL:
+      /* this is expected to happen */
+      break;
+  }
+
+  /*
+   * Need to unregister the reporting of the IO's result, the memory it's
+   * referencing likely has gone away.
+   */
+  if (ioh->report_return)
+    ioh->report_return = NULL;
+
+  RESUME_INTERRUPTS();
 }
 
 /*
@@ -329,9 +325,9 @@ pgaio_io_release_resowner(dlist_node *ioh_node, bool on_error)
 void
 pgaio_io_set_flag(PgAioHandle *ioh, PgAioHandleFlags flag)
 {
-	Assert(ioh->state == PGAIO_HS_HANDED_OUT);
+  Assert(ioh->state == PGAIO_HS_HANDED_OUT);
 
-	ioh->flags |= flag;
+  ioh->flags |= flag;
 }
 
 /*
@@ -341,9 +337,9 @@ pgaio_io_set_flag(PgAioHandle *ioh, PgAioHandleFlags flag)
 int
 pgaio_io_get_id(PgAioHandle *ioh)
 {
-	Assert(ioh >= pgaio_ctl->io_handles &&
-		   ioh < (pgaio_ctl->io_handles + pgaio_ctl->io_handle_count));
-	return ioh - pgaio_ctl->io_handles;
+  Assert(ioh >= pgaio_ctl->io_handles &&
+         ioh < (pgaio_ctl->io_handles + pgaio_ctl->io_handle_count));
+  return ioh - pgaio_ctl->io_handles;
 }
 
 /*
@@ -354,7 +350,7 @@ pgaio_io_get_id(PgAioHandle *ioh)
 ProcNumber
 pgaio_io_get_owner(PgAioHandle *ioh)
 {
-	return ioh->owner_procno;
+  return ioh->owner_procno;
 }
 
 /*
@@ -365,14 +361,14 @@ pgaio_io_get_owner(PgAioHandle *ioh)
 void
 pgaio_io_get_wref(PgAioHandle *ioh, PgAioWaitRef *iow)
 {
-	Assert(ioh->state == PGAIO_HS_HANDED_OUT ||
-		   ioh->state == PGAIO_HS_DEFINED ||
-		   ioh->state == PGAIO_HS_STAGED);
-	Assert(ioh->generation != 0);
+  Assert(ioh->state == PGAIO_HS_HANDED_OUT ||
+         ioh->state == PGAIO_HS_DEFINED ||
+         ioh->state == PGAIO_HS_STAGED);
+  Assert(ioh->generation != 0);
 
-	iow->aio_index = ioh - pgaio_ctl->io_handles;
-	iow->generation_upper = (uint32) (ioh->generation >> 32);
-	iow->generation_lower = (uint32) ioh->generation;
+  iow->aio_index = ioh - pgaio_ctl->io_handles;
+  iow->generation_upper = (uint32) (ioh->generation >> 32);
+  iow->generation_lower = (uint32) ioh->generation;
 }
 
 
@@ -385,34 +381,34 @@ pgaio_io_get_wref(PgAioHandle *ioh, PgAioWaitRef *iow)
 static inline void
 pgaio_io_update_state(PgAioHandle *ioh, PgAioHandleState new_state)
 {
-	/*
-	 * All callers need to have held interrupts in some form, otherwise
-	 * interrupt processing could wait for the IO to complete, while in an
-	 * intermediary state.
-	 */
-	Assert(!INTERRUPTS_CAN_BE_PROCESSED());
+  /*
+   * All callers need to have held interrupts in some form, otherwise
+   * interrupt processing could wait for the IO to complete, while in an
+   * intermediary state.
+   */
+  Assert(!INTERRUPTS_CAN_BE_PROCESSED());
 
-	pgaio_debug_io(DEBUG5, ioh,
-				   "updating state to %s",
-				   pgaio_io_state_get_name(new_state));
+  pgaio_debug_io(DEBUG5, ioh,
+                 "updating state to %s",
+                 pgaio_io_state_get_name(new_state));
 
-	/*
-	 * Ensure the changes signified by the new state are visible before the
-	 * new state becomes visible.
-	 */
-	pg_write_barrier();
+  /*
+   * Ensure the changes signified by the new state are visible before the
+   * new state becomes visible.
+   */
+  pg_write_barrier();
 
-	ioh->state = new_state;
+  ioh->state = new_state;
 }
 
 static void
 pgaio_io_resowner_register(PgAioHandle *ioh, struct ResourceOwnerData *resowner)
 {
-	Assert(!ioh->resowner);
-	Assert(resowner);
+  Assert(!ioh->resowner);
+  Assert(resowner);
 
-	ResourceOwnerRememberAioHandle(resowner, &ioh->resowner_node);
-	ioh->resowner = resowner;
+  ResourceOwnerRememberAioHandle(resowner, &ioh->resowner_node);
+  ioh->resowner = resowner;
 }
 
 /*
@@ -423,81 +419,78 @@ pgaio_io_resowner_register(PgAioHandle *ioh, struct ResourceOwnerData *resowner)
 void
 pgaio_io_stage(PgAioHandle *ioh, PgAioOp op)
 {
-	bool		needs_synchronous;
+  bool    needs_synchronous;
 
-	Assert(ioh->state == PGAIO_HS_HANDED_OUT);
-	Assert(pgaio_my_backend->handed_out_io == ioh);
-	Assert(pgaio_io_has_target(ioh));
+  Assert(ioh->state == PGAIO_HS_HANDED_OUT);
+  Assert(pgaio_my_backend->handed_out_io == ioh);
+  Assert(pgaio_io_has_target(ioh));
 
-	/*
-	 * Otherwise an interrupt, in the middle of staging and possibly executing
-	 * the IO, could end up trying to wait for the IO, leading to state
-	 * confusion.
-	 */
-	HOLD_INTERRUPTS();
+  /*
+   * Otherwise an interrupt, in the middle of staging and possibly executing
+   * the IO, could end up trying to wait for the IO, leading to state
+   * confusion.
+   */
+  HOLD_INTERRUPTS();
 
-	ioh->op = op;
-	ioh->result = 0;
+  ioh->op = op;
+  ioh->result = 0;
 
-	pgaio_io_update_state(ioh, PGAIO_HS_DEFINED);
+  pgaio_io_update_state(ioh, PGAIO_HS_DEFINED);
 
-	/* allow a new IO to be staged */
-	pgaio_my_backend->handed_out_io = NULL;
+  /* allow a new IO to be staged */
+  pgaio_my_backend->handed_out_io = NULL;
 
-	pgaio_io_call_stage(ioh);
+  pgaio_io_call_stage(ioh);
 
-	pgaio_io_update_state(ioh, PGAIO_HS_STAGED);
+  pgaio_io_update_state(ioh, PGAIO_HS_STAGED);
 
-	/*
-	 * Synchronous execution has to be executed, well, synchronously, so check
-	 * that first.
-	 */
-	needs_synchronous = pgaio_io_needs_synchronous_execution(ioh);
+  /*
+   * Synchronous execution has to be executed, well, synchronously, so check
+   * that first.
+   */
+  needs_synchronous = pgaio_io_needs_synchronous_execution(ioh);
 
-	pgaio_debug_io(DEBUG3, ioh,
-				   "staged (synchronous: %d, in_batch: %d)",
-				   needs_synchronous, pgaio_my_backend->in_batchmode);
+  pgaio_debug_io(DEBUG3, ioh,
+                 "staged (synchronous: %d, in_batch: %d)",
+                 needs_synchronous, pgaio_my_backend->in_batchmode);
 
-	if (!needs_synchronous)
-	{
-		pgaio_my_backend->staged_ios[pgaio_my_backend->num_staged_ios++] = ioh;
-		Assert(pgaio_my_backend->num_staged_ios <= PGAIO_SUBMIT_BATCH_SIZE);
+  if (!needs_synchronous) {
+    pgaio_my_backend->staged_ios[pgaio_my_backend->num_staged_ios++] = ioh;
+    Assert(pgaio_my_backend->num_staged_ios <= PGAIO_SUBMIT_BATCH_SIZE);
 
-		/*
-		 * Unless code explicitly opted into batching IOs, submit the IO
-		 * immediately.
-		 */
-		if (!pgaio_my_backend->in_batchmode)
-			pgaio_submit_staged();
-	}
-	else
-	{
-		pgaio_io_prepare_submit(ioh);
-		pgaio_io_perform_synchronously(ioh);
-	}
+    /*
+     * Unless code explicitly opted into batching IOs, submit the IO
+     * immediately.
+     */
+    if (!pgaio_my_backend->in_batchmode)
+      pgaio_submit_staged();
+  } else {
+    pgaio_io_prepare_submit(ioh);
+    pgaio_io_perform_synchronously(ioh);
+  }
 
-	RESUME_INTERRUPTS();
+  RESUME_INTERRUPTS();
 }
 
 bool
 pgaio_io_needs_synchronous_execution(PgAioHandle *ioh)
 {
-	/*
-	 * If the caller said to execute the IO synchronously, do so.
-	 *
-	 * XXX: We could optimize the logic when to execute synchronously by first
-	 * checking if there are other IOs in flight and only synchronously
-	 * executing if not. Unclear whether that'll be sufficiently common to be
-	 * worth worrying about.
-	 */
-	if (ioh->flags & PGAIO_HF_SYNCHRONOUS)
-		return true;
+  /*
+   * If the caller said to execute the IO synchronously, do so.
+   *
+   * XXX: We could optimize the logic when to execute synchronously by first
+   * checking if there are other IOs in flight and only synchronously
+   * executing if not. Unclear whether that'll be sufficiently common to be
+   * worth worrying about.
+   */
+  if (ioh->flags & PGAIO_HF_SYNCHRONOUS)
+    return true;
 
-	/* Check if the IO method requires synchronous execution of IO */
-	if (pgaio_method_ops->needs_synchronous_execution)
-		return pgaio_method_ops->needs_synchronous_execution(ioh);
+  /* Check if the IO method requires synchronous execution of IO */
+  if (pgaio_method_ops->needs_synchronous_execution)
+    return pgaio_method_ops->needs_synchronous_execution(ioh);
 
-	return false;
+  return false;
 }
 
 /*
@@ -509,9 +502,9 @@ pgaio_io_needs_synchronous_execution(PgAioHandle *ioh)
 void
 pgaio_io_prepare_submit(PgAioHandle *ioh)
 {
-	pgaio_io_update_state(ioh, PGAIO_HS_SUBMITTED);
+  pgaio_io_update_state(ioh, PGAIO_HS_SUBMITTED);
 
-	dclist_push_tail(&pgaio_my_backend->in_flight_ios, &ioh->node);
+  dclist_push_tail(&pgaio_my_backend->in_flight_ios, &ioh->node);
 }
 
 /*
@@ -527,26 +520,26 @@ pgaio_io_prepare_submit(PgAioHandle *ioh)
 void
 pgaio_io_process_completion(PgAioHandle *ioh, int result)
 {
-	Assert(ioh->state == PGAIO_HS_SUBMITTED);
+  Assert(ioh->state == PGAIO_HS_SUBMITTED);
 
-	Assert(CritSectionCount > 0);
+  Assert(CritSectionCount > 0);
 
-	ioh->result = result;
+  ioh->result = result;
 
-	pgaio_io_update_state(ioh, PGAIO_HS_COMPLETED_IO);
+  pgaio_io_update_state(ioh, PGAIO_HS_COMPLETED_IO);
 
-	INJECTION_POINT("aio-process-completion-before-shared", ioh);
+  INJECTION_POINT("aio-process-completion-before-shared", ioh);
 
-	pgaio_io_call_complete_shared(ioh);
+  pgaio_io_call_complete_shared(ioh);
 
-	pgaio_io_update_state(ioh, PGAIO_HS_COMPLETED_SHARED);
+  pgaio_io_update_state(ioh, PGAIO_HS_COMPLETED_SHARED);
 
-	/* condition variable broadcast ensures state is visible before wakeup */
-	ConditionVariableBroadcast(&ioh->cv);
+  /* condition variable broadcast ensures state is visible before wakeup */
+  ConditionVariableBroadcast(&ioh->cv);
 
-	/* contains call to pgaio_io_call_complete_local() */
-	if (ioh->owner_procno == MyProcNumber)
-		pgaio_io_reclaim(ioh);
+  /* contains call to pgaio_io_call_complete_local() */
+  if (ioh->owner_procno == MyProcNumber)
+    pgaio_io_reclaim(ioh);
 }
 
 /*
@@ -558,17 +551,17 @@ pgaio_io_process_completion(PgAioHandle *ioh, int result)
 bool
 pgaio_io_was_recycled(PgAioHandle *ioh, uint64 ref_generation, PgAioHandleState *state)
 {
-	*state = ioh->state;
+  *state = ioh->state;
 
-	/*
-	 * Ensure that we don't see an earlier state of the handle than ioh->state
-	 * due to compiler or CPU reordering. This protects both ->generation as
-	 * directly used here, and other fields in the handle accessed in the
-	 * caller if the handle was not reused.
-	 */
-	pg_read_barrier();
+  /*
+   * Ensure that we don't see an earlier state of the handle than ioh->state
+   * due to compiler or CPU reordering. This protects both ->generation as
+   * directly used here, and other fields in the handle accessed in the
+   * caller if the handle was not reused.
+   */
+  pg_read_barrier();
 
-	return ioh->generation != ref_generation;
+  return ioh->generation != ref_generation;
 }
 
 /*
@@ -578,88 +571,86 @@ pgaio_io_was_recycled(PgAioHandle *ioh, uint64 ref_generation, PgAioHandleState 
 static void
 pgaio_io_wait(PgAioHandle *ioh, uint64 ref_generation)
 {
-	PgAioHandleState state;
-	bool		am_owner;
+  PgAioHandleState state;
+  bool    am_owner;
 
-	am_owner = ioh->owner_procno == MyProcNumber;
+  am_owner = ioh->owner_procno == MyProcNumber;
 
-	if (pgaio_io_was_recycled(ioh, ref_generation, &state))
-		return;
+  if (pgaio_io_was_recycled(ioh, ref_generation, &state))
+    return;
 
-	if (am_owner)
-	{
-		if (state != PGAIO_HS_SUBMITTED
-			&& state != PGAIO_HS_COMPLETED_IO
-			&& state != PGAIO_HS_COMPLETED_SHARED
-			&& state != PGAIO_HS_COMPLETED_LOCAL)
-		{
-			elog(PANIC, "waiting for own IO %d in wrong state: %s",
-				 pgaio_io_get_id(ioh), pgaio_io_get_state_name(ioh));
-		}
-	}
+  if (am_owner) {
+    if (state != PGAIO_HS_SUBMITTED
+        && state != PGAIO_HS_COMPLETED_IO
+        && state != PGAIO_HS_COMPLETED_SHARED
+        && state != PGAIO_HS_COMPLETED_LOCAL) {
+      elog(PANIC, "waiting for own IO %d in wrong state: %s",
+           pgaio_io_get_id(ioh), pgaio_io_get_state_name(ioh));
+    }
+  }
 
-	while (true)
-	{
-		if (pgaio_io_was_recycled(ioh, ref_generation, &state))
-			return;
+  while (true) {
+    if (pgaio_io_was_recycled(ioh, ref_generation, &state))
+      return;
 
-		switch ((PgAioHandleState) state)
-		{
-			case PGAIO_HS_IDLE:
-			case PGAIO_HS_HANDED_OUT:
-				elog(ERROR, "IO in wrong state: %d", state);
-				break;
+    switch ((PgAioHandleState) state) {
+      case PGAIO_HS_IDLE:
+      case PGAIO_HS_HANDED_OUT:
+        elog(ERROR, "IO in wrong state: %d", state);
+        break;
 
-			case PGAIO_HS_SUBMITTED:
+      case PGAIO_HS_SUBMITTED:
 
-				/*
-				 * If we need to wait via the IO method, do so now. Don't
-				 * check via the IO method if the issuing backend is executing
-				 * the IO synchronously.
-				 */
-				if (pgaio_method_ops->wait_one && !(ioh->flags & PGAIO_HF_SYNCHRONOUS))
-				{
-					pgaio_method_ops->wait_one(ioh, ref_generation);
-					continue;
-				}
-				/* fallthrough */
+        /*
+         * If we need to wait via the IO method, do so now. Don't
+         * check via the IO method if the issuing backend is executing
+         * the IO synchronously.
+         */
+        if (pgaio_method_ops->wait_one && !(ioh->flags & PGAIO_HF_SYNCHRONOUS)) {
+          pgaio_method_ops->wait_one(ioh, ref_generation);
+          continue;
+        }
 
-				/* waiting for owner to submit */
-			case PGAIO_HS_DEFINED:
-			case PGAIO_HS_STAGED:
-				/* waiting for reaper to complete */
-				/* fallthrough */
-			case PGAIO_HS_COMPLETED_IO:
-				/* shouldn't be able to hit this otherwise */
-				Assert(IsUnderPostmaster);
-				/* ensure we're going to get woken up */
-				ConditionVariablePrepareToSleep(&ioh->cv);
+      /* fallthrough */
 
-				while (!pgaio_io_was_recycled(ioh, ref_generation, &state))
-				{
-					if (state == PGAIO_HS_COMPLETED_SHARED ||
-						state == PGAIO_HS_COMPLETED_LOCAL)
-						break;
-					ConditionVariableSleep(&ioh->cv, WAIT_EVENT_AIO_IO_COMPLETION);
-				}
+      /* waiting for owner to submit */
+      case PGAIO_HS_DEFINED:
+      case PGAIO_HS_STAGED:
 
-				ConditionVariableCancelSleep();
-				break;
+      /* waiting for reaper to complete */
+      /* fallthrough */
+      case PGAIO_HS_COMPLETED_IO:
+        /* shouldn't be able to hit this otherwise */
+        Assert(IsUnderPostmaster);
+        /* ensure we're going to get woken up */
+        ConditionVariablePrepareToSleep(&ioh->cv);
 
-			case PGAIO_HS_COMPLETED_SHARED:
-			case PGAIO_HS_COMPLETED_LOCAL:
+        while (!pgaio_io_was_recycled(ioh, ref_generation, &state)) {
+          if (state == PGAIO_HS_COMPLETED_SHARED ||
+              state == PGAIO_HS_COMPLETED_LOCAL)
+            break;
 
-				/*
-				 * Note that no interrupts are processed between
-				 * pgaio_io_was_recycled() and this check - that's important
-				 * as otherwise an interrupt could have already reclaimed the
-				 * handle.
-				 */
-				if (am_owner)
-					pgaio_io_reclaim(ioh);
-				return;
-		}
-	}
+          ConditionVariableSleep(&ioh->cv, WAIT_EVENT_AIO_IO_COMPLETION);
+        }
+
+        ConditionVariableCancelSleep();
+        break;
+
+      case PGAIO_HS_COMPLETED_SHARED:
+      case PGAIO_HS_COMPLETED_LOCAL:
+
+        /*
+         * Note that no interrupts are processed between
+         * pgaio_io_was_recycled() and this check - that's important
+         * as otherwise an interrupt could have already reclaimed the
+         * handle.
+         */
+        if (am_owner)
+          pgaio_io_reclaim(ioh);
+
+        return;
+    }
+  }
 }
 
 /*
@@ -674,82 +665,79 @@ pgaio_io_wait(PgAioHandle *ioh, uint64 ref_generation)
 static void
 pgaio_io_reclaim(PgAioHandle *ioh)
 {
-	/* This is only ok if it's our IO */
-	Assert(ioh->owner_procno == MyProcNumber);
-	Assert(ioh->state != PGAIO_HS_IDLE);
+  /* This is only ok if it's our IO */
+  Assert(ioh->owner_procno == MyProcNumber);
+  Assert(ioh->state != PGAIO_HS_IDLE);
 
-	/* see comment in function header */
-	HOLD_INTERRUPTS();
+  /* see comment in function header */
+  HOLD_INTERRUPTS();
 
-	/*
-	 * It's a bit ugly, but right now the easiest place to put the execution
-	 * of local completion callbacks is this function, as we need to execute
-	 * local callbacks just before reclaiming at multiple callsites.
-	 */
-	if (ioh->state == PGAIO_HS_COMPLETED_SHARED)
-	{
-		PgAioResult local_result;
+  /*
+   * It's a bit ugly, but right now the easiest place to put the execution
+   * of local completion callbacks is this function, as we need to execute
+   * local callbacks just before reclaiming at multiple callsites.
+   */
+  if (ioh->state == PGAIO_HS_COMPLETED_SHARED) {
+    PgAioResult local_result;
 
-		local_result = pgaio_io_call_complete_local(ioh);
-		pgaio_io_update_state(ioh, PGAIO_HS_COMPLETED_LOCAL);
+    local_result = pgaio_io_call_complete_local(ioh);
+    pgaio_io_update_state(ioh, PGAIO_HS_COMPLETED_LOCAL);
 
-		if (ioh->report_return)
-		{
-			ioh->report_return->result = local_result;
-			ioh->report_return->target_data = ioh->target_data;
-		}
-	}
+    if (ioh->report_return) {
+      ioh->report_return->result = local_result;
+      ioh->report_return->target_data = ioh->target_data;
+    }
+  }
 
-	pgaio_debug_io(DEBUG4, ioh,
-				   "reclaiming: distilled_result: (status %s, id %u, error_data %d), raw_result: %d",
-				   pgaio_result_status_string(ioh->distilled_result.status),
-				   ioh->distilled_result.id,
-				   ioh->distilled_result.error_data,
-				   ioh->result);
+  pgaio_debug_io(DEBUG4, ioh,
+                 "reclaiming: distilled_result: (status %s, id %u, error_data %d), raw_result: %d",
+                 pgaio_result_status_string(ioh->distilled_result.status),
+                 ioh->distilled_result.id,
+                 ioh->distilled_result.error_data,
+                 ioh->result);
 
-	/* if the IO has been defined, it's on the in-flight list, remove */
-	if (ioh->state != PGAIO_HS_HANDED_OUT)
-		dclist_delete_from(&pgaio_my_backend->in_flight_ios, &ioh->node);
+  /* if the IO has been defined, it's on the in-flight list, remove */
+  if (ioh->state != PGAIO_HS_HANDED_OUT)
+    dclist_delete_from(&pgaio_my_backend->in_flight_ios, &ioh->node);
 
-	if (ioh->resowner)
-	{
-		ResourceOwnerForgetAioHandle(ioh->resowner, &ioh->resowner_node);
-		ioh->resowner = NULL;
-	}
+  if (ioh->resowner) {
+    ResourceOwnerForgetAioHandle(ioh->resowner, &ioh->resowner_node);
+    ioh->resowner = NULL;
+  }
 
-	Assert(!ioh->resowner);
+  Assert(!ioh->resowner);
 
-	/*
-	 * Update generation & state first, before resetting the IO's fields,
-	 * otherwise a concurrent "viewer" could think the fields are valid, even
-	 * though they are being reset.  Increment the generation first, so that
-	 * we can assert elsewhere that we never wait for an IDLE IO.  While it's
-	 * a bit weird for the state to go backwards for a generation, it's OK
-	 * here, as there cannot be references to the "reborn" IO yet.  Can't
-	 * update both at once, so something has to give.
-	 */
-	ioh->generation++;
-	pgaio_io_update_state(ioh, PGAIO_HS_IDLE);
+  /*
+   * Update generation & state first, before resetting the IO's fields,
+   * otherwise a concurrent "viewer" could think the fields are valid, even
+   * though they are being reset.  Increment the generation first, so that
+   * we can assert elsewhere that we never wait for an IDLE IO.  While it's
+   * a bit weird for the state to go backwards for a generation, it's OK
+   * here, as there cannot be references to the "reborn" IO yet.  Can't
+   * update both at once, so something has to give.
+   */
+  ioh->generation++;
+  pgaio_io_update_state(ioh, PGAIO_HS_IDLE);
 
-	/* ensure the state update is visible before we reset fields */
-	pg_write_barrier();
+  /* ensure the state update is visible before we reset fields */
+  pg_write_barrier();
 
-	ioh->op = PGAIO_OP_INVALID;
-	ioh->target = PGAIO_TID_INVALID;
-	ioh->flags = 0;
-	ioh->num_callbacks = 0;
-	ioh->handle_data_len = 0;
-	ioh->report_return = NULL;
-	ioh->result = 0;
-	ioh->distilled_result.status = PGAIO_RS_UNKNOWN;
+  ioh->op = PGAIO_OP_INVALID;
+  ioh->target = PGAIO_TID_INVALID;
+  ioh->flags = 0;
+  ioh->num_callbacks = 0;
+  ioh->handle_data_len = 0;
+  ioh->report_return = NULL;
+  ioh->result = 0;
+  ioh->distilled_result.status = PGAIO_RS_UNKNOWN;
 
-	/*
-	 * We push the IO to the head of the idle IO list, that seems more cache
-	 * efficient in cases where only a few IOs are used.
-	 */
-	dclist_push_head(&pgaio_my_backend->idle_ios, &ioh->node);
+  /*
+   * We push the IO to the head of the idle IO list, that seems more cache
+   * efficient in cases where only a few IOs are used.
+   */
+  dclist_push_head(&pgaio_my_backend->idle_ios, &ioh->node);
 
-	RESUME_INTERRUPTS();
+  RESUME_INTERRUPTS();
 }
 
 /*
@@ -760,127 +748,125 @@ pgaio_io_reclaim(PgAioHandle *ioh)
 static void
 pgaio_io_wait_for_free(void)
 {
-	int			reclaimed = 0;
+  int     reclaimed = 0;
 
-	pgaio_debug(DEBUG2, "waiting for free IO with %d pending, %u in-flight, %u idle IOs",
-				pgaio_my_backend->num_staged_ios,
-				dclist_count(&pgaio_my_backend->in_flight_ios),
-				dclist_count(&pgaio_my_backend->idle_ios));
+  pgaio_debug(DEBUG2, "waiting for free IO with %d pending, %u in-flight, %u idle IOs",
+              pgaio_my_backend->num_staged_ios,
+              dclist_count(&pgaio_my_backend->in_flight_ios),
+              dclist_count(&pgaio_my_backend->idle_ios));
 
-	/*
-	 * First check if any of our IOs actually have completed - when using
-	 * worker, that'll often be the case. We could do so as part of the loop
-	 * below, but that'd potentially lead us to wait for some IO submitted
-	 * before.
-	 */
-	for (int i = 0; i < io_max_concurrency; i++)
-	{
-		PgAioHandle *ioh = &pgaio_ctl->io_handles[pgaio_my_backend->io_handle_off + i];
+  /*
+   * First check if any of our IOs actually have completed - when using
+   * worker, that'll often be the case. We could do so as part of the loop
+   * below, but that'd potentially lead us to wait for some IO submitted
+   * before.
+   */
+  for (int i = 0; i < io_max_concurrency; i++) {
+    PgAioHandle *ioh = &pgaio_ctl->io_handles[pgaio_my_backend->io_handle_off + i];
 
-		if (ioh->state == PGAIO_HS_COMPLETED_SHARED)
-		{
-			/*
-			 * Note that no interrupts are processed between the state check
-			 * and the call to reclaim - that's important as otherwise an
-			 * interrupt could have already reclaimed the handle.
-			 *
-			 * Need to ensure that there's no reordering, in the more common
-			 * paths, where we wait for IO, that's done by
-			 * pgaio_io_was_recycled().
-			 */
-			pg_read_barrier();
-			pgaio_io_reclaim(ioh);
-			reclaimed++;
-		}
-	}
+    if (ioh->state == PGAIO_HS_COMPLETED_SHARED) {
+      /*
+       * Note that no interrupts are processed between the state check
+       * and the call to reclaim - that's important as otherwise an
+       * interrupt could have already reclaimed the handle.
+       *
+       * Need to ensure that there's no reordering, in the more common
+       * paths, where we wait for IO, that's done by
+       * pgaio_io_was_recycled().
+       */
+      pg_read_barrier();
+      pgaio_io_reclaim(ioh);
+      reclaimed++;
+    }
+  }
 
-	if (reclaimed > 0)
-		return;
+  if (reclaimed > 0)
+    return;
 
-	/*
-	 * If we have any unsubmitted IOs, submit them now. We'll start waiting in
-	 * a second, so it's better they're in flight. This also addresses the
-	 * edge-case that all IOs are unsubmitted.
-	 */
-	if (pgaio_my_backend->num_staged_ios > 0)
-		pgaio_submit_staged();
+  /*
+   * If we have any unsubmitted IOs, submit them now. We'll start waiting in
+   * a second, so it's better they're in flight. This also addresses the
+   * edge-case that all IOs are unsubmitted.
+   */
+  if (pgaio_my_backend->num_staged_ios > 0)
+    pgaio_submit_staged();
 
-	/* possibly some IOs finished during submission */
-	if (!dclist_is_empty(&pgaio_my_backend->idle_ios))
-		return;
+  /* possibly some IOs finished during submission */
+  if (!dclist_is_empty(&pgaio_my_backend->idle_ios))
+    return;
 
-	if (dclist_count(&pgaio_my_backend->in_flight_ios) == 0)
-		ereport(ERROR,
-				errmsg_internal("no free IOs despite no in-flight IOs"),
-				errdetail_internal("%d pending, %u in-flight, %u idle IOs",
-								   pgaio_my_backend->num_staged_ios,
-								   dclist_count(&pgaio_my_backend->in_flight_ios),
-								   dclist_count(&pgaio_my_backend->idle_ios)));
+  if (dclist_count(&pgaio_my_backend->in_flight_ios) == 0)
+    ereport(ERROR,
+            errmsg_internal("no free IOs despite no in-flight IOs"),
+            errdetail_internal("%d pending, %u in-flight, %u idle IOs",
+                               pgaio_my_backend->num_staged_ios,
+                               dclist_count(&pgaio_my_backend->in_flight_ios),
+                               dclist_count(&pgaio_my_backend->idle_ios)));
 
-	/*
-	 * Wait for the oldest in-flight IO to complete.
-	 *
-	 * XXX: Reusing the general IO wait is suboptimal, we don't need to wait
-	 * for that specific IO to complete, we just need *any* IO to complete.
-	 */
-	{
-		PgAioHandle *ioh = dclist_head_element(PgAioHandle, node,
-											   &pgaio_my_backend->in_flight_ios);
-		uint64		generation = ioh->generation;
+  /*
+   * Wait for the oldest in-flight IO to complete.
+   *
+   * XXX: Reusing the general IO wait is suboptimal, we don't need to wait
+   * for that specific IO to complete, we just need *any* IO to complete.
+   */
+  {
+    PgAioHandle *ioh = dclist_head_element(PgAioHandle, node,
+                                           &pgaio_my_backend->in_flight_ios);
+    uint64    generation = ioh->generation;
 
-		switch ((PgAioHandleState) ioh->state)
-		{
-				/* should not be in in-flight list */
-			case PGAIO_HS_IDLE:
-			case PGAIO_HS_DEFINED:
-			case PGAIO_HS_HANDED_OUT:
-			case PGAIO_HS_STAGED:
-			case PGAIO_HS_COMPLETED_LOCAL:
-				elog(ERROR, "shouldn't get here with io:%d in state %d",
-					 pgaio_io_get_id(ioh), ioh->state);
-				break;
+    switch ((PgAioHandleState) ioh->state) {
+      /* should not be in in-flight list */
+      case PGAIO_HS_IDLE:
+      case PGAIO_HS_DEFINED:
+      case PGAIO_HS_HANDED_OUT:
+      case PGAIO_HS_STAGED:
+      case PGAIO_HS_COMPLETED_LOCAL:
+        elog(ERROR, "shouldn't get here with io:%d in state %d",
+             pgaio_io_get_id(ioh), ioh->state);
+        break;
 
-			case PGAIO_HS_COMPLETED_IO:
-			case PGAIO_HS_SUBMITTED:
-				pgaio_debug_io(DEBUG2, ioh,
-							   "waiting for free io with %u in flight",
-							   dclist_count(&pgaio_my_backend->in_flight_ios));
+      case PGAIO_HS_COMPLETED_IO:
+      case PGAIO_HS_SUBMITTED:
+        pgaio_debug_io(DEBUG2, ioh,
+                       "waiting for free io with %u in flight",
+                       dclist_count(&pgaio_my_backend->in_flight_ios));
 
-				/*
-				 * In a more general case this would be racy, because the
-				 * generation could increase after we read ioh->state above.
-				 * But we are only looking at IOs by the current backend and
-				 * the IO can only be recycled by this backend.  Even this is
-				 * only OK because we get the handle's generation before
-				 * potentially processing interrupts, e.g. as part of
-				 * pgaio_debug_io().
-				 */
-				pgaio_io_wait(ioh, generation);
-				break;
+        /*
+         * In a more general case this would be racy, because the
+         * generation could increase after we read ioh->state above.
+         * But we are only looking at IOs by the current backend and
+         * the IO can only be recycled by this backend.  Even this is
+         * only OK because we get the handle's generation before
+         * potentially processing interrupts, e.g. as part of
+         * pgaio_debug_io().
+         */
+        pgaio_io_wait(ioh, generation);
+        break;
 
-			case PGAIO_HS_COMPLETED_SHARED:
+      case PGAIO_HS_COMPLETED_SHARED:
 
-				/*
-				 * It's possible that another backend just finished this IO.
-				 *
-				 * Note that no interrupts are processed between the state
-				 * check and the call to reclaim - that's important as
-				 * otherwise an interrupt could have already reclaimed the
-				 * handle.
-				 *
-				 * Need to ensure that there's no reordering, in the more
-				 * common paths, where we wait for IO, that's done by
-				 * pgaio_io_was_recycled().
-				 */
-				pg_read_barrier();
-				pgaio_io_reclaim(ioh);
-				break;
-		}
+        /*
+         * It's possible that another backend just finished this IO.
+         *
+         * Note that no interrupts are processed between the state
+         * check and the call to reclaim - that's important as
+         * otherwise an interrupt could have already reclaimed the
+         * handle.
+         *
+         * Need to ensure that there's no reordering, in the more
+         * common paths, where we wait for IO, that's done by
+         * pgaio_io_was_recycled().
+         */
+        pg_read_barrier();
+        pgaio_io_reclaim(ioh);
+        break;
+    }
 
-		if (dclist_count(&pgaio_my_backend->idle_ios) == 0)
-			elog(PANIC, "no idle IO after waiting for IO to terminate");
-		return;
-	}
+    if (dclist_count(&pgaio_my_backend->idle_ios) == 0)
+      elog(PANIC, "no idle IO after waiting for IO to terminate");
+
+    return;
+  }
 }
 
 /*
@@ -890,64 +876,68 @@ pgaio_io_wait_for_free(void)
 static PgAioHandle *
 pgaio_io_from_wref(PgAioWaitRef *iow, uint64 *ref_generation)
 {
-	PgAioHandle *ioh;
+  PgAioHandle *ioh;
 
-	Assert(iow->aio_index < pgaio_ctl->io_handle_count);
+  Assert(iow->aio_index < pgaio_ctl->io_handle_count);
 
-	ioh = &pgaio_ctl->io_handles[iow->aio_index];
+  ioh = &pgaio_ctl->io_handles[iow->aio_index];
 
-	*ref_generation = ((uint64) iow->generation_upper) << 32 |
-		iow->generation_lower;
+  *ref_generation = ((uint64) iow->generation_upper) << 32 |
+                    iow->generation_lower;
 
-	Assert(*ref_generation != 0);
+  Assert(*ref_generation != 0);
 
-	return ioh;
+  return ioh;
 }
 
 static const char *
 pgaio_io_state_get_name(PgAioHandleState s)
 {
 #define PGAIO_HS_TOSTR_CASE(sym) case PGAIO_HS_##sym: return #sym
-	switch ((PgAioHandleState) s)
-	{
-			PGAIO_HS_TOSTR_CASE(IDLE);
-			PGAIO_HS_TOSTR_CASE(HANDED_OUT);
-			PGAIO_HS_TOSTR_CASE(DEFINED);
-			PGAIO_HS_TOSTR_CASE(STAGED);
-			PGAIO_HS_TOSTR_CASE(SUBMITTED);
-			PGAIO_HS_TOSTR_CASE(COMPLETED_IO);
-			PGAIO_HS_TOSTR_CASE(COMPLETED_SHARED);
-			PGAIO_HS_TOSTR_CASE(COMPLETED_LOCAL);
-	}
+
+  switch ((PgAioHandleState) s) {
+      PGAIO_HS_TOSTR_CASE(IDLE);
+      PGAIO_HS_TOSTR_CASE(HANDED_OUT);
+      PGAIO_HS_TOSTR_CASE(DEFINED);
+      PGAIO_HS_TOSTR_CASE(STAGED);
+      PGAIO_HS_TOSTR_CASE(SUBMITTED);
+      PGAIO_HS_TOSTR_CASE(COMPLETED_IO);
+      PGAIO_HS_TOSTR_CASE(COMPLETED_SHARED);
+      PGAIO_HS_TOSTR_CASE(COMPLETED_LOCAL);
+  }
+
 #undef PGAIO_HS_TOSTR_CASE
 
-	return NULL;				/* silence compiler */
+  return NULL;        /* silence compiler */
 }
 
 const char *
 pgaio_io_get_state_name(PgAioHandle *ioh)
 {
-	return pgaio_io_state_get_name(ioh->state);
+  return pgaio_io_state_get_name(ioh->state);
 }
 
 const char *
 pgaio_result_status_string(PgAioResultStatus rs)
 {
-	switch ((PgAioResultStatus) rs)
-	{
-		case PGAIO_RS_UNKNOWN:
-			return "UNKNOWN";
-		case PGAIO_RS_OK:
-			return "OK";
-		case PGAIO_RS_WARNING:
-			return "WARNING";
-		case PGAIO_RS_PARTIAL:
-			return "PARTIAL";
-		case PGAIO_RS_ERROR:
-			return "ERROR";
-	}
+  switch ((PgAioResultStatus) rs) {
+    case PGAIO_RS_UNKNOWN:
+      return "UNKNOWN";
 
-	return NULL;				/* silence compiler */
+    case PGAIO_RS_OK:
+      return "OK";
+
+    case PGAIO_RS_WARNING:
+      return "WARNING";
+
+    case PGAIO_RS_PARTIAL:
+      return "PARTIAL";
+
+    case PGAIO_RS_ERROR:
+      return "ERROR";
+  }
+
+  return NULL;        /* silence compiler */
 }
 
 
@@ -963,14 +953,14 @@ pgaio_result_status_string(PgAioResultStatus rs)
 void
 pgaio_wref_clear(PgAioWaitRef *iow)
 {
-	iow->aio_index = PG_UINT32_MAX;
+  iow->aio_index = PG_UINT32_MAX;
 }
 
 /* Is the wait reference valid? */
 bool
 pgaio_wref_valid(PgAioWaitRef *iow)
 {
-	return iow->aio_index != PG_UINT32_MAX;
+  return iow->aio_index != PG_UINT32_MAX;
 }
 
 /*
@@ -979,8 +969,8 @@ pgaio_wref_valid(PgAioWaitRef *iow)
 int
 pgaio_wref_get_id(PgAioWaitRef *iow)
 {
-	Assert(pgaio_wref_valid(iow));
-	return iow->aio_index;
+  Assert(pgaio_wref_valid(iow));
+  return iow->aio_index;
 }
 
 /*
@@ -990,12 +980,12 @@ pgaio_wref_get_id(PgAioWaitRef *iow)
 void
 pgaio_wref_wait(PgAioWaitRef *iow)
 {
-	uint64		ref_generation;
-	PgAioHandle *ioh;
+  uint64    ref_generation;
+  PgAioHandle *ioh;
 
-	ioh = pgaio_io_from_wref(iow, &ref_generation);
+  ioh = pgaio_io_from_wref(iow, &ref_generation);
 
-	pgaio_io_wait(ioh, ref_generation);
+  pgaio_io_wait(ioh, ref_generation);
 }
 
 /*
@@ -1004,40 +994,40 @@ pgaio_wref_wait(PgAioWaitRef *iow)
 bool
 pgaio_wref_check_done(PgAioWaitRef *iow)
 {
-	uint64		ref_generation;
-	PgAioHandleState state;
-	bool		am_owner;
-	PgAioHandle *ioh;
+  uint64    ref_generation;
+  PgAioHandleState state;
+  bool    am_owner;
+  PgAioHandle *ioh;
 
-	ioh = pgaio_io_from_wref(iow, &ref_generation);
+  ioh = pgaio_io_from_wref(iow, &ref_generation);
 
-	if (pgaio_io_was_recycled(ioh, ref_generation, &state))
-		return true;
+  if (pgaio_io_was_recycled(ioh, ref_generation, &state))
+    return true;
 
-	if (state == PGAIO_HS_IDLE)
-		return true;
+  if (state == PGAIO_HS_IDLE)
+    return true;
 
-	am_owner = ioh->owner_procno == MyProcNumber;
+  am_owner = ioh->owner_procno == MyProcNumber;
 
-	if (state == PGAIO_HS_COMPLETED_SHARED ||
-		state == PGAIO_HS_COMPLETED_LOCAL)
-	{
-		/*
-		 * Note that no interrupts are processed between
-		 * pgaio_io_was_recycled() and this check - that's important as
-		 * otherwise an interrupt could have already reclaimed the handle.
-		 */
-		if (am_owner)
-			pgaio_io_reclaim(ioh);
-		return true;
-	}
+  if (state == PGAIO_HS_COMPLETED_SHARED ||
+      state == PGAIO_HS_COMPLETED_LOCAL) {
+    /*
+     * Note that no interrupts are processed between
+     * pgaio_io_was_recycled() and this check - that's important as
+     * otherwise an interrupt could have already reclaimed the handle.
+     */
+    if (am_owner)
+      pgaio_io_reclaim(ioh);
 
-	/*
-	 * XXX: It likely would be worth checking in with the io method, to give
-	 * the IO method a chance to check if there are completion events queued.
-	 */
+    return true;
+  }
 
-	return false;
+  /*
+   * XXX: It likely would be worth checking in with the io method, to give
+   * the IO method a chance to check if there are completion events queued.
+   */
+
+  return false;
 }
 
 
@@ -1080,9 +1070,10 @@ pgaio_wref_check_done(PgAioWaitRef *iow)
 void
 pgaio_enter_batchmode(void)
 {
-	if (pgaio_my_backend->in_batchmode)
-		elog(ERROR, "starting batch while batch already in progress");
-	pgaio_my_backend->in_batchmode = true;
+  if (pgaio_my_backend->in_batchmode)
+    elog(ERROR, "starting batch while batch already in progress");
+
+  pgaio_my_backend->in_batchmode = true;
 }
 
 /*
@@ -1091,10 +1082,10 @@ pgaio_enter_batchmode(void)
 void
 pgaio_exit_batchmode(void)
 {
-	Assert(pgaio_my_backend->in_batchmode);
+  Assert(pgaio_my_backend->in_batchmode);
 
-	pgaio_submit_staged();
-	pgaio_my_backend->in_batchmode = false;
+  pgaio_submit_staged();
+  pgaio_my_backend->in_batchmode = false;
 }
 
 /*
@@ -1106,9 +1097,9 @@ pgaio_exit_batchmode(void)
 bool
 pgaio_have_staged(void)
 {
-	Assert(pgaio_my_backend->in_batchmode ||
-		   pgaio_my_backend->num_staged_ios == 0);
-	return pgaio_my_backend->num_staged_ios > 0;
+  Assert(pgaio_my_backend->in_batchmode ||
+         pgaio_my_backend->num_staged_ios == 0);
+  return pgaio_my_backend->num_staged_ios > 0;
 }
 
 /*
@@ -1122,29 +1113,29 @@ pgaio_have_staged(void)
 void
 pgaio_submit_staged(void)
 {
-	int			total_submitted = 0;
-	int			did_submit;
+  int     total_submitted = 0;
+  int     did_submit;
 
-	if (pgaio_my_backend->num_staged_ios == 0)
-		return;
+  if (pgaio_my_backend->num_staged_ios == 0)
+    return;
 
 
-	START_CRIT_SECTION();
+  START_CRIT_SECTION();
 
-	did_submit = pgaio_method_ops->submit(pgaio_my_backend->num_staged_ios,
-										  pgaio_my_backend->staged_ios);
+  did_submit = pgaio_method_ops->submit(pgaio_my_backend->num_staged_ios,
+                                        pgaio_my_backend->staged_ios);
 
-	END_CRIT_SECTION();
+  END_CRIT_SECTION();
 
-	total_submitted += did_submit;
+  total_submitted += did_submit;
 
-	Assert(total_submitted == did_submit);
+  Assert(total_submitted == did_submit);
 
-	pgaio_my_backend->num_staged_ios = 0;
+  pgaio_my_backend->num_staged_ios = 0;
 
-	pgaio_debug(DEBUG4,
-				"aio: submitted %d IOs",
-				total_submitted);
+  pgaio_debug(DEBUG4,
+              "aio: submitted %d IOs",
+              total_submitted);
 }
 
 
@@ -1164,22 +1155,21 @@ pgaio_submit_staged(void)
 void
 pgaio_error_cleanup(void)
 {
-	/*
-	 * It is possible that code errored out after pgaio_enter_batchmode() but
-	 * before pgaio_exit_batchmode() was called. In that case we need to
-	 * submit the IO now.
-	 */
-	if (pgaio_my_backend->in_batchmode)
-	{
-		pgaio_my_backend->in_batchmode = false;
+  /*
+   * It is possible that code errored out after pgaio_enter_batchmode() but
+   * before pgaio_exit_batchmode() was called. In that case we need to
+   * submit the IO now.
+   */
+  if (pgaio_my_backend->in_batchmode) {
+    pgaio_my_backend->in_batchmode = false;
 
-		pgaio_submit_staged();
-	}
+    pgaio_submit_staged();
+  }
 
-	/*
-	 * As we aren't in batchmode, there shouldn't be any unsubmitted IOs.
-	 */
-	Assert(pgaio_my_backend->num_staged_ios == 0);
+  /*
+   * As we aren't in batchmode, there shouldn't be any unsubmitted IOs.
+   */
+  Assert(pgaio_my_backend->num_staged_ios == 0);
 }
 
 /*
@@ -1192,24 +1182,23 @@ pgaio_error_cleanup(void)
 void
 AtEOXact_Aio(bool is_commit)
 {
-	/*
-	 * We should never be in batch mode at transactional boundaries. In case
-	 * an error was thrown while in batch mode, pgaio_error_cleanup() should
-	 * have exited batchmode.
-	 *
-	 * In case we are in batchmode somehow, make sure to submit all staged
-	 * IOs, other backends may need them to complete to continue.
-	 */
-	if (pgaio_my_backend->in_batchmode)
-	{
-		pgaio_error_cleanup();
-		elog(WARNING, "open AIO batch at end of (sub-)transaction");
-	}
+  /*
+   * We should never be in batch mode at transactional boundaries. In case
+   * an error was thrown while in batch mode, pgaio_error_cleanup() should
+   * have exited batchmode.
+   *
+   * In case we are in batchmode somehow, make sure to submit all staged
+   * IOs, other backends may need them to complete to continue.
+   */
+  if (pgaio_my_backend->in_batchmode) {
+    pgaio_error_cleanup();
+    elog(WARNING, "open AIO batch at end of (sub-)transaction");
+  }
 
-	/*
-	 * As we aren't in batchmode, there shouldn't be any unsubmitted IOs.
-	 */
-	Assert(pgaio_my_backend->num_staged_ios == 0);
+  /*
+   * As we aren't in batchmode, there shouldn't be any unsubmitted IOs.
+   */
+  Assert(pgaio_my_backend->num_staged_ios == 0);
 }
 
 /*
@@ -1219,66 +1208,62 @@ AtEOXact_Aio(bool is_commit)
 void
 pgaio_closing_fd(int fd)
 {
-	/*
-	 * Might be called before AIO is initialized or in a subprocess that
-	 * doesn't use AIO.
-	 */
-	if (!pgaio_my_backend)
-		return;
+  /*
+   * Might be called before AIO is initialized or in a subprocess that
+   * doesn't use AIO.
+   */
+  if (!pgaio_my_backend)
+    return;
 
-	/*
-	 * For now just submit all staged IOs - we could be more selective, but
-	 * it's probably not worth it.
-	 */
-	if (pgaio_my_backend->num_staged_ios > 0)
-	{
-		pgaio_debug(DEBUG2,
-					"submitting %d IOs before FD %d gets closed",
-					pgaio_my_backend->num_staged_ios, fd);
-		pgaio_submit_staged();
-	}
+  /*
+   * For now just submit all staged IOs - we could be more selective, but
+   * it's probably not worth it.
+   */
+  if (pgaio_my_backend->num_staged_ios > 0) {
+    pgaio_debug(DEBUG2,
+                "submitting %d IOs before FD %d gets closed",
+                pgaio_my_backend->num_staged_ios, fd);
+    pgaio_submit_staged();
+  }
 
-	/*
-	 * If requested by the IO method, wait for all IOs that use the
-	 * to-be-closed FD.
-	 */
-	if (pgaio_method_ops->wait_on_fd_before_close)
-	{
-		/*
-		 * As waiting for one IO to complete may complete multiple IOs, we
-		 * can't just use a mutable list iterator. The maximum number of
-		 * in-flight IOs is fairly small, so just restart the loop after
-		 * waiting for an IO.
-		 */
-		while (!dclist_is_empty(&pgaio_my_backend->in_flight_ios))
-		{
-			dlist_iter	iter;
-			PgAioHandle *ioh = NULL;
-			uint64		generation;
+  /*
+   * If requested by the IO method, wait for all IOs that use the
+   * to-be-closed FD.
+   */
+  if (pgaio_method_ops->wait_on_fd_before_close) {
+    /*
+     * As waiting for one IO to complete may complete multiple IOs, we
+     * can't just use a mutable list iterator. The maximum number of
+     * in-flight IOs is fairly small, so just restart the loop after
+     * waiting for an IO.
+     */
+    while (!dclist_is_empty(&pgaio_my_backend->in_flight_ios)) {
+      dlist_iter  iter;
+      PgAioHandle *ioh = NULL;
+      uint64    generation;
 
-			dclist_foreach(iter, &pgaio_my_backend->in_flight_ios)
-			{
-				ioh = dclist_container(PgAioHandle, node, iter.cur);
+      dclist_foreach(iter, &pgaio_my_backend->in_flight_ios) {
+        ioh = dclist_container(PgAioHandle, node, iter.cur);
 
-				generation = ioh->generation;
+        generation = ioh->generation;
 
-				if (pgaio_io_uses_fd(ioh, fd))
-					break;
-				else
-					ioh = NULL;
-			}
+        if (pgaio_io_uses_fd(ioh, fd))
+          break;
+        else
+          ioh = NULL;
+      }
 
-			if (!ioh)
-				break;
+      if (!ioh)
+        break;
 
-			pgaio_debug_io(DEBUG2, ioh,
-						   "waiting for IO before FD %d gets closed, %u in-flight IOs",
-						   fd, dclist_count(&pgaio_my_backend->in_flight_ios));
+      pgaio_debug_io(DEBUG2, ioh,
+                     "waiting for IO before FD %d gets closed, %u in-flight IOs",
+                     fd, dclist_count(&pgaio_my_backend->in_flight_ios));
 
-			/* see comment in pgaio_io_wait_for_free() about raciness */
-			pgaio_io_wait(ioh, generation);
-		}
-	}
+      /* see comment in pgaio_io_wait_for_free() about raciness */
+      pgaio_io_wait(ioh, generation);
+    }
+  }
 }
 
 /*
@@ -1287,62 +1272,58 @@ pgaio_closing_fd(int fd)
 void
 pgaio_shutdown(int code, Datum arg)
 {
-	Assert(pgaio_my_backend);
-	Assert(!pgaio_my_backend->handed_out_io);
+  Assert(pgaio_my_backend);
+  Assert(!pgaio_my_backend->handed_out_io);
 
-	/* first clean up resources as we would at a transaction boundary */
-	AtEOXact_Aio(code == 0);
+  /* first clean up resources as we would at a transaction boundary */
+  AtEOXact_Aio(code == 0);
 
-	/*
-	 * Before exiting, make sure that all IOs are finished. That has two main
-	 * purposes:
-	 *
-	 * - Some kernel-level AIO mechanisms don't deal well with the issuer of
-	 * an AIO exiting before IO completed
-	 *
-	 * - It'd be confusing to see partially finished IOs in stats views etc
-	 */
-	while (!dclist_is_empty(&pgaio_my_backend->in_flight_ios))
-	{
-		PgAioHandle *ioh = dclist_head_element(PgAioHandle, node, &pgaio_my_backend->in_flight_ios);
-		uint64		generation = ioh->generation;
+  /*
+   * Before exiting, make sure that all IOs are finished. That has two main
+   * purposes:
+   *
+   * - Some kernel-level AIO mechanisms don't deal well with the issuer of
+   * an AIO exiting before IO completed
+   *
+   * - It'd be confusing to see partially finished IOs in stats views etc
+   */
+  while (!dclist_is_empty(&pgaio_my_backend->in_flight_ios)) {
+    PgAioHandle *ioh = dclist_head_element(PgAioHandle, node, &pgaio_my_backend->in_flight_ios);
+    uint64    generation = ioh->generation;
 
-		pgaio_debug_io(DEBUG2, ioh,
-					   "waiting for IO to complete during shutdown, %u in-flight IOs",
-					   dclist_count(&pgaio_my_backend->in_flight_ios));
+    pgaio_debug_io(DEBUG2, ioh,
+                   "waiting for IO to complete during shutdown, %u in-flight IOs",
+                   dclist_count(&pgaio_my_backend->in_flight_ios));
 
-		/* see comment in pgaio_io_wait_for_free() about raciness */
-		pgaio_io_wait(ioh, generation);
-	}
+    /* see comment in pgaio_io_wait_for_free() about raciness */
+    pgaio_io_wait(ioh, generation);
+  }
 
-	pgaio_my_backend = NULL;
+  pgaio_my_backend = NULL;
 }
 
 void
 assign_io_method(int newval, void *extra)
 {
-	Assert(newval < lengthof(pgaio_method_ops_table));
-	Assert(pgaio_method_ops_table[newval] != NULL);
+  Assert(newval < lengthof(pgaio_method_ops_table));
+  Assert(pgaio_method_ops_table[newval] != NULL);
 
-	pgaio_method_ops = pgaio_method_ops_table[newval];
+  pgaio_method_ops = pgaio_method_ops_table[newval];
 }
 
 bool
 check_io_max_concurrency(int *newval, void **extra, GucSource source)
 {
-	if (*newval == -1)
-	{
-		/*
-		 * Auto-tuning will be applied later during startup, as auto-tuning
-		 * depends on the value of various GUCs.
-		 */
-		return true;
-	}
-	else if (*newval == 0)
-	{
-		GUC_check_errdetail("Only -1 or values bigger than 0 are valid.");
-		return false;
-	}
+  if (*newval == -1) {
+    /*
+     * Auto-tuning will be applied later during startup, as auto-tuning
+     * depends on the value of various GUCs.
+     */
+    return true;
+  } else if (*newval == 0) {
+    GUC_check_errdetail("Only -1 or values bigger than 0 are valid.");
+    return false;
+  }
 
-	return true;
+  return true;
 }

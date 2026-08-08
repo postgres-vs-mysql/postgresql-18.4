@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * parse_expr.h
- *	  handle expressions in parser
+ *    handle expressions in parser
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -22,4 +22,4 @@ extern Node *transformExpr(ParseState *pstate, Node *expr, ParseExprKind exprKin
 
 extern const char *ParseExprKindName(ParseExprKind exprKind);
 
-#endif							/* PARSE_EXPR_H */
+#endif              /* PARSE_EXPR_H */

@@ -1,23 +1,23 @@
 /*-------------------------------------------------------------------------
  *
  * freespace.c
- *	  POSTGRES free space map for quickly finding free space in relations
+ *    POSTGRES free space map for quickly finding free space in relations
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/storage/freespace/freespace.c
+ *    src/backend/storage/freespace/freespace.c
  *
  *
  * NOTES:
  *
- *	Free Space Map keeps track of the amount of free space on pages, and
- *	allows quickly searching for a page with enough free space. The FSM is
- *	stored in a dedicated relation fork of all heap relations, and those
- *	index access methods that need it (see also indexfsm.c). See README for
- *	more information.
+ *  Free Space Map keeps track of the amount of free space on pages, and
+ *  allows quickly searching for a page with enough free space. The FSM is
+ *  stored in a dedicated relation fork of all heap relations, and those
+ *  index access methods that need it (see also indexfsm.c). See README for
+ *  more information.
  *
  *-------------------------------------------------------------------------
  */
@@ -46,9 +46,9 @@
  * categories look like this:
  *
  *
- * Range	 Category
- * 0	- 31   0
- * 32	- 63   1
+ * Range   Category
+ * 0  - 31   0
+ * 32 - 63   1
  * ...    ...  ...
  * 8096 - 8127 253
  * 8128 - 8163 254
@@ -61,9 +61,9 @@
  * completely empty page, that would mean that we could never satisfy a
  * request of exactly MaxFSMRequestSize bytes.
  */
-#define FSM_CATEGORIES	256
-#define FSM_CAT_STEP	(BLCKSZ / FSM_CATEGORIES)
-#define MaxFSMRequestSize	MaxHeapTupleSize
+#define FSM_CATEGORIES  256
+#define FSM_CAT_STEP  (BLCKSZ / FSM_CATEGORIES)
+#define MaxFSMRequestSize MaxHeapTupleSize
 
 /*
  * Depth of the on-disk tree. We need to be able to address 2^32-1 blocks,
@@ -72,19 +72,18 @@
  * this means that 4096 bytes is the smallest BLCKSZ that we can get away
  * with a 3-level tree, and 512 is the smallest we support.
  */
-#define FSM_TREE_DEPTH	((SlotsPerFSMPage >= 1626) ? 3 : 4)
+#define FSM_TREE_DEPTH  ((SlotsPerFSMPage >= 1626) ? 3 : 4)
 
-#define FSM_ROOT_LEVEL	(FSM_TREE_DEPTH - 1)
+#define FSM_ROOT_LEVEL  (FSM_TREE_DEPTH - 1)
 #define FSM_BOTTOM_LEVEL 0
 
 /*
  * The internal FSM routines work on a logical addressing scheme. Each
  * level of the tree can be thought of as a separately addressable file.
  */
-typedef struct
-{
-	int			level;			/* level */
-	int			logpageno;		/* page number within the level */
+typedef struct {
+  int     level;      /* level */
+  int     logpageno;    /* page number within the level */
 } FSMAddress;
 
 /* Address of the root page. */
@@ -106,12 +105,12 @@ static uint8 fsm_space_needed_to_cat(Size needed);
 static Size fsm_space_cat_to_avail(uint8 cat);
 
 /* workhorse functions for various operations */
-static int	fsm_set_and_search(Relation rel, FSMAddress addr, uint16 slot,
-							   uint8 newValue, uint8 minValue);
+static int  fsm_set_and_search(Relation rel, FSMAddress addr, uint16 slot,
+                               uint8 newValue, uint8 minValue);
 static BlockNumber fsm_search(Relation rel, uint8 min_cat);
 static uint8 fsm_vacuum_page(Relation rel, FSMAddress addr,
-							 BlockNumber start, BlockNumber end,
-							 bool *eof_p);
+                             BlockNumber start, BlockNumber end,
+                             bool *eof_p);
 static bool fsm_does_block_exist(Relation rel, BlockNumber blknumber);
 
 
@@ -119,7 +118,7 @@ static bool fsm_does_block_exist(Relation rel, BlockNumber blknumber);
 
 /*
  * GetPageWithFreeSpace - try to find a page in the given relation with
- *		at least the specified amount of free space.
+ *    at least the specified amount of free space.
  *
  * If successful, return the block number; if not, return InvalidBlockNumber.
  *
@@ -136,9 +135,9 @@ static bool fsm_does_block_exist(Relation rel, BlockNumber blknumber);
 BlockNumber
 GetPageWithFreeSpace(Relation rel, Size spaceNeeded)
 {
-	uint8		min_cat = fsm_space_needed_to_cat(spaceNeeded);
+  uint8   min_cat = fsm_space_needed_to_cat(spaceNeeded);
 
-	return fsm_search(rel, min_cat);
+  return fsm_search(rel, min_cat);
 }
 
 /*
@@ -152,35 +151,35 @@ GetPageWithFreeSpace(Relation rel, Size spaceNeeded)
  */
 BlockNumber
 RecordAndGetPageWithFreeSpace(Relation rel, BlockNumber oldPage,
-							  Size oldSpaceAvail, Size spaceNeeded)
+                              Size oldSpaceAvail, Size spaceNeeded)
 {
-	int			old_cat = fsm_space_avail_to_cat(oldSpaceAvail);
-	int			search_cat = fsm_space_needed_to_cat(spaceNeeded);
-	FSMAddress	addr;
-	uint16		slot;
-	int			search_slot;
+  int     old_cat = fsm_space_avail_to_cat(oldSpaceAvail);
+  int     search_cat = fsm_space_needed_to_cat(spaceNeeded);
+  FSMAddress  addr;
+  uint16    slot;
+  int     search_slot;
 
-	/* Get the location of the FSM byte representing the heap block */
-	addr = fsm_get_location(oldPage, &slot);
+  /* Get the location of the FSM byte representing the heap block */
+  addr = fsm_get_location(oldPage, &slot);
 
-	search_slot = fsm_set_and_search(rel, addr, slot, old_cat, search_cat);
+  search_slot = fsm_set_and_search(rel, addr, slot, old_cat, search_cat);
 
-	/*
-	 * If fsm_set_and_search found a suitable new block, return that.
-	 * Otherwise, search as usual.
-	 */
-	if (search_slot != -1)
-	{
-		BlockNumber blknum = fsm_get_heap_blk(addr, search_slot);
+  /*
+   * If fsm_set_and_search found a suitable new block, return that.
+   * Otherwise, search as usual.
+   */
+  if (search_slot != -1) {
+    BlockNumber blknum = fsm_get_heap_blk(addr, search_slot);
 
-		/*
-		 * Check that the blknum is actually in the relation. Don't try to
-		 * update the FSM in that case, just fall back to the other case
-		 */
-		if (fsm_does_block_exist(rel, blknum))
-			return blknum;
-	}
-	return fsm_search(rel, search_cat);
+    /*
+     * Check that the blknum is actually in the relation. Don't try to
+     * update the FSM in that case, just fall back to the other case
+     */
+    if (fsm_does_block_exist(rel, blknum))
+      return blknum;
+  }
+
+  return fsm_search(rel, search_cat);
 }
 
 /*
@@ -193,81 +192,85 @@ RecordAndGetPageWithFreeSpace(Relation rel, BlockNumber oldPage,
 void
 RecordPageWithFreeSpace(Relation rel, BlockNumber heapBlk, Size spaceAvail)
 {
-	int			new_cat = fsm_space_avail_to_cat(spaceAvail);
-	FSMAddress	addr;
-	uint16		slot;
+  int     new_cat = fsm_space_avail_to_cat(spaceAvail);
+  FSMAddress  addr;
+  uint16    slot;
 
-	/* Get the location of the FSM byte representing the heap block */
-	addr = fsm_get_location(heapBlk, &slot);
+  /* Get the location of the FSM byte representing the heap block */
+  addr = fsm_get_location(heapBlk, &slot);
 
-	fsm_set_and_search(rel, addr, slot, new_cat, 0);
+  fsm_set_and_search(rel, addr, slot, new_cat, 0);
 }
 
 /*
  * XLogRecordPageWithFreeSpace - like RecordPageWithFreeSpace, for use in
- *		WAL replay
+ *    WAL replay
  */
 void
 XLogRecordPageWithFreeSpace(RelFileLocator rlocator, BlockNumber heapBlk,
-							Size spaceAvail)
+                            Size spaceAvail)
 {
-	int			new_cat = fsm_space_avail_to_cat(spaceAvail);
-	FSMAddress	addr;
-	uint16		slot;
-	BlockNumber blkno;
-	Buffer		buf;
-	Page		page;
+  int     new_cat = fsm_space_avail_to_cat(spaceAvail);
+  FSMAddress  addr;
+  uint16    slot;
+  BlockNumber blkno;
+  Buffer    buf;
+  Page    page;
 
-	/* Get the location of the FSM byte representing the heap block */
-	addr = fsm_get_location(heapBlk, &slot);
-	blkno = fsm_logical_to_physical(addr);
+  /* Get the location of the FSM byte representing the heap block */
+  addr = fsm_get_location(heapBlk, &slot);
+  blkno = fsm_logical_to_physical(addr);
 
-	/* If the page doesn't exist already, extend */
-	buf = XLogReadBufferExtended(rlocator, FSM_FORKNUM, blkno,
-								 RBM_ZERO_ON_ERROR, InvalidBuffer);
-	LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
+  /* If the page doesn't exist already, extend */
+  buf = XLogReadBufferExtended(rlocator, FSM_FORKNUM, blkno,
+                               RBM_ZERO_ON_ERROR, InvalidBuffer);
+  LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
 
-	page = BufferGetPage(buf);
-	if (PageIsNew(page))
-		PageInit(page, BLCKSZ, 0);
+  page = BufferGetPage(buf);
 
-	/*
-	 * Changes to FSM are usually marked as changed using MarkBufferDirtyHint;
-	 * however, during recovery, it does nothing if checksums are enabled. It
-	 * is assumed that the page should not be dirtied during recovery while
-	 * modifying hints to prevent torn pages, since no new WAL data can be
-	 * generated at this point to store FPI. This is not relevant to the FSM
-	 * case, as its blocks are zeroed when a checksum mismatch occurs. So, we
-	 * need to use regular MarkBufferDirty here to mark the FSM block as
-	 * modified during recovery, otherwise changes to the FSM may be lost.
-	 */
-	if (fsm_set_avail(page, slot, new_cat))
-		MarkBufferDirty(buf);
-	UnlockReleaseBuffer(buf);
+  if (PageIsNew(page))
+    PageInit(page, BLCKSZ, 0);
+
+  /*
+   * Changes to FSM are usually marked as changed using MarkBufferDirtyHint;
+   * however, during recovery, it does nothing if checksums are enabled. It
+   * is assumed that the page should not be dirtied during recovery while
+   * modifying hints to prevent torn pages, since no new WAL data can be
+   * generated at this point to store FPI. This is not relevant to the FSM
+   * case, as its blocks are zeroed when a checksum mismatch occurs. So, we
+   * need to use regular MarkBufferDirty here to mark the FSM block as
+   * modified during recovery, otherwise changes to the FSM may be lost.
+   */
+  if (fsm_set_avail(page, slot, new_cat))
+    MarkBufferDirty(buf);
+
+  UnlockReleaseBuffer(buf);
 }
 
 /*
  * GetRecordedFreeSpace - return the amount of free space on a particular page,
- *		according to the FSM.
+ *    according to the FSM.
  */
 Size
 GetRecordedFreeSpace(Relation rel, BlockNumber heapBlk)
 {
-	FSMAddress	addr;
-	uint16		slot;
-	Buffer		buf;
-	uint8		cat;
+  FSMAddress  addr;
+  uint16    slot;
+  Buffer    buf;
+  uint8   cat;
 
-	/* Get the location of the FSM byte representing the heap block */
-	addr = fsm_get_location(heapBlk, &slot);
+  /* Get the location of the FSM byte representing the heap block */
+  addr = fsm_get_location(heapBlk, &slot);
 
-	buf = fsm_readbuf(rel, addr, false);
-	if (!BufferIsValid(buf))
-		return 0;
-	cat = fsm_get_avail(BufferGetPage(buf), slot);
-	ReleaseBuffer(buf);
+  buf = fsm_readbuf(rel, addr, false);
 
-	return fsm_space_cat_to_avail(cat);
+  if (!BufferIsValid(buf))
+    return 0;
+
+  cat = fsm_get_avail(BufferGetPage(buf), slot);
+  ReleaseBuffer(buf);
+
+  return fsm_space_cat_to_avail(cat);
 }
 
 /*
@@ -284,78 +287,79 @@ GetRecordedFreeSpace(Relation rel, BlockNumber heapBlk)
 BlockNumber
 FreeSpaceMapPrepareTruncateRel(Relation rel, BlockNumber nblocks)
 {
-	BlockNumber new_nfsmblocks;
-	FSMAddress	first_removed_address;
-	uint16		first_removed_slot;
-	Buffer		buf;
+  BlockNumber new_nfsmblocks;
+  FSMAddress  first_removed_address;
+  uint16    first_removed_slot;
+  Buffer    buf;
 
-	/*
-	 * If no FSM has been created yet for this relation, there's nothing to
-	 * truncate.
-	 */
-	if (!smgrexists(RelationGetSmgr(rel), FSM_FORKNUM))
-		return InvalidBlockNumber;
+  /*
+   * If no FSM has been created yet for this relation, there's nothing to
+   * truncate.
+   */
+  if (!smgrexists(RelationGetSmgr(rel), FSM_FORKNUM))
+    return InvalidBlockNumber;
 
-	/* Get the location in the FSM of the first removed heap block */
-	first_removed_address = fsm_get_location(nblocks, &first_removed_slot);
+  /* Get the location in the FSM of the first removed heap block */
+  first_removed_address = fsm_get_location(nblocks, &first_removed_slot);
 
-	/*
-	 * Zero out the tail of the last remaining FSM page. If the slot
-	 * representing the first removed heap block is at a page boundary, as the
-	 * first slot on the FSM page that first_removed_address points to, we can
-	 * just truncate that page altogether.
-	 */
-	if (first_removed_slot > 0)
-	{
-		buf = fsm_readbuf(rel, first_removed_address, false);
-		if (!BufferIsValid(buf))
-			return InvalidBlockNumber;	/* nothing to do; the FSM was already
-										 * smaller */
-		LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
+  /*
+   * Zero out the tail of the last remaining FSM page. If the slot
+   * representing the first removed heap block is at a page boundary, as the
+   * first slot on the FSM page that first_removed_address points to, we can
+   * just truncate that page altogether.
+   */
+  if (first_removed_slot > 0) {
+    buf = fsm_readbuf(rel, first_removed_address, false);
 
-		/* NO EREPORT(ERROR) from here till changes are logged */
-		START_CRIT_SECTION();
+    if (!BufferIsValid(buf))
+      return InvalidBlockNumber;  /* nothing to do; the FSM was already
 
-		fsm_truncate_avail(BufferGetPage(buf), first_removed_slot);
+                     * smaller */
+    LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
 
-		/*
-		 * This change is non-critical, because fsm_does_block_exist() would
-		 * stop us from returning a truncated-away block.  However, since this
-		 * may remove up to SlotsPerFSMPage slots, it's nice to avoid the cost
-		 * of that many fsm_does_block_exist() rejections.  Use a full
-		 * MarkBufferDirty(), not MarkBufferDirtyHint().
-		 */
-		MarkBufferDirty(buf);
+    /* NO EREPORT(ERROR) from here till changes are logged */
+    START_CRIT_SECTION();
 
-		/*
-		 * WAL-log like MarkBufferDirtyHint() might have done, just to avoid
-		 * differing from the rest of the file in this respect.  This is
-		 * optional; see README mention of full page images.  XXX consider
-		 * XLogSaveBufferForHint() for even closer similarity.
-		 *
-		 * A higher-level operation calls us at WAL replay.  If we crash
-		 * before the XLOG_SMGR_TRUNCATE flushes to disk, main fork length has
-		 * not changed, and our fork remains valid.  If we crash after that
-		 * flush, redo will return here.
-		 */
-		if (!InRecovery && RelationNeedsWAL(rel) && XLogHintBitIsNeeded())
-			log_newpage_buffer(buf, false);
+    fsm_truncate_avail(BufferGetPage(buf), first_removed_slot);
 
-		END_CRIT_SECTION();
+    /*
+     * This change is non-critical, because fsm_does_block_exist() would
+     * stop us from returning a truncated-away block.  However, since this
+     * may remove up to SlotsPerFSMPage slots, it's nice to avoid the cost
+     * of that many fsm_does_block_exist() rejections.  Use a full
+     * MarkBufferDirty(), not MarkBufferDirtyHint().
+     */
+    MarkBufferDirty(buf);
 
-		UnlockReleaseBuffer(buf);
+    /*
+     * WAL-log like MarkBufferDirtyHint() might have done, just to avoid
+     * differing from the rest of the file in this respect.  This is
+     * optional; see README mention of full page images.  XXX consider
+     * XLogSaveBufferForHint() for even closer similarity.
+     *
+     * A higher-level operation calls us at WAL replay.  If we crash
+     * before the XLOG_SMGR_TRUNCATE flushes to disk, main fork length has
+     * not changed, and our fork remains valid.  If we crash after that
+     * flush, redo will return here.
+     */
+    if (!InRecovery && RelationNeedsWAL(rel) && XLogHintBitIsNeeded())
+      log_newpage_buffer(buf, false);
 
-		new_nfsmblocks = fsm_logical_to_physical(first_removed_address) + 1;
-	}
-	else
-	{
-		new_nfsmblocks = fsm_logical_to_physical(first_removed_address);
-		if (smgrnblocks(RelationGetSmgr(rel), FSM_FORKNUM) <= new_nfsmblocks)
-			return InvalidBlockNumber;	/* nothing to do; the FSM was already
-										 * smaller */
-	}
+    END_CRIT_SECTION();
 
-	return new_nfsmblocks;
+    UnlockReleaseBuffer(buf);
+
+    new_nfsmblocks = fsm_logical_to_physical(first_removed_address) + 1;
+  } else {
+    new_nfsmblocks = fsm_logical_to_physical(first_removed_address);
+
+    if (smgrnblocks(RelationGetSmgr(rel), FSM_FORKNUM) <= new_nfsmblocks)
+      return InvalidBlockNumber;  /* nothing to do; the FSM was already
+
+                     * smaller */
+  }
+
+  return new_nfsmblocks;
 }
 
 /*
@@ -367,12 +371,12 @@ FreeSpaceMapPrepareTruncateRel(Relation rel, BlockNumber nblocks)
 void
 FreeSpaceMapVacuum(Relation rel)
 {
-	bool		dummy;
+  bool    dummy;
 
-	/* Recursively scan the tree, starting at the root */
-	(void) fsm_vacuum_page(rel, FSM_ROOT_ADDRESS,
-						   (BlockNumber) 0, InvalidBlockNumber,
-						   &dummy);
+  /* Recursively scan the tree, starting at the root */
+  (void) fsm_vacuum_page(rel, FSM_ROOT_ADDRESS,
+                         (BlockNumber) 0, InvalidBlockNumber,
+                         &dummy);
 }
 
 /*
@@ -386,11 +390,11 @@ FreeSpaceMapVacuum(Relation rel)
 void
 FreeSpaceMapVacuumRange(Relation rel, BlockNumber start, BlockNumber end)
 {
-	bool		dummy;
+  bool    dummy;
 
-	/* Recursively scan the tree, starting at the root */
-	if (end > start)
-		(void) fsm_vacuum_page(rel, FSM_ROOT_ADDRESS, start, end, &dummy);
+  /* Recursively scan the tree, starting at the root */
+  if (end > start)
+    (void) fsm_vacuum_page(rel, FSM_ROOT_ADDRESS, start, end, &dummy);
 }
 
 /******** Internal routines ********/
@@ -401,23 +405,23 @@ FreeSpaceMapVacuumRange(Relation rel, BlockNumber start, BlockNumber end)
 static uint8
 fsm_space_avail_to_cat(Size avail)
 {
-	int			cat;
+  int     cat;
 
-	Assert(avail < BLCKSZ);
+  Assert(avail < BLCKSZ);
 
-	if (avail >= MaxFSMRequestSize)
-		return 255;
+  if (avail >= MaxFSMRequestSize)
+    return 255;
 
-	cat = avail / FSM_CAT_STEP;
+  cat = avail / FSM_CAT_STEP;
 
-	/*
-	 * The highest category, 255, is reserved for MaxFSMRequestSize bytes or
-	 * more.
-	 */
-	if (cat > 254)
-		cat = 254;
+  /*
+   * The highest category, 255, is reserved for MaxFSMRequestSize bytes or
+   * more.
+   */
+  if (cat > 254)
+    cat = 254;
 
-	return (uint8) cat;
+  return (uint8) cat;
 }
 
 /*
@@ -427,11 +431,11 @@ fsm_space_avail_to_cat(Size avail)
 static Size
 fsm_space_cat_to_avail(uint8 cat)
 {
-	/* The highest category represents exactly MaxFSMRequestSize bytes. */
-	if (cat == 255)
-		return MaxFSMRequestSize;
-	else
-		return cat * FSM_CAT_STEP;
+  /* The highest category represents exactly MaxFSMRequestSize bytes. */
+  if (cat == 255)
+    return MaxFSMRequestSize;
+  else
+    return cat * FSM_CAT_STEP;
 }
 
 /*
@@ -441,21 +445,21 @@ fsm_space_cat_to_avail(uint8 cat)
 static uint8
 fsm_space_needed_to_cat(Size needed)
 {
-	int			cat;
+  int     cat;
 
-	/* Can't ask for more space than the highest category represents */
-	if (needed > MaxFSMRequestSize)
-		elog(ERROR, "invalid FSM request size %zu", needed);
+  /* Can't ask for more space than the highest category represents */
+  if (needed > MaxFSMRequestSize)
+    elog(ERROR, "invalid FSM request size %zu", needed);
 
-	if (needed == 0)
-		return 1;
+  if (needed == 0)
+    return 1;
 
-	cat = (needed + FSM_CAT_STEP - 1) / FSM_CAT_STEP;
+  cat = (needed + FSM_CAT_STEP - 1) / FSM_CAT_STEP;
 
-	if (cat > 255)
-		cat = 255;
+  if (cat > 255)
+    cat = 255;
 
-	return (uint8) cat;
+  return (uint8) cat;
 }
 
 /*
@@ -464,34 +468,35 @@ fsm_space_needed_to_cat(Size needed)
 static BlockNumber
 fsm_logical_to_physical(FSMAddress addr)
 {
-	BlockNumber pages;
-	int			leafno;
-	int			l;
+  BlockNumber pages;
+  int     leafno;
+  int     l;
 
-	/*
-	 * Calculate the logical page number of the first leaf page below the
-	 * given page.
-	 */
-	leafno = addr.logpageno;
-	for (l = 0; l < addr.level; l++)
-		leafno *= SlotsPerFSMPage;
+  /*
+   * Calculate the logical page number of the first leaf page below the
+   * given page.
+   */
+  leafno = addr.logpageno;
 
-	/* Count upper level nodes required to address the leaf page */
-	pages = 0;
-	for (l = 0; l < FSM_TREE_DEPTH; l++)
-	{
-		pages += leafno + 1;
-		leafno /= SlotsPerFSMPage;
-	}
+  for (l = 0; l < addr.level; l++)
+    leafno *= SlotsPerFSMPage;
 
-	/*
-	 * If the page we were asked for wasn't at the bottom level, subtract the
-	 * additional lower level pages we counted above.
-	 */
-	pages -= addr.level;
+  /* Count upper level nodes required to address the leaf page */
+  pages = 0;
 
-	/* Turn the page count into 0-based block number */
-	return pages - 1;
+  for (l = 0; l < FSM_TREE_DEPTH; l++) {
+    pages += leafno + 1;
+    leafno /= SlotsPerFSMPage;
+  }
+
+  /*
+   * If the page we were asked for wasn't at the bottom level, subtract the
+   * additional lower level pages we counted above.
+   */
+  pages -= addr.level;
+
+  /* Turn the page count into 0-based block number */
+  return pages - 1;
 }
 
 /*
@@ -500,13 +505,13 @@ fsm_logical_to_physical(FSMAddress addr)
 static FSMAddress
 fsm_get_location(BlockNumber heapblk, uint16 *slot)
 {
-	FSMAddress	addr;
+  FSMAddress  addr;
 
-	addr.level = FSM_BOTTOM_LEVEL;
-	addr.logpageno = heapblk / SlotsPerFSMPage;
-	*slot = heapblk % SlotsPerFSMPage;
+  addr.level = FSM_BOTTOM_LEVEL;
+  addr.logpageno = heapblk / SlotsPerFSMPage;
+  *slot = heapblk % SlotsPerFSMPage;
 
-	return addr;
+  return addr;
 }
 
 /*
@@ -515,8 +520,8 @@ fsm_get_location(BlockNumber heapblk, uint16 *slot)
 static BlockNumber
 fsm_get_heap_blk(FSMAddress addr, uint16 slot)
 {
-	Assert(addr.level == FSM_BOTTOM_LEVEL);
-	return ((unsigned int) addr.logpageno) * SlotsPerFSMPage + slot;
+  Assert(addr.level == FSM_BOTTOM_LEVEL);
+  return ((unsigned int) addr.logpageno) * SlotsPerFSMPage + slot;
 }
 
 /*
@@ -526,15 +531,15 @@ fsm_get_heap_blk(FSMAddress addr, uint16 slot)
 static FSMAddress
 fsm_get_parent(FSMAddress child, uint16 *slot)
 {
-	FSMAddress	parent;
+  FSMAddress  parent;
 
-	Assert(child.level < FSM_ROOT_LEVEL);
+  Assert(child.level < FSM_ROOT_LEVEL);
 
-	parent.level = child.level + 1;
-	parent.logpageno = child.logpageno / SlotsPerFSMPage;
-	*slot = child.logpageno % SlotsPerFSMPage;
+  parent.level = child.level + 1;
+  parent.logpageno = child.logpageno / SlotsPerFSMPage;
+  *slot = child.logpageno % SlotsPerFSMPage;
 
-	return parent;
+  return parent;
 }
 
 /*
@@ -544,14 +549,14 @@ fsm_get_parent(FSMAddress child, uint16 *slot)
 static FSMAddress
 fsm_get_child(FSMAddress parent, uint16 slot)
 {
-	FSMAddress	child;
+  FSMAddress  child;
 
-	Assert(parent.level > FSM_BOTTOM_LEVEL);
+  Assert(parent.level > FSM_BOTTOM_LEVEL);
 
-	child.level = parent.level - 1;
-	child.logpageno = parent.logpageno * SlotsPerFSMPage + slot;
+  child.level = parent.level - 1;
+  child.logpageno = parent.logpageno * SlotsPerFSMPage + slot;
 
-	return child;
+  return child;
 }
 
 /*
@@ -563,71 +568,71 @@ fsm_get_child(FSMAddress parent, uint16 slot)
 static Buffer
 fsm_readbuf(Relation rel, FSMAddress addr, bool extend)
 {
-	BlockNumber blkno = fsm_logical_to_physical(addr);
-	Buffer		buf;
-	SMgrRelation reln = RelationGetSmgr(rel);
+  BlockNumber blkno = fsm_logical_to_physical(addr);
+  Buffer    buf;
+  SMgrRelation reln = RelationGetSmgr(rel);
 
-	/*
-	 * If we haven't cached the size of the FSM yet, check it first.  Also
-	 * recheck if the requested block seems to be past end, since our cached
-	 * value might be stale.  (We send smgr inval messages on truncation, but
-	 * not on extension.)
-	 */
-	if (reln->smgr_cached_nblocks[FSM_FORKNUM] == InvalidBlockNumber ||
-		blkno >= reln->smgr_cached_nblocks[FSM_FORKNUM])
-	{
-		/* Invalidate the cache so smgrnblocks asks the kernel. */
-		reln->smgr_cached_nblocks[FSM_FORKNUM] = InvalidBlockNumber;
-		if (smgrexists(reln, FSM_FORKNUM))
-			smgrnblocks(reln, FSM_FORKNUM);
-		else
-			reln->smgr_cached_nblocks[FSM_FORKNUM] = 0;
-	}
+  /*
+   * If we haven't cached the size of the FSM yet, check it first.  Also
+   * recheck if the requested block seems to be past end, since our cached
+   * value might be stale.  (We send smgr inval messages on truncation, but
+   * not on extension.)
+   */
+  if (reln->smgr_cached_nblocks[FSM_FORKNUM] == InvalidBlockNumber ||
+      blkno >= reln->smgr_cached_nblocks[FSM_FORKNUM]) {
+    /* Invalidate the cache so smgrnblocks asks the kernel. */
+    reln->smgr_cached_nblocks[FSM_FORKNUM] = InvalidBlockNumber;
 
-	/*
-	 * For reading we use ZERO_ON_ERROR mode, and initialize the page if
-	 * necessary.  The FSM information is not accurate anyway, so it's better
-	 * to clear corrupt pages than error out. Since the FSM changes are not
-	 * WAL-logged, the so-called torn page problem on crash can lead to pages
-	 * with corrupt headers, for example.
-	 *
-	 * We use the same path below to initialize pages when extending the
-	 * relation, as a concurrent extension can end up with vm_extend()
-	 * returning an already-initialized page.
-	 */
-	if (blkno >= reln->smgr_cached_nblocks[FSM_FORKNUM])
-	{
-		if (extend)
-			buf = fsm_extend(rel, blkno + 1);
-		else
-			return InvalidBuffer;
-	}
-	else
-		buf = ReadBufferExtended(rel, FSM_FORKNUM, blkno, RBM_ZERO_ON_ERROR, NULL);
+    if (smgrexists(reln, FSM_FORKNUM))
+      smgrnblocks(reln, FSM_FORKNUM);
+    else
+      reln->smgr_cached_nblocks[FSM_FORKNUM] = 0;
+  }
 
-	/*
-	 * Initializing the page when needed is trickier than it looks, because of
-	 * the possibility of multiple backends doing this concurrently, and our
-	 * desire to not uselessly take the buffer lock in the normal path where
-	 * the page is OK.  We must take the lock to initialize the page, so
-	 * recheck page newness after we have the lock, in case someone else
-	 * already did it.  Also, because we initially check PageIsNew with no
-	 * lock, it's possible to fall through and return the buffer while someone
-	 * else is still initializing the page (i.e., we might see pd_upper as set
-	 * but other page header fields are still zeroes).  This is harmless for
-	 * callers that will take a buffer lock themselves, but some callers
-	 * inspect the page without any lock at all.  The latter is OK only so
-	 * long as it doesn't depend on the page header having correct contents.
-	 * Current usage is safe because PageGetContents() does not require that.
-	 */
-	if (PageIsNew(BufferGetPage(buf)))
-	{
-		LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
-		if (PageIsNew(BufferGetPage(buf)))
-			PageInit(BufferGetPage(buf), BLCKSZ, 0);
-		LockBuffer(buf, BUFFER_LOCK_UNLOCK);
-	}
-	return buf;
+  /*
+   * For reading we use ZERO_ON_ERROR mode, and initialize the page if
+   * necessary.  The FSM information is not accurate anyway, so it's better
+   * to clear corrupt pages than error out. Since the FSM changes are not
+   * WAL-logged, the so-called torn page problem on crash can lead to pages
+   * with corrupt headers, for example.
+   *
+   * We use the same path below to initialize pages when extending the
+   * relation, as a concurrent extension can end up with vm_extend()
+   * returning an already-initialized page.
+   */
+  if (blkno >= reln->smgr_cached_nblocks[FSM_FORKNUM]) {
+    if (extend)
+      buf = fsm_extend(rel, blkno + 1);
+    else
+      return InvalidBuffer;
+  } else
+    buf = ReadBufferExtended(rel, FSM_FORKNUM, blkno, RBM_ZERO_ON_ERROR, NULL);
+
+  /*
+   * Initializing the page when needed is trickier than it looks, because of
+   * the possibility of multiple backends doing this concurrently, and our
+   * desire to not uselessly take the buffer lock in the normal path where
+   * the page is OK.  We must take the lock to initialize the page, so
+   * recheck page newness after we have the lock, in case someone else
+   * already did it.  Also, because we initially check PageIsNew with no
+   * lock, it's possible to fall through and return the buffer while someone
+   * else is still initializing the page (i.e., we might see pd_upper as set
+   * but other page header fields are still zeroes).  This is harmless for
+   * callers that will take a buffer lock themselves, but some callers
+   * inspect the page without any lock at all.  The latter is OK only so
+   * long as it doesn't depend on the page header having correct contents.
+   * Current usage is safe because PageGetContents() does not require that.
+   */
+  if (PageIsNew(BufferGetPage(buf))) {
+    LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
+
+    if (PageIsNew(BufferGetPage(buf)))
+      PageInit(BufferGetPage(buf), BLCKSZ, 0);
+
+    LockBuffer(buf, BUFFER_LOCK_UNLOCK);
+  }
+
+  return buf;
 }
 
 /*
@@ -638,11 +643,11 @@ fsm_readbuf(Relation rel, FSMAddress addr, bool extend)
 static Buffer
 fsm_extend(Relation rel, BlockNumber fsm_nblocks)
 {
-	return ExtendBufferedRelTo(BMR_REL(rel), FSM_FORKNUM, NULL,
-							   EB_CREATE_FORK_IF_NEEDED |
-							   EB_CLEAR_SIZE_CACHE,
-							   fsm_nblocks,
-							   RBM_ZERO_ON_ERROR);
+  return ExtendBufferedRelTo(BMR_REL(rel), FSM_FORKNUM, NULL,
+                             EB_CREATE_FORK_IF_NEEDED |
+                             EB_CLEAR_SIZE_CACHE,
+                             fsm_nblocks,
+                             RBM_ZERO_ON_ERROR);
 }
 
 /*
@@ -654,31 +659,30 @@ fsm_extend(Relation rel, BlockNumber fsm_nblocks)
  */
 static int
 fsm_set_and_search(Relation rel, FSMAddress addr, uint16 slot,
-				   uint8 newValue, uint8 minValue)
+                   uint8 newValue, uint8 minValue)
 {
-	Buffer		buf;
-	Page		page;
-	int			newslot = -1;
+  Buffer    buf;
+  Page    page;
+  int     newslot = -1;
 
-	buf = fsm_readbuf(rel, addr, true);
-	LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
+  buf = fsm_readbuf(rel, addr, true);
+  LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
 
-	page = BufferGetPage(buf);
+  page = BufferGetPage(buf);
 
-	if (fsm_set_avail(page, slot, newValue))
-		MarkBufferDirtyHint(buf, false);
+  if (fsm_set_avail(page, slot, newValue))
+    MarkBufferDirtyHint(buf, false);
 
-	if (minValue != 0)
-	{
-		/* Search while we still hold the lock */
-		newslot = fsm_search_avail(buf, minValue,
-								   addr.level == FSM_BOTTOM_LEVEL,
-								   true);
-	}
+  if (minValue != 0) {
+    /* Search while we still hold the lock */
+    newslot = fsm_search_avail(buf, minValue,
+                               addr.level == FSM_BOTTOM_LEVEL,
+                               true);
+  }
 
-	UnlockReleaseBuffer(buf);
+  UnlockReleaseBuffer(buf);
 
-	return newslot;
+  return newslot;
 }
 
 /*
@@ -687,121 +691,110 @@ fsm_set_and_search(Relation rel, FSMAddress addr, uint16 slot,
 static BlockNumber
 fsm_search(Relation rel, uint8 min_cat)
 {
-	int			restarts = 0;
-	FSMAddress	addr = FSM_ROOT_ADDRESS;
+  int     restarts = 0;
+  FSMAddress  addr = FSM_ROOT_ADDRESS;
 
-	for (;;)
-	{
-		int			slot;
-		Buffer		buf;
-		uint8		max_avail = 0;
+  for (;;) {
+    int     slot;
+    Buffer    buf;
+    uint8   max_avail = 0;
 
-		/* Read the FSM page. */
-		buf = fsm_readbuf(rel, addr, false);
+    /* Read the FSM page. */
+    buf = fsm_readbuf(rel, addr, false);
 
-		/* Search within the page */
-		if (BufferIsValid(buf))
-		{
-			LockBuffer(buf, BUFFER_LOCK_SHARE);
-			slot = fsm_search_avail(buf, min_cat,
-									(addr.level == FSM_BOTTOM_LEVEL),
-									false);
-			if (slot == -1)
-			{
-				max_avail = fsm_get_max_avail(BufferGetPage(buf));
-				UnlockReleaseBuffer(buf);
-			}
-			else
-			{
-				/* Keep the pin for possible update below */
-				LockBuffer(buf, BUFFER_LOCK_UNLOCK);
-			}
-		}
-		else
-			slot = -1;
+    /* Search within the page */
+    if (BufferIsValid(buf)) {
+      LockBuffer(buf, BUFFER_LOCK_SHARE);
+      slot = fsm_search_avail(buf, min_cat,
+                              (addr.level == FSM_BOTTOM_LEVEL),
+                              false);
 
-		if (slot != -1)
-		{
-			/*
-			 * Descend the tree, or return the found block if we're at the
-			 * bottom.
-			 */
-			if (addr.level == FSM_BOTTOM_LEVEL)
-			{
-				BlockNumber blkno = fsm_get_heap_blk(addr, slot);
-				Page		page;
+      if (slot == -1) {
+        max_avail = fsm_get_max_avail(BufferGetPage(buf));
+        UnlockReleaseBuffer(buf);
+      } else {
+        /* Keep the pin for possible update below */
+        LockBuffer(buf, BUFFER_LOCK_UNLOCK);
+      }
+    } else
+      slot = -1;
 
-				if (fsm_does_block_exist(rel, blkno))
-				{
-					ReleaseBuffer(buf);
-					return blkno;
-				}
+    if (slot != -1) {
+      /*
+       * Descend the tree, or return the found block if we're at the
+       * bottom.
+       */
+      if (addr.level == FSM_BOTTOM_LEVEL) {
+        BlockNumber blkno = fsm_get_heap_blk(addr, slot);
+        Page    page;
 
-				/*
-				 * Block is past the end of the relation.  Update FSM, and
-				 * restart from root.  The usual "advancenext" behavior is
-				 * pessimal for this rare scenario, since every later slot is
-				 * unusable in the same way.  We could zero all affected slots
-				 * on the same FSM page, but don't bet on the benefits of that
-				 * optimization justifying its compiled code bulk.
-				 */
-				page = BufferGetPage(buf);
-				LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
-				fsm_set_avail(page, slot, 0);
-				MarkBufferDirtyHint(buf, false);
-				UnlockReleaseBuffer(buf);
-				if (restarts++ > 10000) /* same rationale as below */
-					return InvalidBlockNumber;
-				addr = FSM_ROOT_ADDRESS;
-			}
-			else
-			{
-				ReleaseBuffer(buf);
-			}
-			addr = fsm_get_child(addr, slot);
-		}
-		else if (addr.level == FSM_ROOT_LEVEL)
-		{
-			/*
-			 * At the root, failure means there's no page with enough free
-			 * space in the FSM. Give up.
-			 */
-			return InvalidBlockNumber;
-		}
-		else
-		{
-			uint16		parentslot;
-			FSMAddress	parent;
+        if (fsm_does_block_exist(rel, blkno)) {
+          ReleaseBuffer(buf);
+          return blkno;
+        }
 
-			/*
-			 * At lower level, failure can happen if the value in the upper-
-			 * level node didn't reflect the value on the lower page. Update
-			 * the upper node, to avoid falling into the same trap again, and
-			 * start over.
-			 *
-			 * There's a race condition here, if another backend updates this
-			 * page right after we release it, and gets the lock on the parent
-			 * page before us. We'll then update the parent page with the now
-			 * stale information we had. It's OK, because it should happen
-			 * rarely, and will be fixed by the next vacuum.
-			 */
-			parent = fsm_get_parent(addr, &parentslot);
-			fsm_set_and_search(rel, parent, parentslot, max_avail, 0);
+        /*
+         * Block is past the end of the relation.  Update FSM, and
+         * restart from root.  The usual "advancenext" behavior is
+         * pessimal for this rare scenario, since every later slot is
+         * unusable in the same way.  We could zero all affected slots
+         * on the same FSM page, but don't bet on the benefits of that
+         * optimization justifying its compiled code bulk.
+         */
+        page = BufferGetPage(buf);
+        LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
+        fsm_set_avail(page, slot, 0);
+        MarkBufferDirtyHint(buf, false);
+        UnlockReleaseBuffer(buf);
 
-			/*
-			 * If the upper pages are badly out of date, we might need to loop
-			 * quite a few times, updating them as we go. Any inconsistencies
-			 * should eventually be corrected and the loop should end. Looping
-			 * indefinitely is nevertheless scary, so provide an emergency
-			 * valve.
-			 */
-			if (restarts++ > 10000)
-				return InvalidBlockNumber;
+        if (restarts++ > 10000) /* same rationale as below */
+          return InvalidBlockNumber;
 
-			/* Start search all over from the root */
-			addr = FSM_ROOT_ADDRESS;
-		}
-	}
+        addr = FSM_ROOT_ADDRESS;
+      } else {
+        ReleaseBuffer(buf);
+      }
+
+      addr = fsm_get_child(addr, slot);
+    } else if (addr.level == FSM_ROOT_LEVEL) {
+      /*
+       * At the root, failure means there's no page with enough free
+       * space in the FSM. Give up.
+       */
+      return InvalidBlockNumber;
+    } else {
+      uint16    parentslot;
+      FSMAddress  parent;
+
+      /*
+       * At lower level, failure can happen if the value in the upper-
+       * level node didn't reflect the value on the lower page. Update
+       * the upper node, to avoid falling into the same trap again, and
+       * start over.
+       *
+       * There's a race condition here, if another backend updates this
+       * page right after we release it, and gets the lock on the parent
+       * page before us. We'll then update the parent page with the now
+       * stale information we had. It's OK, because it should happen
+       * rarely, and will be fixed by the next vacuum.
+       */
+      parent = fsm_get_parent(addr, &parentslot);
+      fsm_set_and_search(rel, parent, parentslot, max_avail, 0);
+
+      /*
+       * If the upper pages are badly out of date, we might need to loop
+       * quite a few times, updating them as we go. Any inconsistencies
+       * should eventually be corrected and the loop should end. Looping
+       * indefinitely is nevertheless scary, so provide an emergency
+       * valve.
+       */
+      if (restarts++ > 10000)
+        return InvalidBlockNumber;
+
+      /* Start search all over from the root */
+      addr = FSM_ROOT_ADDRESS;
+    }
+  }
 }
 
 
@@ -820,110 +813,106 @@ fsm_search(Relation rel, uint8 min_cat)
  */
 static uint8
 fsm_vacuum_page(Relation rel, FSMAddress addr,
-				BlockNumber start, BlockNumber end,
-				bool *eof_p)
+                BlockNumber start, BlockNumber end,
+                bool *eof_p)
 {
-	Buffer		buf;
-	Page		page;
-	uint8		max_avail;
+  Buffer    buf;
+  Page    page;
+  uint8   max_avail;
 
-	/* Read the page if it exists, or return EOF */
-	buf = fsm_readbuf(rel, addr, false);
-	if (!BufferIsValid(buf))
-	{
-		*eof_p = true;
-		return 0;
-	}
-	else
-		*eof_p = false;
+  /* Read the page if it exists, or return EOF */
+  buf = fsm_readbuf(rel, addr, false);
 
-	page = BufferGetPage(buf);
+  if (!BufferIsValid(buf)) {
+    *eof_p = true;
+    return 0;
+  } else
+    *eof_p = false;
 
-	/*
-	 * If we're above the bottom level, recurse into children, and fix the
-	 * information stored about them at this level.
-	 */
-	if (addr.level > FSM_BOTTOM_LEVEL)
-	{
-		FSMAddress	fsm_start,
-					fsm_end;
-		uint16		fsm_start_slot,
-					fsm_end_slot;
-		int			slot,
-					start_slot,
-					end_slot;
-		bool		eof = false;
+  page = BufferGetPage(buf);
 
-		/*
-		 * Compute the range of slots we need to update on this page, given
-		 * the requested range of heap blocks to consider.  The first slot to
-		 * update is the one covering the "start" block, and the last slot is
-		 * the one covering "end - 1".  (Some of this work will be duplicated
-		 * in each recursive call, but it's cheap enough to not worry about.)
-		 */
-		fsm_start = fsm_get_location(start, &fsm_start_slot);
-		fsm_end = fsm_get_location(end - 1, &fsm_end_slot);
+  /*
+   * If we're above the bottom level, recurse into children, and fix the
+   * information stored about them at this level.
+   */
+  if (addr.level > FSM_BOTTOM_LEVEL) {
+    FSMAddress  fsm_start,
+                fsm_end;
+    uint16    fsm_start_slot,
+              fsm_end_slot;
+    int     slot,
+            start_slot,
+            end_slot;
+    bool    eof = false;
 
-		while (fsm_start.level < addr.level)
-		{
-			fsm_start = fsm_get_parent(fsm_start, &fsm_start_slot);
-			fsm_end = fsm_get_parent(fsm_end, &fsm_end_slot);
-		}
-		Assert(fsm_start.level == addr.level);
+    /*
+     * Compute the range of slots we need to update on this page, given
+     * the requested range of heap blocks to consider.  The first slot to
+     * update is the one covering the "start" block, and the last slot is
+     * the one covering "end - 1".  (Some of this work will be duplicated
+     * in each recursive call, but it's cheap enough to not worry about.)
+     */
+    fsm_start = fsm_get_location(start, &fsm_start_slot);
+    fsm_end = fsm_get_location(end - 1, &fsm_end_slot);
 
-		if (fsm_start.logpageno == addr.logpageno)
-			start_slot = fsm_start_slot;
-		else if (fsm_start.logpageno > addr.logpageno)
-			start_slot = SlotsPerFSMPage;	/* shouldn't get here... */
-		else
-			start_slot = 0;
+    while (fsm_start.level < addr.level) {
+      fsm_start = fsm_get_parent(fsm_start, &fsm_start_slot);
+      fsm_end = fsm_get_parent(fsm_end, &fsm_end_slot);
+    }
 
-		if (fsm_end.logpageno == addr.logpageno)
-			end_slot = fsm_end_slot;
-		else if (fsm_end.logpageno > addr.logpageno)
-			end_slot = SlotsPerFSMPage - 1;
-		else
-			end_slot = -1;		/* shouldn't get here... */
+    Assert(fsm_start.level == addr.level);
 
-		for (slot = start_slot; slot <= end_slot; slot++)
-		{
-			int			child_avail;
+    if (fsm_start.logpageno == addr.logpageno)
+      start_slot = fsm_start_slot;
+    else if (fsm_start.logpageno > addr.logpageno)
+      start_slot = SlotsPerFSMPage; /* shouldn't get here... */
+    else
+      start_slot = 0;
 
-			CHECK_FOR_INTERRUPTS();
+    if (fsm_end.logpageno == addr.logpageno)
+      end_slot = fsm_end_slot;
+    else if (fsm_end.logpageno > addr.logpageno)
+      end_slot = SlotsPerFSMPage - 1;
+    else
+      end_slot = -1;    /* shouldn't get here... */
 
-			/* After we hit end-of-file, just clear the rest of the slots */
-			if (!eof)
-				child_avail = fsm_vacuum_page(rel, fsm_get_child(addr, slot),
-											  start, end,
-											  &eof);
-			else
-				child_avail = 0;
+    for (slot = start_slot; slot <= end_slot; slot++) {
+      int     child_avail;
 
-			/* Update information about the child */
-			if (fsm_get_avail(page, slot) != child_avail)
-			{
-				LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
-				fsm_set_avail(page, slot, child_avail);
-				MarkBufferDirtyHint(buf, false);
-				LockBuffer(buf, BUFFER_LOCK_UNLOCK);
-			}
-		}
-	}
+      CHECK_FOR_INTERRUPTS();
 
-	/* Now get the maximum value on the page, to return to caller */
-	max_avail = fsm_get_max_avail(page);
+      /* After we hit end-of-file, just clear the rest of the slots */
+      if (!eof)
+        child_avail = fsm_vacuum_page(rel, fsm_get_child(addr, slot),
+                                      start, end,
+                                      &eof);
+      else
+        child_avail = 0;
 
-	/*
-	 * Reset the next slot pointer. This encourages the use of low-numbered
-	 * pages, increasing the chances that a later vacuum can truncate the
-	 * relation.  We don't bother with a lock here, nor with marking the page
-	 * dirty if it wasn't already, since this is just a hint.
-	 */
-	((FSMPage) PageGetContents(page))->fp_next_slot = 0;
+      /* Update information about the child */
+      if (fsm_get_avail(page, slot) != child_avail) {
+        LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
+        fsm_set_avail(page, slot, child_avail);
+        MarkBufferDirtyHint(buf, false);
+        LockBuffer(buf, BUFFER_LOCK_UNLOCK);
+      }
+    }
+  }
 
-	ReleaseBuffer(buf);
+  /* Now get the maximum value on the page, to return to caller */
+  max_avail = fsm_get_max_avail(page);
 
-	return max_avail;
+  /*
+   * Reset the next slot pointer. This encourages the use of low-numbered
+   * pages, increasing the chances that a later vacuum can truncate the
+   * relation.  We don't bother with a lock here, nor with marking the page
+   * dirty if it wasn't already, since this is just a hint.
+   */
+  ((FSMPage) PageGetContents(page))->fp_next_slot = 0;
+
+  ReleaseBuffer(buf);
+
+  return max_avail;
 }
 
 
@@ -935,16 +924,16 @@ fsm_vacuum_page(Relation rel, FSMAddress addr,
 static bool
 fsm_does_block_exist(Relation rel, BlockNumber blknumber)
 {
-	SMgrRelation smgr = RelationGetSmgr(rel);
+  SMgrRelation smgr = RelationGetSmgr(rel);
 
-	/*
-	 * If below the cached nblocks, the block surely exists.  Otherwise, we
-	 * face a trade-off.  We opt to compare to a fresh nblocks, incurring
-	 * lseek() overhead.  The alternative would be to assume the block does
-	 * not exist, but that would cause FSM to set zero space available for
-	 * blocks that main fork extension just recorded.
-	 */
-	return ((BlockNumberIsValid(smgr->smgr_cached_nblocks[MAIN_FORKNUM]) &&
-			 blknumber < smgr->smgr_cached_nblocks[MAIN_FORKNUM]) ||
-			blknumber < RelationGetNumberOfBlocks(rel));
+  /*
+   * If below the cached nblocks, the block surely exists.  Otherwise, we
+   * face a trade-off.  We opt to compare to a fresh nblocks, incurring
+   * lseek() overhead.  The alternative would be to assume the block does
+   * not exist, but that would cause FSM to set zero space available for
+   * blocks that main fork extension just recorded.
+   */
+  return ((BlockNumberIsValid(smgr->smgr_cached_nblocks[MAIN_FORKNUM]) &&
+           blknumber < smgr->smgr_cached_nblocks[MAIN_FORKNUM]) ||
+          blknumber < RelationGetNumberOfBlocks(rel));
 }

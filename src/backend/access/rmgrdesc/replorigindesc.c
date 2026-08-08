@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * replorigindesc.c
- *	  rmgr descriptor routines for replication/logical/origin.c
+ *    rmgr descriptor routines for replication/logical/origin.c
  *
  * Portions Copyright (c) 2015-2025, PostgreSQL Global Development Group
  *
  *
  * IDENTIFICATION
- *	  src/backend/access/rmgrdesc/replorigindesc.c
+ *    src/backend/access/rmgrdesc/replorigindesc.c
  *
  *-------------------------------------------------------------------------
  */
@@ -18,45 +18,44 @@
 void
 replorigin_desc(StringInfo buf, XLogReaderState *record)
 {
-	char	   *rec = XLogRecGetData(record);
-	uint8		info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
+  char     *rec = XLogRecGetData(record);
+  uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
-	switch (info)
-	{
-		case XLOG_REPLORIGIN_SET:
-			{
-				xl_replorigin_set *xlrec;
+  switch (info) {
+    case XLOG_REPLORIGIN_SET: {
+      xl_replorigin_set *xlrec;
 
-				xlrec = (xl_replorigin_set *) rec;
+      xlrec = (xl_replorigin_set *) rec;
 
-				appendStringInfo(buf, "set %u; lsn %X/%X; force: %d",
-								 xlrec->node_id,
-								 LSN_FORMAT_ARGS(xlrec->remote_lsn),
-								 xlrec->force);
-				break;
-			}
-		case XLOG_REPLORIGIN_DROP:
-			{
-				xl_replorigin_drop *xlrec;
+      appendStringInfo(buf, "set %u; lsn %X/%X; force: %d",
+                       xlrec->node_id,
+                       LSN_FORMAT_ARGS(xlrec->remote_lsn),
+                       xlrec->force);
+      break;
+    }
 
-				xlrec = (xl_replorigin_drop *) rec;
+    case XLOG_REPLORIGIN_DROP: {
+      xl_replorigin_drop *xlrec;
 
-				appendStringInfo(buf, "drop %u", xlrec->node_id);
-				break;
-			}
-	}
+      xlrec = (xl_replorigin_drop *) rec;
+
+      appendStringInfo(buf, "drop %u", xlrec->node_id);
+      break;
+    }
+  }
 }
 
 const char *
 replorigin_identify(uint8 info)
 {
-	switch (info)
-	{
-		case XLOG_REPLORIGIN_SET:
-			return "SET";
-		case XLOG_REPLORIGIN_DROP:
-			return "DROP";
-		default:
-			return NULL;
-	}
+  switch (info) {
+    case XLOG_REPLORIGIN_SET:
+      return "SET";
+
+    case XLOG_REPLORIGIN_DROP:
+      return "DROP";
+
+    default:
+      return NULL;
+  }
 }

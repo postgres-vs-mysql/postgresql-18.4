@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * toasting.h
- *	  This file provides some definitions to support creation of toast tables
+ *    This file provides some definitions to support creation of toast tables
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -21,10 +21,10 @@
  */
 extern void NewRelationCreateToastTable(Oid relOid, Datum reloptions);
 extern void NewHeapCreateToastTable(Oid relOid, Datum reloptions,
-									LOCKMODE lockmode, Oid OIDOldToast);
+                                    LOCKMODE lockmode, Oid OIDOldToast);
 extern void AlterTableCreateToastTable(Oid relOid, Datum reloptions,
-									   LOCKMODE lockmode);
+                                       LOCKMODE lockmode);
 extern void BootstrapToastTable(char *relName,
-								Oid toastOid, Oid toastIndexOid);
+                                Oid toastOid, Oid toastIndexOid);
 
-#endif							/* TOASTING_H */
+#endif              /* TOASTING_H */

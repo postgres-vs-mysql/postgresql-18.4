@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * genericdesc.c
- *	  rmgr descriptor routines for access/transam/generic_xlog.c
+ *    rmgr descriptor routines for access/transam/generic_xlog.c
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -23,25 +23,24 @@
 void
 generic_desc(StringInfo buf, XLogReaderState *record)
 {
-	Pointer		ptr = XLogRecGetData(record),
-				end = ptr + XLogRecGetDataLen(record);
+  Pointer   ptr = XLogRecGetData(record),
+            end = ptr + XLogRecGetDataLen(record);
 
-	while (ptr < end)
-	{
-		OffsetNumber offset,
-					length;
+  while (ptr < end) {
+    OffsetNumber offset,
+                 length;
 
-		memcpy(&offset, ptr, sizeof(offset));
-		ptr += sizeof(offset);
-		memcpy(&length, ptr, sizeof(length));
-		ptr += sizeof(length);
-		ptr += length;
+    memcpy(&offset, ptr, sizeof(offset));
+    ptr += sizeof(offset);
+    memcpy(&length, ptr, sizeof(length));
+    ptr += sizeof(length);
+    ptr += length;
 
-		if (ptr < end)
-			appendStringInfo(buf, "offset %u, length %u; ", offset, length);
-		else
-			appendStringInfo(buf, "offset %u, length %u", offset, length);
-	}
+    if (ptr < end)
+      appendStringInfo(buf, "offset %u, length %u; ", offset, length);
+    else
+      appendStringInfo(buf, "offset %u, length %u", offset, length);
+  }
 }
 
 /*
@@ -51,5 +50,5 @@ generic_desc(StringInfo buf, XLogReaderState *record)
 const char *
 generic_identify(uint8 info)
 {
-	return "Generic";
+  return "Generic";
 }

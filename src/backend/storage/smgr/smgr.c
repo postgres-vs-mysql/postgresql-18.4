@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * smgr.c
- *	  public interface routines to storage manager switch.
+ *    public interface routines to storage manager switch.
  *
  * All file system operations on relations dispatch through these routines.
  * An SMgrRelation represents physical on-disk relation files that are open
@@ -57,7 +57,7 @@
  *
  *
  * IDENTIFICATION
- *	  src/backend/storage/smgr/smgr.c
+ *    src/backend/storage/smgr/smgr.c
  *
  *-------------------------------------------------------------------------
  */
@@ -85,70 +85,69 @@
  * would normally be errors should be allowed during bootstrap and/or WAL
  * recovery --- see comments in md.c for details.
  */
-typedef struct f_smgr
-{
-	void		(*smgr_init) (void);	/* may be NULL */
-	void		(*smgr_shutdown) (void);	/* may be NULL */
-	void		(*smgr_open) (SMgrRelation reln);
-	void		(*smgr_close) (SMgrRelation reln, ForkNumber forknum);
-	void		(*smgr_create) (SMgrRelation reln, ForkNumber forknum,
-								bool isRedo);
-	bool		(*smgr_exists) (SMgrRelation reln, ForkNumber forknum);
-	void		(*smgr_unlink) (RelFileLocatorBackend rlocator, ForkNumber forknum,
-								bool isRedo);
-	void		(*smgr_extend) (SMgrRelation reln, ForkNumber forknum,
-								BlockNumber blocknum, const void *buffer, bool skipFsync);
-	void		(*smgr_zeroextend) (SMgrRelation reln, ForkNumber forknum,
-									BlockNumber blocknum, int nblocks, bool skipFsync);
-	bool		(*smgr_prefetch) (SMgrRelation reln, ForkNumber forknum,
-								  BlockNumber blocknum, int nblocks);
-	uint32		(*smgr_maxcombine) (SMgrRelation reln, ForkNumber forknum,
-									BlockNumber blocknum);
-	void		(*smgr_readv) (SMgrRelation reln, ForkNumber forknum,
-							   BlockNumber blocknum,
-							   void **buffers, BlockNumber nblocks);
-	void		(*smgr_startreadv) (PgAioHandle *ioh,
-									SMgrRelation reln, ForkNumber forknum,
-									BlockNumber blocknum,
-									void **buffers, BlockNumber nblocks);
-	void		(*smgr_writev) (SMgrRelation reln, ForkNumber forknum,
-								BlockNumber blocknum,
-								const void **buffers, BlockNumber nblocks,
-								bool skipFsync);
-	void		(*smgr_writeback) (SMgrRelation reln, ForkNumber forknum,
-								   BlockNumber blocknum, BlockNumber nblocks);
-	BlockNumber (*smgr_nblocks) (SMgrRelation reln, ForkNumber forknum);
-	void		(*smgr_truncate) (SMgrRelation reln, ForkNumber forknum,
-								  BlockNumber old_blocks, BlockNumber nblocks);
-	void		(*smgr_immedsync) (SMgrRelation reln, ForkNumber forknum);
-	void		(*smgr_registersync) (SMgrRelation reln, ForkNumber forknum);
-	int			(*smgr_fd) (SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, uint32 *off);
+typedef struct f_smgr {
+  void    (*smgr_init) (void);  /* may be NULL */
+  void    (*smgr_shutdown) (void);  /* may be NULL */
+  void    (*smgr_open) (SMgrRelation reln);
+  void    (*smgr_close) (SMgrRelation reln, ForkNumber forknum);
+  void    (*smgr_create) (SMgrRelation reln, ForkNumber forknum,
+                          bool isRedo);
+  bool    (*smgr_exists) (SMgrRelation reln, ForkNumber forknum);
+  void    (*smgr_unlink) (RelFileLocatorBackend rlocator, ForkNumber forknum,
+                          bool isRedo);
+  void    (*smgr_extend) (SMgrRelation reln, ForkNumber forknum,
+                          BlockNumber blocknum, const void *buffer, bool skipFsync);
+  void    (*smgr_zeroextend) (SMgrRelation reln, ForkNumber forknum,
+                              BlockNumber blocknum, int nblocks, bool skipFsync);
+  bool    (*smgr_prefetch) (SMgrRelation reln, ForkNumber forknum,
+                            BlockNumber blocknum, int nblocks);
+  uint32    (*smgr_maxcombine) (SMgrRelation reln, ForkNumber forknum,
+                                BlockNumber blocknum);
+  void    (*smgr_readv) (SMgrRelation reln, ForkNumber forknum,
+                         BlockNumber blocknum,
+                         void **buffers, BlockNumber nblocks);
+  void    (*smgr_startreadv) (PgAioHandle *ioh,
+                              SMgrRelation reln, ForkNumber forknum,
+                              BlockNumber blocknum,
+                              void **buffers, BlockNumber nblocks);
+  void    (*smgr_writev) (SMgrRelation reln, ForkNumber forknum,
+                          BlockNumber blocknum,
+                          const void **buffers, BlockNumber nblocks,
+                          bool skipFsync);
+  void    (*smgr_writeback) (SMgrRelation reln, ForkNumber forknum,
+                             BlockNumber blocknum, BlockNumber nblocks);
+  BlockNumber (*smgr_nblocks) (SMgrRelation reln, ForkNumber forknum);
+  void    (*smgr_truncate) (SMgrRelation reln, ForkNumber forknum,
+                            BlockNumber old_blocks, BlockNumber nblocks);
+  void    (*smgr_immedsync) (SMgrRelation reln, ForkNumber forknum);
+  void    (*smgr_registersync) (SMgrRelation reln, ForkNumber forknum);
+  int     (*smgr_fd) (SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, uint32 *off);
 } f_smgr;
 
 static const f_smgr smgrsw[] = {
-	/* magnetic disk */
-	{
-		.smgr_init = mdinit,
-		.smgr_shutdown = NULL,
-		.smgr_open = mdopen,
-		.smgr_close = mdclose,
-		.smgr_create = mdcreate,
-		.smgr_exists = mdexists,
-		.smgr_unlink = mdunlink,
-		.smgr_extend = mdextend,
-		.smgr_zeroextend = mdzeroextend,
-		.smgr_prefetch = mdprefetch,
-		.smgr_maxcombine = mdmaxcombine,
-		.smgr_readv = mdreadv,
-		.smgr_startreadv = mdstartreadv,
-		.smgr_writev = mdwritev,
-		.smgr_writeback = mdwriteback,
-		.smgr_nblocks = mdnblocks,
-		.smgr_truncate = mdtruncate,
-		.smgr_immedsync = mdimmedsync,
-		.smgr_registersync = mdregistersync,
-		.smgr_fd = mdfd,
-	}
+  /* magnetic disk */
+  {
+    .smgr_init = mdinit,
+    .smgr_shutdown = NULL,
+    .smgr_open = mdopen,
+    .smgr_close = mdclose,
+    .smgr_create = mdcreate,
+    .smgr_exists = mdexists,
+    .smgr_unlink = mdunlink,
+    .smgr_extend = mdextend,
+    .smgr_zeroextend = mdzeroextend,
+    .smgr_prefetch = mdprefetch,
+    .smgr_maxcombine = mdmaxcombine,
+    .smgr_readv = mdreadv,
+    .smgr_startreadv = mdstartreadv,
+    .smgr_writev = mdwritev,
+    .smgr_writeback = mdwriteback,
+    .smgr_nblocks = mdnblocks,
+    .smgr_truncate = mdtruncate,
+    .smgr_immedsync = mdimmedsync,
+    .smgr_registersync = mdregistersync,
+    .smgr_fd = mdfd,
+  }
 };
 
 static const int NSmgr = lengthof(smgrsw);
@@ -170,15 +169,15 @@ static char *smgr_aio_describe_identity(const PgAioTargetData *sd);
 
 
 const PgAioTargetInfo aio_smgr_target_info = {
-	.name = "smgr",
-	.reopen = smgr_aio_reopen,
-	.describe_identity = smgr_aio_describe_identity,
+  .name = "smgr",
+  .reopen = smgr_aio_reopen,
+  .describe_identity = smgr_aio_describe_identity,
 };
 
 
 /*
  * smgrinit(), smgrshutdown() -- Initialize or shut down storage
- *								 managers.
+ *                 managers.
  *
  * Note: smgrinit is called during backend startup (normal or standalone
  * case), *not* during postmaster start.  Therefore, any resources created
@@ -187,20 +186,19 @@ const PgAioTargetInfo aio_smgr_target_info = {
 void
 smgrinit(void)
 {
-	int			i;
+  int     i;
 
-	HOLD_INTERRUPTS();
+  HOLD_INTERRUPTS();
 
-	for (i = 0; i < NSmgr; i++)
-	{
-		if (smgrsw[i].smgr_init)
-			smgrsw[i].smgr_init();
-	}
+  for (i = 0; i < NSmgr; i++) {
+    if (smgrsw[i].smgr_init)
+      smgrsw[i].smgr_init();
+  }
 
-	RESUME_INTERRUPTS();
+  RESUME_INTERRUPTS();
 
-	/* register the shutdown proc */
-	on_proc_exit(smgrshutdown, 0);
+  /* register the shutdown proc */
+  on_proc_exit(smgrshutdown, 0);
 }
 
 /*
@@ -209,17 +207,16 @@ smgrinit(void)
 static void
 smgrshutdown(int code, Datum arg)
 {
-	int			i;
+  int     i;
 
-	HOLD_INTERRUPTS();
+  HOLD_INTERRUPTS();
 
-	for (i = 0; i < NSmgr; i++)
-	{
-		if (smgrsw[i].smgr_shutdown)
-			smgrsw[i].smgr_shutdown();
-	}
+  for (i = 0; i < NSmgr; i++) {
+    if (smgrsw[i].smgr_shutdown)
+      smgrsw[i].smgr_shutdown();
+  }
 
-	RESUME_INTERRUPTS();
+  RESUME_INTERRUPTS();
 }
 
 /*
@@ -239,70 +236,71 @@ smgrshutdown(int code, Datum arg)
 SMgrRelation
 smgropen(RelFileLocator rlocator, ProcNumber backend)
 {
-	RelFileLocatorBackend brlocator;
-	SMgrRelation reln;
-	bool		found;
+  RelFileLocatorBackend brlocator;
+  SMgrRelation reln;
+  bool    found;
 
-	Assert(RelFileNumberIsValid(rlocator.relNumber));
+  Assert(RelFileNumberIsValid(rlocator.relNumber));
 
-	HOLD_INTERRUPTS();
+  HOLD_INTERRUPTS();
 
-	if (SMgrRelationHash == NULL)
-	{
-		/* First time through: initialize the hash table */
-		HASHCTL		ctl;
+  if (SMgrRelationHash == NULL) {
+    /* First time through: initialize the hash table */
+    HASHCTL   ctl;
 
-		ctl.keysize = sizeof(RelFileLocatorBackend);
-		ctl.entrysize = sizeof(SMgrRelationData);
-		SMgrRelationHash = hash_create("smgr relation table", 400,
-									   &ctl, HASH_ELEM | HASH_BLOBS);
-		dlist_init(&unpinned_relns);
-	}
+    ctl.keysize = sizeof(RelFileLocatorBackend);
+    ctl.entrysize = sizeof(SMgrRelationData);
+    SMgrRelationHash = hash_create("smgr relation table", 400,
+                                   &ctl, HASH_ELEM | HASH_BLOBS);
+    dlist_init(&unpinned_relns);
+  }
 
-	/* Look up or create an entry */
-	brlocator.locator = rlocator;
-	brlocator.backend = backend;
-	reln = (SMgrRelation) hash_search(SMgrRelationHash,
-									  &brlocator,
-									  HASH_ENTER, &found);
+  /* Look up or create an entry */
+  brlocator.locator = rlocator;
+  brlocator.backend = backend;
+  reln = (SMgrRelation) hash_search(SMgrRelationHash,
+                                    &brlocator,
+                                    HASH_ENTER, &found);
 
-	/* Initialize it if not present before */
-	if (!found)
-	{
-		/* hash_search already filled in the lookup key */
-		reln->smgr_targblock = InvalidBlockNumber;
-		for (int i = 0; i <= MAX_FORKNUM; ++i)
-			reln->smgr_cached_nblocks[i] = InvalidBlockNumber;
-		reln->smgr_which = 0;	/* we only have md.c at present */
+  /* Initialize it if not present before */
+  if (!found) {
+    /* hash_search already filled in the lookup key */
+    reln->smgr_targblock = InvalidBlockNumber;
 
-		/* it is not pinned yet */
-		reln->pincount = 0;
-		dlist_push_tail(&unpinned_relns, &reln->node);
+    for (int i = 0; i <= MAX_FORKNUM; ++i)
+      reln->smgr_cached_nblocks[i] = InvalidBlockNumber;
 
-		/* implementation-specific initialization */
-		smgrsw[reln->smgr_which].smgr_open(reln);
-	}
+    reln->smgr_which = 0; /* we only have md.c at present */
 
-	RESUME_INTERRUPTS();
+    /* it is not pinned yet */
+    reln->pincount = 0;
+    dlist_push_tail(&unpinned_relns, &reln->node);
 
-	return reln;
+    /* implementation-specific initialization */
+    smgrsw[reln->smgr_which].smgr_open(reln);
+  }
+
+  RESUME_INTERRUPTS();
+
+  return reln;
 }
 
 /*
  * smgrpin() -- Prevent an SMgrRelation object from being destroyed at end of
- *				transaction
+ *        transaction
  */
 void
 smgrpin(SMgrRelation reln)
 {
-	if (reln->pincount == 0)
-		dlist_delete(&reln->node);
-	reln->pincount++;
+  if (reln->pincount == 0)
+    dlist_delete(&reln->node);
+
+  reln->pincount++;
 }
 
 /*
  * smgrunpin() -- Allow an SMgrRelation object to be destroyed at end of
- *				  transaction
+ *          transaction
  *
  * The object remains valid, but if there are no other pins on it, it is moved
  * to the unpinned list where it will be destroyed by AtEOXact_SMgr().
@@ -310,10 +308,11 @@ smgrpin(SMgrRelation reln)
 void
 smgrunpin(SMgrRelation reln)
 {
-	Assert(reln->pincount > 0);
-	reln->pincount--;
-	if (reln->pincount == 0)
-		dlist_push_tail(&unpinned_relns, &reln->node);
+  Assert(reln->pincount > 0);
+  reln->pincount--;
+
+  if (reln->pincount == 0)
+    dlist_push_tail(&unpinned_relns, &reln->node);
 }
 
 /*
@@ -322,23 +321,23 @@ smgrunpin(SMgrRelation reln)
 static void
 smgrdestroy(SMgrRelation reln)
 {
-	ForkNumber	forknum;
+  ForkNumber  forknum;
 
-	Assert(reln->pincount == 0);
+  Assert(reln->pincount == 0);
 
-	HOLD_INTERRUPTS();
+  HOLD_INTERRUPTS();
 
-	for (forknum = 0; forknum <= MAX_FORKNUM; forknum++)
-		smgrsw[reln->smgr_which].smgr_close(reln, forknum);
+  for (forknum = 0; forknum <= MAX_FORKNUM; forknum++)
+    smgrsw[reln->smgr_which].smgr_close(reln, forknum);
 
-	dlist_delete(&reln->node);
+  dlist_delete(&reln->node);
 
-	if (hash_search(SMgrRelationHash,
-					&(reln->smgr_rlocator),
-					HASH_REMOVE, NULL) == NULL)
-		elog(ERROR, "SMgrRelation hashtable corrupted");
+  if (hash_search(SMgrRelationHash,
+                  &(reln->smgr_rlocator),
+                  HASH_REMOVE, NULL) == NULL)
+    elog(ERROR, "SMgrRelation hashtable corrupted");
 
-	RESUME_INTERRUPTS();
+  RESUME_INTERRUPTS();
 }
 
 /*
@@ -349,16 +348,16 @@ smgrdestroy(SMgrRelation reln)
 void
 smgrrelease(SMgrRelation reln)
 {
-	HOLD_INTERRUPTS();
+  HOLD_INTERRUPTS();
 
-	for (ForkNumber forknum = 0; forknum <= MAX_FORKNUM; forknum++)
-	{
-		smgrsw[reln->smgr_which].smgr_close(reln, forknum);
-		reln->smgr_cached_nblocks[forknum] = InvalidBlockNumber;
-	}
-	reln->smgr_targblock = InvalidBlockNumber;
+  for (ForkNumber forknum = 0; forknum <= MAX_FORKNUM; forknum++) {
+    smgrsw[reln->smgr_which].smgr_close(reln, forknum);
+    reln->smgr_cached_nblocks[forknum] = InvalidBlockNumber;
+  }
 
-	RESUME_INTERRUPTS();
+  reln->smgr_targblock = InvalidBlockNumber;
+
+  RESUME_INTERRUPTS();
 }
 
 /*
@@ -373,7 +372,7 @@ smgrrelease(SMgrRelation reln)
 void
 smgrclose(SMgrRelation reln)
 {
-	smgrrelease(reln);
+  smgrrelease(reln);
 }
 
 /*
@@ -385,24 +384,23 @@ smgrclose(SMgrRelation reln)
 void
 smgrdestroyall(void)
 {
-	dlist_mutable_iter iter;
+  dlist_mutable_iter iter;
 
-	/* seems unsafe to accept interrupts while in a dlist_foreach_modify() */
-	HOLD_INTERRUPTS();
+  /* seems unsafe to accept interrupts while in a dlist_foreach_modify() */
+  HOLD_INTERRUPTS();
 
-	/*
-	 * Zap all unpinned SMgrRelations.  We rely on smgrdestroy() to remove
-	 * each one from the list.
-	 */
-	dlist_foreach_modify(iter, &unpinned_relns)
-	{
-		SMgrRelation rel = dlist_container(SMgrRelationData, node,
-										   iter.cur);
+  /*
+   * Zap all unpinned SMgrRelations.  We rely on smgrdestroy() to remove
+   * each one from the list.
+   */
+  dlist_foreach_modify(iter, &unpinned_relns) {
+    SMgrRelation rel = dlist_container(SMgrRelationData, node,
+                                       iter.cur);
 
-		smgrdestroy(rel);
-	}
+    smgrdestroy(rel);
+  }
 
-	RESUME_INTERRUPTS();
+  RESUME_INTERRUPTS();
 }
 
 /*
@@ -411,29 +409,28 @@ smgrdestroyall(void)
 void
 smgrreleaseall(void)
 {
-	HASH_SEQ_STATUS status;
-	SMgrRelation reln;
+  HASH_SEQ_STATUS status;
+  SMgrRelation reln;
 
-	/* Nothing to do if hashtable not set up */
-	if (SMgrRelationHash == NULL)
-		return;
+  /* Nothing to do if hashtable not set up */
+  if (SMgrRelationHash == NULL)
+    return;
 
-	/* seems unsafe to accept interrupts while iterating */
-	HOLD_INTERRUPTS();
+  /* seems unsafe to accept interrupts while iterating */
+  HOLD_INTERRUPTS();
 
-	hash_seq_init(&status, SMgrRelationHash);
+  hash_seq_init(&status, SMgrRelationHash);
 
-	while ((reln = (SMgrRelation) hash_seq_search(&status)) != NULL)
-	{
-		smgrrelease(reln);
-	}
+  while ((reln = (SMgrRelation) hash_seq_search(&status)) != NULL) {
+    smgrrelease(reln);
+  }
 
-	RESUME_INTERRUPTS();
+  RESUME_INTERRUPTS();
 }
 
 /*
  * smgrreleaserellocator() -- Release resources for given RelFileLocator, if
- *							  it's open.
+ *                it's open.
  *
  * This has the same effects as smgrrelease(smgropen(rlocator)), but avoids
  * uselessly creating a hashtable entry only to drop it again when no
@@ -442,17 +439,18 @@ smgrreleaseall(void)
 void
 smgrreleaserellocator(RelFileLocatorBackend rlocator)
 {
-	SMgrRelation reln;
+  SMgrRelation reln;
 
-	/* Nothing to do if hashtable not set up */
-	if (SMgrRelationHash == NULL)
-		return;
+  /* Nothing to do if hashtable not set up */
+  if (SMgrRelationHash == NULL)
+    return;
 
-	reln = (SMgrRelation) hash_search(SMgrRelationHash,
-									  &rlocator,
-									  HASH_FIND, NULL);
-	if (reln != NULL)
-		smgrrelease(reln);
+  reln = (SMgrRelation) hash_search(SMgrRelationHash,
+                                    &rlocator,
+                                    HASH_FIND, NULL);
+
+  if (reln != NULL)
+    smgrrelease(reln);
 }
 
 /*
@@ -461,13 +459,13 @@ smgrreleaserellocator(RelFileLocatorBackend rlocator)
 bool
 smgrexists(SMgrRelation reln, ForkNumber forknum)
 {
-	bool		ret;
+  bool    ret;
 
-	HOLD_INTERRUPTS();
-	ret = smgrsw[reln->smgr_which].smgr_exists(reln, forknum);
-	RESUME_INTERRUPTS();
+  HOLD_INTERRUPTS();
+  ret = smgrsw[reln->smgr_which].smgr_exists(reln, forknum);
+  RESUME_INTERRUPTS();
 
-	return ret;
+  return ret;
 }
 
 /*
@@ -480,9 +478,9 @@ smgrexists(SMgrRelation reln, ForkNumber forknum)
 void
 smgrcreate(SMgrRelation reln, ForkNumber forknum, bool isRedo)
 {
-	HOLD_INTERRUPTS();
-	smgrsw[reln->smgr_which].smgr_create(reln, forknum, isRedo);
-	RESUME_INTERRUPTS();
+  HOLD_INTERRUPTS();
+  smgrsw[reln->smgr_which].smgr_create(reln, forknum, isRedo);
+  RESUME_INTERRUPTS();
 }
 
 /*
@@ -497,31 +495,29 @@ smgrcreate(SMgrRelation reln, ForkNumber forknum, bool isRedo)
 void
 smgrdosyncall(SMgrRelation *rels, int nrels)
 {
-	int			i = 0;
-	ForkNumber	forknum;
+  int     i = 0;
+  ForkNumber  forknum;
 
-	if (nrels == 0)
-		return;
+  if (nrels == 0)
+    return;
 
-	FlushRelationsAllBuffers(rels, nrels);
+  FlushRelationsAllBuffers(rels, nrels);
 
-	HOLD_INTERRUPTS();
+  HOLD_INTERRUPTS();
 
-	/*
-	 * Sync the physical file(s).
-	 */
-	for (i = 0; i < nrels; i++)
-	{
-		int			which = rels[i]->smgr_which;
+  /*
+   * Sync the physical file(s).
+   */
+  for (i = 0; i < nrels; i++) {
+    int     which = rels[i]->smgr_which;
 
-		for (forknum = 0; forknum <= MAX_FORKNUM; forknum++)
-		{
-			if (smgrsw[which].smgr_exists(rels[i], forknum))
-				smgrsw[which].smgr_immedsync(rels[i], forknum);
-		}
-	}
+    for (forknum = 0; forknum <= MAX_FORKNUM; forknum++) {
+      if (smgrsw[which].smgr_exists(rels[i], forknum))
+        smgrsw[which].smgr_immedsync(rels[i], forknum);
+    }
+  }
 
-	RESUME_INTERRUPTS();
+  RESUME_INTERRUPTS();
 }
 
 /*
@@ -537,73 +533,72 @@ smgrdosyncall(SMgrRelation *rels, int nrels)
 void
 smgrdounlinkall(SMgrRelation *rels, int nrels, bool isRedo)
 {
-	int			i = 0;
-	RelFileLocatorBackend *rlocators;
-	ForkNumber	forknum;
+  int     i = 0;
+  RelFileLocatorBackend *rlocators;
+  ForkNumber  forknum;
 
-	if (nrels == 0)
-		return;
+  if (nrels == 0)
+    return;
 
-	/*
-	 * It would be unsafe to process interrupts between DropRelationBuffers()
-	 * and unlinking the underlying files. This probably should be a critical
-	 * section, but we're not there yet.
-	 */
-	HOLD_INTERRUPTS();
+  /*
+   * It would be unsafe to process interrupts between DropRelationBuffers()
+   * and unlinking the underlying files. This probably should be a critical
+   * section, but we're not there yet.
+   */
+  HOLD_INTERRUPTS();
 
-	/*
-	 * Get rid of any remaining buffers for the relations.  bufmgr will just
-	 * drop them without bothering to write the contents.
-	 */
-	DropRelationsAllBuffers(rels, nrels);
+  /*
+   * Get rid of any remaining buffers for the relations.  bufmgr will just
+   * drop them without bothering to write the contents.
+   */
+  DropRelationsAllBuffers(rels, nrels);
 
-	/*
-	 * create an array which contains all relations to be dropped, and close
-	 * each relation's forks at the smgr level while at it
-	 */
-	rlocators = palloc(sizeof(RelFileLocatorBackend) * nrels);
-	for (i = 0; i < nrels; i++)
-	{
-		RelFileLocatorBackend rlocator = rels[i]->smgr_rlocator;
-		int			which = rels[i]->smgr_which;
+  /*
+   * create an array which contains all relations to be dropped, and close
+   * each relation's forks at the smgr level while at it
+   */
+  rlocators = palloc(sizeof(RelFileLocatorBackend) * nrels);
 
-		rlocators[i] = rlocator;
+  for (i = 0; i < nrels; i++) {
+    RelFileLocatorBackend rlocator = rels[i]->smgr_rlocator;
+    int     which = rels[i]->smgr_which;
 
-		/* Close the forks at smgr level */
-		for (forknum = 0; forknum <= MAX_FORKNUM; forknum++)
-			smgrsw[which].smgr_close(rels[i], forknum);
-	}
+    rlocators[i] = rlocator;
 
-	/*
-	 * Send a shared-inval message to force other backends to close any
-	 * dangling smgr references they may have for these rels.  We should do
-	 * this before starting the actual unlinking, in case we fail partway
-	 * through that step.  Note that the sinval messages will eventually come
-	 * back to this backend, too, and thereby provide a backstop that we
-	 * closed our own smgr rel.
-	 */
-	for (i = 0; i < nrels; i++)
-		CacheInvalidateSmgr(rlocators[i]);
+    /* Close the forks at smgr level */
+    for (forknum = 0; forknum <= MAX_FORKNUM; forknum++)
+      smgrsw[which].smgr_close(rels[i], forknum);
+  }
 
-	/*
-	 * Delete the physical file(s).
-	 *
-	 * Note: smgr_unlink must treat deletion failure as a WARNING, not an
-	 * ERROR, because we've already decided to commit or abort the current
-	 * xact.
-	 */
+  /*
+   * Send a shared-inval message to force other backends to close any
+   * dangling smgr references they may have for these rels.  We should do
+   * this before starting the actual unlinking, in case we fail partway
+   * through that step.  Note that the sinval messages will eventually come
+   * back to this backend, too, and thereby provide a backstop that we
+   * closed our own smgr rel.
+   */
+  for (i = 0; i < nrels; i++)
+    CacheInvalidateSmgr(rlocators[i]);
 
-	for (i = 0; i < nrels; i++)
-	{
-		int			which = rels[i]->smgr_which;
+  /*
+   * Delete the physical file(s).
+   *
+   * Note: smgr_unlink must treat deletion failure as a WARNING, not an
+   * ERROR, because we've already decided to commit or abort the current
+   * xact.
+   */
 
-		for (forknum = 0; forknum <= MAX_FORKNUM; forknum++)
-			smgrsw[which].smgr_unlink(rlocators[i], forknum, isRedo);
-	}
+  for (i = 0; i < nrels; i++) {
+    int     which = rels[i]->smgr_which;
 
-	pfree(rlocators);
+    for (forknum = 0; forknum <= MAX_FORKNUM; forknum++)
+      smgrsw[which].smgr_unlink(rlocators[i], forknum, isRedo);
+  }
 
-	RESUME_INTERRUPTS();
+  pfree(rlocators);
+
+  RESUME_INTERRUPTS();
 }
 
 
@@ -618,24 +613,24 @@ smgrdounlinkall(SMgrRelation *rels, int nrels, bool isRedo)
  */
 void
 smgrextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
-		   const void *buffer, bool skipFsync)
+           const void *buffer, bool skipFsync)
 {
-	HOLD_INTERRUPTS();
+  HOLD_INTERRUPTS();
 
-	smgrsw[reln->smgr_which].smgr_extend(reln, forknum, blocknum,
-										 buffer, skipFsync);
+  smgrsw[reln->smgr_which].smgr_extend(reln, forknum, blocknum,
+                                       buffer, skipFsync);
 
-	/*
-	 * Normally we expect this to increase nblocks by one, but if the cached
-	 * value isn't as expected, just invalidate it so the next call asks the
-	 * kernel.
-	 */
-	if (reln->smgr_cached_nblocks[forknum] == blocknum)
-		reln->smgr_cached_nblocks[forknum] = blocknum + 1;
-	else
-		reln->smgr_cached_nblocks[forknum] = InvalidBlockNumber;
+  /*
+   * Normally we expect this to increase nblocks by one, but if the cached
+   * value isn't as expected, just invalidate it so the next call asks the
+   * kernel.
+   */
+  if (reln->smgr_cached_nblocks[forknum] == blocknum)
+    reln->smgr_cached_nblocks[forknum] = blocknum + 1;
+  else
+    reln->smgr_cached_nblocks[forknum] = InvalidBlockNumber;
 
-	RESUME_INTERRUPTS();
+  RESUME_INTERRUPTS();
 }
 
 /*
@@ -647,24 +642,24 @@ smgrextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
  */
 void
 smgrzeroextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
-			   int nblocks, bool skipFsync)
+               int nblocks, bool skipFsync)
 {
-	HOLD_INTERRUPTS();
+  HOLD_INTERRUPTS();
 
-	smgrsw[reln->smgr_which].smgr_zeroextend(reln, forknum, blocknum,
-											 nblocks, skipFsync);
+  smgrsw[reln->smgr_which].smgr_zeroextend(reln, forknum, blocknum,
+      nblocks, skipFsync);
 
-	/*
-	 * Normally we expect this to increase the fork size by nblocks, but if
-	 * the cached value isn't as expected, just invalidate it so the next call
-	 * asks the kernel.
-	 */
-	if (reln->smgr_cached_nblocks[forknum] == blocknum)
-		reln->smgr_cached_nblocks[forknum] = blocknum + nblocks;
-	else
-		reln->smgr_cached_nblocks[forknum] = InvalidBlockNumber;
+  /*
+   * Normally we expect this to increase the fork size by nblocks, but if
+   * the cached value isn't as expected, just invalidate it so the next call
+   * asks the kernel.
+   */
+  if (reln->smgr_cached_nblocks[forknum] == blocknum)
+    reln->smgr_cached_nblocks[forknum] = blocknum + nblocks;
+  else
+    reln->smgr_cached_nblocks[forknum] = InvalidBlockNumber;
 
-	RESUME_INTERRUPTS();
+  RESUME_INTERRUPTS();
 }
 
 /*
@@ -676,39 +671,39 @@ smgrzeroextend(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
  */
 bool
 smgrprefetch(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
-			 int nblocks)
+             int nblocks)
 {
-	bool		ret;
+  bool    ret;
 
-	HOLD_INTERRUPTS();
-	ret = smgrsw[reln->smgr_which].smgr_prefetch(reln, forknum, blocknum, nblocks);
-	RESUME_INTERRUPTS();
+  HOLD_INTERRUPTS();
+  ret = smgrsw[reln->smgr_which].smgr_prefetch(reln, forknum, blocknum, nblocks);
+  RESUME_INTERRUPTS();
 
-	return ret;
+  return ret;
 }
 
 /*
  * smgrmaxcombine() - Return the maximum number of total blocks that can be
- *				 combined with an IO starting at blocknum.
+ *         combined with an IO starting at blocknum.
  *
  * The returned value includes the IO for blocknum itself.
  */
 uint32
 smgrmaxcombine(SMgrRelation reln, ForkNumber forknum,
-			   BlockNumber blocknum)
+               BlockNumber blocknum)
 {
-	uint32		ret;
+  uint32    ret;
 
-	HOLD_INTERRUPTS();
-	ret = smgrsw[reln->smgr_which].smgr_maxcombine(reln, forknum, blocknum);
-	RESUME_INTERRUPTS();
+  HOLD_INTERRUPTS();
+  ret = smgrsw[reln->smgr_which].smgr_maxcombine(reln, forknum, blocknum);
+  RESUME_INTERRUPTS();
 
-	return ret;
+  return ret;
 }
 
 /*
  * smgrreadv() -- read a particular block range from a relation into the
- *				 supplied buffers.
+ *         supplied buffers.
  *
  * This routine is called from the buffer manager in order to
  * instantiate pages in the shared buffer cache.  All storage managers
@@ -719,12 +714,12 @@ smgrmaxcombine(SMgrRelation reln, ForkNumber forknum,
  */
 void
 smgrreadv(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
-		  void **buffers, BlockNumber nblocks)
+          void **buffers, BlockNumber nblocks)
 {
-	HOLD_INTERRUPTS();
-	smgrsw[reln->smgr_which].smgr_readv(reln, forknum, blocknum, buffers,
-										nblocks);
-	RESUME_INTERRUPTS();
+  HOLD_INTERRUPTS();
+  smgrsw[reln->smgr_which].smgr_readv(reln, forknum, blocknum, buffers,
+                                      nblocks);
+  RESUME_INTERRUPTS();
 }
 
 /*
@@ -751,14 +746,14 @@ smgrreadv(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
  */
 void
 smgrstartreadv(PgAioHandle *ioh,
-			   SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
-			   void **buffers, BlockNumber nblocks)
+               SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
+               void **buffers, BlockNumber nblocks)
 {
-	HOLD_INTERRUPTS();
-	smgrsw[reln->smgr_which].smgr_startreadv(ioh,
-											 reln, forknum, blocknum, buffers,
-											 nblocks);
-	RESUME_INTERRUPTS();
+  HOLD_INTERRUPTS();
+  smgrsw[reln->smgr_which].smgr_startreadv(ioh,
+      reln, forknum, blocknum, buffers,
+      nblocks);
+  RESUME_INTERRUPTS();
 }
 
 /*
@@ -789,56 +784,57 @@ smgrstartreadv(PgAioHandle *ioh,
  */
 void
 smgrwritev(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
-		   const void **buffers, BlockNumber nblocks, bool skipFsync)
+           const void **buffers, BlockNumber nblocks, bool skipFsync)
 {
-	HOLD_INTERRUPTS();
-	smgrsw[reln->smgr_which].smgr_writev(reln, forknum, blocknum,
-										 buffers, nblocks, skipFsync);
-	RESUME_INTERRUPTS();
+  HOLD_INTERRUPTS();
+  smgrsw[reln->smgr_which].smgr_writev(reln, forknum, blocknum,
+                                       buffers, nblocks, skipFsync);
+  RESUME_INTERRUPTS();
 }
 
 /*
  * smgrwriteback() -- Trigger kernel writeback for the supplied range of
- *					   blocks.
+ *             blocks.
  */
 void
 smgrwriteback(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum,
-			  BlockNumber nblocks)
+              BlockNumber nblocks)
 {
-	HOLD_INTERRUPTS();
-	smgrsw[reln->smgr_which].smgr_writeback(reln, forknum, blocknum,
-											nblocks);
-	RESUME_INTERRUPTS();
+  HOLD_INTERRUPTS();
+  smgrsw[reln->smgr_which].smgr_writeback(reln, forknum, blocknum,
+                                          nblocks);
+  RESUME_INTERRUPTS();
 }
 
 /*
  * smgrnblocks() -- Calculate the number of blocks in the
- *					supplied relation.
+ *          supplied relation.
  */
 BlockNumber
 smgrnblocks(SMgrRelation reln, ForkNumber forknum)
 {
-	BlockNumber result;
+  BlockNumber result;
 
-	/* Check and return if we get the cached value for the number of blocks. */
-	result = smgrnblocks_cached(reln, forknum);
-	if (result != InvalidBlockNumber)
-		return result;
+  /* Check and return if we get the cached value for the number of blocks. */
+  result = smgrnblocks_cached(reln, forknum);
 
-	HOLD_INTERRUPTS();
+  if (result != InvalidBlockNumber)
+    return result;
 
-	result = smgrsw[reln->smgr_which].smgr_nblocks(reln, forknum);
+  HOLD_INTERRUPTS();
 
-	reln->smgr_cached_nblocks[forknum] = result;
+  result = smgrsw[reln->smgr_which].smgr_nblocks(reln, forknum);
 
-	RESUME_INTERRUPTS();
+  reln->smgr_cached_nblocks[forknum] = result;
 
-	return result;
+  RESUME_INTERRUPTS();
+
+  return result;
 }
 
 /*
  * smgrnblocks_cached() -- Get the cached number of blocks in the supplied
- *						   relation.
+ *               relation.
  *
  * Returns an InvalidBlockNumber when not in recovery and when the relation
  * fork size is not cached.
@@ -846,20 +842,20 @@ smgrnblocks(SMgrRelation reln, ForkNumber forknum)
 BlockNumber
 smgrnblocks_cached(SMgrRelation reln, ForkNumber forknum)
 {
-	/*
-	 * For now, this function uses cached values only in recovery due to lack
-	 * of a shared invalidation mechanism for changes in file size.  Code
-	 * elsewhere reads smgr_cached_nblocks and copes with stale data.
-	 */
-	if (InRecovery && reln->smgr_cached_nblocks[forknum] != InvalidBlockNumber)
-		return reln->smgr_cached_nblocks[forknum];
+  /*
+   * For now, this function uses cached values only in recovery due to lack
+   * of a shared invalidation mechanism for changes in file size.  Code
+   * elsewhere reads smgr_cached_nblocks and copes with stale data.
+   */
+  if (InRecovery && reln->smgr_cached_nblocks[forknum] != InvalidBlockNumber)
+    return reln->smgr_cached_nblocks[forknum];
 
-	return InvalidBlockNumber;
+  return InvalidBlockNumber;
 }
 
 /*
  * smgrtruncate() -- Truncate the given forks of supplied relation to
- *					 each specified numbers of blocks
+ *           each specified numbers of blocks
  *
  * The truncation is done immediately, so this can't be rolled back.
  *
@@ -873,55 +869,54 @@ smgrnblocks_cached(SMgrRelation reln, ForkNumber forknum)
  */
 void
 smgrtruncate(SMgrRelation reln, ForkNumber *forknum, int nforks,
-			 BlockNumber *old_nblocks, BlockNumber *nblocks)
+             BlockNumber *old_nblocks, BlockNumber *nblocks)
 {
-	int			i;
+  int     i;
 
-	/*
-	 * Get rid of any buffers for the about-to-be-deleted blocks. bufmgr will
-	 * just drop them without bothering to write the contents.
-	 */
-	DropRelationBuffers(reln, forknum, nforks, nblocks);
+  /*
+   * Get rid of any buffers for the about-to-be-deleted blocks. bufmgr will
+   * just drop them without bothering to write the contents.
+   */
+  DropRelationBuffers(reln, forknum, nforks, nblocks);
 
-	/*
-	 * Send a shared-inval message to force other backends to close any smgr
-	 * references they may have for this rel.  This is useful because they
-	 * might have open file pointers to segments that got removed, and/or
-	 * smgr_targblock variables pointing past the new rel end.  (The inval
-	 * message will come back to our backend, too, causing a
-	 * probably-unnecessary local smgr flush.  But we don't expect that this
-	 * is a performance-critical path.)  As in the unlink code, we want to be
-	 * sure the message is sent before we start changing things on-disk.
-	 */
-	CacheInvalidateSmgr(reln->smgr_rlocator);
+  /*
+   * Send a shared-inval message to force other backends to close any smgr
+   * references they may have for this rel.  This is useful because they
+   * might have open file pointers to segments that got removed, and/or
+   * smgr_targblock variables pointing past the new rel end.  (The inval
+   * message will come back to our backend, too, causing a
+   * probably-unnecessary local smgr flush.  But we don't expect that this
+   * is a performance-critical path.)  As in the unlink code, we want to be
+   * sure the message is sent before we start changing things on-disk.
+   */
+  CacheInvalidateSmgr(reln->smgr_rlocator);
 
-	/* Do the truncation */
-	for (i = 0; i < nforks; i++)
-	{
-		/* Make the cached size is invalid if we encounter an error. */
-		reln->smgr_cached_nblocks[forknum[i]] = InvalidBlockNumber;
+  /* Do the truncation */
+  for (i = 0; i < nforks; i++) {
+    /* Make the cached size is invalid if we encounter an error. */
+    reln->smgr_cached_nblocks[forknum[i]] = InvalidBlockNumber;
 
-		smgrsw[reln->smgr_which].smgr_truncate(reln, forknum[i],
-											   old_nblocks[i], nblocks[i]);
+    smgrsw[reln->smgr_which].smgr_truncate(reln, forknum[i],
+                                           old_nblocks[i], nblocks[i]);
 
-		/*
-		 * We might as well update the local smgr_cached_nblocks values. The
-		 * smgr cache inval message that this function sent will cause other
-		 * backends to invalidate their copies of smgr_cached_nblocks, and
-		 * these ones too at the next command boundary. But ensure they aren't
-		 * outright wrong until then.
-		 *
-		 * We can have nblocks > old_nblocks when a relation was truncated
-		 * multiple times, a replica applied all the truncations, and later
-		 * restarts from a restartpoint located before the truncations. The
-		 * relation on disk will be the size of the last truncate. When
-		 * replaying the first truncate, we will have nblocks > current size.
-		 * In such cases, smgr_truncate does nothing, so set the cached size
-		 * to the old size rather than the requested size.
-		 */
-		reln->smgr_cached_nblocks[forknum[i]] =
-			nblocks[i] > old_nblocks[i] ? old_nblocks[i] : nblocks[i];
-	}
+    /*
+     * We might as well update the local smgr_cached_nblocks values. The
+     * smgr cache inval message that this function sent will cause other
+     * backends to invalidate their copies of smgr_cached_nblocks, and
+     * these ones too at the next command boundary. But ensure they aren't
+     * outright wrong until then.
+     *
+     * We can have nblocks > old_nblocks when a relation was truncated
+     * multiple times, a replica applied all the truncations, and later
+     * restarts from a restartpoint located before the truncations. The
+     * relation on disk will be the size of the last truncate. When
+     * replaying the first truncate, we will have nblocks > current size.
+     * In such cases, smgr_truncate does nothing, so set the cached size
+     * to the old size rather than the requested size.
+     */
+    reln->smgr_cached_nblocks[forknum[i]] =
+      nblocks[i] > old_nblocks[i] ? old_nblocks[i] : nblocks[i];
+  }
 }
 
 /*
@@ -939,9 +934,9 @@ smgrtruncate(SMgrRelation reln, ForkNumber *forknum, int nforks,
 void
 smgrregistersync(SMgrRelation reln, ForkNumber forknum)
 {
-	HOLD_INTERRUPTS();
-	smgrsw[reln->smgr_which].smgr_registersync(reln, forknum);
-	RESUME_INTERRUPTS();
+  HOLD_INTERRUPTS();
+  smgrsw[reln->smgr_which].smgr_registersync(reln, forknum);
+  RESUME_INTERRUPTS();
 }
 
 /*
@@ -973,9 +968,9 @@ smgrregistersync(SMgrRelation reln, ForkNumber forknum)
 void
 smgrimmedsync(SMgrRelation reln, ForkNumber forknum)
 {
-	HOLD_INTERRUPTS();
-	smgrsw[reln->smgr_which].smgr_immedsync(reln, forknum);
-	RESUME_INTERRUPTS();
+  HOLD_INTERRUPTS();
+  smgrsw[reln->smgr_which].smgr_immedsync(reln, forknum);
+  RESUME_INTERRUPTS();
 }
 
 /*
@@ -988,17 +983,17 @@ smgrimmedsync(SMgrRelation reln, ForkNumber forknum)
 static int
 smgrfd(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, uint32 *off)
 {
-	int			fd;
+  int     fd;
 
-	/*
-	 * The caller needs to prevent interrupts from being processed, otherwise
-	 * the FD could be closed prematurely.
-	 */
-	Assert(!INTERRUPTS_CAN_BE_PROCESSED());
+  /*
+   * The caller needs to prevent interrupts from being processed, otherwise
+   * the FD could be closed prematurely.
+   */
+  Assert(!INTERRUPTS_CAN_BE_PROCESSED());
 
-	fd = smgrsw[reln->smgr_which].smgr_fd(reln, forknum, blocknum, off);
+  fd = smgrsw[reln->smgr_which].smgr_fd(reln, forknum, blocknum, off);
 
-	return fd;
+  return fd;
 }
 
 /*
@@ -1016,7 +1011,7 @@ smgrfd(SMgrRelation reln, ForkNumber forknum, BlockNumber blocknum, uint32 *off)
 void
 AtEOXact_SMgr(void)
 {
-	smgrdestroyall();
+  smgrdestroyall();
 }
 
 /*
@@ -1026,8 +1021,8 @@ AtEOXact_SMgr(void)
 bool
 ProcessBarrierSmgrRelease(void)
 {
-	smgrreleaseall();
-	return true;
+  smgrreleaseall();
+  return true;
 }
 
 /*
@@ -1036,24 +1031,24 @@ ProcessBarrierSmgrRelease(void)
  */
 void
 pgaio_io_set_target_smgr(PgAioHandle *ioh,
-						 SMgrRelationData *smgr,
-						 ForkNumber forknum,
-						 BlockNumber blocknum,
-						 int nblocks,
-						 bool skip_fsync)
+                         SMgrRelationData *smgr,
+                         ForkNumber forknum,
+                         BlockNumber blocknum,
+                         int nblocks,
+                         bool skip_fsync)
 {
-	PgAioTargetData *sd = pgaio_io_get_target_data(ioh);
+  PgAioTargetData *sd = pgaio_io_get_target_data(ioh);
 
-	pgaio_io_set_target(ioh, PGAIO_TID_SMGR);
+  pgaio_io_set_target(ioh, PGAIO_TID_SMGR);
 
-	/* backend is implied via IO owner */
-	sd->smgr.rlocator = smgr->smgr_rlocator.locator;
-	sd->smgr.forkNum = forknum;
-	sd->smgr.blockNum = blocknum;
-	sd->smgr.nblocks = nblocks;
-	sd->smgr.is_temp = SmgrIsTemp(smgr);
-	/* Temp relations should never be fsync'd */
-	sd->smgr.skip_fsync = skip_fsync && !SmgrIsTemp(smgr);
+  /* backend is implied via IO owner */
+  sd->smgr.rlocator = smgr->smgr_rlocator.locator;
+  sd->smgr.forkNum = forknum;
+  sd->smgr.blockNum = blocknum;
+  sd->smgr.nblocks = nblocks;
+  sd->smgr.is_temp = SmgrIsTemp(smgr);
+  /* Temp relations should never be fsync'd */
+  sd->smgr.skip_fsync = skip_fsync && !SmgrIsTemp(smgr);
 }
 
 /*
@@ -1063,38 +1058,40 @@ pgaio_io_set_target_smgr(PgAioHandle *ioh,
 static void
 smgr_aio_reopen(PgAioHandle *ioh)
 {
-	PgAioTargetData *sd = pgaio_io_get_target_data(ioh);
-	PgAioOpData *od = pgaio_io_get_op_data(ioh);
-	SMgrRelation reln;
-	ProcNumber	procno;
-	uint32		off;
+  PgAioTargetData *sd = pgaio_io_get_target_data(ioh);
+  PgAioOpData *od = pgaio_io_get_op_data(ioh);
+  SMgrRelation reln;
+  ProcNumber  procno;
+  uint32    off;
 
-	/*
-	 * The caller needs to prevent interrupts from being processed, otherwise
-	 * the FD could be closed again before we get to executing the IO.
-	 */
-	Assert(!INTERRUPTS_CAN_BE_PROCESSED());
+  /*
+   * The caller needs to prevent interrupts from being processed, otherwise
+   * the FD could be closed again before we get to executing the IO.
+   */
+  Assert(!INTERRUPTS_CAN_BE_PROCESSED());
 
-	if (sd->smgr.is_temp)
-		procno = pgaio_io_get_owner(ioh);
-	else
-		procno = INVALID_PROC_NUMBER;
+  if (sd->smgr.is_temp)
+    procno = pgaio_io_get_owner(ioh);
+  else
+    procno = INVALID_PROC_NUMBER;
 
-	reln = smgropen(sd->smgr.rlocator, procno);
-	switch (pgaio_io_get_op(ioh))
-	{
-		case PGAIO_OP_INVALID:
-			pg_unreachable();
-			break;
-		case PGAIO_OP_READV:
-			od->read.fd = smgrfd(reln, sd->smgr.forkNum, sd->smgr.blockNum, &off);
-			Assert(off == od->read.offset);
-			break;
-		case PGAIO_OP_WRITEV:
-			od->write.fd = smgrfd(reln, sd->smgr.forkNum, sd->smgr.blockNum, &off);
-			Assert(off == od->write.offset);
-			break;
-	}
+  reln = smgropen(sd->smgr.rlocator, procno);
+
+  switch (pgaio_io_get_op(ioh)) {
+    case PGAIO_OP_INVALID:
+      pg_unreachable();
+      break;
+
+    case PGAIO_OP_READV:
+      od->read.fd = smgrfd(reln, sd->smgr.forkNum, sd->smgr.blockNum, &off);
+      Assert(off == od->read.offset);
+      break;
+
+    case PGAIO_OP_WRITEV:
+      od->write.fd = smgrfd(reln, sd->smgr.forkNum, sd->smgr.blockNum, &off);
+      Assert(off == od->write.offset);
+      break;
+  }
 }
 
 /*
@@ -1103,25 +1100,25 @@ smgr_aio_reopen(PgAioHandle *ioh)
 static char *
 smgr_aio_describe_identity(const PgAioTargetData *sd)
 {
-	RelPathStr	path;
-	char	   *desc;
+  RelPathStr  path;
+  char     *desc;
 
-	path = relpathbackend(sd->smgr.rlocator,
-						  sd->smgr.is_temp ?
-						  MyProcNumber : INVALID_PROC_NUMBER,
-						  sd->smgr.forkNum);
+  path = relpathbackend(sd->smgr.rlocator,
+                        sd->smgr.is_temp ?
+                        MyProcNumber : INVALID_PROC_NUMBER,
+                        sd->smgr.forkNum);
 
-	if (sd->smgr.nblocks == 0)
-		desc = psprintf(_("file \"%s\""), path.str);
-	else if (sd->smgr.nblocks == 1)
-		desc = psprintf(_("block %u in file \"%s\""),
-						sd->smgr.blockNum,
-						path.str);
-	else
-		desc = psprintf(_("blocks %u..%u in file \"%s\""),
-						sd->smgr.blockNum,
-						sd->smgr.blockNum + sd->smgr.nblocks - 1,
-						path.str);
+  if (sd->smgr.nblocks == 0)
+    desc = psprintf(_("file \"%s\""), path.str);
+  else if (sd->smgr.nblocks == 1)
+    desc = psprintf(_("block %u in file \"%s\""),
+                    sd->smgr.blockNum,
+                    path.str);
+  else
+    desc = psprintf(_("blocks %u..%u in file \"%s\""),
+                    sd->smgr.blockNum,
+                    sd->smgr.blockNum + sd->smgr.nblocks - 1,
+                    path.str);
 
-	return desc;
+  return desc;
 }

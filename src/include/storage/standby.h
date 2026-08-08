@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * standby.h
- *	  Definitions for hot standby mode.
+ *    Definitions for hot standby mode.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -29,11 +29,11 @@ extern void InitRecoveryTransactionEnvironment(void);
 extern void ShutdownRecoveryTransactionEnvironment(void);
 
 extern void ResolveRecoveryConflictWithSnapshot(TransactionId snapshotConflictHorizon,
-												bool isCatalogRel,
-												RelFileLocator locator);
+    bool isCatalogRel,
+    RelFileLocator locator);
 extern void ResolveRecoveryConflictWithSnapshotFullXid(FullTransactionId snapshotConflictHorizon,
-													   bool isCatalogRel,
-													   RelFileLocator locator);
+    bool isCatalogRel,
+    RelFileLocator locator);
 extern void ResolveRecoveryConflictWithTablespace(Oid tsid);
 extern void ResolveRecoveryConflictWithDatabase(Oid dbid);
 
@@ -44,8 +44,8 @@ extern void StandbyDeadLockHandler(void);
 extern void StandbyTimeoutHandler(void);
 extern void StandbyLockTimeoutHandler(void);
 extern void LogRecoveryConflict(ProcSignalReason reason, TimestampTz wait_start,
-								TimestampTz now, VirtualTransactionId *wait_list,
-								bool still_waiting);
+                                TimestampTz now, VirtualTransactionId *wait_list,
+                                bool still_waiting);
 
 /*
  * Standby Rmgr (RM_STANDBY_ID)
@@ -56,7 +56,7 @@ extern void LogRecoveryConflict(ProcSignalReason reason, TimestampTz wait_start,
  */
 extern void StandbyAcquireAccessExclusiveLock(TransactionId xid, Oid dbOid, Oid relOid);
 extern void StandbyReleaseLockTree(TransactionId xid,
-								   int nsubxids, TransactionId *subxids);
+                                   int nsubxids, TransactionId *subxids);
 extern void StandbyReleaseAllLocks(void);
 extern void StandbyReleaseOldLocks(TransactionId oldxid);
 
@@ -77,24 +77,24 @@ extern void StandbyReleaseOldLocks(TransactionId oldxid);
 
 typedef enum
 {
-	SUBXIDS_IN_ARRAY,			/* xids array includes all running subxids */
-	SUBXIDS_MISSING,			/* snapshot overflowed, subxids are missing */
-	SUBXIDS_IN_SUBTRANS,		/* subxids are not included in 'xids', but
-								 * pg_subtrans is fully up-to-date */
+  SUBXIDS_IN_ARRAY,     /* xids array includes all running subxids */
+  SUBXIDS_MISSING,      /* snapshot overflowed, subxids are missing */
+  SUBXIDS_IN_SUBTRANS,    /* subxids are not included in 'xids', but
+                 * pg_subtrans is fully up-to-date */
 } subxids_array_status;
 
 typedef struct RunningTransactionsData
 {
-	int			xcnt;			/* # of xact ids in xids[] */
-	int			subxcnt;		/* # of subxact ids in xids[] */
-	subxids_array_status subxid_status;
-	TransactionId nextXid;		/* xid from TransamVariables->nextXid */
-	TransactionId oldestRunningXid; /* *not* oldestXmin */
-	TransactionId oldestDatabaseRunningXid; /* same as above, but within the
-											 * current database */
-	TransactionId latestCompletedXid;	/* so we can set xmax */
+  int     xcnt;     /* # of xact ids in xids[] */
+  int     subxcnt;    /* # of subxact ids in xids[] */
+  subxids_array_status subxid_status;
+  TransactionId nextXid;    /* xid from TransamVariables->nextXid */
+  TransactionId oldestRunningXid; /* *not* oldestXmin */
+  TransactionId oldestDatabaseRunningXid; /* same as above, but within the
+                       * current database */
+  TransactionId latestCompletedXid; /* so we can set xmax */
 
-	TransactionId *xids;		/* array of (sub)xids still running */
+  TransactionId *xids;    /* array of (sub)xids still running */
 } RunningTransactionsData;
 
 typedef RunningTransactionsData *RunningTransactions;
@@ -104,6 +104,6 @@ extern void LogAccessExclusiveLockPrepare(void);
 
 extern XLogRecPtr LogStandbySnapshot(void);
 extern void LogStandbyInvalidations(int nmsgs, SharedInvalidationMessage *msgs,
-									bool relcacheInitFileInval);
+                                    bool relcacheInitFileInval);
 
-#endif							/* STANDBY_H */
+#endif              /* STANDBY_H */

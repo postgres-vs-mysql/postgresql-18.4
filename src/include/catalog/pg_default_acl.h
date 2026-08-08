@@ -1,8 +1,8 @@
 /*-------------------------------------------------------------------------
  *
  * pg_default_acl.h
- *	  definition of the system catalog for default ACLs of new objects
- *	  (pg_default_acl)
+ *    definition of the system catalog for default ACLs of new objects
+ *    (pg_default_acl)
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -11,8 +11,8 @@
  * src/include/catalog/pg_default_acl.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -20,31 +20,32 @@
 #define PG_DEFAULT_ACL_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_default_acl_d.h"	/* IWYU pragma: export */
+#include "catalog/pg_default_acl_d.h" /* IWYU pragma: export */
 
 /* ----------------
- *		pg_default_acl definition.  cpp turns this into
- *		typedef struct FormData_pg_default_acl
+ *    pg_default_acl definition.  cpp turns this into
+ *    typedef struct FormData_pg_default_acl
  * ----------------
  */
-CATALOG(pg_default_acl,826,DefaultAclRelationId)
+CATALOG(pg_default_acl, 826, DefaultAclRelationId)
 {
-	Oid			oid;			/* oid */
-	Oid			defaclrole BKI_LOOKUP(pg_authid);	/* OID of role owning this
-													 * ACL */
-	Oid			defaclnamespace BKI_LOOKUP_OPT(pg_namespace);	/* OID of namespace, or
-																 * 0 for all */
-	char		defaclobjtype;	/* see DEFACLOBJ_xxx constants below */
+  Oid     oid;      /* oid */
+  Oid     defaclrole BKI_LOOKUP(pg_authid); /* OID of role owning this
+                           * ACL */
+  Oid     defaclnamespace BKI_LOOKUP_OPT(pg_namespace); /* OID of namespace, or
+                                 * 0 for all */
+  char    defaclobjtype;  /* see DEFACLOBJ_xxx constants below */
 
-#ifdef CATALOG_VARLEN			/* variable-length fields start here */
-	aclitem		defaclacl[1] BKI_FORCE_NOT_NULL;	/* permissions to add at
-													 * CREATE time */
+#ifdef CATALOG_VARLEN     /* variable-length fields start here */
+  aclitem   defaclacl[1] BKI_FORCE_NOT_NULL;  /* permissions to add at
+                           * CREATE time */
 #endif
-} FormData_pg_default_acl;
+}
+FormData_pg_default_acl;
 
 /* ----------------
- *		Form_pg_default_acl corresponds to a pointer to a tuple with
- *		the format of pg_default_acl relation.
+ *    Form_pg_default_acl corresponds to a pointer to a tuple with
+ *    the format of pg_default_acl relation.
  * ----------------
  */
 typedef FormData_pg_default_acl *Form_pg_default_acl;
@@ -63,13 +64,13 @@ MAKE_SYSCACHE(DEFACLROLENSPOBJ, pg_default_acl_role_nsp_obj_index, 8);
  * permissions through pg_default_acl.  These codes are used in the
  * defaclobjtype column.
  */
-#define DEFACLOBJ_RELATION		'r' /* table, view */
-#define DEFACLOBJ_SEQUENCE		'S' /* sequence */
-#define DEFACLOBJ_FUNCTION		'f' /* function */
-#define DEFACLOBJ_TYPE			'T' /* type */
-#define DEFACLOBJ_NAMESPACE		'n' /* namespace */
-#define DEFACLOBJ_LARGEOBJECT	'L' /* large object */
+#define DEFACLOBJ_RELATION    'r' /* table, view */
+#define DEFACLOBJ_SEQUENCE    'S' /* sequence */
+#define DEFACLOBJ_FUNCTION    'f' /* function */
+#define DEFACLOBJ_TYPE      'T' /* type */
+#define DEFACLOBJ_NAMESPACE   'n' /* namespace */
+#define DEFACLOBJ_LARGEOBJECT 'L' /* large object */
 
-#endif							/* EXPOSE_TO_CLIENT_CODE */
+#endif              /* EXPOSE_TO_CLIENT_CODE */
 
-#endif							/* PG_DEFAULT_ACL_H */
+#endif              /* PG_DEFAULT_ACL_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * freespace.h
- *	  POSTGRES free space map for quickly finding free space in relations
+ *    POSTGRES free space map for quickly finding free space in relations
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -22,18 +22,18 @@
 extern Size GetRecordedFreeSpace(Relation rel, BlockNumber heapBlk);
 extern BlockNumber GetPageWithFreeSpace(Relation rel, Size spaceNeeded);
 extern BlockNumber RecordAndGetPageWithFreeSpace(Relation rel,
-												 BlockNumber oldPage,
-												 Size oldSpaceAvail,
-												 Size spaceNeeded);
+    BlockNumber oldPage,
+    Size oldSpaceAvail,
+    Size spaceNeeded);
 extern void RecordPageWithFreeSpace(Relation rel, BlockNumber heapBlk,
-									Size spaceAvail);
+                                    Size spaceAvail);
 extern void XLogRecordPageWithFreeSpace(RelFileLocator rlocator, BlockNumber heapBlk,
-										Size spaceAvail);
+                                        Size spaceAvail);
 
 extern BlockNumber FreeSpaceMapPrepareTruncateRel(Relation rel,
-												  BlockNumber nblocks);
+    BlockNumber nblocks);
 extern void FreeSpaceMapVacuum(Relation rel);
 extern void FreeSpaceMapVacuumRange(Relation rel, BlockNumber start,
-									BlockNumber end);
+                                    BlockNumber end);
 
-#endif							/* FREESPACE_H_ */
+#endif              /* FREESPACE_H_ */

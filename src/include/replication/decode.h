@@ -1,6 +1,6 @@
 /*-------------------------------------------------------------------------
  * decode.h
- *	   PostgreSQL WAL to logical transformation
+ *     PostgreSQL WAL to logical transformation
  *
  * Portions Copyright (c) 2012-2025, PostgreSQL Global Development Group
  *
@@ -16,9 +16,9 @@
 
 typedef struct XLogRecordBuffer
 {
-	XLogRecPtr	origptr;
-	XLogRecPtr	endptr;
-	XLogReaderState *record;
+  XLogRecPtr  origptr;
+  XLogRecPtr  endptr;
+  XLogReaderState *record;
 } XLogRecordBuffer;
 
 extern void xlog_decode(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
@@ -29,6 +29,6 @@ extern void standby_decode(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
 extern void logicalmsg_decode(LogicalDecodingContext *ctx, XLogRecordBuffer *buf);
 
 extern void LogicalDecodingProcessRecord(LogicalDecodingContext *ctx,
-										 XLogReaderState *record);
+    XLogReaderState *record);
 
 #endif

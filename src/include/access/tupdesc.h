@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * tupdesc.h
- *	  POSTGRES tuple descriptor definitions.
+ *    POSTGRES tuple descriptor definitions.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -21,39 +21,39 @@
 
 typedef struct AttrDefault
 {
-	AttrNumber	adnum;
-	char	   *adbin;			/* nodeToString representation of expr */
+  AttrNumber  adnum;
+  char     *adbin;      /* nodeToString representation of expr */
 } AttrDefault;
 
 typedef struct ConstrCheck
 {
-	char	   *ccname;
-	char	   *ccbin;			/* nodeToString representation of expr */
-	bool		ccenforced;
-	bool		ccvalid;
-	bool		ccnoinherit;	/* this is a non-inheritable constraint */
+  char     *ccname;
+  char     *ccbin;      /* nodeToString representation of expr */
+  bool    ccenforced;
+  bool    ccvalid;
+  bool    ccnoinherit;  /* this is a non-inheritable constraint */
 } ConstrCheck;
 
 /* This structure contains constraints of a tuple */
 typedef struct TupleConstr
 {
-	AttrDefault *defval;		/* array */
-	ConstrCheck *check;			/* array */
-	struct AttrMissing *missing;	/* missing attributes values, NULL if none */
-	uint16		num_defval;
-	uint16		num_check;
-	bool		has_not_null;	/* any not-null, including not valid ones */
-	bool		has_generated_stored;
-	bool		has_generated_virtual;
+  AttrDefault *defval;    /* array */
+  ConstrCheck *check;     /* array */
+  struct AttrMissing *missing;  /* missing attributes values, NULL if none */
+  uint16    num_defval;
+  uint16    num_check;
+  bool    has_not_null; /* any not-null, including not valid ones */
+  bool    has_generated_stored;
+  bool    has_generated_virtual;
 } TupleConstr;
 
 /*
  * CompactAttribute
- *		Cut-down version of FormData_pg_attribute for faster access for tasks
- *		such as tuple deformation.  The fields of this struct are populated
- *		using the populate_compact_attribute() function, which must be called
- *		directly after the FormData_pg_attribute struct is populated or
- *		altered in any way.
+ *    Cut-down version of FormData_pg_attribute for faster access for tasks
+ *    such as tuple deformation.  The fields of this struct are populated
+ *    using the populate_compact_attribute() function, which must be called
+ *    directly after the FormData_pg_attribute struct is populated or
+ *    altered in any way.
  *
  * Currently, this struct is 16 bytes.  Any code changes which enlarge this
  * struct should be considered very carefully.
@@ -67,24 +67,24 @@ typedef struct TupleConstr
  */
 typedef struct CompactAttribute
 {
-	int32		attcacheoff;	/* fixed offset into tuple, if known, or -1 */
-	int16		attlen;			/* attr len in bytes or -1 = varlen, -2 =
-								 * cstring */
-	bool		attbyval;		/* as FormData_pg_attribute.attbyval */
-	bool		attispackable;	/* FormData_pg_attribute.attstorage !=
-								 * TYPSTORAGE_PLAIN */
-	bool		atthasmissing;	/* as FormData_pg_attribute.atthasmissing */
-	bool		attisdropped;	/* as FormData_pg_attribute.attisdropped */
-	bool		attgenerated;	/* FormData_pg_attribute.attgenerated != '\0' */
-	char		attnullability; /* status of not-null constraint, see below */
-	uint8		attalignby;		/* alignment requirement in bytes */
+  int32   attcacheoff;  /* fixed offset into tuple, if known, or -1 */
+  int16   attlen;     /* attr len in bytes or -1 = varlen, -2 =
+                 * cstring */
+  bool    attbyval;   /* as FormData_pg_attribute.attbyval */
+  bool    attispackable;  /* FormData_pg_attribute.attstorage !=
+                 * TYPSTORAGE_PLAIN */
+  bool    atthasmissing;  /* as FormData_pg_attribute.atthasmissing */
+  bool    attisdropped; /* as FormData_pg_attribute.attisdropped */
+  bool    attgenerated; /* FormData_pg_attribute.attgenerated != '\0' */
+  char    attnullability; /* status of not-null constraint, see below */
+  uint8   attalignby;   /* alignment requirement in bytes */
 } CompactAttribute;
 
 /* Valid values for CompactAttribute->attnullability */
-#define	ATTNULLABLE_UNRESTRICTED 'f'	/* No constraint exists */
-#define	ATTNULLABLE_UNKNOWN		'u' /* constraint exists, validity unknown */
-#define	ATTNULLABLE_VALID		'v' /* valid constraint exists */
-#define	ATTNULLABLE_INVALID		'i' /* constraint exists, marked invalid */
+#define ATTNULLABLE_UNRESTRICTED 'f'  /* No constraint exists */
+#define ATTNULLABLE_UNKNOWN   'u' /* constraint exists, validity unknown */
+#define ATTNULLABLE_VALID   'v' /* valid constraint exists */
+#define ATTNULLABLE_INVALID   'i' /* constraint exists, marked invalid */
 
 /*
  * This struct is passed around within the backend to describe the structure
@@ -134,14 +134,14 @@ typedef struct CompactAttribute
  */
 typedef struct TupleDescData
 {
-	int			natts;			/* number of attributes in the tuple */
-	Oid			tdtypeid;		/* composite type ID for tuple type */
-	int32		tdtypmod;		/* typmod for tuple type */
-	int			tdrefcount;		/* reference count, or -1 if not counting */
-	TupleConstr *constr;		/* constraints, or NULL if none */
-	/* compact_attrs[N] is the compact metadata of Attribute Number N+1 */
-	CompactAttribute compact_attrs[FLEXIBLE_ARRAY_MEMBER];
-}			TupleDescData;
+  int     natts;      /* number of attributes in the tuple */
+  Oid     tdtypeid;   /* composite type ID for tuple type */
+  int32   tdtypmod;   /* typmod for tuple type */
+  int     tdrefcount;   /* reference count, or -1 if not counting */
+  TupleConstr *constr;    /* constraints, or NULL if none */
+  /* compact_attrs[N] is the compact metadata of Attribute Number N+1 */
+  CompactAttribute compact_attrs[FLEXIBLE_ARRAY_MEMBER];
+}     TupleDescData;
 typedef struct TupleDescData *TupleDesc;
 
 extern void populate_compact_attribute(TupleDesc tupdesc, int attnum);
@@ -151,17 +151,17 @@ extern void populate_compact_attribute(TupleDesc tupdesc, int attnum);
  * TupleDescData struct.
  */
 #define TupleDescAttrAddress(desc) \
-	(Form_pg_attribute) ((char *) (desc) + \
-	 (offsetof(struct TupleDescData, compact_attrs) + \
-	 (desc)->natts * sizeof(CompactAttribute)))
+  (Form_pg_attribute) ((char *) (desc) + \
+   (offsetof(struct TupleDescData, compact_attrs) + \
+   (desc)->natts * sizeof(CompactAttribute)))
 
 /* Accessor for the i'th FormData_pg_attribute element of tupdesc. */
 static inline FormData_pg_attribute *
 TupleDescAttr(TupleDesc tupdesc, int i)
 {
-	FormData_pg_attribute *attrs = TupleDescAttrAddress(tupdesc);
+  FormData_pg_attribute *attrs = TupleDescAttrAddress(tupdesc);
 
-	return &attrs[i];
+  return &attrs[i];
 }
 
 #undef TupleDescAttrAddress
@@ -174,15 +174,15 @@ extern void verify_compact_attribute(TupleDesc, int attnum);
 static inline CompactAttribute *
 TupleDescCompactAttr(TupleDesc tupdesc, int i)
 {
-	CompactAttribute *cattr = &tupdesc->compact_attrs[i];
+  CompactAttribute *cattr = &tupdesc->compact_attrs[i];
 
 #ifdef USE_ASSERT_CHECKING
 
-	/* Check that the CompactAttribute is correctly populated */
-	verify_compact_attribute(tupdesc, i);
+  /* Check that the CompactAttribute is correctly populated */
+  verify_compact_attribute(tupdesc, i);
 #endif
 
-	return cattr;
+  return cattr;
 }
 
 extern TupleDesc CreateTemplateTupleDesc(int natts);
@@ -196,14 +196,14 @@ extern TupleDesc CreateTupleDescTruncatedCopy(TupleDesc tupdesc, int natts);
 extern TupleDesc CreateTupleDescCopyConstr(TupleDesc tupdesc);
 
 #define TupleDescSize(src) \
-	(offsetof(struct TupleDescData, compact_attrs) + \
-	 (src)->natts * sizeof(CompactAttribute) + \
-	 (src)->natts * sizeof(FormData_pg_attribute))
+  (offsetof(struct TupleDescData, compact_attrs) + \
+   (src)->natts * sizeof(CompactAttribute) + \
+   (src)->natts * sizeof(FormData_pg_attribute))
 
 extern void TupleDescCopy(TupleDesc dst, TupleDesc src);
 
 extern void TupleDescCopyEntry(TupleDesc dst, AttrNumber dstAttno,
-							   TupleDesc src, AttrNumber srcAttno);
+                               TupleDesc src, AttrNumber srcAttno);
 
 extern void FreeTupleDesc(TupleDesc tupdesc);
 
@@ -211,41 +211,41 @@ extern void IncrTupleDescRefCount(TupleDesc tupdesc);
 extern void DecrTupleDescRefCount(TupleDesc tupdesc);
 
 #define PinTupleDesc(tupdesc) \
-	do { \
-		if ((tupdesc)->tdrefcount >= 0) \
-			IncrTupleDescRefCount(tupdesc); \
-	} while (0)
+  do { \
+    if ((tupdesc)->tdrefcount >= 0) \
+      IncrTupleDescRefCount(tupdesc); \
+  } while (0)
 
 #define ReleaseTupleDesc(tupdesc) \
-	do { \
-		if ((tupdesc)->tdrefcount >= 0) \
-			DecrTupleDescRefCount(tupdesc); \
-	} while (0)
+  do { \
+    if ((tupdesc)->tdrefcount >= 0) \
+      DecrTupleDescRefCount(tupdesc); \
+  } while (0)
 
 extern bool equalTupleDescs(TupleDesc tupdesc1, TupleDesc tupdesc2);
 extern bool equalRowTypes(TupleDesc tupdesc1, TupleDesc tupdesc2);
 extern uint32 hashRowType(TupleDesc desc);
 
 extern void TupleDescInitEntry(TupleDesc desc,
-							   AttrNumber attributeNumber,
-							   const char *attributeName,
-							   Oid oidtypeid,
-							   int32 typmod,
-							   int attdim);
+                               AttrNumber attributeNumber,
+                               const char *attributeName,
+                               Oid oidtypeid,
+                               int32 typmod,
+                               int attdim);
 
 extern void TupleDescInitBuiltinEntry(TupleDesc desc,
-									  AttrNumber attributeNumber,
-									  const char *attributeName,
-									  Oid oidtypeid,
-									  int32 typmod,
-									  int attdim);
+                                      AttrNumber attributeNumber,
+                                      const char *attributeName,
+                                      Oid oidtypeid,
+                                      int32 typmod,
+                                      int attdim);
 
 extern void TupleDescInitEntryCollation(TupleDesc desc,
-										AttrNumber attributeNumber,
-										Oid collationid);
+                                        AttrNumber attributeNumber,
+                                        Oid collationid);
 
 extern TupleDesc BuildDescFromLists(const List *names, const List *types, const List *typmods, const List *collations);
 
 extern Node *TupleDescGetDefault(TupleDesc tupdesc, AttrNumber attnum);
 
-#endif							/* TUPDESC_H */
+#endif              /* TUPDESC_H */

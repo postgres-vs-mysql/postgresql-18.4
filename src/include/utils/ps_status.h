@@ -33,15 +33,15 @@ extern void set_ps_display_with_len(const char *activity, size_t len);
 
 /*
  * set_ps_display
- *		inlined to allow strlen to be evaluated during compilation when
- *		passing string constants.
+ *    inlined to allow strlen to be evaluated during compilation when
+ *    passing string constants.
  */
 static inline void
 set_ps_display(const char *activity)
 {
-	set_ps_display_with_len(activity, strlen(activity));
+  set_ps_display_with_len(activity, strlen(activity));
 }
 
 extern const char *get_ps_display(int *displen);
 
-#endif							/* PS_STATUS_H */
+#endif              /* PS_STATUS_H */

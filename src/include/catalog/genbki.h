@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * genbki.h
- *	  Required include file for all POSTGRES catalog header files
+ *    Required include file for all POSTGRES catalog header files
  *
  * genbki.h defines CATALOG(), BKI_BOOTSTRAP and related macros
  * so that the catalog header files can be read by the C compiler.
@@ -20,7 +20,7 @@
 #define GENBKI_H
 
 /* Introduces a catalog's structure definition */
-#define CATALOG(name,oid,oidmacro)	typedef struct CppConcat(FormData_,name)
+#define CATALOG(name,oid,oidmacro)  typedef struct CppConcat(FormData_,name)
 
 /* Options that may appear after CATALOG (on the same line) */
 #define BKI_BOOTSTRAP
@@ -146,4 +146,4 @@
  */
 #undef EXPOSE_TO_CLIENT_CODE
 
-#endif							/* GENBKI_H */
+#endif              /* GENBKI_H */

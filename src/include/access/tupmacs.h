@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * tupmacs.h
- *	  Tuple macros used by both index tuples and heap tuples.
+ *    Tuple macros used by both index tuples and heap tuples.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -14,7 +14,7 @@
 #ifndef TUPMACS_H
 #define TUPMACS_H
 
-#include "catalog/pg_type_d.h"	/* for TYPALIGN macros */
+#include "catalog/pg_type_d.h"  /* for TYPALIGN macros */
 
 
 /*
@@ -25,7 +25,7 @@
 static inline bool
 att_isnull(int ATT, const bits8 *BITS)
 {
-	return !(BITS[ATT >> 3] & (1 << (ATT & 0x07)));
+  return !(BITS[ATT >> 3] & (1 << (ATT & 0x07)));
 }
 
 #ifndef FRONTEND
@@ -52,29 +52,33 @@ att_isnull(int ATT, const bits8 *BITS)
 static inline Datum
 fetch_att(const void *T, bool attbyval, int attlen)
 {
-	if (attbyval)
-	{
-		switch (attlen)
-		{
-			case sizeof(char):
-				return CharGetDatum(*((const char *) T));
-			case sizeof(int16):
-				return Int16GetDatum(*((const int16 *) T));
-			case sizeof(int32):
-				return Int32GetDatum(*((const int32 *) T));
+  if (attbyval)
+  {
+    switch (attlen)
+    {
+      case sizeof(char):
+        return CharGetDatum(*((const char *) T));
+
+      case sizeof(int16):
+        return Int16GetDatum(*((const int16 *) T));
+
+      case sizeof(int32):
+        return Int32GetDatum(*((const int32 *) T));
 #if SIZEOF_DATUM == 8
-			case sizeof(Datum):
-				return *((const Datum *) T);
+
+      case sizeof(Datum):
+        return *((const Datum *) T);
 #endif
-			default:
-				elog(ERROR, "unsupported byval length: %d", attlen);
-				return 0;
-		}
-	}
-	else
-		return PointerGetDatum(T);
+
+      default:
+        elog(ERROR, "unsupported byval length: %d", attlen);
+        return 0;
+    }
+  }
+  else
+    return PointerGetDatum(T);
 }
-#endif							/* FRONTEND */
+#endif              /* FRONTEND */
 
 /*
  * att_align_datum aligns the given offset as needed for a datum of alignment
@@ -86,9 +90,9 @@ fetch_att(const void *T, bool attbyval, int attlen)
  */
 #define att_align_datum(cur_offset, attalign, attlen, attdatum) \
 ( \
-	((attlen) == -1 && VARATT_IS_SHORT(DatumGetPointer(attdatum))) ? \
-	(uintptr_t) (cur_offset) : \
-	att_align_nominal(cur_offset, attalign) \
+  ((attlen) == -1 && VARATT_IS_SHORT(DatumGetPointer(attdatum))) ? \
+  (uintptr_t) (cur_offset) : \
+  att_align_nominal(cur_offset, attalign) \
 )
 
 /*
@@ -96,10 +100,10 @@ fetch_att(const void *T, bool attbyval, int attlen)
  * CompactAttribute.attalignby to align the Datum by.
  */
 #define att_datum_alignby(cur_offset, attalignby, attlen, attdatum) \
-	( \
-	((attlen) == -1 && VARATT_IS_SHORT(DatumGetPointer(attdatum))) ? \
-	(uintptr_t) (cur_offset) : \
-	TYPEALIGN(attalignby, cur_offset))
+  ( \
+  ((attlen) == -1 && VARATT_IS_SHORT(DatumGetPointer(attdatum))) ? \
+  (uintptr_t) (cur_offset) : \
+  TYPEALIGN(attalignby, cur_offset))
 
 /*
  * att_align_pointer performs the same calculation as att_align_datum,
@@ -117,9 +121,9 @@ fetch_att(const void *T, bool attbyval, int attlen)
  */
 #define att_align_pointer(cur_offset, attalign, attlen, attptr) \
 ( \
-	((attlen) == -1 && VARATT_NOT_PAD_BYTE(attptr)) ? \
-	(uintptr_t) (cur_offset) : \
-	att_align_nominal(cur_offset, attalign) \
+  ((attlen) == -1 && VARATT_NOT_PAD_BYTE(attptr)) ? \
+  (uintptr_t) (cur_offset) : \
+  att_align_nominal(cur_offset, attalign) \
 )
 
 /*
@@ -127,35 +131,35 @@ fetch_att(const void *T, bool attbyval, int attlen)
  * CompactAttribute.attalignby to align the pointer by.
  */
 #define att_pointer_alignby(cur_offset, attalignby, attlen, attptr) \
-	( \
-	((attlen) == -1 && VARATT_NOT_PAD_BYTE(attptr)) ? \
-	(uintptr_t) (cur_offset) : \
-	TYPEALIGN(attalignby, cur_offset))
+  ( \
+  ((attlen) == -1 && VARATT_NOT_PAD_BYTE(attptr)) ? \
+  (uintptr_t) (cur_offset) : \
+  TYPEALIGN(attalignby, cur_offset))
 
 /*
  * att_align_nominal aligns the given offset as needed for a datum of alignment
  * requirement attalign, ignoring any consideration of packed varlena datums.
  * There are three main use cases for using this macro directly:
- *	* we know that the att in question is not varlena (attlen != -1);
- *	  in this case it is cheaper than the above macros and just as good.
- *	* we need to estimate alignment padding cost abstractly, ie without
- *	  reference to a real tuple.  We must assume the worst case that
- *	  all varlenas are aligned.
- *	* within arrays and multiranges, we unconditionally align varlenas (XXX this
- *	  should be revisited, probably).
+ *  * we know that the att in question is not varlena (attlen != -1);
+ *    in this case it is cheaper than the above macros and just as good.
+ *  * we need to estimate alignment padding cost abstractly, ie without
+ *    reference to a real tuple.  We must assume the worst case that
+ *    all varlenas are aligned.
+ *  * within arrays and multiranges, we unconditionally align varlenas (XXX this
+ *    should be revisited, probably).
  *
  * The attalign cases are tested in what is hopefully something like their
  * frequency of occurrence.
  */
 #define att_align_nominal(cur_offset, attalign) \
 ( \
-	((attalign) == TYPALIGN_INT) ? INTALIGN(cur_offset) : \
-	 (((attalign) == TYPALIGN_CHAR) ? (uintptr_t) (cur_offset) : \
-	  (((attalign) == TYPALIGN_DOUBLE) ? DOUBLEALIGN(cur_offset) : \
-	   ( \
-			AssertMacro((attalign) == TYPALIGN_SHORT), \
-			SHORTALIGN(cur_offset) \
-	   ))) \
+  ((attalign) == TYPALIGN_INT) ? INTALIGN(cur_offset) : \
+   (((attalign) == TYPALIGN_CHAR) ? (uintptr_t) (cur_offset) : \
+    (((attalign) == TYPALIGN_DOUBLE) ? DOUBLEALIGN(cur_offset) : \
+     ( \
+      AssertMacro((attalign) == TYPALIGN_SHORT), \
+      SHORTALIGN(cur_offset) \
+     ))) \
 )
 
 /*
@@ -163,7 +167,7 @@ fetch_att(const void *T, bool attbyval, int attlen)
  * CompactAttribute.attalignby to align the offset by.
  */
 #define att_nominal_alignby(cur_offset, attalignby) \
-	TYPEALIGN(attalignby, cur_offset)
+  TYPEALIGN(attalignby, cur_offset)
 
 /*
  * att_addlength_datum increments the given offset by the space needed for
@@ -171,7 +175,7 @@ fetch_att(const void *T, bool attbyval, int attlen)
  * with a variable-length attribute.
  */
 #define att_addlength_datum(cur_offset, attlen, attdatum) \
-	att_addlength_pointer(cur_offset, attlen, DatumGetPointer(attdatum))
+  att_addlength_pointer(cur_offset, attlen, DatumGetPointer(attdatum))
 
 /*
  * att_addlength_pointer performs the same calculation as att_addlength_datum,
@@ -184,19 +188,19 @@ fetch_att(const void *T, bool attbyval, int attlen)
  */
 #define att_addlength_pointer(cur_offset, attlen, attptr) \
 ( \
-	((attlen) > 0) ? \
-	( \
-		(cur_offset) + (attlen) \
-	) \
-	: (((attlen) == -1) ? \
-	( \
-		(cur_offset) + VARSIZE_ANY(attptr) \
-	) \
-	: \
-	( \
-		AssertMacro((attlen) == -2), \
-		(cur_offset) + (strlen((char *) (attptr)) + 1) \
-	)) \
+  ((attlen) > 0) ? \
+  ( \
+    (cur_offset) + (attlen) \
+  ) \
+  : (((attlen) == -1) ? \
+  ( \
+    (cur_offset) + VARSIZE_ANY(attptr) \
+  ) \
+  : \
+  ( \
+    AssertMacro((attlen) == -2), \
+    (cur_offset) + (strlen((char *) (attptr)) + 1) \
+  )) \
 )
 
 #ifndef FRONTEND
@@ -210,26 +214,30 @@ fetch_att(const void *T, bool attbyval, int attlen)
 static inline void
 store_att_byval(void *T, Datum newdatum, int attlen)
 {
-	switch (attlen)
-	{
-		case sizeof(char):
-			*(char *) T = DatumGetChar(newdatum);
-			break;
-		case sizeof(int16):
-			*(int16 *) T = DatumGetInt16(newdatum);
-			break;
-		case sizeof(int32):
-			*(int32 *) T = DatumGetInt32(newdatum);
-			break;
-#if SIZEOF_DATUM == 8
-		case sizeof(Datum):
-			*(Datum *) T = newdatum;
-			break;
-#endif
-		default:
-			elog(ERROR, "unsupported byval length: %d", attlen);
-	}
-}
-#endif							/* FRONTEND */
+  switch (attlen)
+  {
+    case sizeof(char):
+      *(char *) T = DatumGetChar(newdatum);
+      break;
 
-#endif							/* TUPMACS_H */
+    case sizeof(int16):
+      *(int16 *) T = DatumGetInt16(newdatum);
+      break;
+
+    case sizeof(int32):
+      *(int32 *) T = DatumGetInt32(newdatum);
+      break;
+#if SIZEOF_DATUM == 8
+
+    case sizeof(Datum):
+      *(Datum *) T = newdatum;
+      break;
+#endif
+
+    default:
+      elog(ERROR, "unsupported byval length: %d", attlen);
+  }
+}
+#endif              /* FRONTEND */
+
+#endif              /* TUPMACS_H */

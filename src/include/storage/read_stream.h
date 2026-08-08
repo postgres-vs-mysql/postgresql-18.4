@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * read_stream.h
- *	  Mechanism for accessing buffered relation data with look-ahead
+ *    Mechanism for accessing buffered relation data with look-ahead
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -69,37 +69,37 @@ typedef struct ReadStream ReadStream;
 /* for block_range_read_stream_cb */
 typedef struct BlockRangeReadStreamPrivate
 {
-	BlockNumber current_blocknum;
-	BlockNumber last_exclusive;
+  BlockNumber current_blocknum;
+  BlockNumber last_exclusive;
 } BlockRangeReadStreamPrivate;
 
 /* Callback that returns the next block number to read. */
 typedef BlockNumber (*ReadStreamBlockNumberCB) (ReadStream *stream,
-												void *callback_private_data,
-												void *per_buffer_data);
+    void *callback_private_data,
+    void *per_buffer_data);
 
 extern BlockNumber block_range_read_stream_cb(ReadStream *stream,
-											  void *callback_private_data,
-											  void *per_buffer_data);
+    void *callback_private_data,
+    void *per_buffer_data);
 extern ReadStream *read_stream_begin_relation(int flags,
-											  BufferAccessStrategy strategy,
-											  Relation rel,
-											  ForkNumber forknum,
-											  ReadStreamBlockNumberCB callback,
-											  void *callback_private_data,
-											  size_t per_buffer_data_size);
+    BufferAccessStrategy strategy,
+    Relation rel,
+    ForkNumber forknum,
+    ReadStreamBlockNumberCB callback,
+    void *callback_private_data,
+    size_t per_buffer_data_size);
 extern Buffer read_stream_next_buffer(ReadStream *stream, void **per_buffer_data);
 extern BlockNumber read_stream_next_block(ReadStream *stream,
-										  BufferAccessStrategy *strategy);
+    BufferAccessStrategy *strategy);
 extern ReadStream *read_stream_begin_smgr_relation(int flags,
-												   BufferAccessStrategy strategy,
-												   SMgrRelation smgr,
-												   char smgr_persistence,
-												   ForkNumber forknum,
-												   ReadStreamBlockNumberCB callback,
-												   void *callback_private_data,
-												   size_t per_buffer_data_size);
+    BufferAccessStrategy strategy,
+    SMgrRelation smgr,
+    char smgr_persistence,
+    ForkNumber forknum,
+    ReadStreamBlockNumberCB callback,
+    void *callback_private_data,
+    size_t per_buffer_data_size);
 extern void read_stream_reset(ReadStream *stream);
 extern void read_stream_end(ReadStream *stream);
 
-#endif							/* READ_STREAM_H */
+#endif              /* READ_STREAM_H */

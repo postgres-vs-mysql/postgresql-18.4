@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * name.c
- *	  Functions for the built-in type "name".
+ *    Functions for the built-in type "name".
  *
  * name replaces char16 and is carefully implemented so that it
  * is a string of physical length NAMEDATALEN.
@@ -14,7 +14,7 @@
  *
  *
  * IDENTIFICATION
- *	  src/backend/utils/adt/name.c
+ *    src/backend/utils/adt/name.c
  *
  *-------------------------------------------------------------------------
  */
@@ -33,98 +33,100 @@
 
 
 /*****************************************************************************
- *	 USER I/O ROUTINES (none)												 *
+ *   USER I/O ROUTINES (none)                        *
  *****************************************************************************/
 
 
 /*
- *		namein	- converts cstring to internal representation
+ *    namein  - converts cstring to internal representation
  *
- *		Note:
- *				[Old] Currently if strlen(s) < NAMEDATALEN, the extra chars are nulls
- *				Now, always NULL terminated
+ *    Note:
+ *        [Old] Currently if strlen(s) < NAMEDATALEN, the extra chars are nulls
+ *        Now, always NULL terminated
  */
 Datum
 namein(PG_FUNCTION_ARGS)
 {
-	char	   *s = PG_GETARG_CSTRING(0);
-	Name		result;
-	int			len;
+  char     *s = PG_GETARG_CSTRING(0);
+  Name    result;
+  int     len;
 
-	len = strlen(s);
+  len = strlen(s);
 
-	/* Truncate oversize input */
-	if (len >= NAMEDATALEN)
-		len = pg_mbcliplen(s, len, NAMEDATALEN - 1);
+  /* Truncate oversize input */
+  if (len >= NAMEDATALEN)
+    len = pg_mbcliplen(s, len, NAMEDATALEN - 1);
 
-	/* We use palloc0 here to ensure result is zero-padded */
-	result = (Name) palloc0(NAMEDATALEN);
-	memcpy(NameStr(*result), s, len);
+  /* We use palloc0 here to ensure result is zero-padded */
+  result = (Name) palloc0(NAMEDATALEN);
+  memcpy(NameStr(*result), s, len);
 
-	PG_RETURN_NAME(result);
+  PG_RETURN_NAME(result);
 }
 
 /*
- *		nameout - converts internal representation to cstring
+ *    nameout - converts internal representation to cstring
  */
 Datum
 nameout(PG_FUNCTION_ARGS)
 {
-	Name		s = PG_GETARG_NAME(0);
+  Name    s = PG_GETARG_NAME(0);
 
-	PG_RETURN_CSTRING(pstrdup(NameStr(*s)));
+  PG_RETURN_CSTRING(pstrdup(NameStr(*s)));
 }
 
 /*
- *		namerecv			- converts external binary format to name
+ *    namerecv      - converts external binary format to name
  */
 Datum
 namerecv(PG_FUNCTION_ARGS)
 {
-	StringInfo	buf = (StringInfo) PG_GETARG_POINTER(0);
-	Name		result;
-	char	   *str;
-	int			nbytes;
+  StringInfo  buf = (StringInfo) PG_GETARG_POINTER(0);
+  Name    result;
+  char     *str;
+  int     nbytes;
 
-	str = pq_getmsgtext(buf, buf->len - buf->cursor, &nbytes);
-	if (nbytes >= NAMEDATALEN)
-		ereport(ERROR,
-				(errcode(ERRCODE_NAME_TOO_LONG),
-				 errmsg("identifier too long"),
-				 errdetail("Identifier must be less than %d characters.",
-						   NAMEDATALEN)));
-	result = (NameData *) palloc0(NAMEDATALEN);
-	memcpy(result, str, nbytes);
-	pfree(str);
-	PG_RETURN_NAME(result);
+  str = pq_getmsgtext(buf, buf->len - buf->cursor, &nbytes);
+
+  if (nbytes >= NAMEDATALEN)
+    ereport(ERROR,
+            (errcode(ERRCODE_NAME_TOO_LONG),
+             errmsg("identifier too long"),
+             errdetail("Identifier must be less than %d characters.",
+                       NAMEDATALEN)));
+
+  result = (NameData *) palloc0(NAMEDATALEN);
+  memcpy(result, str, nbytes);
+  pfree(str);
+  PG_RETURN_NAME(result);
 }
 
 /*
- *		namesend			- converts name to binary format
+ *    namesend      - converts name to binary format
  */
 Datum
 namesend(PG_FUNCTION_ARGS)
 {
-	Name		s = PG_GETARG_NAME(0);
-	StringInfoData buf;
+  Name    s = PG_GETARG_NAME(0);
+  StringInfoData buf;
 
-	pq_begintypsend(&buf);
-	pq_sendtext(&buf, NameStr(*s), strlen(NameStr(*s)));
-	PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
+  pq_begintypsend(&buf);
+  pq_sendtext(&buf, NameStr(*s), strlen(NameStr(*s)));
+  PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
 
 /*****************************************************************************
- *	 COMPARISON/SORTING ROUTINES											 *
+ *   COMPARISON/SORTING ROUTINES                       *
  *****************************************************************************/
 
 /*
- *		nameeq	- returns 1 iff arguments are equal
- *		namene	- returns 1 iff arguments are not equal
- *		namelt	- returns 1 iff a < b
- *		namele	- returns 1 iff a <= b
- *		namegt	- returns 1 iff a > b
- *		namege	- returns 1 iff a >= b
+ *    nameeq  - returns 1 iff arguments are equal
+ *    namene  - returns 1 iff arguments are not equal
+ *    namelt  - returns 1 iff a < b
+ *    namele  - returns 1 iff a <= b
+ *    namegt  - returns 1 iff a > b
+ *    namege  - returns 1 iff a >= b
  *
  * Note that the use of strncmp with NAMEDATALEN limit is mostly historical;
  * strcmp would do as well, because we do not allow NAME values that don't
@@ -134,107 +136,107 @@ namesend(PG_FUNCTION_ARGS)
 static int
 namecmp(Name arg1, Name arg2, Oid collid)
 {
-	/* Fast path for common case used in system catalogs */
-	if (collid == C_COLLATION_OID)
-		return strncmp(NameStr(*arg1), NameStr(*arg2), NAMEDATALEN);
+  /* Fast path for common case used in system catalogs */
+  if (collid == C_COLLATION_OID)
+    return strncmp(NameStr(*arg1), NameStr(*arg2), NAMEDATALEN);
 
-	/* Else rely on the varstr infrastructure */
-	return varstr_cmp(NameStr(*arg1), strlen(NameStr(*arg1)),
-					  NameStr(*arg2), strlen(NameStr(*arg2)),
-					  collid);
+  /* Else rely on the varstr infrastructure */
+  return varstr_cmp(NameStr(*arg1), strlen(NameStr(*arg1)),
+                    NameStr(*arg2), strlen(NameStr(*arg2)),
+                    collid);
 }
 
 Datum
 nameeq(PG_FUNCTION_ARGS)
 {
-	Name		arg1 = PG_GETARG_NAME(0);
-	Name		arg2 = PG_GETARG_NAME(1);
+  Name    arg1 = PG_GETARG_NAME(0);
+  Name    arg2 = PG_GETARG_NAME(1);
 
-	PG_RETURN_BOOL(namecmp(arg1, arg2, PG_GET_COLLATION()) == 0);
+  PG_RETURN_BOOL(namecmp(arg1, arg2, PG_GET_COLLATION()) == 0);
 }
 
 Datum
 namene(PG_FUNCTION_ARGS)
 {
-	Name		arg1 = PG_GETARG_NAME(0);
-	Name		arg2 = PG_GETARG_NAME(1);
+  Name    arg1 = PG_GETARG_NAME(0);
+  Name    arg2 = PG_GETARG_NAME(1);
 
-	PG_RETURN_BOOL(namecmp(arg1, arg2, PG_GET_COLLATION()) != 0);
+  PG_RETURN_BOOL(namecmp(arg1, arg2, PG_GET_COLLATION()) != 0);
 }
 
 Datum
 namelt(PG_FUNCTION_ARGS)
 {
-	Name		arg1 = PG_GETARG_NAME(0);
-	Name		arg2 = PG_GETARG_NAME(1);
+  Name    arg1 = PG_GETARG_NAME(0);
+  Name    arg2 = PG_GETARG_NAME(1);
 
-	PG_RETURN_BOOL(namecmp(arg1, arg2, PG_GET_COLLATION()) < 0);
+  PG_RETURN_BOOL(namecmp(arg1, arg2, PG_GET_COLLATION()) < 0);
 }
 
 Datum
 namele(PG_FUNCTION_ARGS)
 {
-	Name		arg1 = PG_GETARG_NAME(0);
-	Name		arg2 = PG_GETARG_NAME(1);
+  Name    arg1 = PG_GETARG_NAME(0);
+  Name    arg2 = PG_GETARG_NAME(1);
 
-	PG_RETURN_BOOL(namecmp(arg1, arg2, PG_GET_COLLATION()) <= 0);
+  PG_RETURN_BOOL(namecmp(arg1, arg2, PG_GET_COLLATION()) <= 0);
 }
 
 Datum
 namegt(PG_FUNCTION_ARGS)
 {
-	Name		arg1 = PG_GETARG_NAME(0);
-	Name		arg2 = PG_GETARG_NAME(1);
+  Name    arg1 = PG_GETARG_NAME(0);
+  Name    arg2 = PG_GETARG_NAME(1);
 
-	PG_RETURN_BOOL(namecmp(arg1, arg2, PG_GET_COLLATION()) > 0);
+  PG_RETURN_BOOL(namecmp(arg1, arg2, PG_GET_COLLATION()) > 0);
 }
 
 Datum
 namege(PG_FUNCTION_ARGS)
 {
-	Name		arg1 = PG_GETARG_NAME(0);
-	Name		arg2 = PG_GETARG_NAME(1);
+  Name    arg1 = PG_GETARG_NAME(0);
+  Name    arg2 = PG_GETARG_NAME(1);
 
-	PG_RETURN_BOOL(namecmp(arg1, arg2, PG_GET_COLLATION()) >= 0);
+  PG_RETURN_BOOL(namecmp(arg1, arg2, PG_GET_COLLATION()) >= 0);
 }
 
 Datum
 btnamecmp(PG_FUNCTION_ARGS)
 {
-	Name		arg1 = PG_GETARG_NAME(0);
-	Name		arg2 = PG_GETARG_NAME(1);
+  Name    arg1 = PG_GETARG_NAME(0);
+  Name    arg2 = PG_GETARG_NAME(1);
 
-	PG_RETURN_INT32(namecmp(arg1, arg2, PG_GET_COLLATION()));
+  PG_RETURN_INT32(namecmp(arg1, arg2, PG_GET_COLLATION()));
 }
 
 Datum
 btnamesortsupport(PG_FUNCTION_ARGS)
 {
-	SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
-	Oid			collid = ssup->ssup_collation;
-	MemoryContext oldcontext;
+  SortSupport ssup = (SortSupport) PG_GETARG_POINTER(0);
+  Oid     collid = ssup->ssup_collation;
+  MemoryContext oldcontext;
 
-	oldcontext = MemoryContextSwitchTo(ssup->ssup_cxt);
+  oldcontext = MemoryContextSwitchTo(ssup->ssup_cxt);
 
-	/* Use generic string SortSupport */
-	varstr_sortsupport(ssup, NAMEOID, collid);
+  /* Use generic string SortSupport */
+  varstr_sortsupport(ssup, NAMEOID, collid);
 
-	MemoryContextSwitchTo(oldcontext);
+  MemoryContextSwitchTo(oldcontext);
 
-	PG_RETURN_VOID();
+  PG_RETURN_VOID();
 }
 
 
 /*****************************************************************************
- *	 MISCELLANEOUS PUBLIC ROUTINES											 *
+ *   MISCELLANEOUS PUBLIC ROUTINES                       *
  *****************************************************************************/
 
 void
 namestrcpy(Name name, const char *str)
 {
-	/* NB: We need to zero-pad the destination. */
-	strncpy(NameStr(*name), str, NAMEDATALEN);
-	NameStr(*name)[NAMEDATALEN - 1] = '\0';
+  /* NB: We need to zero-pad the destination. */
+  strncpy(NameStr(*name), str, NAMEDATALEN);
+  NameStr(*name)[NAMEDATALEN - 1] = '\0';
 }
 
 /*
@@ -246,13 +248,16 @@ namestrcpy(Name name, const char *str)
 int
 namestrcmp(Name name, const char *str)
 {
-	if (!name && !str)
-		return 0;
-	if (!name)
-		return -1;				/* NULL < anything */
-	if (!str)
-		return 1;				/* NULL < anything */
-	return strncmp(NameStr(*name), str, NAMEDATALEN);
+  if (!name && !str)
+    return 0;
+
+  if (!name)
+    return -1;        /* NULL < anything */
+
+  if (!str)
+    return 1;       /* NULL < anything */
+
+  return strncmp(NameStr(*name), str, NAMEDATALEN);
 }
 
 
@@ -262,13 +267,13 @@ namestrcmp(Name name, const char *str)
 Datum
 current_user(PG_FUNCTION_ARGS)
 {
-	PG_RETURN_DATUM(DirectFunctionCall1(namein, CStringGetDatum(GetUserNameFromId(GetUserId(), false))));
+  PG_RETURN_DATUM(DirectFunctionCall1(namein, CStringGetDatum(GetUserNameFromId(GetUserId(), false))));
 }
 
 Datum
 session_user(PG_FUNCTION_ARGS)
 {
-	PG_RETURN_DATUM(DirectFunctionCall1(namein, CStringGetDatum(GetUserNameFromId(GetSessionUserId(), false))));
+  PG_RETURN_DATUM(DirectFunctionCall1(namein, CStringGetDatum(GetUserNameFromId(GetSessionUserId(), false))));
 }
 
 
@@ -278,45 +283,49 @@ session_user(PG_FUNCTION_ARGS)
 Datum
 current_schema(PG_FUNCTION_ARGS)
 {
-	List	   *search_path = fetch_search_path(false);
-	char	   *nspname;
+  List     *search_path = fetch_search_path(false);
+  char     *nspname;
 
-	if (search_path == NIL)
-		PG_RETURN_NULL();
-	nspname = get_namespace_name(linitial_oid(search_path));
-	list_free(search_path);
-	if (!nspname)
-		PG_RETURN_NULL();		/* recently-deleted namespace? */
-	PG_RETURN_DATUM(DirectFunctionCall1(namein, CStringGetDatum(nspname)));
+  if (search_path == NIL)
+    PG_RETURN_NULL();
+
+  nspname = get_namespace_name(linitial_oid(search_path));
+  list_free(search_path);
+
+  if (!nspname)
+    PG_RETURN_NULL();   /* recently-deleted namespace? */
+
+  PG_RETURN_DATUM(DirectFunctionCall1(namein, CStringGetDatum(nspname)));
 }
 
 Datum
 current_schemas(PG_FUNCTION_ARGS)
 {
-	List	   *search_path = fetch_search_path(PG_GETARG_BOOL(0));
-	ListCell   *l;
-	Datum	   *names;
-	int			i;
-	ArrayType  *array;
+  List     *search_path = fetch_search_path(PG_GETARG_BOOL(0));
+  ListCell   *l;
+  Datum    *names;
+  int     i;
+  ArrayType  *array;
 
-	names = (Datum *) palloc(list_length(search_path) * sizeof(Datum));
-	i = 0;
-	foreach(l, search_path)
-	{
-		char	   *nspname;
+  names = (Datum *) palloc(list_length(search_path) * sizeof(Datum));
+  i = 0;
 
-		nspname = get_namespace_name(lfirst_oid(l));
-		if (nspname)			/* watch out for deleted namespace */
-		{
-			names[i] = DirectFunctionCall1(namein, CStringGetDatum(nspname));
-			i++;
-		}
-	}
-	list_free(search_path);
+  foreach(l, search_path) {
+    char     *nspname;
 
-	array = construct_array_builtin(names, i, NAMEOID);
+    nspname = get_namespace_name(lfirst_oid(l));
 
-	PG_RETURN_POINTER(array);
+    if (nspname) {    /* watch out for deleted namespace */
+      names[i] = DirectFunctionCall1(namein, CStringGetDatum(nspname));
+      i++;
+    }
+  }
+
+  list_free(search_path);
+
+  array = construct_array_builtin(names, i, NAMEOID);
+
+  PG_RETURN_POINTER(array);
 }
 
 /*
@@ -325,31 +334,31 @@ current_schemas(PG_FUNCTION_ARGS)
  * This is used in the information_schema to produce specific_name columns,
  * which are supposed to be unique per schema.  We achieve that (in an ugly
  * way) by appending the object's OID.  The result is the same as
- *		($1::text || '_' || $2::text)::name
+ *    ($1::text || '_' || $2::text)::name
  * except that, if it would not fit in NAMEDATALEN, we make it do so by
  * truncating the name input (not the oid).
  */
 Datum
 nameconcatoid(PG_FUNCTION_ARGS)
 {
-	Name		nam = PG_GETARG_NAME(0);
-	Oid			oid = PG_GETARG_OID(1);
-	Name		result;
-	char		suffix[20];
-	int			suflen;
-	int			namlen;
+  Name    nam = PG_GETARG_NAME(0);
+  Oid     oid = PG_GETARG_OID(1);
+  Name    result;
+  char    suffix[20];
+  int     suflen;
+  int     namlen;
 
-	suflen = snprintf(suffix, sizeof(suffix), "_%u", oid);
-	namlen = strlen(NameStr(*nam));
+  suflen = snprintf(suffix, sizeof(suffix), "_%u", oid);
+  namlen = strlen(NameStr(*nam));
 
-	/* Truncate oversize input by truncating name part, not suffix */
-	if (namlen + suflen >= NAMEDATALEN)
-		namlen = pg_mbcliplen(NameStr(*nam), namlen, NAMEDATALEN - 1 - suflen);
+  /* Truncate oversize input by truncating name part, not suffix */
+  if (namlen + suflen >= NAMEDATALEN)
+    namlen = pg_mbcliplen(NameStr(*nam), namlen, NAMEDATALEN - 1 - suflen);
 
-	/* We use palloc0 here to ensure result is zero-padded */
-	result = (Name) palloc0(NAMEDATALEN);
-	memcpy(NameStr(*result), NameStr(*nam), namlen);
-	memcpy(NameStr(*result) + namlen, suffix, suflen);
+  /* We use palloc0 here to ensure result is zero-padded */
+  result = (Name) palloc0(NAMEDATALEN);
+  memcpy(NameStr(*result), NameStr(*nam), namlen);
+  memcpy(NameStr(*result) + namlen, suffix, suflen);
 
-	PG_RETURN_NAME(result);
+  PG_RETURN_NAME(result);
 }

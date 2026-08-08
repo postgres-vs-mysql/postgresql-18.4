@@ -42,4 +42,4 @@
 #undef TEXTDOMAIN
 #define TEXTDOMAIN PG_TEXTDOMAIN("plpython")
 
-#endif							/* PLPYTHON_H */
+#endif              /* PLPYTHON_H */

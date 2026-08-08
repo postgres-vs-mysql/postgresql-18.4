@@ -14,4 +14,4 @@ extern void PGTYPESchar_free(char *ptr);
 }
 #endif
 
-#endif							/* PGTYPES_H */
+#endif              /* PGTYPES_H */

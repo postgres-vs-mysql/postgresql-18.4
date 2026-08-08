@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * autovacuum.h
- *	  header file for integrated autovacuum daemon
+ *    header file for integrated autovacuum daemon
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -22,7 +22,7 @@
  */
 typedef enum
 {
-	AVW_BRINSummarizeRange,
+  AVW_BRINSummarizeRange,
 } AutoVacuumWorkItemType;
 
 
@@ -62,10 +62,10 @@ pg_noreturn extern void AutoVacLauncherMain(const void *startup_data, size_t sta
 pg_noreturn extern void AutoVacWorkerMain(const void *startup_data, size_t startup_data_len);
 
 extern bool AutoVacuumRequestWork(AutoVacuumWorkItemType type,
-								  Oid relationId, BlockNumber blkno);
+                                  Oid relationId, BlockNumber blkno);
 
 /* shared memory stuff */
 extern Size AutoVacuumShmemSize(void);
 extern void AutoVacuumShmemInit(void);
 
-#endif							/* AUTOVACUUM_H */
+#endif              /* AUTOVACUUM_H */

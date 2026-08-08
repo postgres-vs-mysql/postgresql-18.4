@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * spginsert.c
- *	  Externally visible index creation/insertion routines
+ *    Externally visible index creation/insertion routines
  *
  * All the actual insertion logic is in spgdoinsert.c.
  *
@@ -9,7 +9,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *			src/backend/access/spgist/spginsert.c
+ *      src/backend/access/spgist/spginsert.c
  *
  *-------------------------------------------------------------------------
  */
@@ -28,42 +28,40 @@
 #include "utils/rel.h"
 
 
-typedef struct
-{
-	SpGistState spgstate;		/* SPGiST's working state */
-	int64		indtuples;		/* total number of tuples indexed */
-	MemoryContext tmpCtx;		/* per-tuple temporary context */
+typedef struct {
+  SpGistState spgstate;   /* SPGiST's working state */
+  int64   indtuples;    /* total number of tuples indexed */
+  MemoryContext tmpCtx;   /* per-tuple temporary context */
 } SpGistBuildState;
 
 
 /* Callback to process one heap tuple during table_index_build_scan */
 static void
 spgistBuildCallback(Relation index, ItemPointer tid, Datum *values,
-					bool *isnull, bool tupleIsAlive, void *state)
+                    bool *isnull, bool tupleIsAlive, void *state)
 {
-	SpGistBuildState *buildstate = (SpGistBuildState *) state;
-	MemoryContext oldCtx;
+  SpGistBuildState *buildstate = (SpGistBuildState *) state;
+  MemoryContext oldCtx;
 
-	/* Work in temp context, and reset it after each tuple */
-	oldCtx = MemoryContextSwitchTo(buildstate->tmpCtx);
+  /* Work in temp context, and reset it after each tuple */
+  oldCtx = MemoryContextSwitchTo(buildstate->tmpCtx);
 
-	/*
-	 * Even though no concurrent insertions can be happening, we still might
-	 * get a buffer-locking failure due to bgwriter or checkpointer taking a
-	 * lock on some buffer.  So we need to be willing to retry.  We can flush
-	 * any temp data when retrying.
-	 */
-	while (!spgdoinsert(index, &buildstate->spgstate, tid,
-						values, isnull))
-	{
-		MemoryContextReset(buildstate->tmpCtx);
-	}
+  /*
+   * Even though no concurrent insertions can be happening, we still might
+   * get a buffer-locking failure due to bgwriter or checkpointer taking a
+   * lock on some buffer.  So we need to be willing to retry.  We can flush
+   * any temp data when retrying.
+   */
+  while (!spgdoinsert(index, &buildstate->spgstate, tid,
+                      values, isnull)) {
+    MemoryContextReset(buildstate->tmpCtx);
+  }
 
-	/* Update total tuple count */
-	buildstate->indtuples += 1;
+  /* Update total tuple count */
+  buildstate->indtuples += 1;
 
-	MemoryContextSwitchTo(oldCtx);
-	MemoryContextReset(buildstate->tmpCtx);
+  MemoryContextSwitchTo(oldCtx);
+  MemoryContextReset(buildstate->tmpCtx);
 }
 
 /*
@@ -72,79 +70,78 @@ spgistBuildCallback(Relation index, ItemPointer tid, Datum *values,
 IndexBuildResult *
 spgbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 {
-	IndexBuildResult *result;
-	double		reltuples;
-	SpGistBuildState buildstate;
-	Buffer		metabuffer,
-				rootbuffer,
-				nullbuffer;
+  IndexBuildResult *result;
+  double    reltuples;
+  SpGistBuildState buildstate;
+  Buffer    metabuffer,
+            rootbuffer,
+            nullbuffer;
 
-	if (RelationGetNumberOfBlocks(index) != 0)
-		elog(ERROR, "index \"%s\" already contains data",
-			 RelationGetRelationName(index));
+  if (RelationGetNumberOfBlocks(index) != 0)
+    elog(ERROR, "index \"%s\" already contains data",
+         RelationGetRelationName(index));
 
-	/*
-	 * Initialize the meta page and root pages
-	 */
-	metabuffer = SpGistNewBuffer(index);
-	rootbuffer = SpGistNewBuffer(index);
-	nullbuffer = SpGistNewBuffer(index);
+  /*
+   * Initialize the meta page and root pages
+   */
+  metabuffer = SpGistNewBuffer(index);
+  rootbuffer = SpGistNewBuffer(index);
+  nullbuffer = SpGistNewBuffer(index);
 
-	Assert(BufferGetBlockNumber(metabuffer) == SPGIST_METAPAGE_BLKNO);
-	Assert(BufferGetBlockNumber(rootbuffer) == SPGIST_ROOT_BLKNO);
-	Assert(BufferGetBlockNumber(nullbuffer) == SPGIST_NULL_BLKNO);
+  Assert(BufferGetBlockNumber(metabuffer) == SPGIST_METAPAGE_BLKNO);
+  Assert(BufferGetBlockNumber(rootbuffer) == SPGIST_ROOT_BLKNO);
+  Assert(BufferGetBlockNumber(nullbuffer) == SPGIST_NULL_BLKNO);
 
-	START_CRIT_SECTION();
+  START_CRIT_SECTION();
 
-	SpGistInitMetapage(BufferGetPage(metabuffer));
-	MarkBufferDirty(metabuffer);
-	SpGistInitBuffer(rootbuffer, SPGIST_LEAF);
-	MarkBufferDirty(rootbuffer);
-	SpGistInitBuffer(nullbuffer, SPGIST_LEAF | SPGIST_NULLS);
-	MarkBufferDirty(nullbuffer);
+  SpGistInitMetapage(BufferGetPage(metabuffer));
+  MarkBufferDirty(metabuffer);
+  SpGistInitBuffer(rootbuffer, SPGIST_LEAF);
+  MarkBufferDirty(rootbuffer);
+  SpGistInitBuffer(nullbuffer, SPGIST_LEAF | SPGIST_NULLS);
+  MarkBufferDirty(nullbuffer);
 
 
-	END_CRIT_SECTION();
+  END_CRIT_SECTION();
 
-	UnlockReleaseBuffer(metabuffer);
-	UnlockReleaseBuffer(rootbuffer);
-	UnlockReleaseBuffer(nullbuffer);
+  UnlockReleaseBuffer(metabuffer);
+  UnlockReleaseBuffer(rootbuffer);
+  UnlockReleaseBuffer(nullbuffer);
 
-	/*
-	 * Now insert all the heap data into the index
-	 */
-	initSpGistState(&buildstate.spgstate, index);
-	buildstate.spgstate.isBuild = true;
-	buildstate.indtuples = 0;
+  /*
+   * Now insert all the heap data into the index
+   */
+  initSpGistState(&buildstate.spgstate, index);
+  buildstate.spgstate.isBuild = true;
+  buildstate.indtuples = 0;
 
-	buildstate.tmpCtx = AllocSetContextCreate(CurrentMemoryContext,
-											  "SP-GiST build temporary context",
-											  ALLOCSET_DEFAULT_SIZES);
+  buildstate.tmpCtx = AllocSetContextCreate(CurrentMemoryContext,
+                      "SP-GiST build temporary context",
+                      ALLOCSET_DEFAULT_SIZES);
 
-	reltuples = table_index_build_scan(heap, index, indexInfo, true, true,
-									   spgistBuildCallback, &buildstate,
-									   NULL);
+  reltuples = table_index_build_scan(heap, index, indexInfo, true, true,
+                                     spgistBuildCallback, &buildstate,
+                                     NULL);
 
-	MemoryContextDelete(buildstate.tmpCtx);
+  MemoryContextDelete(buildstate.tmpCtx);
 
-	SpGistUpdateMetaPage(index);
+  SpGistUpdateMetaPage(index);
 
-	/*
-	 * We didn't write WAL records as we built the index, so if WAL-logging is
-	 * required, write all pages to the WAL now.
-	 */
-	if (RelationNeedsWAL(index))
-	{
-		log_newpage_range(index, MAIN_FORKNUM,
-						  0, RelationGetNumberOfBlocks(index),
-						  true);
-	}
+  /*
+   * We didn't write WAL records as we built the index, so if WAL-logging is
+   * required, write all pages to the WAL now.
+   */
+  if (RelationNeedsWAL(index)) {
+    log_newpage_range(index, MAIN_FORKNUM,
+                      0, RelationGetNumberOfBlocks(index),
+                      true);
+  }
 
-	result = (IndexBuildResult *) palloc0(sizeof(IndexBuildResult));
-	result->heap_tuples = reltuples;
-	result->index_tuples = buildstate.indtuples;
+  result = (IndexBuildResult *) palloc0(sizeof(IndexBuildResult));
+  result->heap_tuples = reltuples;
+  result->index_tuples = buildstate.indtuples;
 
-	return result;
+  return result;
 }
 
 /*
@@ -153,27 +150,27 @@ spgbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 void
 spgbuildempty(Relation index)
 {
-	BulkWriteState *bulkstate;
-	BulkWriteBuffer buf;
+  BulkWriteState *bulkstate;
+  BulkWriteBuffer buf;
 
-	bulkstate = smgr_bulk_start_rel(index, INIT_FORKNUM);
+  bulkstate = smgr_bulk_start_rel(index, INIT_FORKNUM);
 
-	/* Construct metapage. */
-	buf = smgr_bulk_get_buf(bulkstate);
-	SpGistInitMetapage((Page) buf);
-	smgr_bulk_write(bulkstate, SPGIST_METAPAGE_BLKNO, buf, true);
+  /* Construct metapage. */
+  buf = smgr_bulk_get_buf(bulkstate);
+  SpGistInitMetapage((Page) buf);
+  smgr_bulk_write(bulkstate, SPGIST_METAPAGE_BLKNO, buf, true);
 
-	/* Likewise for the root page. */
-	buf = smgr_bulk_get_buf(bulkstate);
-	SpGistInitPage((Page) buf, SPGIST_LEAF);
-	smgr_bulk_write(bulkstate, SPGIST_ROOT_BLKNO, buf, true);
+  /* Likewise for the root page. */
+  buf = smgr_bulk_get_buf(bulkstate);
+  SpGistInitPage((Page) buf, SPGIST_LEAF);
+  smgr_bulk_write(bulkstate, SPGIST_ROOT_BLKNO, buf, true);
 
-	/* Likewise for the null-tuples root page. */
-	buf = smgr_bulk_get_buf(bulkstate);
-	SpGistInitPage((Page) buf, SPGIST_LEAF | SPGIST_NULLS);
-	smgr_bulk_write(bulkstate, SPGIST_NULL_BLKNO, buf, true);
+  /* Likewise for the null-tuples root page. */
+  buf = smgr_bulk_get_buf(bulkstate);
+  SpGistInitPage((Page) buf, SPGIST_LEAF | SPGIST_NULLS);
+  smgr_bulk_write(bulkstate, SPGIST_NULL_BLKNO, buf, true);
 
-	smgr_bulk_finish(bulkstate);
+  smgr_bulk_finish(bulkstate);
 }
 
 /*
@@ -181,39 +178,38 @@ spgbuildempty(Relation index)
  */
 bool
 spginsert(Relation index, Datum *values, bool *isnull,
-		  ItemPointer ht_ctid, Relation heapRel,
-		  IndexUniqueCheck checkUnique,
-		  bool indexUnchanged,
-		  IndexInfo *indexInfo)
+          ItemPointer ht_ctid, Relation heapRel,
+          IndexUniqueCheck checkUnique,
+          bool indexUnchanged,
+          IndexInfo *indexInfo)
 {
-	SpGistState spgstate;
-	MemoryContext oldCtx;
-	MemoryContext insertCtx;
+  SpGistState spgstate;
+  MemoryContext oldCtx;
+  MemoryContext insertCtx;
 
-	insertCtx = AllocSetContextCreate(CurrentMemoryContext,
-									  "SP-GiST insert temporary context",
-									  ALLOCSET_DEFAULT_SIZES);
-	oldCtx = MemoryContextSwitchTo(insertCtx);
+  insertCtx = AllocSetContextCreate(CurrentMemoryContext,
+                                    "SP-GiST insert temporary context",
+                                    ALLOCSET_DEFAULT_SIZES);
+  oldCtx = MemoryContextSwitchTo(insertCtx);
 
-	initSpGistState(&spgstate, index);
+  initSpGistState(&spgstate, index);
 
-	/*
-	 * We might have to repeat spgdoinsert() multiple times, if conflicts
-	 * occur with concurrent insertions.  If so, reset the insertCtx each time
-	 * to avoid cumulative memory consumption.  That means we also have to
-	 * redo initSpGistState(), but it's cheap enough not to matter.
-	 */
-	while (!spgdoinsert(index, &spgstate, ht_ctid, values, isnull))
-	{
-		MemoryContextReset(insertCtx);
-		initSpGistState(&spgstate, index);
-	}
+  /*
+   * We might have to repeat spgdoinsert() multiple times, if conflicts
+   * occur with concurrent insertions.  If so, reset the insertCtx each time
+   * to avoid cumulative memory consumption.  That means we also have to
+   * redo initSpGistState(), but it's cheap enough not to matter.
+   */
+  while (!spgdoinsert(index, &spgstate, ht_ctid, values, isnull)) {
+    MemoryContextReset(insertCtx);
+    initSpGistState(&spgstate, index);
+  }
 
-	SpGistUpdateMetaPage(index);
+  SpGistUpdateMetaPage(index);
 
-	MemoryContextSwitchTo(oldCtx);
-	MemoryContextDelete(insertCtx);
+  MemoryContextSwitchTo(oldCtx);
+  MemoryContextDelete(insertCtx);
 
-	/* return false since we've not done any unique check */
-	return false;
+  /* return false since we've not done any unique check */
+  return false;
 }

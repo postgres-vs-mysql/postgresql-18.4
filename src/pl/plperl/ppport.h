@@ -1,5 +1,5 @@
 #if 0
-my $void = <<'SKIP';
+my $void = << 'SKIP';
 #endif
 /*
 ----------------------------------------------------------------------
@@ -11207,13 +11207,13 @@ __DATA__
 #if D_PPP_MAJOR < 5 || D_PPP_MAJOR == 6
 #  error Devel::PPPort works only on Perl 5, Perl 7, ...
 #elif D_PPP_MAJOR != 5
-    /* Perl 7 and above: the old forms are deprecated, set up so that they
-     * assume Perl 5, and will make this look like 5.201.201.
-     *
-     * 201 is used so will be well above anything that would come from a 5
-     * series if we unexpectedly have to continue it, but still gives plenty of
-     * room, up to 255, of numbers that will fit into a byte in case there is
-     * something else unforeseen */
+/* Perl 7 and above: the old forms are deprecated, set up so that they
+ * assume Perl 5, and will make this look like 5.201.201.
+ *
+ * 201 is used so will be well above anything that would come from a 5
+ * series if we unexpectedly have to continue it, but still gives plenty of
+ * room, up to 255, of numbers that will fit into a byte in case there is
+ * something else unforeseen */
 #  undef  PERL_REVISION
 #  undef  PERL_VERSION
 #  undef  PERL_SUBVERSION
@@ -11906,32 +11906,33 @@ extern CV * DPPP_(my_newCONSTSUB)(HV * stash, const char * name, SV * sv);
 CV *
 DPPP_(my_newCONSTSUB)(HV *stash, const char *name, SV *sv)
 {
-        CV *cv;
-        U32 oldhints = PL_hints;
-        HV *old_cop_stash = PL_curcop->cop_stash;
-        HV *old_curstash = PL_curstash;
-        line_t oldline = PL_curcop->cop_line;
-        PL_curcop->cop_line = D_PPP_PL_copline;
+  CV *cv;
+  U32 oldhints = PL_hints;
+  HV *old_cop_stash = PL_curcop->cop_stash;
+  HV *old_curstash = PL_curstash;
+  line_t oldline = PL_curcop->cop_line;
+  PL_curcop->cop_line = D_PPP_PL_copline;
 
-        PL_hints &= ~HINT_BLOCK_SCOPE;
-        if (stash)
-                PL_curstash = PL_curcop->cop_stash = stash;
+  PL_hints &= ~HINT_BLOCK_SCOPE;
 
-        cv = newSUB(
+  if (stash)
+    PL_curstash = PL_curcop->cop_stash = stash;
 
-                start_subparse(FALSE, 0),
+  cv = newSUB(
 
-                newSVOP(OP_CONST, 0, newSVpv((char *) name, 0)),
-                newSVOP(OP_CONST, 0, &PL_sv_no),   /* SvPV(&PL_sv_no) == "" -- GMB */
-                newSTATEOP(0, Nullch, newSVOP(OP_CONST, 0, sv))
-        );
+         start_subparse(FALSE, 0),
 
-        PL_hints = oldhints;
-        PL_curcop->cop_stash = old_cop_stash;
-        PL_curstash = old_curstash;
-        PL_curcop->cop_line = oldline;
+         newSVOP(OP_CONST, 0, newSVpv((char *) name, 0)),
+         newSVOP(OP_CONST, 0, &PL_sv_no),   /* SvPV(&PL_sv_no) == "" -- GMB */
+         newSTATEOP(0, Nullch, newSVOP(OP_CONST, 0, sv))
+       );
 
-        return cv;
+  PL_hints = oldhints;
+  PL_curcop->cop_stash = old_cop_stash;
+  PL_curstash = old_curstash;
+  PL_curcop->cop_line = oldline;
+
+  return cv;
 }
 #endif
 #endif
@@ -12685,8 +12686,8 @@ typedef OP* (CPERLscope(*Perl_check_t)) (pTHX_ OP*);
 #  define isASCII(c)                     (isCNTRL(c) || isPRINT(c))
 #endif
 
-        /* The below is accurate for all EBCDIC code pages supported by
-         * all the versions of Perl overridden by this */
+/* The below is accurate for all EBCDIC code pages supported by
+ * all the versions of Perl overridden by this */
 #ifndef isCNTRL
 #  define isCNTRL(c)                     (    (c) == '\0' || (c) == '\a' || (c) == '\b'      \
                              ||  (c) == '\f' || (c) == '\n' || (c) == '\r'      \
@@ -13218,16 +13219,16 @@ typedef OP* (CPERLscope(*Perl_check_t)) (pTHX_ OP*);
 ( ( LIKELY((e) > (s)) ) ?   /* Machine generated */                         \
     ( ( 0x09 == ((const U8*)s)[0] || 0x20 == ((const U8*)s)[0] ) ? 1        \
     : ( LIKELY(((e) - (s)) >= UTF8SKIP(s)) ) ?                              \
-	    ( ( 0xC2 == ((const U8*)s)[0] ) ?                               \
-		( ( 0xA0 == ((const U8*)s)[1] ) ? 2 : 0 )                   \
-	    : ( 0xE1 == ((const U8*)s)[0] ) ?                               \
-		( ( ( 0x9A == ((const U8*)s)[1] ) && ( 0x80 == ((const U8*)s)[2] ) ) ? 3 : 0 )\
-	    : ( 0xE2 == ((const U8*)s)[0] ) ?                               \
-		( ( 0x80 == ((const U8*)s)[1] ) ?                           \
-		    ( ( inRANGE(((const U8*)s)[2], 0x80, 0x8A ) || 0xAF == ((const U8*)s)[2] ) ? 3 : 0 )\
-		: ( ( 0x81 == ((const U8*)s)[1] ) && ( 0x9F == ((const U8*)s)[2] ) ) ? 3 : 0 )\
-	    : ( ( ( 0xE3 == ((const U8*)s)[0] ) && ( 0x80 == ((const U8*)s)[1] ) ) && ( 0x80 == ((const U8*)s)[2] ) ) ? 3 : 0 )\
-	: 0 )                                                               \
+      ( ( 0xC2 == ((const U8*)s)[0] ) ?                               \
+    ( ( 0xA0 == ((const U8*)s)[1] ) ? 2 : 0 )                   \
+      : ( 0xE1 == ((const U8*)s)[0] ) ?                               \
+    ( ( ( 0x9A == ((const U8*)s)[1] ) && ( 0x80 == ((const U8*)s)[2] ) ) ? 3 : 0 )\
+      : ( 0xE2 == ((const U8*)s)[0] ) ?                               \
+    ( ( 0x80 == ((const U8*)s)[1] ) ?                           \
+        ( ( inRANGE(((const U8*)s)[2], 0x80, 0x8A ) || 0xAF == ((const U8*)s)[2] ) ? 3 : 0 )\
+    : ( ( 0x81 == ((const U8*)s)[1] ) && ( 0x9F == ((const U8*)s)[2] ) ) ? 3 : 0 )\
+      : ( ( ( 0xE3 == ((const U8*)s)[0] ) && ( 0x80 == ((const U8*)s)[1] ) ) && ( 0x80 == ((const U8*)s)[2] ) ) ? 3 : 0 )\
+  : 0 )                                                               \
  : 0 )
 #endif
 
@@ -13237,18 +13238,18 @@ typedef OP* (CPERLscope(*Perl_check_t)) (pTHX_ OP*);
 ( ( LIKELY((e) > (s)) ) ?                                                   \
     ( ( 0x05 == ((const U8*)s)[0] || 0x40 == ((const U8*)s)[0] ) ? 1        \
     : ( LIKELY(((e) - (s)) >= UTF8SKIP(s)) ) ?                              \
-	    ( ( 0x80 == ((const U8*)s)[0] ) ?                               \
-		( ( 0x41 == ((const U8*)s)[1] ) ? 2 : 0 )                   \
-	    : ( 0xBC == ((const U8*)s)[0] ) ?                               \
-		( ( ( 0x63 == ((const U8*)s)[1] ) && ( 0x41 == ((const U8*)s)[2] ) ) ? 3 : 0 )\
-	    : ( 0xCA == ((const U8*)s)[0] ) ?                               \
-		( ( 0x41 == ((const U8*)s)[1] ) ?                           \
-		    ( ( inRANGE(((const U8*)s)[2], 0x41, 0x4A ) || 0x51 == ((const U8*)s)[2] ) ? 3 : 0 )\
-		: ( 0x42 == ((const U8*)s)[1] ) ?                           \
-		    ( ( 0x56 == ((const U8*)s)[2] ) ? 3 : 0 )               \
-		: ( ( 0x43 == ((const U8*)s)[1] ) && ( 0x73 == ((const U8*)s)[2] ) ) ? 3 : 0 )\
-	    : ( ( ( 0xCE == ((const U8*)s)[0] ) && ( 0x41 == ((const U8*)s)[1] ) ) && ( 0x41 == ((const U8*)s)[2] ) ) ? 3 : 0 )\
-	: 0 )                                                               \
+      ( ( 0x80 == ((const U8*)s)[0] ) ?                               \
+    ( ( 0x41 == ((const U8*)s)[1] ) ? 2 : 0 )                   \
+      : ( 0xBC == ((const U8*)s)[0] ) ?                               \
+    ( ( ( 0x63 == ((const U8*)s)[1] ) && ( 0x41 == ((const U8*)s)[2] ) ) ? 3 : 0 )\
+      : ( 0xCA == ((const U8*)s)[0] ) ?                               \
+    ( ( 0x41 == ((const U8*)s)[1] ) ?                           \
+        ( ( inRANGE(((const U8*)s)[2], 0x41, 0x4A ) || 0x51 == ((const U8*)s)[2] ) ? 3 : 0 )\
+    : ( 0x42 == ((const U8*)s)[1] ) ?                           \
+        ( ( 0x56 == ((const U8*)s)[2] ) ? 3 : 0 )               \
+    : ( ( 0x43 == ((const U8*)s)[1] ) && ( 0x73 == ((const U8*)s)[2] ) ) ? 3 : 0 )\
+      : ( ( ( 0xCE == ((const U8*)s)[0] ) && ( 0x41 == ((const U8*)s)[1] ) ) && ( 0x41 == ((const U8*)s)[2] ) ) ? 3 : 0 )\
+  : 0 )                                                               \
 : 0 )
 #endif
 
@@ -13258,18 +13259,18 @@ typedef OP* (CPERLscope(*Perl_check_t)) (pTHX_ OP*);
 ( ( LIKELY((e) > (s)) ) ?                                                   \
     ( ( 0x05 == ((const U8*)s)[0] || 0x40 == ((const U8*)s)[0] ) ? 1        \
     : ( LIKELY(((e) - (s)) >= UTF8SKIP(s)) ) ?                              \
-	    ( ( 0x78 == ((const U8*)s)[0] ) ?                               \
-		( ( 0x41 == ((const U8*)s)[1] ) ? 2 : 0 )                   \
-	    : ( 0xBD == ((const U8*)s)[0] ) ?                               \
-		( ( ( 0x62 == ((const U8*)s)[1] ) && ( 0x41 == ((const U8*)s)[2] ) ) ? 3 : 0 )\
-	    : ( 0xCA == ((const U8*)s)[0] ) ?                               \
-		( ( 0x41 == ((const U8*)s)[1] ) ?                           \
-		    ( ( inRANGE(((const U8*)s)[2], 0x41, 0x4A ) || 0x51 == ((const U8*)s)[2] ) ? 3 : 0 )\
-		: ( 0x42 == ((const U8*)s)[1] ) ?                           \
-		    ( ( 0x56 == ((const U8*)s)[2] ) ? 3 : 0 )               \
-		: ( ( 0x43 == ((const U8*)s)[1] ) && ( 0x72 == ((const U8*)s)[2] ) ) ? 3 : 0 )\
-	    : ( ( ( 0xCE == ((const U8*)s)[0] ) && ( 0x41 == ((const U8*)s)[1] ) ) && ( 0x41 == ((const U8*)s)[2] ) ) ? 3 : 0 )\
-	: 0 )                                                               \
+      ( ( 0x78 == ((const U8*)s)[0] ) ?                               \
+    ( ( 0x41 == ((const U8*)s)[1] ) ? 2 : 0 )                   \
+      : ( 0xBD == ((const U8*)s)[0] ) ?                               \
+    ( ( ( 0x62 == ((const U8*)s)[1] ) && ( 0x41 == ((const U8*)s)[2] ) ) ? 3 : 0 )\
+      : ( 0xCA == ((const U8*)s)[0] ) ?                               \
+    ( ( 0x41 == ((const U8*)s)[1] ) ?                           \
+        ( ( inRANGE(((const U8*)s)[2], 0x41, 0x4A ) || 0x51 == ((const U8*)s)[2] ) ? 3 : 0 )\
+    : ( 0x42 == ((const U8*)s)[1] ) ?                           \
+        ( ( 0x56 == ((const U8*)s)[2] ) ? 3 : 0 )               \
+    : ( ( 0x43 == ((const U8*)s)[1] ) && ( 0x72 == ((const U8*)s)[2] ) ) ? 3 : 0 )\
+      : ( ( ( 0xCE == ((const U8*)s)[0] ) && ( 0x41 == ((const U8*)s)[1] ) ) && ( 0x41 == ((const U8*)s)[2] ) ) ? 3 : 0 )\
+  : 0 )                                                               \
 : 0 )
 #endif
 
@@ -13348,8 +13349,8 @@ typedef OP* (CPERLscope(*Perl_check_t)) (pTHX_ OP*);
 ( ( LIKELY((e) > (s)) ) ?                                                   \
     ( ( inRANGE(((const U8*)s)[0], 0x30, 0x39 ) || inRANGE(((const U8*)s)[0], 0x41, 0x46 ) || inRANGE(((const U8*)s)[0], 0x61, 0x66 ) ) ? 1\
     : ( ( LIKELY(((e) - (s)) >= UTF8SKIP(s)) ) && ( 0xEF == ((const U8*)s)[0] ) ) ? ( ( 0xBC == ((const U8*)s)[1] ) ?\
-		    ( ( inRANGE(((const U8*)s)[2], 0x90, 0x99 ) || inRANGE(((const U8*)s)[2], 0xA1, 0xA6 ) ) ? 3 : 0 )\
-		: ( ( 0xBD == ((const U8*)s)[1] ) && ( inRANGE(((const U8*)s)[2], 0x81, 0x86 ) ) ) ? 3 : 0 ) : 0 )\
+        ( ( inRANGE(((const U8*)s)[2], 0x90, 0x99 ) || inRANGE(((const U8*)s)[2], 0xA1, 0xA6 ) ) ? 3 : 0 )\
+    : ( ( 0xBD == ((const U8*)s)[1] ) && ( inRANGE(((const U8*)s)[2], 0x81, 0x86 ) ) ) ? 3 : 0 ) : 0 )\
 : 0 )
 #endif
 
@@ -13359,8 +13360,8 @@ typedef OP* (CPERLscope(*Perl_check_t)) (pTHX_ OP*);
 ( ( LIKELY((e) > (s)) ) ?                                                   \
     ( ( inRANGE(((const U8*)s)[0], 0x81, 0x86 ) || inRANGE(((const U8*)s)[0], 0xC1, 0xC6 ) || inRANGE(((const U8*)s)[0], 0xF0, 0xF9 ) ) ? 1\
     : ( ( ( LIKELY(((e) - (s)) >= UTF8SKIP(s)) ) && ( 0xDD == ((const U8*)s)[0] ) ) && ( 0x73 == ((const U8*)s)[1] ) ) ? ( ( 0x67 == ((const U8*)s)[2] ) ?\
-			( ( inRANGE(((const U8*)s)[3], 0x57, 0x59 ) || inRANGE(((const U8*)s)[3], 0x62, 0x68 ) ) ? 4 : 0 )\
-		    : ( ( inRANGE(((const U8*)s)[2], 0x68, 0x69 ) ) && ( inRANGE(((const U8*)s)[3], 0x42, 0x47 ) ) ) ? 4 : 0 ) : 0 )\
+      ( ( inRANGE(((const U8*)s)[3], 0x57, 0x59 ) || inRANGE(((const U8*)s)[3], 0x62, 0x68 ) ) ? 4 : 0 )\
+        : ( ( inRANGE(((const U8*)s)[2], 0x68, 0x69 ) ) && ( inRANGE(((const U8*)s)[3], 0x42, 0x47 ) ) ) ? 4 : 0 ) : 0 )\
 : 0 )
 #endif
 
@@ -13370,8 +13371,8 @@ typedef OP* (CPERLscope(*Perl_check_t)) (pTHX_ OP*);
 ( ( LIKELY((e) > (s)) ) ?                                                   \
     ( ( inRANGE(((const U8*)s)[0], 0x81, 0x86 ) || inRANGE(((const U8*)s)[0], 0xC1, 0xC6 ) || inRANGE(((const U8*)s)[0], 0xF0, 0xF9 ) ) ? 1\
     : ( ( ( LIKELY(((e) - (s)) >= UTF8SKIP(s)) ) && ( 0xDD == ((const U8*)s)[0] ) ) && ( 0x72 == ((const U8*)s)[1] ) ) ? ( ( 0x66 == ((const U8*)s)[2] ) ?\
-			( ( inRANGE(((const U8*)s)[3], 0x57, 0x59 ) || 0x5F == ((const U8*)s)[3] || inRANGE(((const U8*)s)[3], 0x62, 0x67 ) ) ? 4 : 0 )\
-		    : ( ( inRANGE(((const U8*)s)[2], 0x67, 0x68 ) ) && ( inRANGE(((const U8*)s)[3], 0x42, 0x47 ) ) ) ? 4 : 0 ) : 0 )\
+      ( ( inRANGE(((const U8*)s)[3], 0x57, 0x59 ) || 0x5F == ((const U8*)s)[3] || inRANGE(((const U8*)s)[3], 0x62, 0x67 ) ) ? 4 : 0 )\
+        : ( ( inRANGE(((const U8*)s)[2], 0x67, 0x68 ) ) && ( inRANGE(((const U8*)s)[3], 0x42, 0x47 ) ) ) ? 4 : 0 ) : 0 )\
 : 0 )
 #endif
 
@@ -13515,7 +13516,7 @@ typedef OP* (CPERLscope(*Perl_check_t)) (pTHX_ OP*);
 
 #  if (PERL_BCDVERSION != 0x5015006)     /* Just this version is broken */
 
-      /* Prefer the macro to the function */
+/* Prefer the macro to the function */
 #    if defined toLOWER_utf8
 #      define D_PPP_TO_LOWER_CALLEE(s,r,l)    toLOWER_utf8(s,r,l)
 #    else
@@ -13595,8 +13596,8 @@ typedef OP* (CPERLscope(*Perl_check_t)) (pTHX_ OP*);
 #    define D_PPP_UV_TO_UTF8 uv_to_utf8
 #  endif
 
-   /* Get the utf8 of the case changed value, and store its length; then have
-    * to re-calculate the changed case value in order to return it */
+/* Get the utf8 of the case changed value, and store its length; then have
+ * to re-calculate the changed case value in order to return it */
 #  define D_PPP_GENERIC_SINGLE_ARG_TO_UVCHR(name, c, s, l)                  \
         (*(l) = (D_PPP_UV_TO_UTF8(s,                                        \
                  UNI_TO_NATIVE(to_uni_ ## name(NATIVE_TO_UNI(c)))) - (s)),  \
@@ -13655,14 +13656,14 @@ typedef OP* (CPERLscope(*Perl_check_t)) (pTHX_ OP*);
                         D_PPP_GENERIC_SINGLE_ARG_TO_UTF8(title, s, e, r, l)
 #endif
 
- /* Warning: toFOLD_utf8_safe, toFOLD_uvchr
-    The UTF-8 case changing operations had bugs before around 5.12 or 5.14;
-    this backport does not correct them.
+/* Warning: toFOLD_utf8_safe, toFOLD_uvchr
+   The UTF-8 case changing operations had bugs before around 5.12 or 5.14;
+   this backport does not correct them.
 
-    In perls before 7.3, case folding is not implemented; instead, this
-    backport substitutes simple (not multi-character, which isn't available)
-    lowercasing.  This gives the correct result in most, but not all, instances
-    */
+   In perls before 7.3, case folding is not implemented; instead, this
+   backport substitutes simple (not multi-character, which isn't available)
+   lowercasing.  This gives the correct result in most, but not all, instances
+   */
 #ifndef toFOLD_utf8_safe
 #  define toFOLD_utf8_safe(s,e,r,l)      toLOWER_utf8_safe(s,e,r,l)
 #endif
@@ -14410,19 +14411,19 @@ extern void DPPP_(my_ck_warner)(pTHX_ U32 err, const char * pat, ...);
 void
 DPPP_(my_ck_warner)(pTHX_ U32 err, const char *pat, ...)
 {
-    va_list args;
+  va_list args;
 
-    if (   ! ckWARN((err      ) & 0xFF)
-        && ! ckWARN((err >>  8) & 0xFF)
-        && ! ckWARN((err >> 16) & 0xFF)
-        && ! ckWARN((err >> 24) & 0xFF))
-    {
-        return;
-    }
+  if (   ! ckWARN((err      ) & 0xFF)
+         && ! ckWARN((err >>  8) & 0xFF)
+         && ! ckWARN((err >> 16) & 0xFF)
+         && ! ckWARN((err >> 24) & 0xFF))
+  {
+    return;
+  }
 
-    va_start(args, pat);
-    vwarner(err, pat, &args);
-    va_end(args);
+  va_start(args, pat);
+  vwarner(err, pat, &args);
+  va_end(args);
 }
 
 #    define ck_warner  Perl_ck_warner
@@ -14445,19 +14446,19 @@ extern void DPPP_(my_ck_warner_d)(pTHX_ U32 err, const char * pat, ...);
 void
 DPPP_(my_ck_warner_d)(pTHX_ U32 err, const char *pat, ...)
 {
-    va_list args;
+  va_list args;
 
-    if (   ! ckWARN_d((err      ) & 0xFF)
-        && ! ckWARN_d((err >>  8) & 0xFF)
-        && ! ckWARN_d((err >> 16) & 0xFF)
-        && ! ckWARN_d((err >> 24) & 0xFF))
-    {
-        return;
-    }
+  if (   ! ckWARN_d((err      ) & 0xFF)
+         && ! ckWARN_d((err >>  8) & 0xFF)
+         && ! ckWARN_d((err >> 16) & 0xFF)
+         && ! ckWARN_d((err >> 24) & 0xFF))
+  {
+    return;
+  }
 
-    va_start(args, pat);
-    vwarner(err, pat, &args);
-    va_end(args);
+  va_start(args, pat);
+  vwarner(err, pat, &args);
+  va_end(args);
 }
 
 #    define ck_warner_d  Perl_ck_warner_d
@@ -14487,7 +14488,7 @@ DPPP_(my_ck_warner_d)(pTHX_ U32 err, const char *pat, ...)
 #ifndef NVef
 #  if defined(USE_LONG_DOUBLE) && defined(HAS_LONG_DOUBLE) && \
       defined(PERL_PRIfldbl) && (PERL_BCDVERSION != 0x5006000)
-            /* Not very likely, but let's try anyway. */
+/* Not very likely, but let's try anyway. */
 #    define NVef          PERL_PRIeldbl
 #    define NVff          PERL_PRIfldbl
 #    define NVgf          PERL_PRIgldbl
@@ -14589,12 +14590,12 @@ extern Size_t DPPP_(my_my_strnlen)(const char * str, Size_t maxlen);
 Size_t
 DPPP_(my_my_strnlen)(const char *str, Size_t maxlen)
 {
-    const char *p = str;
+  const char *p = str;
 
-    while(maxlen-- && *p)
-        p++;
+  while(maxlen-- && *p)
+    p++;
 
-    return p - str;
+  return p - str;
 }
 
 #endif
@@ -14734,8 +14735,8 @@ extern OP * DPPP_(my_die_sv)(pTHX_ SV * baseex);
 OP *
 DPPP_(my_die_sv)(pTHX_ SV *baseex)
 {
-    croak_sv(baseex);
-    return (OP *)NULL;
+  croak_sv(baseex);
+  return (OP *)NULL;
 }
 #endif
 #endif
@@ -14768,8 +14769,8 @@ extern SV * DPPP_(my_vmess)(pTHX_ const char * pat, va_list * args);
 SV*
 DPPP_(my_vmess)(pTHX_ const char* pat, va_list* args)
 {
-    mess(pat, args);
-    return PL_mess_sv;
+  mess(pat, args);
+  return PL_mess_sv;
 }
 #  endif
 #endif
@@ -14794,13 +14795,13 @@ extern SV * DPPP_(my_mess_nocontext)(const char * pat, ...);
 SV*
 DPPP_(my_mess_nocontext)(const char* pat, ...)
 {
-    dTHX;
-    SV *sv;
-    va_list args;
-    va_start(args, pat);
-    sv = vmess(pat, &args);
-    va_end(args);
-    return sv;
+  dTHX;
+  SV *sv;
+  va_list args;
+  va_start(args, pat);
+  sv = vmess(pat, &args);
+  va_end(args);
+  return sv;
 }
 #endif
 #endif
@@ -14820,12 +14821,12 @@ extern SV * DPPP_(my_mess)(pTHX_ const char * pat, ...);
 SV*
 DPPP_(my_mess)(pTHX_ const char* pat, ...)
 {
-    SV *sv;
-    va_list args;
-    va_start(args, pat);
-    sv = vmess(pat, &args);
-    va_end(args);
-    return sv;
+  SV *sv;
+  va_list args;
+  va_start(args, pat);
+  sv = vmess(pat, &args);
+  va_end(args);
+  return sv;
 }
 #ifdef mess_nocontext
 #define mess mess_nocontext
@@ -14854,28 +14855,29 @@ extern SV * DPPP_(my_mess_sv)(pTHX_ SV * basemsg, bool consume);
 SV *
 DPPP_(my_mess_sv)(pTHX_ SV *basemsg, bool consume)
 {
-    SV *tmp;
-    SV *ret;
+  SV *tmp;
+  SV *ret;
 
-    if (SvPOK(basemsg) && SvCUR(basemsg) && *(SvEND(basemsg)-1) == '\n') {
-        if (consume)
-            return basemsg;
-        ret = mess("");
-        SvSetSV_nosteal(ret, basemsg);
-        return ret;
-    }
-
-    if (consume) {
-        sv_catsv(basemsg, mess(""));
-        return basemsg;
-    }
+  if (SvPOK(basemsg) && SvCUR(basemsg) && *(SvEND(basemsg) - 1) == '\n') {
+    if (consume)
+      return basemsg;
 
     ret = mess("");
-    tmp = newSVsv(ret);
     SvSetSV_nosteal(ret, basemsg);
-    sv_catsv(ret, tmp);
-    sv_dec(tmp);
     return ret;
+  }
+
+  if (consume) {
+    sv_catsv(basemsg, mess(""));
+    return basemsg;
+  }
+
+  ret = mess("");
+  tmp = newSVsv(ret);
+  SvSetSV_nosteal(ret, basemsg);
+  sv_catsv(ret, tmp);
+  sv_dec(tmp);
+  return ret;
 }
 #endif
 #endif
@@ -14920,24 +14922,24 @@ extern void DPPP_(my_croak_xs_usage)(const CV * const cv, const char * const par
 void
 DPPP_(my_croak_xs_usage)(const CV *const cv, const char *const params)
 {
-    dTHX;
-    const GV *const gv = CvGV(cv);
+  dTHX;
+  const GV *const gv = CvGV(cv);
 
-    PERL_ARGS_ASSERT_CROAK_XS_USAGE;
+  PERL_ARGS_ASSERT_CROAK_XS_USAGE;
 
-    if (gv) {
-        const char *const gvname = GvNAME(gv);
-        const HV *const stash = GvSTASH(gv);
-        const char *const hvname = stash ? HvNAME(stash) : NULL;
+  if (gv) {
+    const char *const gvname = GvNAME(gv);
+    const HV *const stash = GvSTASH(gv);
+    const char *const hvname = stash ? HvNAME(stash) : NULL;
 
-        if (hvname)
-            croak("Usage: %s::%s(%s)", hvname, gvname, params);
-        else
-            croak("Usage: %s(%s)", gvname, params);
-    } else {
-        /* Pants. I don't think that it should be possible to get here. */
-        croak("Usage: CODE(0x%" UVxf ")(%s)", PTR2UV(cv), params);
-    }
+    if (hvname)
+      croak("Usage: %s::%s(%s)", hvname, gvname, params);
+    else
+      croak("Usage: %s(%s)", gvname, params);
+  } else {
+    /* Pants. I don't think that it should be possible to get here. */
+    croak("Usage: CODE(0x%" UVxf ")(%s)", PTR2UV(cv), params);
+  }
 }
 #endif
 #endif
@@ -15118,20 +15120,20 @@ extern SV * DPPP_(my_eval_pv)(const char * p, I32 croak_on_error);
 SV*
 DPPP_(my_eval_pv)(const char *p, I32 croak_on_error)
 {
-    dSP;
-    SV* sv = newSVpv(p, 0);
+  dSP;
+  SV* sv = newSVpv(p, 0);
 
-    PUSHMARK(sp);
-    eval_sv(sv, G_SCALAR);
-    SvREFCNT_dec(sv);
+  PUSHMARK(sp);
+  eval_sv(sv, G_SCALAR);
+  SvREFCNT_dec(sv);
 
-    SPAGAIN;
-    sv = POPs;
-    PUTBACK;
+  SPAGAIN;
+  sv = POPs;
+  PUTBACK;
 
-    D_PPP_CROAK_IF_ERROR(croak_on_error);
+  D_PPP_CROAK_IF_ERROR(croak_on_error);
 
-    return sv;
+  return sv;
 }
 
 #endif
@@ -15157,52 +15159,56 @@ extern void DPPP_(my_vload_module)(U32 flags, SV * name, SV * ver, va_list * arg
 void
 DPPP_(my_vload_module)(U32 flags, SV *name, SV *ver, va_list *args)
 {
-    dTHR;
-    dVAR;
-    OP *veop, *imop;
+  dTHR;
+  dVAR;
+  OP *veop, *imop;
 
-    OP * const modname = newSVOP(OP_CONST, 0, name);
-    /* 5.005 has a somewhat hacky force_normal that doesn't croak on
-       SvREADONLY() if PL_compiling is true. Current perls take care in
-       ck_require() to correctly turn off SvREADONLY before calling
-       force_normal_flags(). This seems a better fix than fudging PL_compiling
-     */
-    SvREADONLY_off(((SVOP*)modname)->op_sv);
-    modname->op_private |= OPpCONST_BARE;
-    if (ver) {
-        veop = newSVOP(OP_CONST, 0, ver);
-    }
-    else
-        veop = NULL;
-    if (flags & PERL_LOADMOD_NOIMPORT) {
-        imop = sawparens(newNULLLIST());
-    }
-    else if (flags & PERL_LOADMOD_IMPORT_OPS) {
-        imop = va_arg(*args, OP*);
-    }
-    else {
-        SV *sv;
-        imop = NULL;
-        sv = va_arg(*args, SV*);
-        while (sv) {
-            imop = append_elem(OP_LIST, imop, newSVOP(OP_CONST, 0, sv));
-            sv = va_arg(*args, SV*);
-        }
-    }
-    {
-        const line_t ocopline = PL_copline;
-        COP * const ocurcop = PL_curcop;
-        const int oexpect = PL_expect;
+  OP * const modname = newSVOP(OP_CONST, 0, name);
+  /* 5.005 has a somewhat hacky force_normal that doesn't croak on
+     SvREADONLY() if PL_compiling is true. Current perls take care in
+     ck_require() to correctly turn off SvREADONLY before calling
+     force_normal_flags(). This seems a better fix than fudging PL_compiling
+   */
+  SvREADONLY_off(((SVOP*)modname)->op_sv);
+  modname->op_private |= OPpCONST_BARE;
 
-        utilize(!(flags & PERL_LOADMOD_DENY), start_subparse(FALSE, 0),
+  if (ver) {
+    veop = newSVOP(OP_CONST, 0, ver);
+  }
+  else
+    veop = NULL;
+
+  if (flags & PERL_LOADMOD_NOIMPORT) {
+    imop = sawparens(newNULLLIST());
+  }
+  else if (flags & PERL_LOADMOD_IMPORT_OPS) {
+    imop = va_arg(*args, OP*);
+  }
+  else {
+    SV *sv;
+    imop = NULL;
+    sv = va_arg(*args, SV*);
+
+    while (sv) {
+      imop = append_elem(OP_LIST, imop, newSVOP(OP_CONST, 0, sv));
+      sv = va_arg(*args, SV*);
+    }
+  }
+
+  {
+    const line_t ocopline = PL_copline;
+    COP * const ocurcop = PL_curcop;
+    const int oexpect = PL_expect;
+
+    utilize(!(flags & PERL_LOADMOD_DENY), start_subparse(FALSE, 0),
 #if (PERL_BCDVERSION > 0x5003000)
-                veop,
+            veop,
 #endif
-                modname, imop);
-        PL_expect = oexpect;
-        PL_copline = ocopline;
-        PL_curcop = ocurcop;
-    }
+            modname, imop);
+    PL_expect = oexpect;
+    PL_copline = ocopline;
+    PL_curcop = ocurcop;
+  }
 }
 
 #endif
@@ -15228,10 +15234,10 @@ extern void DPPP_(my_load_module)(U32 flags, SV * name, SV * ver, ...);
 void
 DPPP_(my_load_module)(U32 flags, SV *name, SV *ver, ...)
 {
-    va_list args;
-    va_start(args, ver);
-    vload_module(flags, name, ver, &args);
-    va_end(args);
+  va_list args;
+  va_start(args, ver);
+  vload_module(flags, name, ver, &args);
+  va_end(args);
 }
 
 #endif
@@ -15474,17 +15480,17 @@ DPPP_(my_load_module)(U32 flags, SV *name, SV *ver, ...)
     }                                                                              \
   } STMT_END
 #else
-  (                                                                                \
+(                                                                                \
     (((flags) & SV_NOSTEAL) && (sstr) && (SvFLAGS((SV *)(sstr)) & SVs_TEMP)) ? (   \
-      SvTEMP_off((SV *)(sstr)),                                                    \
-      Perl_sv_setsv_flags(aTHX_ (dstr), (sstr), (flags) & ~SV_NOSTEAL),            \
-      SvTEMP_on((SV *)(sstr)),                                                     \
-      1                                                                            \
-    ) : (                                                                          \
-      Perl_sv_setsv_flags(aTHX_ (dstr), (sstr), (flags) & ~SV_NOSTEAL),            \
-      1                                                                            \
-    )                                                                              \
-  )
+        SvTEMP_off((SV *)(sstr)),                                                    \
+        Perl_sv_setsv_flags(aTHX_ (dstr), (sstr), (flags) & ~SV_NOSTEAL),            \
+        SvTEMP_on((SV *)(sstr)),                                                     \
+        1                                                                            \
+                                                                               ) : (                                                                          \
+                                                                                   Perl_sv_setsv_flags(aTHX_ (dstr), (sstr), (flags) & ~SV_NOSTEAL),            \
+                                                                                   1                                                                            \
+                                                                                   )                                                                              \
+)
 #endif
 #endif
 
@@ -15658,10 +15664,13 @@ SV *
 DPPP_(my_newSVpvn_share)(pTHX_ const char *s, I32 len, U32 hash)
 {
   SV *sv;
+
   if (len < 0)
     len = -len;
+
   if (!hash)
     PERL_HASH(hash, (char*) s, len);
+
   sv = newSVpvn((char *) s, len);
   sv_upgrade(sv, SVt_PVIV);
   SvIVX(sv) = hash;
@@ -15922,7 +15931,7 @@ DPPP_(my_newSVpvn_share)(pTHX_ const char *s, I32 len, U32 hash)
 
 #if (PERL_BCDVERSION < 0x5004000)
 
-  /* code that uses sv_magic_portable will not compile */
+/* code that uses sv_magic_portable will not compile */
 
 #elif (PERL_BCDVERSION < 0x5008000)
 
@@ -15967,20 +15976,20 @@ extern MAGIC * DPPP_(my_mg_findext)(const SV * sv, int type, const MGVTBL * vtbl
 
 MAGIC *
 DPPP_(my_mg_findext)(const SV * sv, int type, const MGVTBL *vtbl) {
-    if (sv) {
-        MAGIC *mg;
+  if (sv) {
+    MAGIC *mg;
 
 #ifdef AvPAD_NAMELIST
-        assert(!(SvTYPE(sv) == SVt_PVAV && AvPAD_NAMELIST(sv)));
+    assert(!(SvTYPE(sv) == SVt_PVAV && AvPAD_NAMELIST(sv)));
 #endif
 
-        for (mg = SvMAGIC (sv); mg; mg = mg->mg_moremagic) {
-            if (mg->mg_type == type && mg->mg_virtual == vtbl)
-                return mg;
-        }
+    for (mg = SvMAGIC (sv); mg; mg = mg->mg_moremagic) {
+      if (mg->mg_type == type && mg->mg_virtual == vtbl)
+        return mg;
     }
+  }
 
-    return NULL;
+  return NULL;
 }
 
 #endif
@@ -16006,42 +16015,51 @@ extern int DPPP_(my_sv_unmagicext)(pTHX_ SV * const sv, const int type, MGVTBL *
 int
 DPPP_(my_sv_unmagicext)(pTHX_ SV *const sv, const int type, MGVTBL *vtbl)
 {
-    MAGIC* mg;
-    MAGIC** mgp;
+  MAGIC* mg;
+  MAGIC** mgp;
 
-    if (SvTYPE(sv) < SVt_PVMG || !SvMAGIC(sv))
-	return 0;
-    mgp = &(SvMAGIC(sv));
-    for (mg = *mgp; mg; mg = *mgp) {
-	const MGVTBL* const virt = mg->mg_virtual;
-	if (mg->mg_type == type && virt == vtbl) {
-	    *mgp = mg->mg_moremagic;
-	    if (virt && virt->svt_free)
-		virt->svt_free(aTHX_ sv, mg);
-	    if (mg->mg_ptr && mg->mg_type != PERL_MAGIC_regex_global) {
-		if (mg->mg_len > 0)
-		    Safefree(mg->mg_ptr);
-		else if (mg->mg_len == HEf_SVKEY) /* Questionable on older perls... */
-		    SvREFCNT_dec(MUTABLE_SV(mg->mg_ptr));
-		else if (mg->mg_type == PERL_MAGIC_utf8)
-		    Safefree(mg->mg_ptr);
-            }
-	    if (mg->mg_flags & MGf_REFCOUNTED)
-		SvREFCNT_dec(mg->mg_obj);
-	    Safefree(mg);
-	}
-	else
-	    mgp = &mg->mg_moremagic;
-    }
-    if (SvMAGIC(sv)) {
-	if (SvMAGICAL(sv))	/* if we're under save_magic, wait for restore_magic; */
-	    mg_magical(sv);	/*    else fix the flags now */
-    }
-    else {
-	SvMAGICAL_off(sv);
-	SvFLAGS(sv) |= (SvFLAGS(sv) & (SVp_IOK|SVp_NOK|SVp_POK)) >> PRIVSHIFT;
-    }
+  if (SvTYPE(sv) < SVt_PVMG || !SvMAGIC(sv))
     return 0;
+
+  mgp = &(SvMAGIC(sv));
+
+  for (mg = *mgp; mg; mg = *mgp) {
+    const MGVTBL* const virt = mg->mg_virtual;
+
+    if (mg->mg_type == type && virt == vtbl) {
+      *mgp = mg->mg_moremagic;
+
+      if (virt && virt->svt_free)
+        virt->svt_free(aTHX_ sv, mg);
+
+      if (mg->mg_ptr && mg->mg_type != PERL_MAGIC_regex_global) {
+        if (mg->mg_len > 0)
+          Safefree(mg->mg_ptr);
+        else if (mg->mg_len == HEf_SVKEY) /* Questionable on older perls... */
+          SvREFCNT_dec(MUTABLE_SV(mg->mg_ptr));
+        else if (mg->mg_type == PERL_MAGIC_utf8)
+          Safefree(mg->mg_ptr);
+      }
+
+      if (mg->mg_flags & MGf_REFCOUNTED)
+        SvREFCNT_dec(mg->mg_obj);
+
+      Safefree(mg);
+    }
+    else
+      mgp = &mg->mg_moremagic;
+  }
+
+  if (SvMAGIC(sv)) {
+    if (SvMAGICAL(sv))  /* if we're under save_magic, wait for restore_magic; */
+      mg_magical(sv); /*    else fix the flags now */
+  }
+  else {
+    SvMAGICAL_off(sv);
+    SvFLAGS(sv) |= (SvFLAGS(sv) & (SVp_IOK | SVp_NOK | SVp_POK)) >> PRIVSHIFT;
+  }
+
+  return 0;
 }
 
 #endif
@@ -16144,20 +16162,23 @@ DPPP_(my_sv_unmagicext)(pTHX_ SV *const sv, const int type, MGVTBL *vtbl)
 static I32
 DPPP_dopoptosub_at(const PERL_CONTEXT *cxstk, I32 startingblock)
 {
-    I32 i;
+  I32 i;
 
-    for (i = startingblock; i >= 0; i--) {
-	const PERL_CONTEXT * const cx = &cxstk[i];
-	switch (CxTYPE(cx)) {
-	default:
-	    continue;
-	case CXt_EVAL:
-	case CXt_SUB:
-	case CXt_FORMAT:
-	    return i;
-	}
+  for (i = startingblock; i >= 0; i--) {
+    const PERL_CONTEXT * const cx = &cxstk[i];
+
+    switch (CxTYPE(cx)) {
+      default:
+        continue;
+
+      case CXt_EVAL:
+      case CXt_SUB:
+      case CXt_FORMAT:
+        return i;
     }
-    return i;
+  }
+
+  return i;
 }
 # endif
 
@@ -16180,42 +16201,48 @@ extern const PERL_CONTEXT * DPPP_(my_caller_cx)(pTHX_ I32 level, const PERL_CONT
 const PERL_CONTEXT *
 DPPP_(my_caller_cx)(pTHX_ I32 level, const PERL_CONTEXT **dbcxp)
 {
-    I32 cxix = DPPP_dopoptosub_at(cxstack, cxstack_ix);
-    const PERL_CONTEXT *cx;
-    const PERL_CONTEXT *ccstack = cxstack;
-    const PERL_SI *top_si = PL_curstackinfo;
+  I32 cxix = DPPP_dopoptosub_at(cxstack, cxstack_ix);
+  const PERL_CONTEXT *cx;
+  const PERL_CONTEXT *ccstack = cxstack;
+  const PERL_SI *top_si = PL_curstackinfo;
 
-    for (;;) {
-	/* we may be in a higher stacklevel, so dig down deeper */
-	while (cxix < 0 && top_si->si_type != PERLSI_MAIN) {
-	    top_si = top_si->si_prev;
-	    ccstack = top_si->si_cxstack;
-	    cxix = DPPP_dopoptosub_at(ccstack, top_si->si_cxix);
-	}
-	if (cxix < 0)
-	    return NULL;
-	/* caller() should not report the automatic calls to &DB::sub */
-	if (PL_DBsub && GvCV(PL_DBsub) && cxix >= 0 &&
-		ccstack[cxix].blk_sub.cv == GvCV(PL_DBsub))
-	    level++;
-	if (!level--)
-	    break;
-	cxix = DPPP_dopoptosub_at(ccstack, cxix - 1);
+  for (;;) {
+    /* we may be in a higher stacklevel, so dig down deeper */
+    while (cxix < 0 && top_si->si_type != PERLSI_MAIN) {
+      top_si = top_si->si_prev;
+      ccstack = top_si->si_cxstack;
+      cxix = DPPP_dopoptosub_at(ccstack, top_si->si_cxix);
     }
 
-    cx = &ccstack[cxix];
-    if (dbcxp) *dbcxp = cx;
+    if (cxix < 0)
+      return NULL;
 
-    if (CxTYPE(cx) == CXt_SUB || CxTYPE(cx) == CXt_FORMAT) {
-        const I32 dbcxix = DPPP_dopoptosub_at(ccstack, cxix - 1);
-	/* We expect that ccstack[dbcxix] is CXt_SUB, anyway, the
-	   field below is defined for any cx. */
-	/* caller() should not report the automatic calls to &DB::sub */
-	if (PL_DBsub && GvCV(PL_DBsub) && dbcxix >= 0 && ccstack[dbcxix].blk_sub.cv == GvCV(PL_DBsub))
-	    cx = &ccstack[dbcxix];
-    }
+    /* caller() should not report the automatic calls to &DB::sub */
+    if (PL_DBsub && GvCV(PL_DBsub) && cxix >= 0 &&
+        ccstack[cxix].blk_sub.cv == GvCV(PL_DBsub))
+      level++;
 
-    return cx;
+    if (!level--)
+      break;
+
+    cxix = DPPP_dopoptosub_at(ccstack, cxix - 1);
+  }
+
+  cx = &ccstack[cxix];
+
+  if (dbcxp) *dbcxp = cx;
+
+  if (CxTYPE(cx) == CXt_SUB || CxTYPE(cx) == CXt_FORMAT) {
+    const I32 dbcxix = DPPP_dopoptosub_at(ccstack, cxix - 1);
+
+    /* We expect that ccstack[dbcxix] is CXt_SUB, anyway, the
+       field below is defined for any cx. */
+    /* caller() should not report the automatic calls to &DB::sub */
+    if (PL_DBsub && GvCV(PL_DBsub) && dbcxix >= 0 && ccstack[dbcxix].blk_sub.cv == GvCV(PL_DBsub))
+      cx = &ccstack[dbcxix];
+  }
+
+  return cx;
 }
 
 # endif
@@ -16299,38 +16326,46 @@ DPPP_(my_grok_numeric_radix)(pTHX_ const char **sp, const char *send)
 {
 #ifdef USE_LOCALE_NUMERIC
 #ifdef PL_numeric_radix_sv
-    if (PL_numeric_radix_sv && IN_LOCALE) {
-        STRLEN len;
-        char* radix = SvPV(PL_numeric_radix_sv, len);
-        if (*sp + len <= send && memEQ(*sp, radix, len)) {
-            *sp += len;
-            return TRUE;
-        }
+
+  if (PL_numeric_radix_sv && IN_LOCALE) {
+    STRLEN len;
+    char* radix = SvPV(PL_numeric_radix_sv, len);
+
+    if (*sp + len <= send && memEQ(*sp, radix, len)) {
+      *sp += len;
+      return TRUE;
     }
+  }
+
 #else
-    /* older perls don't have PL_numeric_radix_sv so the radix
-     * must manually be requested from locale.h
-     */
+  /* older perls don't have PL_numeric_radix_sv so the radix
+   * must manually be requested from locale.h
+   */
 #include <locale.h>
-    dTHR;  /* needed for older threaded perls */
-    struct lconv *lc = localeconv();
-    char *radix = lc->decimal_point;
-    if (radix && IN_LOCALE) {
-        STRLEN len = strlen(radix);
-        if (*sp + len <= send && memEQ(*sp, radix, len)) {
-            *sp += len;
-            return TRUE;
-        }
+  dTHR;  /* needed for older threaded perls */
+  struct lconv *lc = localeconv();
+  char *radix = lc->decimal_point;
+
+  if (radix && IN_LOCALE) {
+    STRLEN len = strlen(radix);
+
+    if (*sp + len <= send && memEQ(*sp, radix, len)) {
+      *sp += len;
+      return TRUE;
     }
+  }
+
 #endif
 #endif /* USE_LOCALE_NUMERIC */
-    /* always try "." if numeric radix didn't match because
-     * we may have data from different locales mixed */
-    if (*sp < send && **sp == '.') {
-        ++*sp;
-        return TRUE;
-    }
-    return FALSE;
+
+  /* always try "." if numeric radix didn't match because
+   * we may have data from different locales mixed */
+  if (*sp < send && **sp == '.') {
+    ++*sp;
+    return TRUE;
+  }
+
+  return FALSE;
 }
 #endif
 #endif
@@ -16364,6 +16399,7 @@ DPPP_(my_grok_number)(pTHX_ const char *pv, STRLEN len, UV *valuep)
 
   while (s < send && isSPACE(*s))
     s++;
+
   if (s == send) {
     return 0;
   } else if (*s == '-') {
@@ -16371,7 +16407,7 @@ DPPP_(my_grok_number)(pTHX_ const char *pv, STRLEN len, UV *valuep)
     numtype = IS_NUMBER_NEG;
   }
   else if (*s == '+')
-  s++;
+    s++;
 
   if (s == send)
     return 0;
@@ -16381,6 +16417,7 @@ DPPP_(my_grok_number)(pTHX_ const char *pv, STRLEN len, UV *valuep)
     /* UVs are at least 32 bits, so the first 9 decimal digits cannot
        overflow.  */
     UV value = *s - '0';
+
     /* This construction seems to be more optimiser friendly.
        (without it gcc does the isDIGIT test and the *s - '0' separately)
        With it gcc on arm is managing 6 instructions (6 cycles) per digit.
@@ -16388,50 +16425,69 @@ DPPP_(my_grok_number)(pTHX_ const char *pv, STRLEN len, UV *valuep)
        before checking for overflow.  */
     if (++s < send) {
       int digit = *s - '0';
+
       if (digit >= 0 && digit <= 9) {
         value = value * 10 + digit;
+
         if (++s < send) {
           digit = *s - '0';
+
           if (digit >= 0 && digit <= 9) {
             value = value * 10 + digit;
+
             if (++s < send) {
               digit = *s - '0';
+
               if (digit >= 0 && digit <= 9) {
                 value = value * 10 + digit;
+
                 if (++s < send) {
                   digit = *s - '0';
+
                   if (digit >= 0 && digit <= 9) {
                     value = value * 10 + digit;
+
                     if (++s < send) {
                       digit = *s - '0';
+
                       if (digit >= 0 && digit <= 9) {
                         value = value * 10 + digit;
+
                         if (++s < send) {
                           digit = *s - '0';
+
                           if (digit >= 0 && digit <= 9) {
                             value = value * 10 + digit;
+
                             if (++s < send) {
                               digit = *s - '0';
+
                               if (digit >= 0 && digit <= 9) {
                                 value = value * 10 + digit;
+
                                 if (++s < send) {
                                   digit = *s - '0';
+
                                   if (digit >= 0 && digit <= 9) {
                                     value = value * 10 + digit;
+
                                     if (++s < send) {
                                       /* Now got 9 digits, so need to check
                                          each time for overflow.  */
                                       digit = *s - '0';
+
                                       while (digit >= 0 && digit <= 9
                                              && (value < max_div_10
                                                  || (value == max_div_10
                                                      && digit <= max_mod_10))) {
                                         value = value * 10 + digit;
+
                                         if (++s < send)
                                           digit = *s - '0';
                                         else
                                           break;
                                       }
+
                                       if (digit >= 0 && digit <= 9
                                           && (s < send)) {
                                         /* value overflowed.
@@ -16440,6 +16496,7 @@ DPPP_(my_grok_number)(pTHX_ const char *pv, STRLEN len, UV *valuep)
                                         do {
                                           s++;
                                         } while (s < send && isDIGIT(*s));
+
                                         numtype |=
                                           IS_NUMBER_GREATER_THAN_UV_MAX;
                                         goto skip_value;
@@ -16461,24 +16518,30 @@ DPPP_(my_grok_number)(pTHX_ const char *pv, STRLEN len, UV *valuep)
         }
       }
     }
+
     numtype |= IS_NUMBER_IN_UV;
+
     if (valuep)
       *valuep = value;
 
-  skip_value:
+skip_value:
+
     if (GROK_NUMERIC_RADIX(&s, send)) {
       numtype |= IS_NUMBER_NOT_INT;
+
       while (s < send && isDIGIT(*s))  /* optional digits after the radix */
         s++;
     }
   }
   else if (GROK_NUMERIC_RADIX(&s, send)) {
     numtype |= IS_NUMBER_NOT_INT | IS_NUMBER_IN_UV; /* valuep assigned below */
+
     /* no digits before the radix means we need digits after it */
     if (s < send && isDIGIT(*s)) {
       do {
         s++;
       } while (s < send && isDIGIT(*s));
+
       if (valuep) {
         /* integer approximation is valid - it's 0.  */
         *valuep = 0;
@@ -16487,20 +16550,47 @@ DPPP_(my_grok_number)(pTHX_ const char *pv, STRLEN len, UV *valuep)
     else
       return 0;
   } else if (*s == 'I' || *s == 'i') {
-    s++; if (s == send || (*s != 'N' && *s != 'n')) return 0;
-    s++; if (s == send || (*s != 'F' && *s != 'f')) return 0;
-    s++; if (s < send && (*s == 'I' || *s == 'i')) {
-      s++; if (s == send || (*s != 'N' && *s != 'n')) return 0;
-      s++; if (s == send || (*s != 'I' && *s != 'i')) return 0;
-      s++; if (s == send || (*s != 'T' && *s != 't')) return 0;
-      s++; if (s == send || (*s != 'Y' && *s != 'y')) return 0;
+    s++;
+
+    if (s == send || (*s != 'N' && *s != 'n')) return 0;
+
+    s++;
+
+    if (s == send || (*s != 'F' && *s != 'f')) return 0;
+
+    s++;
+
+    if (s < send && (*s == 'I' || *s == 'i')) {
+      s++;
+
+      if (s == send || (*s != 'N' && *s != 'n')) return 0;
+
+      s++;
+
+      if (s == send || (*s != 'I' && *s != 'i')) return 0;
+
+      s++;
+
+      if (s == send || (*s != 'T' && *s != 't')) return 0;
+
+      s++;
+
+      if (s == send || (*s != 'Y' && *s != 'y')) return 0;
+
       s++;
     }
+
     sawinf = 1;
   } else if (*s == 'N' || *s == 'n') {
     /* XXX TODO: There are signaling NaNs and quiet NaNs. */
-    s++; if (s == send || (*s != 'A' && *s != 'a')) return 0;
-    s++; if (s == send || (*s != 'N' && *s != 'n')) return 0;
+    s++;
+
+    if (s == send || (*s != 'A' && *s != 'a')) return 0;
+
+    s++;
+
+    if (s == send || (*s != 'N' && *s != 'n')) return 0;
+
     s++;
     sawnan = 1;
   } else
@@ -16519,26 +16609,33 @@ DPPP_(my_grok_number)(pTHX_ const char *pv, STRLEN len, UV *valuep)
       numtype &= IS_NUMBER_NEG;
       numtype |= IS_NUMBER_NOT_INT;
       s++;
+
       if (s < send && (*s == '-' || *s == '+'))
         s++;
+
       if (s < send && isDIGIT(*s)) {
         do {
           s++;
         } while (s < send && isDIGIT(*s));
       }
       else
-      return 0;
+        return 0;
     }
   }
+
   while (s < send && isSPACE(*s))
     s++;
+
   if (s >= send)
     return numtype;
+
   if (len == 10 && memEQ(pv, "0 but true", 10)) {
     if (valuep)
       *valuep = 0;
+
     return IS_NUMBER_IN_UV;
   }
+
   return 0;
 }
 #endif
@@ -16569,86 +16666,98 @@ extern UV DPPP_(my_grok_bin)(pTHX_ const char * start, STRLEN * len_p, I32 * fla
 UV
 DPPP_(my_grok_bin)(pTHX_ const char *start, STRLEN *len_p, I32 *flags, NV *result)
 {
-    const char *s = start;
-    STRLEN len = *len_p;
-    UV value = 0;
-    NV value_nv = 0;
+  const char *s = start;
+  STRLEN len = *len_p;
+  UV value = 0;
+  NV value_nv = 0;
 
-    const UV max_div_2 = UV_MAX / 2;
-    bool allow_underscores = *flags & PERL_SCAN_ALLOW_UNDERSCORES;
-    bool overflowed = FALSE;
+  const UV max_div_2 = UV_MAX / 2;
+  bool allow_underscores = *flags & PERL_SCAN_ALLOW_UNDERSCORES;
+  bool overflowed = FALSE;
 
-    if (!(*flags & PERL_SCAN_DISALLOW_PREFIX)) {
-        /* strip off leading b or 0b.
-           for compatibility silently suffer "b" and "0b" as valid binary
-           numbers. */
-        if (len >= 1) {
-            if (s[0] == 'b') {
-                s++;
-                len--;
-            }
-            else if (len >= 2 && s[0] == '0' && s[1] == 'b') {
-                s+=2;
-                len-=2;
-            }
+  if (!(*flags & PERL_SCAN_DISALLOW_PREFIX)) {
+    /* strip off leading b or 0b.
+       for compatibility silently suffer "b" and "0b" as valid binary
+       numbers. */
+    if (len >= 1) {
+      if (s[0] == 'b') {
+        s++;
+        len--;
+      }
+      else if (len >= 2 && s[0] == '0' && s[1] == 'b') {
+        s += 2;
+        len -= 2;
+      }
+    }
+  }
+
+  for (; len-- && *s; s++) {
+    char bit = *s;
+
+    if (bit == '0' || bit == '1') {
+      /* Write it in this wonky order with a goto to attempt to get the
+         compiler to make the common case integer-only loop pretty tight.
+         With gcc seems to be much straighter code than old scan_bin.  */
+redo:
+
+      if (!overflowed) {
+        if (value <= max_div_2) {
+          value = (value << 1) | (bit - '0');
+          continue;
         }
+
+        /* Bah. We're just overflowed.  */
+        warn("Integer overflow in binary number");
+        overflowed = TRUE;
+        value_nv = (NV) value;
+      }
+
+      value_nv *= 2.0;
+      /* If an NV has not enough bits in its mantissa to
+       * represent a UV this summing of small low-order numbers
+       * is a waste of time (because the NV cannot preserve
+       * the low-order bits anyway): we could just remember when
+       * did we overflow and in the end just multiply value_nv by the
+       * right amount. */
+      value_nv += (NV)(bit - '0');
+      continue;
     }
 
-    for (; len-- && *s; s++) {
-        char bit = *s;
-        if (bit == '0' || bit == '1') {
-            /* Write it in this wonky order with a goto to attempt to get the
-               compiler to make the common case integer-only loop pretty tight.
-               With gcc seems to be much straighter code than old scan_bin.  */
-          redo:
-            if (!overflowed) {
-                if (value <= max_div_2) {
-                    value = (value << 1) | (bit - '0');
-                    continue;
-                }
-                /* Bah. We're just overflowed.  */
-                warn("Integer overflow in binary number");
-                overflowed = TRUE;
-                value_nv = (NV) value;
-            }
-            value_nv *= 2.0;
-            /* If an NV has not enough bits in its mantissa to
-             * represent a UV this summing of small low-order numbers
-             * is a waste of time (because the NV cannot preserve
-             * the low-order bits anyway): we could just remember when
-             * did we overflow and in the end just multiply value_nv by the
-             * right amount. */
-            value_nv += (NV)(bit - '0');
-            continue;
-        }
-        if (bit == '_' && len && allow_underscores && (bit = s[1])
-            && (bit == '0' || bit == '1'))
-            {
-                --len;
-                ++s;
-                goto redo;
-            }
-        if (!(*flags & PERL_SCAN_SILENT_ILLDIGIT))
-            warn("Illegal binary digit '%c' ignored", *s);
-        break;
+    if (bit == '_' && len && allow_underscores && (bit = s[1])
+        && (bit == '0' || bit == '1'))
+    {
+      --len;
+      ++s;
+      goto redo;
     }
 
-    if (   ( overflowed && value_nv > 4294967295.0)
+    if (!(*flags & PERL_SCAN_SILENT_ILLDIGIT))
+      warn("Illegal binary digit '%c' ignored", *s);
+
+    break;
+  }
+
+  if (   ( overflowed && value_nv > 4294967295.0)
 #if UVSIZE > 4
-        || (!overflowed && value > 0xffffffff  )
+         || (!overflowed && value > 0xffffffff  )
 #endif
-        ) {
-        warn("Binary number > 0b11111111111111111111111111111111 non-portable");
-    }
-    *len_p = s - start;
-    if (!overflowed) {
-        *flags = 0;
-        return value;
-    }
-    *flags = PERL_SCAN_GREATER_THAN_UV_MAX;
-    if (result)
-        *result = value_nv;
-    return UV_MAX;
+     ) {
+    warn("Binary number > 0b11111111111111111111111111111111 non-portable");
+  }
+
+  *len_p = s - start;
+
+  if (!overflowed) {
+    *flags = 0;
+    return value;
+  }
+
+  *flags = PERL_SCAN_GREATER_THAN_UV_MAX;
+
+  if (result)
+    *result = value_nv;
+
+  return UV_MAX;
 }
 #endif
 #endif
@@ -16672,86 +16781,98 @@ extern UV DPPP_(my_grok_hex)(pTHX_ const char * start, STRLEN * len_p, I32 * fla
 UV
 DPPP_(my_grok_hex)(pTHX_ const char *start, STRLEN *len_p, I32 *flags, NV *result)
 {
-    const char *s = start;
-    STRLEN len = *len_p;
-    UV value = 0;
-    NV value_nv = 0;
+  const char *s = start;
+  STRLEN len = *len_p;
+  UV value = 0;
+  NV value_nv = 0;
 
-    const UV max_div_16 = UV_MAX / 16;
-    bool allow_underscores = *flags & PERL_SCAN_ALLOW_UNDERSCORES;
-    bool overflowed = FALSE;
-    const char *xdigit;
+  const UV max_div_16 = UV_MAX / 16;
+  bool allow_underscores = *flags & PERL_SCAN_ALLOW_UNDERSCORES;
+  bool overflowed = FALSE;
+  const char *xdigit;
 
-    if (!(*flags & PERL_SCAN_DISALLOW_PREFIX)) {
-        /* strip off leading x or 0x.
-           for compatibility silently suffer "x" and "0x" as valid hex numbers.
-        */
-        if (len >= 1) {
-            if (s[0] == 'x') {
-                s++;
-                len--;
-            }
-            else if (len >= 2 && s[0] == '0' && s[1] == 'x') {
-                s+=2;
-                len-=2;
-            }
+  if (!(*flags & PERL_SCAN_DISALLOW_PREFIX)) {
+    /* strip off leading x or 0x.
+       for compatibility silently suffer "x" and "0x" as valid hex numbers.
+    */
+    if (len >= 1) {
+      if (s[0] == 'x') {
+        s++;
+        len--;
+      }
+      else if (len >= 2 && s[0] == '0' && s[1] == 'x') {
+        s += 2;
+        len -= 2;
+      }
+    }
+  }
+
+  for (; len-- && *s; s++) {
+    xdigit = strchr((char *) PL_hexdigit, *s);
+
+    if (xdigit) {
+      /* Write it in this wonky order with a goto to attempt to get the
+         compiler to make the common case integer-only loop pretty tight.
+         With gcc seems to be much straighter code than old scan_hex.  */
+redo:
+
+      if (!overflowed) {
+        if (value <= max_div_16) {
+          value = (value << 4) | ((xdigit - PL_hexdigit) & 15);
+          continue;
         }
+
+        warn("Integer overflow in hexadecimal number");
+        overflowed = TRUE;
+        value_nv = (NV) value;
+      }
+
+      value_nv *= 16.0;
+      /* If an NV has not enough bits in its mantissa to
+       * represent a UV this summing of small low-order numbers
+       * is a waste of time (because the NV cannot preserve
+       * the low-order bits anyway): we could just remember when
+       * did we overflow and in the end just multiply value_nv by the
+       * right amount of 16-tuples. */
+      value_nv += (NV)((xdigit - PL_hexdigit) & 15);
+      continue;
     }
 
-    for (; len-- && *s; s++) {
-        xdigit = strchr((char *) PL_hexdigit, *s);
-        if (xdigit) {
-            /* Write it in this wonky order with a goto to attempt to get the
-               compiler to make the common case integer-only loop pretty tight.
-               With gcc seems to be much straighter code than old scan_hex.  */
-          redo:
-            if (!overflowed) {
-                if (value <= max_div_16) {
-                    value = (value << 4) | ((xdigit - PL_hexdigit) & 15);
-                    continue;
-                }
-                warn("Integer overflow in hexadecimal number");
-                overflowed = TRUE;
-                value_nv = (NV) value;
-            }
-            value_nv *= 16.0;
-            /* If an NV has not enough bits in its mantissa to
-             * represent a UV this summing of small low-order numbers
-             * is a waste of time (because the NV cannot preserve
-             * the low-order bits anyway): we could just remember when
-             * did we overflow and in the end just multiply value_nv by the
-             * right amount of 16-tuples. */
-            value_nv += (NV)((xdigit - PL_hexdigit) & 15);
-            continue;
-        }
-        if (*s == '_' && len && allow_underscores && s[1]
-                && (xdigit = strchr((char *) PL_hexdigit, s[1])))
-            {
-                --len;
-                ++s;
-                goto redo;
-            }
-        if (!(*flags & PERL_SCAN_SILENT_ILLDIGIT))
-            warn("Illegal hexadecimal digit '%c' ignored", *s);
-        break;
+    if (*s == '_' && len && allow_underscores && s[1]
+        && (xdigit = strchr((char *) PL_hexdigit, s[1])))
+    {
+      --len;
+      ++s;
+      goto redo;
     }
 
-    if (   ( overflowed && value_nv > 4294967295.0)
+    if (!(*flags & PERL_SCAN_SILENT_ILLDIGIT))
+      warn("Illegal hexadecimal digit '%c' ignored", *s);
+
+    break;
+  }
+
+  if (   ( overflowed && value_nv > 4294967295.0)
 #if UVSIZE > 4
-        || (!overflowed && value > 0xffffffff  )
+         || (!overflowed && value > 0xffffffff  )
 #endif
-        ) {
-        warn("Hexadecimal number > 0xffffffff non-portable");
-    }
-    *len_p = s - start;
-    if (!overflowed) {
-        *flags = 0;
-        return value;
-    }
-    *flags = PERL_SCAN_GREATER_THAN_UV_MAX;
-    if (result)
-        *result = value_nv;
-    return UV_MAX;
+     ) {
+    warn("Hexadecimal number > 0xffffffff non-portable");
+  }
+
+  *len_p = s - start;
+
+  if (!overflowed) {
+    *flags = 0;
+    return value;
+  }
+
+  *flags = PERL_SCAN_GREATER_THAN_UV_MAX;
+
+  if (result)
+    *result = value_nv;
+
+  return UV_MAX;
 }
 #endif
 #endif
@@ -16775,77 +16896,89 @@ extern UV DPPP_(my_grok_oct)(pTHX_ const char * start, STRLEN * len_p, I32 * fla
 UV
 DPPP_(my_grok_oct)(pTHX_ const char *start, STRLEN *len_p, I32 *flags, NV *result)
 {
-    const char *s = start;
-    STRLEN len = *len_p;
-    UV value = 0;
-    NV value_nv = 0;
+  const char *s = start;
+  STRLEN len = *len_p;
+  UV value = 0;
+  NV value_nv = 0;
 
-    const UV max_div_8 = UV_MAX / 8;
-    bool allow_underscores = *flags & PERL_SCAN_ALLOW_UNDERSCORES;
-    bool overflowed = FALSE;
+  const UV max_div_8 = UV_MAX / 8;
+  bool allow_underscores = *flags & PERL_SCAN_ALLOW_UNDERSCORES;
+  bool overflowed = FALSE;
 
-    for (; len-- && *s; s++) {
-         /* gcc 2.95 optimiser not smart enough to figure that this subtraction
-            out front allows slicker code.  */
-        int digit = *s - '0';
-        if (digit >= 0 && digit <= 7) {
-            /* Write it in this wonky order with a goto to attempt to get the
-               compiler to make the common case integer-only loop pretty tight.
-            */
-          redo:
-            if (!overflowed) {
-                if (value <= max_div_8) {
-                    value = (value << 3) | digit;
-                    continue;
-                }
-                /* Bah. We're just overflowed.  */
-                warn("Integer overflow in octal number");
-                overflowed = TRUE;
-                value_nv = (NV) value;
-            }
-            value_nv *= 8.0;
-            /* If an NV has not enough bits in its mantissa to
-             * represent a UV this summing of small low-order numbers
-             * is a waste of time (because the NV cannot preserve
-             * the low-order bits anyway): we could just remember when
-             * did we overflow and in the end just multiply value_nv by the
-             * right amount of 8-tuples. */
-            value_nv += (NV)digit;
-            continue;
+  for (; len-- && *s; s++) {
+    /* gcc 2.95 optimiser not smart enough to figure that this subtraction
+       out front allows slicker code.  */
+    int digit = *s - '0';
+
+    if (digit >= 0 && digit <= 7) {
+      /* Write it in this wonky order with a goto to attempt to get the
+         compiler to make the common case integer-only loop pretty tight.
+      */
+redo:
+
+      if (!overflowed) {
+        if (value <= max_div_8) {
+          value = (value << 3) | digit;
+          continue;
         }
-        if (digit == ('_' - '0') && len && allow_underscores
-            && (digit = s[1] - '0') && (digit >= 0 && digit <= 7))
-            {
-                --len;
-                ++s;
-                goto redo;
-            }
-        /* Allow \octal to work the DWIM way (that is, stop scanning
-         * as soon as non-octal characters are seen, complain only iff
-         * someone seems to want to use the digits eight and nine). */
-        if (digit == 8 || digit == 9) {
-            if (!(*flags & PERL_SCAN_SILENT_ILLDIGIT))
-                warn("Illegal octal digit '%c' ignored", *s);
-        }
-        break;
+
+        /* Bah. We're just overflowed.  */
+        warn("Integer overflow in octal number");
+        overflowed = TRUE;
+        value_nv = (NV) value;
+      }
+
+      value_nv *= 8.0;
+      /* If an NV has not enough bits in its mantissa to
+       * represent a UV this summing of small low-order numbers
+       * is a waste of time (because the NV cannot preserve
+       * the low-order bits anyway): we could just remember when
+       * did we overflow and in the end just multiply value_nv by the
+       * right amount of 8-tuples. */
+      value_nv += (NV)digit;
+      continue;
     }
 
-    if (   ( overflowed && value_nv > 4294967295.0)
+    if (digit == ('_' - '0') && len && allow_underscores
+        && (digit = s[1] - '0') && (digit >= 0 && digit <= 7))
+    {
+      --len;
+      ++s;
+      goto redo;
+    }
+
+    /* Allow \octal to work the DWIM way (that is, stop scanning
+     * as soon as non-octal characters are seen, complain only iff
+     * someone seems to want to use the digits eight and nine). */
+    if (digit == 8 || digit == 9) {
+      if (!(*flags & PERL_SCAN_SILENT_ILLDIGIT))
+        warn("Illegal octal digit '%c' ignored", *s);
+    }
+
+    break;
+  }
+
+  if (   ( overflowed && value_nv > 4294967295.0)
 #if UVSIZE > 4
-        || (!overflowed && value > 0xffffffff  )
+         || (!overflowed && value > 0xffffffff  )
 #endif
-        ) {
-        warn("Octal number > 037777777777 non-portable");
-    }
-    *len_p = s - start;
-    if (!overflowed) {
-        *flags = 0;
-        return value;
-    }
-    *flags = PERL_SCAN_GREATER_THAN_UV_MAX;
-    if (result)
-        *result = value_nv;
-    return UV_MAX;
+     ) {
+    warn("Octal number > 037777777777 non-portable");
+  }
+
+  *len_p = s - start;
+
+  if (!overflowed) {
+    *flags = 0;
+    return value;
+  }
+
+  *flags = PERL_SCAN_GREATER_THAN_UV_MAX;
+
+  if (result)
+    *result = value_nv;
+
+  return UV_MAX;
 }
 #endif
 #endif
@@ -16867,19 +17000,21 @@ extern int DPPP_(my_my_snprintf)(char * buffer, const Size_t len, const char * f
 int
 DPPP_(my_my_snprintf)(char *buffer, const Size_t len, const char *format, ...)
 {
-    dTHX;
-    int retval;
-    va_list ap;
-    va_start(ap, format);
+  dTHX;
+  int retval;
+  va_list ap;
+  va_start(ap, format);
 #ifdef HAS_VSNPRINTF
-    retval = vsnprintf(buffer, len, format, ap);
+  retval = vsnprintf(buffer, len, format, ap);
 #else
-    retval = vsprintf(buffer, format, ap);
+  retval = vsprintf(buffer, format, ap);
 #endif
-    va_end(ap);
-    if (retval < 0 || (len > 0 && (Size_t)retval >= len))
-        Perl_croak(aTHX_ "panic: my_snprintf buffer overflow");
-    return retval;
+  va_end(ap);
+
+  if (retval < 0 || (len > 0 && (Size_t)retval >= len))
+    Perl_croak(aTHX_ "panic: my_snprintf buffer overflow");
+
+  return retval;
 }
 
 #endif
@@ -16907,11 +17042,11 @@ extern int DPPP_(my_my_sprintf)(char * buffer, const char * pat, ...);
 int
 DPPP_(my_my_sprintf)(char *buffer, const char* pat, ...)
 {
-    va_list args;
-    va_start(args, pat);
-    vsprintf(buffer, pat, args);
-    va_end(args);
-    return strlen(buffer);
+  va_list args;
+  va_start(args, pat);
+  vsprintf(buffer, pat, args);
+  va_end(args);
+  return strlen(buffer);
 }
 
 #endif
@@ -16950,16 +17085,18 @@ extern Size_t DPPP_(my_my_strlcat)(char * dst, const char * src, Size_t size);
 Size_t
 DPPP_(my_my_strlcat)(char *dst, const char *src, Size_t size)
 {
-    Size_t used, length, copy;
+  Size_t used, length, copy;
 
-    used = strlen(dst);
-    length = strlen(src);
-    if (size > 0 && used < size - 1) {
-        copy = (length >= size - used) ? size - used - 1 : length;
-        memcpy(dst + used, src, copy);
-        dst[used + copy] = '\0';
-    }
-    return used + length;
+  used = strlen(dst);
+  length = strlen(src);
+
+  if (size > 0 && used < size - 1) {
+    copy = (length >= size - used) ? size - used - 1 : length;
+    memcpy(dst + used, src, copy);
+    dst[used + copy] = '\0';
+  }
+
+  return used + length;
 }
 #endif
 #endif
@@ -16981,15 +17118,17 @@ extern Size_t DPPP_(my_my_strlcpy)(char * dst, const char * src, Size_t size);
 Size_t
 DPPP_(my_my_strlcpy)(char *dst, const char *src, Size_t size)
 {
-    Size_t length, copy;
+  Size_t length, copy;
 
-    length = strlen(src);
-    if (size > 0) {
-        copy = (length >= size) ? size - 1 : length;
-        memcpy(dst, src, copy);
-        dst[copy] = '\0';
-    }
-    return length;
+  length = strlen(src);
+
+  if (size > 0) {
+    copy = (length >= size) ? size - 1 : length;
+    memcpy(dst, src, copy);
+    dst[copy] = '\0';
+  }
+
+  return length;
 }
 
 #endif
@@ -17199,8 +17338,8 @@ DPPP_(my_my_strlcpy)(char *dst, const char *src, Size_t size)
 
 #ifdef UVCHR_IS_INVARIANT
 #  if 'A' != 65 || UVSIZE < 8
-     /* 32 bit platform, which includes UTF-EBCDIC on the releases this is
-      * backported to */
+/* 32 bit platform, which includes UTF-EBCDIC on the releases this is
+ * backported to */
 #    define D_PPP_UVCHR_SKIP_UPPER(c) 7
 #  else
 #    define D_PPP_UVCHR_SKIP_UPPER(c)                                       \
@@ -17284,9 +17423,9 @@ DPPP_(my_my_strlcpy)(char *dst, const char *src, Size_t size)
 #endif
 
 #if (PERL_BCDVERSION < 0x5031004)
-        /* Versions prior to this accepted things that are now considered
-         * malformations, and didn't return -1 on error with warnings enabled
-         * */
+/* Versions prior to this accepted things that are now considered
+ * malformations, and didn't return -1 on error with warnings enabled
+ * */
 #  undef utf8_to_uvchr_buf
 #endif
 
@@ -17306,8 +17445,8 @@ DPPP_(my_my_strlcpy)(char *dst, const char *src, Size_t size)
  * implementation is very different from later ones, without the later
  * safeguards, so would require extra work to deal with */
 #if (PERL_BCDVERSION >= 0x5006001) && ! defined(utf8_to_uvchr_buf)
-   /* Choose which underlying implementation to use.  At least one must be
-    * present or the perl is too early to handle this function */
+/* Choose which underlying implementation to use.  At least one must be
+ * present or the perl is too early to handle this function */
 #  if defined(utf8n_to_uvchr) || defined(utf8_to_uvchr) || defined(utf8_to_uv)
 #    if defined(utf8n_to_uvchr)   /* This is the preferred implementation */
 #      define D_PPP_utf8_to_uvchr_buf_callee utf8n_to_uvchr
@@ -17343,180 +17482,187 @@ extern UV DPPP_(my_utf8_to_uvchr_buf)(pTHX_ const U8 * s, const U8 * send, STRLE
 UV
 DPPP_(my_utf8_to_uvchr_buf)(pTHX_ const U8 *s, const U8 *send, STRLEN *retlen)
 {
-    UV ret;
-    STRLEN curlen;
-    bool overflows = 0;
-    const U8 *cur_s = s;
-    const bool do_warnings = ckWARN_d(WARN_UTF8);
+  UV ret;
+  STRLEN curlen;
+  bool overflows = 0;
+  const U8 *cur_s = s;
+  const bool do_warnings = ckWARN_d(WARN_UTF8);
 #    if (PERL_BCDVERSION < 0x5026000) && ! defined(EBCDIC)
-    STRLEN overflow_length = 0;
+  STRLEN overflow_length = 0;
 #    endif
 
-    if (send > s) {
-        curlen = send - s;
+  if (send > s) {
+    curlen = send - s;
+  }
+  else {
+    assert(0);  /* Modern perls die under this circumstance */
+    curlen = 0;
+
+    if (! do_warnings) {    /* Handle empty here if no warnings needed */
+      if (retlen) *retlen = 0;
+
+      return UNICODE_REPLACEMENT;
     }
-    else {
-        assert(0);  /* Modern perls die under this circumstance */
-        curlen = 0;
-        if (! do_warnings) {    /* Handle empty here if no warnings needed */
-            if (retlen) *retlen = 0;
-            return UNICODE_REPLACEMENT;
-        }
-    }
+  }
 
 #    if (PERL_BCDVERSION < 0x5026000) && ! defined(EBCDIC)
 
-    /* Perl did not properly detect overflow for much of its history on
-     * non-EBCDIC platforms, often returning an overlong value which may or may
-     * not have been tolerated in the call.  Also, earlier versions, when they
-     * did detect overflow, may have disallowed it completely.  Modern ones can
-     * replace it with the REPLACEMENT CHARACTER, depending on calling
-     * parameters.  Therefore detect it ourselves in  releases it was
-     * problematic in. */
+  /* Perl did not properly detect overflow for much of its history on
+   * non-EBCDIC platforms, often returning an overlong value which may or may
+   * not have been tolerated in the call.  Also, earlier versions, when they
+   * did detect overflow, may have disallowed it completely.  Modern ones can
+   * replace it with the REPLACEMENT CHARACTER, depending on calling
+   * parameters.  Therefore detect it ourselves in  releases it was
+   * problematic in. */
 
-    if (curlen > 0 && UNLIKELY(*s >= 0xFE)) {
+  if (curlen > 0 && UNLIKELY(*s >= 0xFE)) {
 
-        /* First, on a 32-bit machine the first byte being at least \xFE
-         * automatically is overflow, as it indicates something requiring more
-         * than 31 bits */
-        if (sizeof(ret) < 8) {
-            overflows = 1;
-            overflow_length = (*s == 0xFE) ? 7 : 13;
-        }
-        else {
-            const U8 highest[] =    /* 2*63-1 */
-                        "\xFF\x80\x87\xBF\xBF\xBF\xBF\xBF\xBF\xBF\xBF\xBF\xBF";
-            const U8 *cur_h = highest;
-
-            for (cur_s = s; cur_s < send; cur_s++, cur_h++) {
-                if (UNLIKELY(*cur_s == *cur_h)) {
-                    continue;
-                }
-
-                /* If this byte is larger than the corresponding highest UTF-8
-                 * byte, the sequence overflows; otherwise the byte is less
-                 * than (as we handled the equality case above), and so the
-                 * sequence doesn't overflow */
-                overflows = *cur_s > *cur_h;
-                break;
-
-            }
-
-            /* Here, either we set the bool and broke out of the loop, or got
-             * to the end and all bytes are the same which indicates it doesn't
-             * overflow.  If it did overflow, it would be this number of bytes
-             * */
-            overflow_length = 13;
-        }
+    /* First, on a 32-bit machine the first byte being at least \xFE
+     * automatically is overflow, as it indicates something requiring more
+     * than 31 bits */
+    if (sizeof(ret) < 8) {
+      overflows = 1;
+      overflow_length = (*s == 0xFE) ? 7 : 13;
     }
+    else {
+      const U8 highest[] =    /* 2*63-1 */
+        "\xFF\x80\x87\xBF\xBF\xBF\xBF\xBF\xBF\xBF\xBF\xBF\xBF";
+      const U8 *cur_h = highest;
 
-    if (UNLIKELY(overflows)) {
-        ret = 0;
-
-        if (! do_warnings && retlen) {
-            *retlen = overflow_length;
+      for (cur_s = s; cur_s < send; cur_s++, cur_h++) {
+        if (UNLIKELY(*cur_s == *cur_h)) {
+          continue;
         }
+
+        /* If this byte is larger than the corresponding highest UTF-8
+         * byte, the sequence overflows; otherwise the byte is less
+         * than (as we handled the equality case above), and so the
+         * sequence doesn't overflow */
+        overflows = *cur_s > *cur_h;
+        break;
+
+      }
+
+      /* Here, either we set the bool and broke out of the loop, or got
+       * to the end and all bytes are the same which indicates it doesn't
+       * overflow.  If it did overflow, it would be this number of bytes
+       * */
+      overflow_length = 13;
     }
-    else
+  }
+
+  if (UNLIKELY(overflows)) {
+    ret = 0;
+
+    if (! do_warnings && retlen) {
+      *retlen = overflow_length;
+    }
+  }
+  else
 
 #    endif  /* < 5.26 */
 
-        /* Here, we are either in a release that properly detects overflow, or
-         * we have checked for overflow and the next statement is executing as
-         * part of the above conditional where we know we don't have overflow.
-         *
-         * The modern versions allow anything that evaluates to a legal UV, but
-         * not overlongs nor an empty input */
-        ret = D_PPP_utf8_to_uvchr_buf_callee(
-              (U8 *) /* Early perls: no const */
-                    s, curlen, retlen,   (UTF8_ALLOW_ANYUV
-                                      & ~(UTF8_ALLOW_LONG|UTF8_ALLOW_EMPTY)));
+    /* Here, we are either in a release that properly detects overflow, or
+     * we have checked for overflow and the next statement is executing as
+     * part of the above conditional where we know we don't have overflow.
+     *
+     * The modern versions allow anything that evaluates to a legal UV, but
+     * not overlongs nor an empty input */
+    ret = D_PPP_utf8_to_uvchr_buf_callee(
+            (U8 *) /* Early perls: no const */
+            s, curlen, retlen,   (UTF8_ALLOW_ANYUV
+                                  & ~(UTF8_ALLOW_LONG | UTF8_ALLOW_EMPTY)));
 
 #    if (PERL_BCDVERSION >= 0x5026000) && (PERL_BCDVERSION < 0x5028000)
 
-    /* But actually, more modern versions restrict the UV to being no more than
-     * what an IV can hold, so it could still have gotten it wrong about
-     * overflowing. */
-    if (UNLIKELY(ret > IV_MAX)) {
-        overflows = 1;
-    }
+  /* But actually, more modern versions restrict the UV to being no more than
+   * what an IV can hold, so it could still have gotten it wrong about
+   * overflowing. */
+  if (UNLIKELY(ret > IV_MAX)) {
+    overflows = 1;
+  }
 
 #    endif
 
-    if (UNLIKELY(overflows)) {
-        if (! do_warnings) {
-            if (retlen) {
-                *retlen = D_PPP_MIN(*retlen, UTF8SKIP(s));
-                *retlen = D_PPP_MIN(*retlen, curlen);
-            }
-            return UNICODE_REPLACEMENT;
-        }
-        else {
+  if (UNLIKELY(overflows)) {
+    if (! do_warnings) {
+      if (retlen) {
+        *retlen = D_PPP_MIN(*retlen, UTF8SKIP(s));
+        *retlen = D_PPP_MIN(*retlen, curlen);
+      }
 
-            /* We use the error message in use from 5.8-5.26 */
-            Perl_warner(aTHX_ packWARN(WARN_UTF8),
-                "Malformed UTF-8 character (overflow at 0x%" UVxf
-                ", byte 0x%02x, after start byte 0x%02x)",
-                ret, *cur_s, *s);
-            if (retlen) {
-                *retlen = (STRLEN) -1;
-            }
-            return 0;
-        }
+      return UNICODE_REPLACEMENT;
     }
+    else {
 
-    /* Here, did not overflow, but if it failed for some other reason, and
-     * warnings are off, to emulate the behavior of the real utf8_to_uvchr(),
-     * try again, allowing anything.  (Note a return of 0 is ok if the input
-     * was '\0') */
-    if (UNLIKELY(ret == 0 && (curlen == 0 || *s != '\0'))) {
+      /* We use the error message in use from 5.8-5.26 */
+      Perl_warner(aTHX_ packWARN(WARN_UTF8),
+                  "Malformed UTF-8 character (overflow at 0x%" UVxf
+                  ", byte 0x%02x, after start byte 0x%02x)",
+                  ret, *cur_s, *s);
 
-        /* If curlen is 0, we already handled the case where warnings are
-         * disabled, so this 'if' will be true, and so later on, we know that
-         * 's' is dereferencible */
-        if (do_warnings) {
-            if (retlen) {
-                *retlen = (STRLEN) -1;
-            }
-        }
-        else {
-            ret = D_PPP_utf8_to_uvchr_buf_callee(
-                                     (U8 *) /* Early perls: no const */
-                                            s, curlen, retlen, UTF8_ALLOW_ANY);
-            /* Override with the REPLACEMENT character, as that is what the
-             * modern version of this function returns */
-            ret = UNICODE_REPLACEMENT;
+      if (retlen) {
+        *retlen = (STRLEN) - 1;
+      }
+
+      return 0;
+    }
+  }
+
+  /* Here, did not overflow, but if it failed for some other reason, and
+   * warnings are off, to emulate the behavior of the real utf8_to_uvchr(),
+   * try again, allowing anything.  (Note a return of 0 is ok if the input
+   * was '\0') */
+  if (UNLIKELY(ret == 0 && (curlen == 0 || *s != '\0'))) {
+
+    /* If curlen is 0, we already handled the case where warnings are
+     * disabled, so this 'if' will be true, and so later on, we know that
+     * 's' is dereferencible */
+    if (do_warnings) {
+      if (retlen) {
+        *retlen = (STRLEN) - 1;
+      }
+    }
+    else {
+      ret = D_PPP_utf8_to_uvchr_buf_callee(
+              (U8 *) /* Early perls: no const */
+              s, curlen, retlen, UTF8_ALLOW_ANY);
+      /* Override with the REPLACEMENT character, as that is what the
+       * modern version of this function returns */
+      ret = UNICODE_REPLACEMENT;
 
 #    if (PERL_BCDVERSION < 0x5016000)
 
-            /* Versions earlier than this don't necessarily return the proper
-             * length.  It should not extend past the end of string, nor past
-             * what the first byte indicates the length is, nor past the
-             * continuation characters */
-            if (retlen && (IV) *retlen >= 0) {
-                unsigned int i = 1;
+      /* Versions earlier than this don't necessarily return the proper
+       * length.  It should not extend past the end of string, nor past
+       * what the first byte indicates the length is, nor past the
+       * continuation characters */
+      if (retlen && (IV) *retlen >= 0) {
+        unsigned int i = 1;
 
-                *retlen = D_PPP_MIN(*retlen, curlen);
-                *retlen = D_PPP_MIN(*retlen, UTF8SKIP(s));
-                do {
+        *retlen = D_PPP_MIN(*retlen, curlen);
+        *retlen = D_PPP_MIN(*retlen, UTF8SKIP(s));
+
+        do {
 #      ifdef UTF8_IS_CONTINUATION
-                    if (! UTF8_IS_CONTINUATION(s[i]))
+
+          if (! UTF8_IS_CONTINUATION(s[i]))
 #      else       /* Versions without the above don't support EBCDIC anyway */
-                    if (s[i] < 0x80 || s[i] > 0xBF)
+          if (s[i] < 0x80 || s[i] > 0xBF)
 #      endif
-                    {
-                        *retlen = i;
-                        break;
-                    }
-                } while (++i < *retlen);
-            }
+          {
+            *retlen = i;
+            break;
+          }
+        } while (++i < *retlen);
+      }
 
 #    endif
 
-        }
     }
+  }
 
-    return ret;
+  return ret;
 }
 
 #  endif
@@ -17547,8 +17693,8 @@ DPPP_(my_utf8_to_uvchr_buf)(pTHX_ const U8 *s, const U8 *send, STRLEN *retlen)
 /* Replace utf8_to_uvchr with utf8_to_uvchr_buf */
 
 #ifdef sv_len_utf8
-   /* Older Perl versions have broken sv_len_utf8() when passed sv does not have SVf_UTF8 flag set */
-   /* Also note that SvGETMAGIC() may change presence of SVf_UTF8 flag */
+/* Older Perl versions have broken sv_len_utf8() when passed sv does not have SVf_UTF8 flag set */
+/* Also note that SvGETMAGIC() may change presence of SVf_UTF8 flag */
 #  if (PERL_BCDVERSION < 0x5017005)
 #    undef sv_len_utf8
 #    if defined(PERL_USE_GCC_BRACE_GROUPS)
@@ -17651,92 +17797,121 @@ extern char * DPPP_(my_pv_escape)(pTHX_ SV * dsv, char const * const str, const 
 
 char *
 DPPP_(my_pv_escape)(pTHX_ SV *dsv, char const * const str,
-  const STRLEN count, const STRLEN max,
-  STRLEN * const escaped, const U32 flags)
+                    const STRLEN count, const STRLEN max,
+                    STRLEN * const escaped, const U32 flags)
 {
-    const char esc = flags & PERL_PV_ESCAPE_RE ? '%' : '\\';
-    const char dq = flags & PERL_PV_ESCAPE_QUOTE ? '"' : esc;
-    char octbuf[32] = "%123456789ABCDF";
-    STRLEN wrote = 0;
-    STRLEN chsize = 0;
-    STRLEN readsize = 1;
+  const char esc = flags & PERL_PV_ESCAPE_RE ? '%' : '\\';
+  const char dq = flags & PERL_PV_ESCAPE_QUOTE ? '"' : esc;
+  char octbuf[32] = "%123456789ABCDF";
+  STRLEN wrote = 0;
+  STRLEN chsize = 0;
+  STRLEN readsize = 1;
 #if defined(is_utf8_string) && defined(utf8_to_uvchr_buf)
-    bool isuni = flags & PERL_PV_ESCAPE_UNI ? 1 : 0;
+  bool isuni = flags & PERL_PV_ESCAPE_UNI ? 1 : 0;
 #endif
-    const char *pv  = str;
-    const char * const end = pv + count;
-    octbuf[0] = esc;
+  const char *pv  = str;
+  const char * const end = pv + count;
+  octbuf[0] = esc;
 
-    if (!(flags & PERL_PV_ESCAPE_NOCLEAR))
-        sv_setpvs(dsv, "");
+  if (!(flags & PERL_PV_ESCAPE_NOCLEAR))
+    sv_setpvs(dsv, "");
 
 #if defined(is_utf8_string) && defined(utf8_to_uvchr_buf)
-    if ((flags & PERL_PV_ESCAPE_UNI_DETECT) && is_utf8_string((U8*)pv, count))
-        isuni = 1;
+
+  if ((flags & PERL_PV_ESCAPE_UNI_DETECT) && is_utf8_string((U8*)pv, count))
+    isuni = 1;
+
 #endif
 
-    for (; pv < end && (!max || wrote < max) ; pv += readsize) {
-        const UV u =
+  for (; pv < end && (!max || wrote < max) ; pv += readsize) {
+    const UV u =
 #if defined(is_utf8_string) && defined(utf8_to_uvchr_buf)
-                     isuni ? utf8_to_uvchr_buf((U8*)pv, end, &readsize) :
+      isuni ? utf8_to_uvchr_buf((U8*)pv, end, &readsize) :
 #endif
-                             (U8)*pv;
-        const U8 c = (U8)u & 0xFF;
+      (U8) * pv;
+    const U8 c = (U8)u & 0xFF;
 
-        if (u > 255 || (flags & PERL_PV_ESCAPE_ALL)) {
-            if (flags & PERL_PV_ESCAPE_FIRSTCHAR)
-                chsize = my_snprintf(octbuf, sizeof octbuf,
-                                      "%" UVxf, u);
+    if (u > 255 || (flags & PERL_PV_ESCAPE_ALL)) {
+      if (flags & PERL_PV_ESCAPE_FIRSTCHAR)
+        chsize = my_snprintf(octbuf, sizeof octbuf,
+                             "%" UVxf, u);
+      else
+        chsize = my_snprintf(octbuf, sizeof octbuf,
+                             "%cx{%" UVxf "}", esc, u);
+    } else if (flags & PERL_PV_ESCAPE_NOBACKSLASH) {
+      chsize = 1;
+    } else {
+      if (c == dq || c == esc || !isPRINT(c)) {
+        chsize = 2;
+
+        switch (c) {
+          case '\\' : /* fallthrough */
+          case '%'  :
+            if (c == esc)
+              octbuf[1] = esc;
             else
-                chsize = my_snprintf(octbuf, sizeof octbuf,
-                                      "%cx{%" UVxf "}", esc, u);
-        } else if (flags & PERL_PV_ESCAPE_NOBACKSLASH) {
-            chsize = 1;
-        } else {
-            if (c == dq || c == esc || !isPRINT(c)) {
-                chsize = 2;
-                switch (c) {
-                case '\\' : /* fallthrough */
-                case '%'  : if (c == esc)
-                                octbuf[1] = esc;
-                            else
-                                chsize = 1;
-                            break;
-                case '\v' : octbuf[1] = 'v'; break;
-                case '\t' : octbuf[1] = 't'; break;
-                case '\r' : octbuf[1] = 'r'; break;
-                case '\n' : octbuf[1] = 'n'; break;
-                case '\f' : octbuf[1] = 'f'; break;
-                case '"'  : if (dq == '"')
-                                octbuf[1] = '"';
-                            else
-                                chsize = 1;
-                            break;
-                default:    chsize = my_snprintf(octbuf, sizeof octbuf,
-                                pv < end && isDIGIT((U8)*(pv+readsize))
-                                ? "%c%03o" : "%c%o", esc, c);
-                }
-            } else {
-                chsize = 1;
-            }
-        }
-        if (max && wrote + chsize > max) {
+              chsize = 1;
+
             break;
-        } else if (chsize > 1) {
-            sv_catpvn(dsv, octbuf, chsize);
-            wrote += chsize;
-        } else {
-            char tmp[2];
-            my_snprintf(tmp, sizeof tmp, "%c", c);
-            sv_catpvn(dsv, tmp, 1);
-            wrote++;
-        }
-        if (flags & PERL_PV_ESCAPE_FIRSTCHAR)
+
+          case '\v' :
+            octbuf[1] = 'v';
             break;
+
+          case '\t' :
+            octbuf[1] = 't';
+            break;
+
+          case '\r' :
+            octbuf[1] = 'r';
+            break;
+
+          case '\n' :
+            octbuf[1] = 'n';
+            break;
+
+          case '\f' :
+            octbuf[1] = 'f';
+            break;
+
+          case '"'  :
+            if (dq == '"')
+              octbuf[1] = '"';
+            else
+              chsize = 1;
+
+            break;
+
+          default:
+            chsize = my_snprintf(octbuf, sizeof octbuf,
+                                 pv < end && isDIGIT((U8) * (pv + readsize))
+                                 ? "%c%03o" : "%c%o", esc, c);
+        }
+      } else {
+        chsize = 1;
+      }
     }
-    if (escaped != NULL)
-        *escaped= pv - str;
-    return SvPVX(dsv);
+
+    if (max && wrote + chsize > max) {
+      break;
+    } else if (chsize > 1) {
+      sv_catpvn(dsv, octbuf, chsize);
+      wrote += chsize;
+    } else {
+      char tmp[2];
+      my_snprintf(tmp, sizeof tmp, "%c", c);
+      sv_catpvn(dsv, tmp, 1);
+      wrote++;
+    }
+
+    if (flags & PERL_PV_ESCAPE_FIRSTCHAR)
+      break;
+  }
+
+  if (escaped != NULL)
+    *escaped = pv - str;
+
+  return SvPVX(dsv);
 }
 
 #endif
@@ -17761,37 +17936,37 @@ extern char * DPPP_(my_pv_pretty)(pTHX_ SV * dsv, char const * const str, const 
 
 char *
 DPPP_(my_pv_pretty)(pTHX_ SV *dsv, char const * const str, const STRLEN count,
-  const STRLEN max, char const * const start_color, char const * const end_color,
-  const U32 flags)
+                    const STRLEN max, char const * const start_color, char const * const end_color,
+                    const U32 flags)
 {
-    const U8 dq = (flags & PERL_PV_PRETTY_QUOTE) ? '"' : '%';
-    STRLEN escaped;
+  const U8 dq = (flags & PERL_PV_PRETTY_QUOTE) ? '"' : '%';
+  STRLEN escaped;
 
-    if (!(flags & PERL_PV_PRETTY_NOCLEAR))
-        sv_setpvs(dsv, "");
+  if (!(flags & PERL_PV_PRETTY_NOCLEAR))
+    sv_setpvs(dsv, "");
 
-    if (dq == '"')
-        sv_catpvs(dsv, "\"");
-    else if (flags & PERL_PV_PRETTY_LTGT)
-        sv_catpvs(dsv, "<");
+  if (dq == '"')
+    sv_catpvs(dsv, "\"");
+  else if (flags & PERL_PV_PRETTY_LTGT)
+    sv_catpvs(dsv, "<");
 
-    if (start_color != NULL)
-        sv_catpv(dsv, D_PPP_CONSTPV_ARG(start_color));
+  if (start_color != NULL)
+    sv_catpv(dsv, D_PPP_CONSTPV_ARG(start_color));
 
-    pv_escape(dsv, str, count, max, &escaped, flags | PERL_PV_ESCAPE_NOCLEAR);
+  pv_escape(dsv, str, count, max, &escaped, flags | PERL_PV_ESCAPE_NOCLEAR);
 
-    if (end_color != NULL)
-        sv_catpv(dsv, D_PPP_CONSTPV_ARG(end_color));
+  if (end_color != NULL)
+    sv_catpv(dsv, D_PPP_CONSTPV_ARG(end_color));
 
-    if (dq == '"')
-        sv_catpvs(dsv, "\"");
-    else if (flags & PERL_PV_PRETTY_LTGT)
-        sv_catpvs(dsv, ">");
+  if (dq == '"')
+    sv_catpvs(dsv, "\"");
+  else if (flags & PERL_PV_PRETTY_LTGT)
+    sv_catpvs(dsv, ">");
 
-    if ((flags & PERL_PV_PRETTY_ELLIPSES) && escaped < count)
-        sv_catpvs(dsv, "...");
+  if ((flags & PERL_PV_PRETTY_ELLIPSES) && escaped < count)
+    sv_catpvs(dsv, "...");
 
-    return SvPVX(dsv);
+  return SvPVX(dsv);
 }
 
 #endif
@@ -17817,10 +17992,12 @@ extern char * DPPP_(my_pv_display)(pTHX_ SV * dsv, const char * pv, STRLEN cur, 
 char *
 DPPP_(my_pv_display)(pTHX_ SV *dsv, const char *pv, STRLEN cur, STRLEN len, STRLEN pvlim)
 {
-    pv_pretty(dsv, pv, cur, pvlim, NULL, NULL, PERL_PV_PRETTY_DUMP);
-    if (len > cur && pv[cur] == '\0')
-        sv_catpvs(dsv, "\\0");
-    return SvPVX(dsv);
+  pv_pretty(dsv, pv, cur, pvlim, NULL, NULL, PERL_PV_PRETTY_DUMP);
+
+  if (len > cur && pv[cur] == '\0')
+    sv_catpvs(dsv, "\\0");
+
+  return SvPVX(dsv);
 }
 
 #endif
@@ -17846,14 +18023,14 @@ DPPP_(my_pv_display)(pTHX_ SV *dsv, const char *pv, STRLEN cur, STRLEN len, STRL
 
 #ifndef STORE_NUMERIC_SET_STANDARD
 #  define STORE_NUMERIC_SET_STANDARD()   \
-	 LoC_ = savepv(setlocale(LC_NUMERIC, NULL));  \
-	 SAVEFREEPV(LoC_);                            \
-	 setlocale(LC_NUMERIC, "C");
+   LoC_ = savepv(setlocale(LC_NUMERIC, NULL));  \
+   SAVEFREEPV(LoC_);                            \
+   setlocale(LC_NUMERIC, "C");
 #endif
 
 #ifndef RESTORE_LC_NUMERIC
 #  define RESTORE_LC_NUMERIC()           \
-	 setlocale(LC_NUMERIC, LoC_);
+   setlocale(LC_NUMERIC, LoC_);
 #endif
 
 #    else

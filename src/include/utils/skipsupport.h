@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * skipsupport.h
- *	  Support routines for B-Tree skip scan.
+ *    Support routines for B-Tree skip scan.
  *
  * B-Tree operator classes for discrete types can optionally provide a support
  * function for skipping.  This is used during skip scans.
@@ -49,8 +49,8 @@
 
 typedef struct SkipSupportData *SkipSupport;
 typedef Datum (*SkipSupportIncDec) (Relation rel,
-									Datum existing,
-									bool *overflow);
+                                    Datum existing,
+                                    bool *overflow);
 
 /*
  * State/callbacks used by skip arrays to procedurally generate elements.
@@ -60,39 +60,39 @@ typedef Datum (*SkipSupportIncDec) (Relation rel,
  */
 typedef struct SkipSupportData
 {
-	/*
-	 * low_elem and high_elem must be set with the lowest and highest possible
-	 * values from the domain of indexable values (assuming ascending order)
-	 */
-	Datum		low_elem;		/* lowest sorting/leftmost non-NULL value */
-	Datum		high_elem;		/* highest sorting/rightmost non-NULL value */
+  /*
+   * low_elem and high_elem must be set with the lowest and highest possible
+   * values from the domain of indexable values (assuming ascending order)
+   */
+  Datum   low_elem;   /* lowest sorting/leftmost non-NULL value */
+  Datum   high_elem;    /* highest sorting/rightmost non-NULL value */
 
-	/*
-	 * Decrement/increment functions.
-	 *
-	 * Returns a decremented/incremented copy of caller's existing datum,
-	 * allocated in caller's memory context (for pass-by-reference types).
-	 * It's not okay for these functions to leak any memory.
-	 *
-	 * When the decrement function (or increment function) is called with a
-	 * value that already matches low_elem (or high_elem), function must set
-	 * the *overflow argument.  The return value is treated as undefined by
-	 * the B-Tree code; it shouldn't need to be (and won't be) pfree'd.
-	 *
-	 * The B-Tree code's "existing" datum argument is often just a straight
-	 * copy of a value from an index tuple.  Operator classes must accept
-	 * every possible representational variation within the underlying type.
-	 * On the other hand, opclasses are _not_ required to preserve information
-	 * that doesn't affect how datums are sorted (e.g., skip support for a
-	 * fixed precision numeric type needn't preserve datum display scale).
-	 * Operator class decrement/increment functions will never be called with
-	 * a NULL "existing" argument, either.
-	 */
-	SkipSupportIncDec decrement;
-	SkipSupportIncDec increment;
-}			SkipSupportData;
+  /*
+   * Decrement/increment functions.
+   *
+   * Returns a decremented/incremented copy of caller's existing datum,
+   * allocated in caller's memory context (for pass-by-reference types).
+   * It's not okay for these functions to leak any memory.
+   *
+   * When the decrement function (or increment function) is called with a
+   * value that already matches low_elem (or high_elem), function must set
+   * the *overflow argument.  The return value is treated as undefined by
+   * the B-Tree code; it shouldn't need to be (and won't be) pfree'd.
+   *
+   * The B-Tree code's "existing" datum argument is often just a straight
+   * copy of a value from an index tuple.  Operator classes must accept
+   * every possible representational variation within the underlying type.
+   * On the other hand, opclasses are _not_ required to preserve information
+   * that doesn't affect how datums are sorted (e.g., skip support for a
+   * fixed precision numeric type needn't preserve datum display scale).
+   * Operator class decrement/increment functions will never be called with
+   * a NULL "existing" argument, either.
+   */
+  SkipSupportIncDec decrement;
+  SkipSupportIncDec increment;
+}     SkipSupportData;
 
 extern SkipSupport PrepareSkipSupportFromOpclass(Oid opfamily, Oid opcintype,
-												 bool reverse);
+    bool reverse);
 
-#endif							/* SKIPSUPPORT_H */
+#endif              /* SKIPSUPPORT_H */

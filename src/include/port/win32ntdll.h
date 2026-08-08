@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * win32ntdll.h
- *	  Dynamically loaded Windows NT functions.
+ *    Dynamically loaded Windows NT functions.
  *
  * Portions Copyright (c) 2021-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -29,6 +29,6 @@ extern PGDLLIMPORT RtlGetLastNtStatus_t pg_RtlGetLastNtStatus;
 extern PGDLLIMPORT RtlNtStatusToDosError_t pg_RtlNtStatusToDosError;
 extern PGDLLIMPORT NtFlushBuffersFileEx_t pg_NtFlushBuffersFileEx;
 
-extern int	initialize_ntdll(void);
+extern int  initialize_ntdll(void);
 
-#endif							/* WIN32NTDLL_H */
+#endif              /* WIN32NTDLL_H */

@@ -33,7 +33,7 @@
 #include "utils/relmapper.h"
 
 #define PG_RMGR(symname,name,redo,desc,identify,startup,cleanup,mask,decode) \
-	{ name, desc, identify},
+  { name, desc, identify},
 
 static const RmgrDescData RmgrDescTable[RM_N_BUILTIN_IDS] = {
 #include "access/rmgrlist.h"
@@ -51,7 +51,7 @@ static bool CustomRmgrDescInitialized = false;
 static void
 default_desc(StringInfo buf, XLogReaderState *record)
 {
-	appendStringInfo(buf, "rmid: %d", XLogRecGetRmid(record));
+  appendStringInfo(buf, "rmid: %d", XLogRecGetRmid(record));
 }
 
 /*
@@ -61,7 +61,7 @@ default_desc(StringInfo buf, XLogReaderState *record)
 static const char *
 default_identify(uint8 info)
 {
-	return NULL;
+  return NULL;
 }
 
 /*
@@ -72,28 +72,28 @@ default_identify(uint8 info)
 static void
 initialize_custom_rmgrs(void)
 {
-	for (int i = 0; i < RM_N_CUSTOM_IDS; i++)
-	{
-		snprintf(CustomNumericNames[i], CUSTOM_NUMERIC_NAME_LEN,
-				 "custom%03d", i + RM_MIN_CUSTOM_ID);
-		CustomRmgrDesc[i].rm_name = CustomNumericNames[i];
-		CustomRmgrDesc[i].rm_desc = default_desc;
-		CustomRmgrDesc[i].rm_identify = default_identify;
-	}
-	CustomRmgrDescInitialized = true;
+  for (int i = 0; i < RM_N_CUSTOM_IDS; i++) {
+    snprintf(CustomNumericNames[i], CUSTOM_NUMERIC_NAME_LEN,
+             "custom%03d", i + RM_MIN_CUSTOM_ID);
+    CustomRmgrDesc[i].rm_name = CustomNumericNames[i];
+    CustomRmgrDesc[i].rm_desc = default_desc;
+    CustomRmgrDesc[i].rm_identify = default_identify;
+  }
+
+  CustomRmgrDescInitialized = true;
 }
 
 const RmgrDescData *
 GetRmgrDesc(RmgrId rmid)
 {
-	Assert(RmgrIdIsValid(rmid));
+  Assert(RmgrIdIsValid(rmid));
 
-	if (RmgrIdIsBuiltin(rmid))
-		return &RmgrDescTable[rmid];
-	else
-	{
-		if (!CustomRmgrDescInitialized)
-			initialize_custom_rmgrs();
-		return &CustomRmgrDesc[rmid - RM_MIN_CUSTOM_ID];
-	}
+  if (RmgrIdIsBuiltin(rmid))
+    return &RmgrDescTable[rmid];
+  else {
+    if (!CustomRmgrDescInitialized)
+      initialize_custom_rmgrs();
+
+    return &CustomRmgrDesc[rmid - RM_MIN_CUSTOM_ID];
+  }
 }

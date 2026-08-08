@@ -1,17 +1,17 @@
 /*-------------------------------------------------------------------------
  *
  * standby.c
- *	  Misc functions used in Hot Standby mode.
+ *    Misc functions used in Hot Standby mode.
  *
- *	All functions for handling RM_STANDBY_ID, which relate to
- *	AccessExclusiveLocks and starting snapshots for Hot Standby mode.
- *	Plus conflict recovery processing.
+ *  All functions for handling RM_STANDBY_ID, which relate to
+ *  AccessExclusiveLocks and starting snapshots for Hot Standby mode.
+ *  Plus conflict recovery processing.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/storage/ipc/standby.c
+ *    src/backend/storage/ipc/standby.c
  *
  *-------------------------------------------------------------------------
  */
@@ -37,9 +37,9 @@
 #include "utils/timestamp.h"
 
 /* User-settable GUC parameters */
-int			max_standby_archive_delay = 30 * 1000;
-int			max_standby_streaming_delay = 30 * 1000;
-bool		log_recovery_conflict_waits = false;
+int     max_standby_archive_delay = 30 * 1000;
+int     max_standby_streaming_delay = 30 * 1000;
+bool    log_recovery_conflict_waits = false;
 
 /*
  * Keep track of all the exclusive locks owned by original transactions.
@@ -50,16 +50,14 @@ bool		log_recovery_conflict_waits = false;
  * there is a RecoveryLockXidEntry in the RecoveryLockXidHash hash table,
  * which stores the head of the chain of its locks.
  */
-typedef struct RecoveryLockEntry
-{
-	xl_standby_lock key;		/* hash key: xid, dbOid, relOid */
-	struct RecoveryLockEntry *next; /* chain link */
+typedef struct RecoveryLockEntry {
+  xl_standby_lock key;    /* hash key: xid, dbOid, relOid */
+  struct RecoveryLockEntry *next; /* chain link */
 } RecoveryLockEntry;
 
-typedef struct RecoveryLockXidEntry
-{
-	TransactionId xid;			/* hash key -- must be first */
-	struct RecoveryLockEntry *head; /* chain head */
+typedef struct RecoveryLockXidEntry {
+  TransactionId xid;      /* hash key -- must be first */
+  struct RecoveryLockEntry *head; /* chain head */
 } RecoveryLockXidEntry;
 
 static HTAB *RecoveryLockHash = NULL;
@@ -71,9 +69,9 @@ static volatile sig_atomic_t got_standby_delay_timeout = false;
 static volatile sig_atomic_t got_standby_lock_timeout = false;
 
 static void ResolveRecoveryConflictWithVirtualXIDs(VirtualTransactionId *waitlist,
-												   ProcSignalReason reason,
-												   uint32 wait_event_info,
-												   bool report_waiting);
+    ProcSignalReason reason,
+    uint32 wait_event_info,
+    bool report_waiting);
 static void SendRecoveryConflictWithBufferPin(ProcSignalReason reason);
 static XLogRecPtr LogCurrentRunningXacts(RunningTransactions CurrRunningXacts);
 static void LogAccessExclusiveLocks(int nlocks, xl_standby_lock *locks);
@@ -81,7 +79,7 @@ static const char *get_recovery_conflict_desc(ProcSignalReason reason);
 
 /*
  * InitRecoveryTransactionEnvironment
- *		Initialize tracking of our primary's in-progress transactions.
+ *    Initialize tracking of our primary's in-progress transactions.
  *
  * We need to issue shared invalidations and hold locks. Holding locks
  * means others may want to wait on us, so we need to make a lock table
@@ -94,59 +92,59 @@ static const char *get_recovery_conflict_desc(ProcSignalReason reason);
 void
 InitRecoveryTransactionEnvironment(void)
 {
-	VirtualTransactionId vxid;
-	HASHCTL		hash_ctl;
+  VirtualTransactionId vxid;
+  HASHCTL   hash_ctl;
 
-	Assert(RecoveryLockHash == NULL);	/* don't run this twice */
+  Assert(RecoveryLockHash == NULL); /* don't run this twice */
 
-	/*
-	 * Initialize the hash tables for tracking the locks held by each
-	 * transaction.
-	 */
-	hash_ctl.keysize = sizeof(xl_standby_lock);
-	hash_ctl.entrysize = sizeof(RecoveryLockEntry);
-	RecoveryLockHash = hash_create("RecoveryLockHash",
-								   64,
-								   &hash_ctl,
-								   HASH_ELEM | HASH_BLOBS);
-	hash_ctl.keysize = sizeof(TransactionId);
-	hash_ctl.entrysize = sizeof(RecoveryLockXidEntry);
-	RecoveryLockXidHash = hash_create("RecoveryLockXidHash",
-									  64,
-									  &hash_ctl,
-									  HASH_ELEM | HASH_BLOBS);
+  /*
+   * Initialize the hash tables for tracking the locks held by each
+   * transaction.
+   */
+  hash_ctl.keysize = sizeof(xl_standby_lock);
+  hash_ctl.entrysize = sizeof(RecoveryLockEntry);
+  RecoveryLockHash = hash_create("RecoveryLockHash",
+                                 64,
+                                 &hash_ctl,
+                                 HASH_ELEM | HASH_BLOBS);
+  hash_ctl.keysize = sizeof(TransactionId);
+  hash_ctl.entrysize = sizeof(RecoveryLockXidEntry);
+  RecoveryLockXidHash = hash_create("RecoveryLockXidHash",
+                                    64,
+                                    &hash_ctl,
+                                    HASH_ELEM | HASH_BLOBS);
 
-	/*
-	 * Initialize shared invalidation management for Startup process, being
-	 * careful to register ourselves as a sendOnly process so we don't need to
-	 * read messages, nor will we get signaled when the queue starts filling
-	 * up.
-	 */
-	SharedInvalBackendInit(true);
+  /*
+   * Initialize shared invalidation management for Startup process, being
+   * careful to register ourselves as a sendOnly process so we don't need to
+   * read messages, nor will we get signaled when the queue starts filling
+   * up.
+   */
+  SharedInvalBackendInit(true);
 
-	/*
-	 * Lock a virtual transaction id for Startup process.
-	 *
-	 * We need to do GetNextLocalTransactionId() because
-	 * SharedInvalBackendInit() leaves localTransactionId invalid and the lock
-	 * manager doesn't like that at all.
-	 *
-	 * Note that we don't need to run XactLockTableInsert() because nobody
-	 * needs to wait on xids. That sounds a little strange, but table locks
-	 * are held by vxids and row level locks are held by xids. All queries
-	 * hold AccessShareLocks so never block while we write or lock new rows.
-	 */
-	MyProc->vxid.procNumber = MyProcNumber;
-	vxid.procNumber = MyProcNumber;
-	vxid.localTransactionId = GetNextLocalTransactionId();
-	VirtualXactLockTableInsert(vxid);
+  /*
+   * Lock a virtual transaction id for Startup process.
+   *
+   * We need to do GetNextLocalTransactionId() because
+   * SharedInvalBackendInit() leaves localTransactionId invalid and the lock
+   * manager doesn't like that at all.
+   *
+   * Note that we don't need to run XactLockTableInsert() because nobody
+   * needs to wait on xids. That sounds a little strange, but table locks
+   * are held by vxids and row level locks are held by xids. All queries
+   * hold AccessShareLocks so never block while we write or lock new rows.
+   */
+  MyProc->vxid.procNumber = MyProcNumber;
+  vxid.procNumber = MyProcNumber;
+  vxid.localTransactionId = GetNextLocalTransactionId();
+  VirtualXactLockTableInsert(vxid);
 
-	standbyState = STANDBY_INITIALIZED;
+  standbyState = STANDBY_INITIALIZED;
 }
 
 /*
  * ShutdownRecoveryTransactionEnvironment
- *		Shut down transaction tracking
+ *    Shut down transaction tracking
  *
  * Prepare to switch from hot standby mode to normal operation. Shut down
  * recovery-time transaction tracking.
@@ -160,35 +158,35 @@ InitRecoveryTransactionEnvironment(void)
 void
 ShutdownRecoveryTransactionEnvironment(void)
 {
-	/*
-	 * Do nothing if RecoveryLockHash is NULL because that means that
-	 * transaction tracking has not yet been initialized or has already been
-	 * shut down.  This makes it safe to have possibly-redundant calls of this
-	 * function during process exit.
-	 */
-	if (RecoveryLockHash == NULL)
-		return;
+  /*
+   * Do nothing if RecoveryLockHash is NULL because that means that
+   * transaction tracking has not yet been initialized or has already been
+   * shut down.  This makes it safe to have possibly-redundant calls of this
+   * function during process exit.
+   */
+  if (RecoveryLockHash == NULL)
+    return;
 
-	/* Mark all tracked in-progress transactions as finished. */
-	ExpireAllKnownAssignedTransactionIds();
+  /* Mark all tracked in-progress transactions as finished. */
+  ExpireAllKnownAssignedTransactionIds();
 
-	/* Release all locks the tracked transactions were holding */
-	StandbyReleaseAllLocks();
+  /* Release all locks the tracked transactions were holding */
+  StandbyReleaseAllLocks();
 
-	/* Destroy the lock hash tables. */
-	hash_destroy(RecoveryLockHash);
-	hash_destroy(RecoveryLockXidHash);
-	RecoveryLockHash = NULL;
-	RecoveryLockXidHash = NULL;
+  /* Destroy the lock hash tables. */
+  hash_destroy(RecoveryLockHash);
+  hash_destroy(RecoveryLockXidHash);
+  RecoveryLockHash = NULL;
+  RecoveryLockXidHash = NULL;
 
-	/* Cleanup our VirtualTransaction */
-	VirtualXactLockTableCleanup();
+  /* Cleanup our VirtualTransaction */
+  VirtualXactLockTableCleanup();
 }
 
 
 /*
  * -----------------------------------------------------
- *		Standby wait timers and backend cancel logic
+ *    Standby wait timers and backend cancel logic
  * -----------------------------------------------------
  */
 
@@ -200,30 +198,30 @@ ShutdownRecoveryTransactionEnvironment(void)
 static TimestampTz
 GetStandbyLimitTime(void)
 {
-	TimestampTz rtime;
-	bool		fromStream;
+  TimestampTz rtime;
+  bool    fromStream;
 
-	/*
-	 * The cutoff time is the last WAL data receipt time plus the appropriate
-	 * delay variable.  Delay of -1 means wait forever.
-	 */
-	GetXLogReceiptTime(&rtime, &fromStream);
-	if (fromStream)
-	{
-		if (max_standby_streaming_delay < 0)
-			return 0;			/* wait forever */
-		return TimestampTzPlusMilliseconds(rtime, max_standby_streaming_delay);
-	}
-	else
-	{
-		if (max_standby_archive_delay < 0)
-			return 0;			/* wait forever */
-		return TimestampTzPlusMilliseconds(rtime, max_standby_archive_delay);
-	}
+  /*
+   * The cutoff time is the last WAL data receipt time plus the appropriate
+   * delay variable.  Delay of -1 means wait forever.
+   */
+  GetXLogReceiptTime(&rtime, &fromStream);
+
+  if (fromStream) {
+    if (max_standby_streaming_delay < 0)
+      return 0;     /* wait forever */
+
+    return TimestampTzPlusMilliseconds(rtime, max_standby_streaming_delay);
+  } else {
+    if (max_standby_archive_delay < 0)
+      return 0;     /* wait forever */
+
+    return TimestampTzPlusMilliseconds(rtime, max_standby_archive_delay);
+  }
 }
 
 #define STANDBY_INITIAL_WAIT_US  1000
-static int	standbyWait_us = STANDBY_INITIAL_WAIT_US;
+static int  standbyWait_us = STANDBY_INITIAL_WAIT_US;
 
 /*
  * Standby wait logic for ResolveRecoveryConflictWithVirtualXIDs.
@@ -233,31 +231,33 @@ static int	standbyWait_us = STANDBY_INITIAL_WAIT_US;
 static bool
 WaitExceedsMaxStandbyDelay(uint32 wait_event_info)
 {
-	TimestampTz ltime;
+  TimestampTz ltime;
 
-	CHECK_FOR_INTERRUPTS();
+  CHECK_FOR_INTERRUPTS();
 
-	/* Are we past the limit time? */
-	ltime = GetStandbyLimitTime();
-	if (ltime && GetCurrentTimestamp() >= ltime)
-		return true;
+  /* Are we past the limit time? */
+  ltime = GetStandbyLimitTime();
 
-	/*
-	 * Sleep a bit (this is essential to avoid busy-waiting).
-	 */
-	pgstat_report_wait_start(wait_event_info);
-	pg_usleep(standbyWait_us);
-	pgstat_report_wait_end();
+  if (ltime && GetCurrentTimestamp() >= ltime)
+    return true;
 
-	/*
-	 * Progressively increase the sleep times, but not to more than 1s, since
-	 * pg_usleep isn't interruptible on some platforms.
-	 */
-	standbyWait_us *= 2;
-	if (standbyWait_us > 1000000)
-		standbyWait_us = 1000000;
+  /*
+   * Sleep a bit (this is essential to avoid busy-waiting).
+   */
+  pgstat_report_wait_start(wait_event_info);
+  pg_usleep(standbyWait_us);
+  pgstat_report_wait_end();
 
-	return false;
+  /*
+   * Progressively increase the sleep times, but not to more than 1s, since
+   * pg_usleep isn't interruptible on some platforms.
+   */
+  standbyWait_us *= 2;
+
+  if (standbyWait_us > 1000000)
+    standbyWait_us = 1000000;
+
+  return false;
 }
 
 /*
@@ -272,76 +272,69 @@ WaitExceedsMaxStandbyDelay(uint32 wait_event_info)
  */
 void
 LogRecoveryConflict(ProcSignalReason reason, TimestampTz wait_start,
-					TimestampTz now, VirtualTransactionId *wait_list,
-					bool still_waiting)
+                    TimestampTz now, VirtualTransactionId *wait_list,
+                    bool still_waiting)
 {
-	long		secs;
-	int			usecs;
-	long		msecs;
-	StringInfoData buf;
-	int			nprocs = 0;
+  long    secs;
+  int     usecs;
+  long    msecs;
+  StringInfoData buf;
+  int     nprocs = 0;
 
-	/*
-	 * There must be no conflicting processes when the recovery conflict has
-	 * already been resolved.
-	 */
-	Assert(still_waiting || wait_list == NULL);
+  /*
+   * There must be no conflicting processes when the recovery conflict has
+   * already been resolved.
+   */
+  Assert(still_waiting || wait_list == NULL);
 
-	TimestampDifference(wait_start, now, &secs, &usecs);
-	msecs = secs * 1000 + usecs / 1000;
-	usecs = usecs % 1000;
+  TimestampDifference(wait_start, now, &secs, &usecs);
+  msecs = secs * 1000 + usecs / 1000;
+  usecs = usecs % 1000;
 
-	if (wait_list)
-	{
-		VirtualTransactionId *vxids;
+  if (wait_list) {
+    VirtualTransactionId *vxids;
 
-		/* Construct a string of list of the conflicting processes */
-		vxids = wait_list;
-		while (VirtualTransactionIdIsValid(*vxids))
-		{
-			PGPROC	   *proc = ProcNumberGetProc(vxids->procNumber);
+    /* Construct a string of list of the conflicting processes */
+    vxids = wait_list;
 
-			/* proc can be NULL if the target backend is not active */
-			if (proc)
-			{
-				if (nprocs == 0)
-				{
-					initStringInfo(&buf);
-					appendStringInfo(&buf, "%d", proc->pid);
-				}
-				else
-					appendStringInfo(&buf, ", %d", proc->pid);
+    while (VirtualTransactionIdIsValid(*vxids)) {
+      PGPROC     *proc = ProcNumberGetProc(vxids->procNumber);
 
-				nprocs++;
-			}
+      /* proc can be NULL if the target backend is not active */
+      if (proc) {
+        if (nprocs == 0) {
+          initStringInfo(&buf);
+          appendStringInfo(&buf, "%d", proc->pid);
+        } else
+          appendStringInfo(&buf, ", %d", proc->pid);
 
-			vxids++;
-		}
-	}
+        nprocs++;
+      }
 
-	/*
-	 * If wait_list is specified, report the list of PIDs of active
-	 * conflicting backends in a detail message. Note that if all the backends
-	 * in the list are not active, no detail message is logged.
-	 */
-	if (still_waiting)
-	{
-		ereport(LOG,
-				errmsg("recovery still waiting after %ld.%03d ms: %s",
-					   msecs, usecs, get_recovery_conflict_desc(reason)),
-				nprocs > 0 ? errdetail_log_plural("Conflicting process: %s.",
-												  "Conflicting processes: %s.",
-												  nprocs, buf.data) : 0);
-	}
-	else
-	{
-		ereport(LOG,
-				errmsg("recovery finished waiting after %ld.%03d ms: %s",
-					   msecs, usecs, get_recovery_conflict_desc(reason)));
-	}
+      vxids++;
+    }
+  }
 
-	if (nprocs > 0)
-		pfree(buf.data);
+  /*
+   * If wait_list is specified, report the list of PIDs of active
+   * conflicting backends in a detail message. Note that if all the backends
+   * in the list are not active, no detail message is logged.
+   */
+  if (still_waiting) {
+    ereport(LOG,
+            errmsg("recovery still waiting after %ld.%03d ms: %s",
+                   msecs, usecs, get_recovery_conflict_desc(reason)),
+            nprocs > 0 ? errdetail_log_plural("Conflicting process: %s.",
+                "Conflicting processes: %s.",
+                nprocs, buf.data) : 0);
+  } else {
+    ereport(LOG,
+            errmsg("recovery finished waiting after %ld.%03d ms: %s",
+                   msecs, usecs, get_recovery_conflict_desc(reason)));
+  }
+
+  if (nprocs > 0)
+    pfree(buf.data);
 }
 
 /*
@@ -358,100 +351,94 @@ LogRecoveryConflict(ProcSignalReason reason, TimestampTz wait_start,
  */
 static void
 ResolveRecoveryConflictWithVirtualXIDs(VirtualTransactionId *waitlist,
-									   ProcSignalReason reason, uint32 wait_event_info,
-									   bool report_waiting)
+                                       ProcSignalReason reason, uint32 wait_event_info,
+                                       bool report_waiting)
 {
-	TimestampTz waitStart = 0;
-	bool		waiting = false;
-	bool		logged_recovery_conflict = false;
+  TimestampTz waitStart = 0;
+  bool    waiting = false;
+  bool    logged_recovery_conflict = false;
 
-	/* Fast exit, to avoid a kernel call if there's no work to be done. */
-	if (!VirtualTransactionIdIsValid(*waitlist))
-		return;
+  /* Fast exit, to avoid a kernel call if there's no work to be done. */
+  if (!VirtualTransactionIdIsValid(*waitlist))
+    return;
 
-	/* Set the wait start timestamp for reporting */
-	if (report_waiting && (log_recovery_conflict_waits || update_process_title))
-		waitStart = GetCurrentTimestamp();
+  /* Set the wait start timestamp for reporting */
+  if (report_waiting && (log_recovery_conflict_waits || update_process_title))
+    waitStart = GetCurrentTimestamp();
 
-	while (VirtualTransactionIdIsValid(*waitlist))
-	{
-		/* reset standbyWait_us for each xact we wait for */
-		standbyWait_us = STANDBY_INITIAL_WAIT_US;
+  while (VirtualTransactionIdIsValid(*waitlist)) {
+    /* reset standbyWait_us for each xact we wait for */
+    standbyWait_us = STANDBY_INITIAL_WAIT_US;
 
-		/* wait until the virtual xid is gone */
-		while (!VirtualXactLock(*waitlist, false))
-		{
-			/* Is it time to kill it? */
-			if (WaitExceedsMaxStandbyDelay(wait_event_info))
-			{
-				pid_t		pid;
+    /* wait until the virtual xid is gone */
+    while (!VirtualXactLock(*waitlist, false)) {
+      /* Is it time to kill it? */
+      if (WaitExceedsMaxStandbyDelay(wait_event_info)) {
+        pid_t   pid;
 
-				/*
-				 * Now find out who to throw out of the balloon.
-				 */
-				Assert(VirtualTransactionIdIsValid(*waitlist));
-				pid = CancelVirtualTransaction(*waitlist, reason);
+        /*
+         * Now find out who to throw out of the balloon.
+         */
+        Assert(VirtualTransactionIdIsValid(*waitlist));
+        pid = CancelVirtualTransaction(*waitlist, reason);
 
-				/*
-				 * Wait a little bit for it to die so that we avoid flooding
-				 * an unresponsive backend when system is heavily loaded.
-				 */
-				if (pid != 0)
-					pg_usleep(5000L);
-			}
+        /*
+         * Wait a little bit for it to die so that we avoid flooding
+         * an unresponsive backend when system is heavily loaded.
+         */
+        if (pid != 0)
+          pg_usleep(5000L);
+      }
 
-			if (waitStart != 0 && (!logged_recovery_conflict || !waiting))
-			{
-				TimestampTz now = 0;
-				bool		maybe_log_conflict;
-				bool		maybe_update_title;
+      if (waitStart != 0 && (!logged_recovery_conflict || !waiting)) {
+        TimestampTz now = 0;
+        bool    maybe_log_conflict;
+        bool    maybe_update_title;
 
-				maybe_log_conflict = (log_recovery_conflict_waits && !logged_recovery_conflict);
-				maybe_update_title = (update_process_title && !waiting);
+        maybe_log_conflict = (log_recovery_conflict_waits && !logged_recovery_conflict);
+        maybe_update_title = (update_process_title && !waiting);
 
-				/* Get the current timestamp if not report yet */
-				if (maybe_log_conflict || maybe_update_title)
-					now = GetCurrentTimestamp();
+        /* Get the current timestamp if not report yet */
+        if (maybe_log_conflict || maybe_update_title)
+          now = GetCurrentTimestamp();
 
-				/*
-				 * Report via ps if we have been waiting for more than 500
-				 * msec (should that be configurable?)
-				 */
-				if (maybe_update_title &&
-					TimestampDifferenceExceeds(waitStart, now, 500))
-				{
-					set_ps_display_suffix("waiting");
-					waiting = true;
-				}
+        /*
+         * Report via ps if we have been waiting for more than 500
+         * msec (should that be configurable?)
+         */
+        if (maybe_update_title &&
+            TimestampDifferenceExceeds(waitStart, now, 500)) {
+          set_ps_display_suffix("waiting");
+          waiting = true;
+        }
 
-				/*
-				 * Emit the log message if the startup process is waiting
-				 * longer than deadlock_timeout for recovery conflict.
-				 */
-				if (maybe_log_conflict &&
-					TimestampDifferenceExceeds(waitStart, now, DeadlockTimeout))
-				{
-					LogRecoveryConflict(reason, waitStart, now, waitlist, true);
-					logged_recovery_conflict = true;
-				}
-			}
-		}
+        /*
+         * Emit the log message if the startup process is waiting
+         * longer than deadlock_timeout for recovery conflict.
+         */
+        if (maybe_log_conflict &&
+            TimestampDifferenceExceeds(waitStart, now, DeadlockTimeout)) {
+          LogRecoveryConflict(reason, waitStart, now, waitlist, true);
+          logged_recovery_conflict = true;
+        }
+      }
+    }
 
-		/* The virtual transaction is gone now, wait for the next one */
-		waitlist++;
-	}
+    /* The virtual transaction is gone now, wait for the next one */
+    waitlist++;
+  }
 
-	/*
-	 * Emit the log message if recovery conflict was resolved but the startup
-	 * process waited longer than deadlock_timeout for it.
-	 */
-	if (logged_recovery_conflict)
-		LogRecoveryConflict(reason, waitStart, GetCurrentTimestamp(),
-							NULL, false);
+  /*
+   * Emit the log message if recovery conflict was resolved but the startup
+   * process waited longer than deadlock_timeout for it.
+   */
+  if (logged_recovery_conflict)
+    LogRecoveryConflict(reason, waitStart, GetCurrentTimestamp(),
+                        NULL, false);
 
-	/* reset ps display to remove the suffix if we added one */
-	if (waiting)
-		set_ps_display_remove_suffix();
+  /* reset ps display to remove the suffix if we added one */
+  if (waiting)
+    set_ps_display_remove_suffix();
 
 }
 
@@ -466,42 +453,42 @@ ResolveRecoveryConflictWithVirtualXIDs(VirtualTransactionId *waitlist,
  */
 void
 ResolveRecoveryConflictWithSnapshot(TransactionId snapshotConflictHorizon,
-									bool isCatalogRel,
-									RelFileLocator locator)
+                                    bool isCatalogRel,
+                                    RelFileLocator locator)
 {
-	VirtualTransactionId *backends;
+  VirtualTransactionId *backends;
 
-	/*
-	 * If we get passed InvalidTransactionId then we do nothing (no conflict).
-	 *
-	 * This can happen when replaying already-applied WAL records after a
-	 * standby crash or restart, or when replaying an XLOG_HEAP2_VISIBLE
-	 * record that marks as frozen a page which was already all-visible.  It's
-	 * also quite common with records generated during index deletion
-	 * (original execution of the deletion can reason that a recovery conflict
-	 * which is sufficient for the deletion operation must take place before
-	 * replay of the deletion record itself).
-	 */
-	if (!TransactionIdIsValid(snapshotConflictHorizon))
-		return;
+  /*
+   * If we get passed InvalidTransactionId then we do nothing (no conflict).
+   *
+   * This can happen when replaying already-applied WAL records after a
+   * standby crash or restart, or when replaying an XLOG_HEAP2_VISIBLE
+   * record that marks as frozen a page which was already all-visible.  It's
+   * also quite common with records generated during index deletion
+   * (original execution of the deletion can reason that a recovery conflict
+   * which is sufficient for the deletion operation must take place before
+   * replay of the deletion record itself).
+   */
+  if (!TransactionIdIsValid(snapshotConflictHorizon))
+    return;
 
-	Assert(TransactionIdIsNormal(snapshotConflictHorizon));
-	backends = GetConflictingVirtualXIDs(snapshotConflictHorizon,
-										 locator.dbOid);
-	ResolveRecoveryConflictWithVirtualXIDs(backends,
-										   PROCSIG_RECOVERY_CONFLICT_SNAPSHOT,
-										   WAIT_EVENT_RECOVERY_CONFLICT_SNAPSHOT,
-										   true);
+  Assert(TransactionIdIsNormal(snapshotConflictHorizon));
+  backends = GetConflictingVirtualXIDs(snapshotConflictHorizon,
+                                       locator.dbOid);
+  ResolveRecoveryConflictWithVirtualXIDs(backends,
+                                         PROCSIG_RECOVERY_CONFLICT_SNAPSHOT,
+                                         WAIT_EVENT_RECOVERY_CONFLICT_SNAPSHOT,
+                                         true);
 
-	/*
-	 * Note that WaitExceedsMaxStandbyDelay() is not taken into account here
-	 * (as opposed to ResolveRecoveryConflictWithVirtualXIDs() above). That
-	 * seems OK, given that this kind of conflict should not normally be
-	 * reached, e.g. due to using a physical replication slot.
-	 */
-	if (wal_level >= WAL_LEVEL_LOGICAL && isCatalogRel)
-		InvalidateObsoleteReplicationSlots(RS_INVAL_HORIZON, 0, locator.dbOid,
-										   snapshotConflictHorizon);
+  /*
+   * Note that WaitExceedsMaxStandbyDelay() is not taken into account here
+   * (as opposed to ResolveRecoveryConflictWithVirtualXIDs() above). That
+   * seems OK, given that this kind of conflict should not normally be
+   * reached, e.g. due to using a physical replication slot.
+   */
+  if (wal_level >= WAL_LEVEL_LOGICAL && isCatalogRel)
+    InvalidateObsoleteReplicationSlots(RS_INVAL_HORIZON, 0, locator.dbOid,
+                                       snapshotConflictHorizon);
 }
 
 /*
@@ -510,85 +497,84 @@ ResolveRecoveryConflictWithSnapshot(TransactionId snapshotConflictHorizon,
  */
 void
 ResolveRecoveryConflictWithSnapshotFullXid(FullTransactionId snapshotConflictHorizon,
-										   bool isCatalogRel,
-										   RelFileLocator locator)
+    bool isCatalogRel,
+    RelFileLocator locator)
 {
-	/*
-	 * ResolveRecoveryConflictWithSnapshot operates on 32-bit TransactionIds,
-	 * so truncate the logged FullTransactionId.  If the logged value is very
-	 * old, so that XID wrap-around already happened on it, there can't be any
-	 * snapshots that still see it.
-	 */
-	FullTransactionId nextXid = ReadNextFullTransactionId();
-	uint64		diff;
+  /*
+   * ResolveRecoveryConflictWithSnapshot operates on 32-bit TransactionIds,
+   * so truncate the logged FullTransactionId.  If the logged value is very
+   * old, so that XID wrap-around already happened on it, there can't be any
+   * snapshots that still see it.
+   */
+  FullTransactionId nextXid = ReadNextFullTransactionId();
+  uint64    diff;
 
-	diff = U64FromFullTransactionId(nextXid) -
-		U64FromFullTransactionId(snapshotConflictHorizon);
-	if (diff < MaxTransactionId / 2)
-	{
-		TransactionId truncated;
+  diff = U64FromFullTransactionId(nextXid) -
+         U64FromFullTransactionId(snapshotConflictHorizon);
 
-		truncated = XidFromFullTransactionId(snapshotConflictHorizon);
-		ResolveRecoveryConflictWithSnapshot(truncated,
-											isCatalogRel,
-											locator);
-	}
+  if (diff < MaxTransactionId / 2) {
+    TransactionId truncated;
+
+    truncated = XidFromFullTransactionId(snapshotConflictHorizon);
+    ResolveRecoveryConflictWithSnapshot(truncated,
+                                        isCatalogRel,
+                                        locator);
+  }
 }
 
 void
 ResolveRecoveryConflictWithTablespace(Oid tsid)
 {
-	VirtualTransactionId *temp_file_users;
+  VirtualTransactionId *temp_file_users;
 
-	/*
-	 * Standby users may be currently using this tablespace for their
-	 * temporary files. We only care about current users because
-	 * temp_tablespace parameter will just ignore tablespaces that no longer
-	 * exist.
-	 *
-	 * Ask everybody to cancel their queries immediately so we can ensure no
-	 * temp files remain and we can remove the tablespace. Nuke the entire
-	 * site from orbit, it's the only way to be sure.
-	 *
-	 * XXX: We could work out the pids of active backends using this
-	 * tablespace by examining the temp filenames in the directory. We would
-	 * then convert the pids into VirtualXIDs before attempting to cancel
-	 * them.
-	 *
-	 * We don't wait for commit because drop tablespace is non-transactional.
-	 */
-	temp_file_users = GetConflictingVirtualXIDs(InvalidTransactionId,
-												InvalidOid);
-	ResolveRecoveryConflictWithVirtualXIDs(temp_file_users,
-										   PROCSIG_RECOVERY_CONFLICT_TABLESPACE,
-										   WAIT_EVENT_RECOVERY_CONFLICT_TABLESPACE,
-										   true);
+  /*
+   * Standby users may be currently using this tablespace for their
+   * temporary files. We only care about current users because
+   * temp_tablespace parameter will just ignore tablespaces that no longer
+   * exist.
+   *
+   * Ask everybody to cancel their queries immediately so we can ensure no
+   * temp files remain and we can remove the tablespace. Nuke the entire
+   * site from orbit, it's the only way to be sure.
+   *
+   * XXX: We could work out the pids of active backends using this
+   * tablespace by examining the temp filenames in the directory. We would
+   * then convert the pids into VirtualXIDs before attempting to cancel
+   * them.
+   *
+   * We don't wait for commit because drop tablespace is non-transactional.
+   */
+  temp_file_users = GetConflictingVirtualXIDs(InvalidTransactionId,
+                    InvalidOid);
+  ResolveRecoveryConflictWithVirtualXIDs(temp_file_users,
+                                         PROCSIG_RECOVERY_CONFLICT_TABLESPACE,
+                                         WAIT_EVENT_RECOVERY_CONFLICT_TABLESPACE,
+                                         true);
 }
 
 void
 ResolveRecoveryConflictWithDatabase(Oid dbid)
 {
-	/*
-	 * We don't do ResolveRecoveryConflictWithVirtualXIDs() here since that
-	 * only waits for transactions and completely idle sessions would block
-	 * us. This is rare enough that we do this as simply as possible: no wait,
-	 * just force them off immediately.
-	 *
-	 * No locking is required here because we already acquired
-	 * AccessExclusiveLock. Anybody trying to connect while we do this will
-	 * block during InitPostgres() and then disconnect when they see the
-	 * database has been removed.
-	 */
-	while (CountDBBackends(dbid) > 0)
-	{
-		CancelDBBackends(dbid, PROCSIG_RECOVERY_CONFLICT_DATABASE, true);
+  /*
+   * We don't do ResolveRecoveryConflictWithVirtualXIDs() here since that
+   * only waits for transactions and completely idle sessions would block
+   * us. This is rare enough that we do this as simply as possible: no wait,
+   * just force them off immediately.
+   *
+   * No locking is required here because we already acquired
+   * AccessExclusiveLock. Anybody trying to connect while we do this will
+   * block during InitPostgres() and then disconnect when they see the
+   * database has been removed.
+   */
+  while (CountDBBackends(dbid) > 0) {
+    CancelDBBackends(dbid, PROCSIG_RECOVERY_CONFLICT_DATABASE, true);
 
-		/*
-		 * Wait awhile for them to die so that we avoid flooding an
-		 * unresponsive backend when system is heavily loaded.
-		 */
-		pg_usleep(10000);
-	}
+    /*
+     * Wait awhile for them to die so that we avoid flooding an
+     * unresponsive backend when system is heavily loaded.
+     */
+    pg_usleep(10000);
+  }
 }
 
 /*
@@ -622,144 +608,138 @@ ResolveRecoveryConflictWithDatabase(Oid dbid)
 void
 ResolveRecoveryConflictWithLock(LOCKTAG locktag, bool logging_conflict)
 {
-	TimestampTz ltime;
-	TimestampTz now;
+  TimestampTz ltime;
+  TimestampTz now;
 
-	Assert(InHotStandby);
+  Assert(InHotStandby);
 
-	ltime = GetStandbyLimitTime();
-	now = GetCurrentTimestamp();
+  ltime = GetStandbyLimitTime();
+  now = GetCurrentTimestamp();
 
-	/*
-	 * Update waitStart if first time through after the startup process
-	 * started waiting for the lock. It should not be updated every time
-	 * ResolveRecoveryConflictWithLock() is called during the wait.
-	 *
-	 * Use the current time obtained for comparison with ltime as waitStart
-	 * (i.e., the time when this process started waiting for the lock). Since
-	 * getting the current time newly can cause overhead, we reuse the
-	 * already-obtained time to avoid that overhead.
-	 *
-	 * Note that waitStart is updated without holding the lock table's
-	 * partition lock, to avoid the overhead by additional lock acquisition.
-	 * This can cause "waitstart" in pg_locks to become NULL for a very short
-	 * period of time after the wait started even though "granted" is false.
-	 * This is OK in practice because we can assume that users are likely to
-	 * look at "waitstart" when waiting for the lock for a long time.
-	 */
-	if (pg_atomic_read_u64(&MyProc->waitStart) == 0)
-		pg_atomic_write_u64(&MyProc->waitStart, now);
+  /*
+   * Update waitStart if first time through after the startup process
+   * started waiting for the lock. It should not be updated every time
+   * ResolveRecoveryConflictWithLock() is called during the wait.
+   *
+   * Use the current time obtained for comparison with ltime as waitStart
+   * (i.e., the time when this process started waiting for the lock). Since
+   * getting the current time newly can cause overhead, we reuse the
+   * already-obtained time to avoid that overhead.
+   *
+   * Note that waitStart is updated without holding the lock table's
+   * partition lock, to avoid the overhead by additional lock acquisition.
+   * This can cause "waitstart" in pg_locks to become NULL for a very short
+   * period of time after the wait started even though "granted" is false.
+   * This is OK in practice because we can assume that users are likely to
+   * look at "waitstart" when waiting for the lock for a long time.
+   */
+  if (pg_atomic_read_u64(&MyProc->waitStart) == 0)
+    pg_atomic_write_u64(&MyProc->waitStart, now);
 
-	if (now >= ltime && ltime != 0)
-	{
-		/*
-		 * We're already behind, so clear a path as quickly as possible.
-		 */
-		VirtualTransactionId *backends;
+  if (now >= ltime && ltime != 0) {
+    /*
+     * We're already behind, so clear a path as quickly as possible.
+     */
+    VirtualTransactionId *backends;
 
-		backends = GetLockConflicts(&locktag, AccessExclusiveLock, NULL);
+    backends = GetLockConflicts(&locktag, AccessExclusiveLock, NULL);
 
-		/*
-		 * Prevent ResolveRecoveryConflictWithVirtualXIDs() from reporting
-		 * "waiting" in PS display by disabling its argument report_waiting
-		 * because the caller, WaitOnLock(), has already reported that.
-		 */
-		ResolveRecoveryConflictWithVirtualXIDs(backends,
-											   PROCSIG_RECOVERY_CONFLICT_LOCK,
-											   PG_WAIT_LOCK | locktag.locktag_type,
-											   false);
-	}
-	else
-	{
-		/*
-		 * Wait (or wait again) until ltime, and check for deadlocks as well
-		 * if we will be waiting longer than deadlock_timeout
-		 */
-		EnableTimeoutParams timeouts[2];
-		int			cnt = 0;
+    /*
+     * Prevent ResolveRecoveryConflictWithVirtualXIDs() from reporting
+     * "waiting" in PS display by disabling its argument report_waiting
+     * because the caller, WaitOnLock(), has already reported that.
+     */
+    ResolveRecoveryConflictWithVirtualXIDs(backends,
+                                           PROCSIG_RECOVERY_CONFLICT_LOCK,
+                                           PG_WAIT_LOCK | locktag.locktag_type,
+                                           false);
+  } else {
+    /*
+     * Wait (or wait again) until ltime, and check for deadlocks as well
+     * if we will be waiting longer than deadlock_timeout
+     */
+    EnableTimeoutParams timeouts[2];
+    int     cnt = 0;
 
-		if (ltime != 0)
-		{
-			got_standby_lock_timeout = false;
-			timeouts[cnt].id = STANDBY_LOCK_TIMEOUT;
-			timeouts[cnt].type = TMPARAM_AT;
-			timeouts[cnt].fin_time = ltime;
-			cnt++;
-		}
+    if (ltime != 0) {
+      got_standby_lock_timeout = false;
+      timeouts[cnt].id = STANDBY_LOCK_TIMEOUT;
+      timeouts[cnt].type = TMPARAM_AT;
+      timeouts[cnt].fin_time = ltime;
+      cnt++;
+    }
 
-		got_standby_deadlock_timeout = false;
-		timeouts[cnt].id = STANDBY_DEADLOCK_TIMEOUT;
-		timeouts[cnt].type = TMPARAM_AFTER;
-		timeouts[cnt].delay_ms = DeadlockTimeout;
-		cnt++;
+    got_standby_deadlock_timeout = false;
+    timeouts[cnt].id = STANDBY_DEADLOCK_TIMEOUT;
+    timeouts[cnt].type = TMPARAM_AFTER;
+    timeouts[cnt].delay_ms = DeadlockTimeout;
+    cnt++;
 
-		enable_timeouts(timeouts, cnt);
-	}
+    enable_timeouts(timeouts, cnt);
+  }
 
-	/* Wait to be signaled by the release of the Relation Lock */
-	ProcWaitForSignal(PG_WAIT_LOCK | locktag.locktag_type);
+  /* Wait to be signaled by the release of the Relation Lock */
+  ProcWaitForSignal(PG_WAIT_LOCK | locktag.locktag_type);
 
-	/*
-	 * Exit if ltime is reached. Then all the backends holding conflicting
-	 * locks will be canceled in the next ResolveRecoveryConflictWithLock()
-	 * call.
-	 */
-	if (got_standby_lock_timeout)
-		goto cleanup;
+  /*
+   * Exit if ltime is reached. Then all the backends holding conflicting
+   * locks will be canceled in the next ResolveRecoveryConflictWithLock()
+   * call.
+   */
+  if (got_standby_lock_timeout)
+    goto cleanup;
 
-	if (got_standby_deadlock_timeout)
-	{
-		VirtualTransactionId *backends;
+  if (got_standby_deadlock_timeout) {
+    VirtualTransactionId *backends;
 
-		backends = GetLockConflicts(&locktag, AccessExclusiveLock, NULL);
+    backends = GetLockConflicts(&locktag, AccessExclusiveLock, NULL);
 
-		/* Quick exit if there's no work to be done */
-		if (!VirtualTransactionIdIsValid(*backends))
-			goto cleanup;
+    /* Quick exit if there's no work to be done */
+    if (!VirtualTransactionIdIsValid(*backends))
+      goto cleanup;
 
-		/*
-		 * Send signals to all the backends holding the conflicting locks, to
-		 * ask them to check themselves for deadlocks.
-		 */
-		while (VirtualTransactionIdIsValid(*backends))
-		{
-			SignalVirtualTransaction(*backends,
-									 PROCSIG_RECOVERY_CONFLICT_STARTUP_DEADLOCK,
-									 false);
-			backends++;
-		}
+    /*
+     * Send signals to all the backends holding the conflicting locks, to
+     * ask them to check themselves for deadlocks.
+     */
+    while (VirtualTransactionIdIsValid(*backends)) {
+      SignalVirtualTransaction(*backends,
+                               PROCSIG_RECOVERY_CONFLICT_STARTUP_DEADLOCK,
+                               false);
+      backends++;
+    }
 
-		/*
-		 * Exit if the recovery conflict has not been logged yet even though
-		 * logging is enabled, so that the caller can log that. Then
-		 * RecoveryConflictWithLock() is called again and we will wait again
-		 * for the lock to be released.
-		 */
-		if (logging_conflict)
-			goto cleanup;
+    /*
+     * Exit if the recovery conflict has not been logged yet even though
+     * logging is enabled, so that the caller can log that. Then
+     * RecoveryConflictWithLock() is called again and we will wait again
+     * for the lock to be released.
+     */
+    if (logging_conflict)
+      goto cleanup;
 
-		/*
-		 * Wait again here to be signaled by the release of the Relation Lock,
-		 * to prevent the subsequent RecoveryConflictWithLock() from causing
-		 * deadlock_timeout and sending a request for deadlocks check again.
-		 * Otherwise the request continues to be sent every deadlock_timeout
-		 * until the relation locks are released or ltime is reached.
-		 */
-		got_standby_deadlock_timeout = false;
-		ProcWaitForSignal(PG_WAIT_LOCK | locktag.locktag_type);
-	}
+    /*
+     * Wait again here to be signaled by the release of the Relation Lock,
+     * to prevent the subsequent RecoveryConflictWithLock() from causing
+     * deadlock_timeout and sending a request for deadlocks check again.
+     * Otherwise the request continues to be sent every deadlock_timeout
+     * until the relation locks are released or ltime is reached.
+     */
+    got_standby_deadlock_timeout = false;
+    ProcWaitForSignal(PG_WAIT_LOCK | locktag.locktag_type);
+  }
 
 cleanup:
 
-	/*
-	 * Clear any timeout requests established above.  We assume here that the
-	 * Startup process doesn't have any other outstanding timeouts than those
-	 * used by this function. If that stops being true, we could cancel the
-	 * timeouts individually, but that'd be slower.
-	 */
-	disable_all_timeouts(false);
-	got_standby_lock_timeout = false;
-	got_standby_deadlock_timeout = false;
+  /*
+   * Clear any timeout requests established above.  We assume here that the
+   * Startup process doesn't have any other outstanding timeouts than those
+   * used by this function. If that stops being true, we could cancel the
+   * timeouts individually, but that'd be slower.
+   */
+  disable_all_timeouts(false);
+  got_standby_lock_timeout = false;
+  got_standby_deadlock_timeout = false;
 }
 
 /*
@@ -792,100 +772,95 @@ cleanup:
 void
 ResolveRecoveryConflictWithBufferPin(void)
 {
-	TimestampTz ltime;
+  TimestampTz ltime;
 
-	Assert(InHotStandby);
+  Assert(InHotStandby);
 
-	ltime = GetStandbyLimitTime();
+  ltime = GetStandbyLimitTime();
 
-	if (GetCurrentTimestamp() >= ltime && ltime != 0)
-	{
-		/*
-		 * We're already behind, so clear a path as quickly as possible.
-		 */
-		SendRecoveryConflictWithBufferPin(PROCSIG_RECOVERY_CONFLICT_BUFFERPIN);
-	}
-	else
-	{
-		/*
-		 * Wake up at ltime, and check for deadlocks as well if we will be
-		 * waiting longer than deadlock_timeout
-		 */
-		EnableTimeoutParams timeouts[2];
-		int			cnt = 0;
+  if (GetCurrentTimestamp() >= ltime && ltime != 0) {
+    /*
+     * We're already behind, so clear a path as quickly as possible.
+     */
+    SendRecoveryConflictWithBufferPin(PROCSIG_RECOVERY_CONFLICT_BUFFERPIN);
+  } else {
+    /*
+     * Wake up at ltime, and check for deadlocks as well if we will be
+     * waiting longer than deadlock_timeout
+     */
+    EnableTimeoutParams timeouts[2];
+    int     cnt = 0;
 
-		if (ltime != 0)
-		{
-			timeouts[cnt].id = STANDBY_TIMEOUT;
-			timeouts[cnt].type = TMPARAM_AT;
-			timeouts[cnt].fin_time = ltime;
-			cnt++;
-		}
+    if (ltime != 0) {
+      timeouts[cnt].id = STANDBY_TIMEOUT;
+      timeouts[cnt].type = TMPARAM_AT;
+      timeouts[cnt].fin_time = ltime;
+      cnt++;
+    }
 
-		got_standby_deadlock_timeout = false;
-		timeouts[cnt].id = STANDBY_DEADLOCK_TIMEOUT;
-		timeouts[cnt].type = TMPARAM_AFTER;
-		timeouts[cnt].delay_ms = DeadlockTimeout;
-		cnt++;
+    got_standby_deadlock_timeout = false;
+    timeouts[cnt].id = STANDBY_DEADLOCK_TIMEOUT;
+    timeouts[cnt].type = TMPARAM_AFTER;
+    timeouts[cnt].delay_ms = DeadlockTimeout;
+    cnt++;
 
-		enable_timeouts(timeouts, cnt);
-	}
+    enable_timeouts(timeouts, cnt);
+  }
 
-	/*
-	 * Wait to be signaled by UnpinBuffer() or for the wait to be interrupted
-	 * by one of the timeouts established above.
-	 *
-	 * We assume that only UnpinBuffer() and the timeout requests established
-	 * above can wake us up here. WakeupRecovery() called by walreceiver or
-	 * SIGHUP signal handler, etc cannot do that because it uses the different
-	 * latch from that ProcWaitForSignal() waits on.
-	 */
-	ProcWaitForSignal(WAIT_EVENT_BUFFER_PIN);
+  /*
+   * Wait to be signaled by UnpinBuffer() or for the wait to be interrupted
+   * by one of the timeouts established above.
+   *
+   * We assume that only UnpinBuffer() and the timeout requests established
+   * above can wake us up here. WakeupRecovery() called by walreceiver or
+   * SIGHUP signal handler, etc cannot do that because it uses the different
+   * latch from that ProcWaitForSignal() waits on.
+   */
+  ProcWaitForSignal(WAIT_EVENT_BUFFER_PIN);
 
-	if (got_standby_delay_timeout)
-		SendRecoveryConflictWithBufferPin(PROCSIG_RECOVERY_CONFLICT_BUFFERPIN);
-	else if (got_standby_deadlock_timeout)
-	{
-		/*
-		 * Send out a request for hot-standby backends to check themselves for
-		 * deadlocks.
-		 *
-		 * XXX The subsequent ResolveRecoveryConflictWithBufferPin() will wait
-		 * to be signaled by UnpinBuffer() again and send a request for
-		 * deadlocks check if deadlock_timeout happens. This causes the
-		 * request to continue to be sent every deadlock_timeout until the
-		 * buffer is unpinned or ltime is reached. This would increase the
-		 * workload in the startup process and backends. In practice it may
-		 * not be so harmful because the period that the buffer is kept pinned
-		 * is basically no so long. But we should fix this?
-		 */
-		SendRecoveryConflictWithBufferPin(PROCSIG_RECOVERY_CONFLICT_STARTUP_DEADLOCK);
-	}
+  if (got_standby_delay_timeout)
+    SendRecoveryConflictWithBufferPin(PROCSIG_RECOVERY_CONFLICT_BUFFERPIN);
+  else if (got_standby_deadlock_timeout) {
+    /*
+     * Send out a request for hot-standby backends to check themselves for
+     * deadlocks.
+     *
+     * XXX The subsequent ResolveRecoveryConflictWithBufferPin() will wait
+     * to be signaled by UnpinBuffer() again and send a request for
+     * deadlocks check if deadlock_timeout happens. This causes the
+     * request to continue to be sent every deadlock_timeout until the
+     * buffer is unpinned or ltime is reached. This would increase the
+     * workload in the startup process and backends. In practice it may
+     * not be so harmful because the period that the buffer is kept pinned
+     * is basically no so long. But we should fix this?
+     */
+    SendRecoveryConflictWithBufferPin(PROCSIG_RECOVERY_CONFLICT_STARTUP_DEADLOCK);
+  }
 
-	/*
-	 * Clear any timeout requests established above.  We assume here that the
-	 * Startup process doesn't have any other timeouts than what this function
-	 * uses.  If that stops being true, we could cancel the timeouts
-	 * individually, but that'd be slower.
-	 */
-	disable_all_timeouts(false);
-	got_standby_delay_timeout = false;
-	got_standby_deadlock_timeout = false;
+  /*
+   * Clear any timeout requests established above.  We assume here that the
+   * Startup process doesn't have any other timeouts than what this function
+   * uses.  If that stops being true, we could cancel the timeouts
+   * individually, but that'd be slower.
+   */
+  disable_all_timeouts(false);
+  got_standby_delay_timeout = false;
+  got_standby_deadlock_timeout = false;
 }
 
 static void
 SendRecoveryConflictWithBufferPin(ProcSignalReason reason)
 {
-	Assert(reason == PROCSIG_RECOVERY_CONFLICT_BUFFERPIN ||
-		   reason == PROCSIG_RECOVERY_CONFLICT_STARTUP_DEADLOCK);
+  Assert(reason == PROCSIG_RECOVERY_CONFLICT_BUFFERPIN ||
+         reason == PROCSIG_RECOVERY_CONFLICT_STARTUP_DEADLOCK);
 
-	/*
-	 * We send signal to all backends to ask them if they are holding the
-	 * buffer pin which is delaying the Startup process. We must not set the
-	 * conflict flag yet, since most backends will be innocent. Let the
-	 * SIGUSR1 handling in each backend decide their own fate.
-	 */
-	CancelDBBackends(InvalidOid, reason, false);
+  /*
+   * We send signal to all backends to ask them if they are holding the
+   * buffer pin which is delaying the Startup process. We must not set the
+   * conflict flag yet, since most backends will be innocent. Let the
+   * SIGUSR1 handling in each backend decide their own fate.
+   */
+  CancelDBBackends(InvalidOid, reason, false);
 }
 
 /*
@@ -904,27 +879,27 @@ SendRecoveryConflictWithBufferPin(ProcSignalReason reason)
 void
 CheckRecoveryConflictDeadlock(void)
 {
-	Assert(!InRecovery);		/* do not call in Startup process */
+  Assert(!InRecovery);    /* do not call in Startup process */
 
-	if (!HoldingBufferPinThatDelaysRecovery())
-		return;
+  if (!HoldingBufferPinThatDelaysRecovery())
+    return;
 
-	/*
-	 * Error message should match ProcessInterrupts() but we avoid calling
-	 * that because we aren't handling an interrupt at this point. Note that
-	 * we only cancel the current transaction here, so if we are in a
-	 * subtransaction and the pin is held by a parent, then the Startup
-	 * process will continue to wait even though we have avoided deadlock.
-	 */
-	ereport(ERROR,
-			(errcode(ERRCODE_T_R_DEADLOCK_DETECTED),
-			 errmsg("canceling statement due to conflict with recovery"),
-			 errdetail("User transaction caused buffer deadlock with recovery.")));
+  /*
+   * Error message should match ProcessInterrupts() but we avoid calling
+   * that because we aren't handling an interrupt at this point. Note that
+   * we only cancel the current transaction here, so if we are in a
+   * subtransaction and the pin is held by a parent, then the Startup
+   * process will continue to wait even though we have avoided deadlock.
+   */
+  ereport(ERROR,
+          (errcode(ERRCODE_T_R_DEADLOCK_DETECTED),
+           errmsg("canceling statement due to conflict with recovery"),
+           errdetail("User transaction caused buffer deadlock with recovery.")));
 }
 
 
 /* --------------------------------
- *		timeout handler routines
+ *    timeout handler routines
  * --------------------------------
  */
 
@@ -935,7 +910,7 @@ CheckRecoveryConflictDeadlock(void)
 void
 StandbyDeadLockHandler(void)
 {
-	got_standby_deadlock_timeout = true;
+  got_standby_deadlock_timeout = true;
 }
 
 /*
@@ -944,7 +919,7 @@ StandbyDeadLockHandler(void)
 void
 StandbyTimeoutHandler(void)
 {
-	got_standby_delay_timeout = true;
+  got_standby_delay_timeout = true;
 }
 
 /*
@@ -953,7 +928,7 @@ StandbyTimeoutHandler(void)
 void
 StandbyLockTimeoutHandler(void)
 {
-	got_standby_lock_timeout = true;
+  got_standby_lock_timeout = true;
 }
 
 /*
@@ -985,47 +960,47 @@ StandbyLockTimeoutHandler(void)
 void
 StandbyAcquireAccessExclusiveLock(TransactionId xid, Oid dbOid, Oid relOid)
 {
-	RecoveryLockXidEntry *xidentry;
-	RecoveryLockEntry *lockentry;
-	xl_standby_lock key;
-	LOCKTAG		locktag;
-	bool		found;
+  RecoveryLockXidEntry *xidentry;
+  RecoveryLockEntry *lockentry;
+  xl_standby_lock key;
+  LOCKTAG   locktag;
+  bool    found;
 
-	/* Already processed? */
-	if (!TransactionIdIsValid(xid) ||
-		TransactionIdDidCommit(xid) ||
-		TransactionIdDidAbort(xid))
-		return;
+  /* Already processed? */
+  if (!TransactionIdIsValid(xid) ||
+      TransactionIdDidCommit(xid) ||
+      TransactionIdDidAbort(xid))
+    return;
 
-	elog(DEBUG4, "adding recovery lock: db %u rel %u", dbOid, relOid);
+  elog(DEBUG4, "adding recovery lock: db %u rel %u", dbOid, relOid);
 
-	/* dbOid is InvalidOid when we are locking a shared relation. */
-	Assert(OidIsValid(relOid));
+  /* dbOid is InvalidOid when we are locking a shared relation. */
+  Assert(OidIsValid(relOid));
 
-	/* Create a hash entry for this xid, if we don't have one already. */
-	xidentry = hash_search(RecoveryLockXidHash, &xid, HASH_ENTER, &found);
-	if (!found)
-	{
-		Assert(xidentry->xid == xid);	/* dynahash should have set this */
-		xidentry->head = NULL;
-	}
+  /* Create a hash entry for this xid, if we don't have one already. */
+  xidentry = hash_search(RecoveryLockXidHash, &xid, HASH_ENTER, &found);
 
-	/* Create a hash entry for this lock, unless we have one already. */
-	key.xid = xid;
-	key.dbOid = dbOid;
-	key.relOid = relOid;
-	lockentry = hash_search(RecoveryLockHash, &key, HASH_ENTER, &found);
-	if (!found)
-	{
-		/* It's new, so link it into the XID's list ... */
-		lockentry->next = xidentry->head;
-		xidentry->head = lockentry;
+  if (!found) {
+    Assert(xidentry->xid == xid); /* dynahash should have set this */
+    xidentry->head = NULL;
+  }
 
-		/* ... and acquire the lock locally. */
-		SET_LOCKTAG_RELATION(locktag, dbOid, relOid);
+  /* Create a hash entry for this lock, unless we have one already. */
+  key.xid = xid;
+  key.dbOid = dbOid;
+  key.relOid = relOid;
+  lockentry = hash_search(RecoveryLockHash, &key, HASH_ENTER, &found);
 
-		(void) LockAcquire(&locktag, AccessExclusiveLock, true, false);
-	}
+  if (!found) {
+    /* It's new, so link it into the XID's list ... */
+    lockentry->next = xidentry->head;
+    xidentry->head = lockentry;
+
+    /* ... and acquire the lock locally. */
+    SET_LOCKTAG_RELATION(locktag, dbOid, relOid);
+
+    (void) LockAcquire(&locktag, AccessExclusiveLock, true, false);
+  }
 }
 
 /*
@@ -1034,31 +1009,31 @@ StandbyAcquireAccessExclusiveLock(TransactionId xid, Oid dbOid, Oid relOid)
 static void
 StandbyReleaseXidEntryLocks(RecoveryLockXidEntry *xidentry)
 {
-	RecoveryLockEntry *entry;
-	RecoveryLockEntry *next;
+  RecoveryLockEntry *entry;
+  RecoveryLockEntry *next;
 
-	for (entry = xidentry->head; entry != NULL; entry = next)
-	{
-		LOCKTAG		locktag;
+  for (entry = xidentry->head; entry != NULL; entry = next) {
+    LOCKTAG   locktag;
 
-		elog(DEBUG4,
-			 "releasing recovery lock: xid %u db %u rel %u",
-			 entry->key.xid, entry->key.dbOid, entry->key.relOid);
-		/* Release the lock ... */
-		SET_LOCKTAG_RELATION(locktag, entry->key.dbOid, entry->key.relOid);
-		if (!LockRelease(&locktag, AccessExclusiveLock, true))
-		{
-			elog(LOG,
-				 "RecoveryLockHash contains entry for lock no longer recorded by lock manager: xid %u database %u relation %u",
-				 entry->key.xid, entry->key.dbOid, entry->key.relOid);
-			Assert(false);
-		}
-		/* ... and remove the per-lock hash entry */
-		next = entry->next;
-		hash_search(RecoveryLockHash, entry, HASH_REMOVE, NULL);
-	}
+    elog(DEBUG4,
+         "releasing recovery lock: xid %u db %u rel %u",
+         entry->key.xid, entry->key.dbOid, entry->key.relOid);
+    /* Release the lock ... */
+    SET_LOCKTAG_RELATION(locktag, entry->key.dbOid, entry->key.relOid);
 
-	xidentry->head = NULL;		/* just for paranoia */
+    if (!LockRelease(&locktag, AccessExclusiveLock, true)) {
+      elog(LOG,
+           "RecoveryLockHash contains entry for lock no longer recorded by lock manager: xid %u database %u relation %u",
+           entry->key.xid, entry->key.dbOid, entry->key.relOid);
+      Assert(false);
+    }
+
+    /* ... and remove the per-lock hash entry */
+    next = entry->next;
+    hash_search(RecoveryLockHash, entry, HASH_REMOVE, NULL);
+  }
+
+  xidentry->head = NULL;    /* just for paranoia */
 }
 
 /*
@@ -1067,18 +1042,15 @@ StandbyReleaseXidEntryLocks(RecoveryLockXidEntry *xidentry)
 static void
 StandbyReleaseLocks(TransactionId xid)
 {
-	RecoveryLockXidEntry *entry;
+  RecoveryLockXidEntry *entry;
 
-	if (TransactionIdIsValid(xid))
-	{
-		if ((entry = hash_search(RecoveryLockXidHash, &xid, HASH_FIND, NULL)))
-		{
-			StandbyReleaseXidEntryLocks(entry);
-			hash_search(RecoveryLockXidHash, entry, HASH_REMOVE, NULL);
-		}
-	}
-	else
-		StandbyReleaseAllLocks();
+  if (TransactionIdIsValid(xid)) {
+    if ((entry = hash_search(RecoveryLockXidHash, &xid, HASH_FIND, NULL))) {
+      StandbyReleaseXidEntryLocks(entry);
+      hash_search(RecoveryLockXidHash, entry, HASH_REMOVE, NULL);
+    }
+  } else
+    StandbyReleaseAllLocks();
 }
 
 /*
@@ -1091,12 +1063,12 @@ StandbyReleaseLocks(TransactionId xid)
 void
 StandbyReleaseLockTree(TransactionId xid, int nsubxids, TransactionId *subxids)
 {
-	int			i;
+  int     i;
 
-	StandbyReleaseLocks(xid);
+  StandbyReleaseLocks(xid);
 
-	for (i = 0; i < nsubxids; i++)
-		StandbyReleaseLocks(subxids[i]);
+  for (i = 0; i < nsubxids; i++)
+    StandbyReleaseLocks(subxids[i]);
 }
 
 /*
@@ -1105,23 +1077,23 @@ StandbyReleaseLockTree(TransactionId xid, int nsubxids, TransactionId *subxids)
 void
 StandbyReleaseAllLocks(void)
 {
-	HASH_SEQ_STATUS status;
-	RecoveryLockXidEntry *entry;
+  HASH_SEQ_STATUS status;
+  RecoveryLockXidEntry *entry;
 
-	elog(DEBUG2, "release all standby locks");
+  elog(DEBUG2, "release all standby locks");
 
-	hash_seq_init(&status, RecoveryLockXidHash);
-	while ((entry = hash_seq_search(&status)))
-	{
-		StandbyReleaseXidEntryLocks(entry);
-		hash_search(RecoveryLockXidHash, entry, HASH_REMOVE, NULL);
-	}
+  hash_seq_init(&status, RecoveryLockXidHash);
+
+  while ((entry = hash_seq_search(&status))) {
+    StandbyReleaseXidEntryLocks(entry);
+    hash_search(RecoveryLockXidHash, entry, HASH_REMOVE, NULL);
+  }
 }
 
 /*
  * StandbyReleaseOldLocks
- *		Release standby locks held by top-level XIDs that aren't running,
- *		as long as they're not prepared transactions.
+ *    Release standby locks held by top-level XIDs that aren't running,
+ *    as long as they're not prepared transactions.
  *
  * This is needed to prune the locks of crashed transactions, which didn't
  * write an ABORT/COMMIT record.
@@ -1129,31 +1101,31 @@ StandbyReleaseAllLocks(void)
 void
 StandbyReleaseOldLocks(TransactionId oldxid)
 {
-	HASH_SEQ_STATUS status;
-	RecoveryLockXidEntry *entry;
+  HASH_SEQ_STATUS status;
+  RecoveryLockXidEntry *entry;
 
-	hash_seq_init(&status, RecoveryLockXidHash);
-	while ((entry = hash_seq_search(&status)))
-	{
-		Assert(TransactionIdIsValid(entry->xid));
+  hash_seq_init(&status, RecoveryLockXidHash);
 
-		/* Skip if prepared transaction. */
-		if (StandbyTransactionIdIsPrepared(entry->xid))
-			continue;
+  while ((entry = hash_seq_search(&status))) {
+    Assert(TransactionIdIsValid(entry->xid));
 
-		/* Skip if >= oldxid. */
-		if (!TransactionIdPrecedes(entry->xid, oldxid))
-			continue;
+    /* Skip if prepared transaction. */
+    if (StandbyTransactionIdIsPrepared(entry->xid))
+      continue;
 
-		/* Remove all locks and hash table entry. */
-		StandbyReleaseXidEntryLocks(entry);
-		hash_search(RecoveryLockXidHash, entry, HASH_REMOVE, NULL);
-	}
+    /* Skip if >= oldxid. */
+    if (!TransactionIdPrecedes(entry->xid, oldxid))
+      continue;
+
+    /* Remove all locks and hash table entry. */
+    StandbyReleaseXidEntryLocks(entry);
+    hash_search(RecoveryLockXidHash, entry, HASH_REMOVE, NULL);
+  }
 }
 
 /*
  * --------------------------------------------------------------------
- *		Recovery handling for Rmgr RM_STANDBY_ID
+ *    Recovery handling for Rmgr RM_STANDBY_ID
  *
  * These record types will only be created if XLogStandbyInfoActive()
  * --------------------------------------------------------------------
@@ -1162,61 +1134,55 @@ StandbyReleaseOldLocks(TransactionId oldxid)
 void
 standby_redo(XLogReaderState *record)
 {
-	uint8		info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
+  uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
-	/* Backup blocks are not used in standby records */
-	Assert(!XLogRecHasAnyBlockRefs(record));
+  /* Backup blocks are not used in standby records */
+  Assert(!XLogRecHasAnyBlockRefs(record));
 
-	/* Do nothing if we're not in hot standby mode */
-	if (standbyState == STANDBY_DISABLED)
-		return;
+  /* Do nothing if we're not in hot standby mode */
+  if (standbyState == STANDBY_DISABLED)
+    return;
 
-	if (info == XLOG_STANDBY_LOCK)
-	{
-		xl_standby_locks *xlrec = (xl_standby_locks *) XLogRecGetData(record);
-		int			i;
+  if (info == XLOG_STANDBY_LOCK) {
+    xl_standby_locks *xlrec = (xl_standby_locks *) XLogRecGetData(record);
+    int     i;
 
-		for (i = 0; i < xlrec->nlocks; i++)
-			StandbyAcquireAccessExclusiveLock(xlrec->locks[i].xid,
-											  xlrec->locks[i].dbOid,
-											  xlrec->locks[i].relOid);
-	}
-	else if (info == XLOG_RUNNING_XACTS)
-	{
-		xl_running_xacts *xlrec = (xl_running_xacts *) XLogRecGetData(record);
-		RunningTransactionsData running;
+    for (i = 0; i < xlrec->nlocks; i++)
+      StandbyAcquireAccessExclusiveLock(xlrec->locks[i].xid,
+                                        xlrec->locks[i].dbOid,
+                                        xlrec->locks[i].relOid);
+  } else if (info == XLOG_RUNNING_XACTS) {
+    xl_running_xacts *xlrec = (xl_running_xacts *) XLogRecGetData(record);
+    RunningTransactionsData running;
 
-		running.xcnt = xlrec->xcnt;
-		running.subxcnt = xlrec->subxcnt;
-		running.subxid_status = xlrec->subxid_overflow ? SUBXIDS_MISSING : SUBXIDS_IN_ARRAY;
-		running.nextXid = xlrec->nextXid;
-		running.latestCompletedXid = xlrec->latestCompletedXid;
-		running.oldestRunningXid = xlrec->oldestRunningXid;
-		running.xids = xlrec->xids;
+    running.xcnt = xlrec->xcnt;
+    running.subxcnt = xlrec->subxcnt;
+    running.subxid_status = xlrec->subxid_overflow ? SUBXIDS_MISSING : SUBXIDS_IN_ARRAY;
+    running.nextXid = xlrec->nextXid;
+    running.latestCompletedXid = xlrec->latestCompletedXid;
+    running.oldestRunningXid = xlrec->oldestRunningXid;
+    running.xids = xlrec->xids;
 
-		ProcArrayApplyRecoveryInfo(&running);
+    ProcArrayApplyRecoveryInfo(&running);
 
-		/*
-		 * The startup process currently has no convenient way to schedule
-		 * stats to be reported. XLOG_RUNNING_XACTS records issued at a
-		 * regular cadence, making this a convenient location to report stats.
-		 * While these records aren't generated with wal_level=minimal, stats
-		 * also cannot be accessed during WAL replay.
-		 */
-		pgstat_report_stat(true);
-	}
-	else if (info == XLOG_INVALIDATIONS)
-	{
-		xl_invalidations *xlrec = (xl_invalidations *) XLogRecGetData(record);
+    /*
+     * The startup process currently has no convenient way to schedule
+     * stats to be reported. XLOG_RUNNING_XACTS records issued at a
+     * regular cadence, making this a convenient location to report stats.
+     * While these records aren't generated with wal_level=minimal, stats
+     * also cannot be accessed during WAL replay.
+     */
+    pgstat_report_stat(true);
+  } else if (info == XLOG_INVALIDATIONS) {
+    xl_invalidations *xlrec = (xl_invalidations *) XLogRecGetData(record);
 
-		ProcessCommittedInvalidationMessages(xlrec->msgs,
-											 xlrec->nmsgs,
-											 xlrec->relcacheInitFileInval,
-											 xlrec->dbId,
-											 xlrec->tsId);
-	}
-	else
-		elog(PANIC, "standby_redo: unknown op code %u", info);
+    ProcessCommittedInvalidationMessages(xlrec->msgs,
+                                         xlrec->nmsgs,
+                                         xlrec->relcacheInitFileInval,
+                                         xlrec->dbId,
+                                         xlrec->tsId);
+  } else
+    elog(PANIC, "standby_redo: unknown op code %u", info);
 }
 
 /*
@@ -1255,10 +1221,10 @@ standby_redo(XLogReaderState *record)
  * up from a checkpoint and are immediately at our starting point, we
  * unconditionally move to STANDBY_INITIALIZED. After this point we
  * must do 4 things:
- *	* move shared nextXid forwards as we see new xids
- *	* extend the clog and subtrans with each new xid
- *	* keep track of uncommitted known assigned xids
- *	* keep track of uncommitted AccessExclusiveLocks
+ *  * move shared nextXid forwards as we see new xids
+ *  * extend the clog and subtrans with each new xid
+ *  * keep track of uncommitted known assigned xids
+ *  * keep track of uncommitted AccessExclusiveLocks
  *
  * When we see a commit/abort we must remove known assigned xids and locks
  * from the completing transaction. Attempted removals that cannot locate
@@ -1281,63 +1247,66 @@ standby_redo(XLogReaderState *record)
 XLogRecPtr
 LogStandbySnapshot(void)
 {
-	XLogRecPtr	recptr;
-	RunningTransactions running;
-	xl_standby_lock *locks;
-	int			nlocks;
+  XLogRecPtr  recptr;
+  RunningTransactions running;
+  xl_standby_lock *locks;
+  int     nlocks;
 
-	Assert(XLogStandbyInfoActive());
+  Assert(XLogStandbyInfoActive());
 
 #ifdef USE_INJECTION_POINTS
-	if (IS_INJECTION_POINT_ATTACHED("skip-log-running-xacts"))
-	{
-		/*
-		 * This record could move slot's xmin forward during decoding, leading
-		 * to unpredictable results, so skip it when requested by the test.
-		 */
-		return GetInsertRecPtr();
-	}
+
+  if (IS_INJECTION_POINT_ATTACHED("skip-log-running-xacts")) {
+    /*
+     * This record could move slot's xmin forward during decoding, leading
+     * to unpredictable results, so skip it when requested by the test.
+     */
+    return GetInsertRecPtr();
+  }
+
 #endif
 
-	/*
-	 * Get details of any AccessExclusiveLocks being held at the moment.
-	 */
-	locks = GetRunningTransactionLocks(&nlocks);
-	if (nlocks > 0)
-		LogAccessExclusiveLocks(nlocks, locks);
-	pfree(locks);
+  /*
+   * Get details of any AccessExclusiveLocks being held at the moment.
+   */
+  locks = GetRunningTransactionLocks(&nlocks);
 
-	/*
-	 * Log details of all in-progress transactions. This should be the last
-	 * record we write, because standby will open up when it sees this.
-	 */
-	running = GetRunningTransactionData();
+  if (nlocks > 0)
+    LogAccessExclusiveLocks(nlocks, locks);
 
-	/*
-	 * GetRunningTransactionData() acquired ProcArrayLock, we must release it.
-	 * For Hot Standby this can be done before inserting the WAL record
-	 * because ProcArrayApplyRecoveryInfo() rechecks the commit status using
-	 * the clog. For logical decoding, though, the lock can't be released
-	 * early because the clog might be "in the future" from the POV of the
-	 * historic snapshot. This would allow for situations where we're waiting
-	 * for the end of a transaction listed in the xl_running_xacts record
-	 * which, according to the WAL, has committed before the xl_running_xacts
-	 * record. Fortunately this routine isn't executed frequently, and it's
-	 * only a shared lock.
-	 */
-	if (wal_level < WAL_LEVEL_LOGICAL)
-		LWLockRelease(ProcArrayLock);
+  pfree(locks);
 
-	recptr = LogCurrentRunningXacts(running);
+  /*
+   * Log details of all in-progress transactions. This should be the last
+   * record we write, because standby will open up when it sees this.
+   */
+  running = GetRunningTransactionData();
 
-	/* Release lock if we kept it longer ... */
-	if (wal_level >= WAL_LEVEL_LOGICAL)
-		LWLockRelease(ProcArrayLock);
+  /*
+   * GetRunningTransactionData() acquired ProcArrayLock, we must release it.
+   * For Hot Standby this can be done before inserting the WAL record
+   * because ProcArrayApplyRecoveryInfo() rechecks the commit status using
+   * the clog. For logical decoding, though, the lock can't be released
+   * early because the clog might be "in the future" from the POV of the
+   * historic snapshot. This would allow for situations where we're waiting
+   * for the end of a transaction listed in the xl_running_xacts record
+   * which, according to the WAL, has committed before the xl_running_xacts
+   * record. Fortunately this routine isn't executed frequently, and it's
+   * only a shared lock.
+   */
+  if (wal_level < WAL_LEVEL_LOGICAL)
+    LWLockRelease(ProcArrayLock);
 
-	/* GetRunningTransactionData() acquired XidGenLock, we must release it */
-	LWLockRelease(XidGenLock);
+  recptr = LogCurrentRunningXacts(running);
 
-	return recptr;
+  /* Release lock if we kept it longer ... */
+  if (wal_level >= WAL_LEVEL_LOGICAL)
+    LWLockRelease(ProcArrayLock);
+
+  /* GetRunningTransactionData() acquired XidGenLock, we must release it */
+  LWLockRelease(XidGenLock);
+
+  return recptr;
 }
 
 /*
@@ -1352,57 +1321,57 @@ LogStandbySnapshot(void)
 static XLogRecPtr
 LogCurrentRunningXacts(RunningTransactions CurrRunningXacts)
 {
-	xl_running_xacts xlrec;
-	XLogRecPtr	recptr;
+  xl_running_xacts xlrec;
+  XLogRecPtr  recptr;
 
-	xlrec.xcnt = CurrRunningXacts->xcnt;
-	xlrec.subxcnt = CurrRunningXacts->subxcnt;
-	xlrec.subxid_overflow = (CurrRunningXacts->subxid_status != SUBXIDS_IN_ARRAY);
-	xlrec.nextXid = CurrRunningXacts->nextXid;
-	xlrec.oldestRunningXid = CurrRunningXacts->oldestRunningXid;
-	xlrec.latestCompletedXid = CurrRunningXacts->latestCompletedXid;
+  xlrec.xcnt = CurrRunningXacts->xcnt;
+  xlrec.subxcnt = CurrRunningXacts->subxcnt;
+  xlrec.subxid_overflow = (CurrRunningXacts->subxid_status != SUBXIDS_IN_ARRAY);
+  xlrec.nextXid = CurrRunningXacts->nextXid;
+  xlrec.oldestRunningXid = CurrRunningXacts->oldestRunningXid;
+  xlrec.latestCompletedXid = CurrRunningXacts->latestCompletedXid;
 
-	/* Header */
-	XLogBeginInsert();
-	XLogSetRecordFlags(XLOG_MARK_UNIMPORTANT);
-	XLogRegisterData(&xlrec, MinSizeOfXactRunningXacts);
+  /* Header */
+  XLogBeginInsert();
+  XLogSetRecordFlags(XLOG_MARK_UNIMPORTANT);
+  XLogRegisterData(&xlrec, MinSizeOfXactRunningXacts);
 
-	/* array of TransactionIds */
-	if (xlrec.xcnt > 0)
-		XLogRegisterData(CurrRunningXacts->xids,
-						 (xlrec.xcnt + xlrec.subxcnt) * sizeof(TransactionId));
+  /* array of TransactionIds */
+  if (xlrec.xcnt > 0)
+    XLogRegisterData(CurrRunningXacts->xids,
+                     (xlrec.xcnt + xlrec.subxcnt) * sizeof(TransactionId));
 
-	recptr = XLogInsert(RM_STANDBY_ID, XLOG_RUNNING_XACTS);
+  recptr = XLogInsert(RM_STANDBY_ID, XLOG_RUNNING_XACTS);
 
-	if (xlrec.subxid_overflow)
-		elog(DEBUG2,
-			 "snapshot of %d running transactions overflowed (lsn %X/%X oldest xid %u latest complete %u next xid %u)",
-			 CurrRunningXacts->xcnt,
-			 LSN_FORMAT_ARGS(recptr),
-			 CurrRunningXacts->oldestRunningXid,
-			 CurrRunningXacts->latestCompletedXid,
-			 CurrRunningXacts->nextXid);
-	else
-		elog(DEBUG2,
-			 "snapshot of %d+%d running transaction ids (lsn %X/%X oldest xid %u latest complete %u next xid %u)",
-			 CurrRunningXacts->xcnt, CurrRunningXacts->subxcnt,
-			 LSN_FORMAT_ARGS(recptr),
-			 CurrRunningXacts->oldestRunningXid,
-			 CurrRunningXacts->latestCompletedXid,
-			 CurrRunningXacts->nextXid);
+  if (xlrec.subxid_overflow)
+    elog(DEBUG2,
+         "snapshot of %d running transactions overflowed (lsn %X/%X oldest xid %u latest complete %u next xid %u)",
+         CurrRunningXacts->xcnt,
+         LSN_FORMAT_ARGS(recptr),
+         CurrRunningXacts->oldestRunningXid,
+         CurrRunningXacts->latestCompletedXid,
+         CurrRunningXacts->nextXid);
+  else
+    elog(DEBUG2,
+         "snapshot of %d+%d running transaction ids (lsn %X/%X oldest xid %u latest complete %u next xid %u)",
+         CurrRunningXacts->xcnt, CurrRunningXacts->subxcnt,
+         LSN_FORMAT_ARGS(recptr),
+         CurrRunningXacts->oldestRunningXid,
+         CurrRunningXacts->latestCompletedXid,
+         CurrRunningXacts->nextXid);
 
-	/*
-	 * Ensure running_xacts information is synced to disk not too far in the
-	 * future. We don't want to stall anything though (i.e. use XLogFlush()),
-	 * so we let the wal writer do it during normal operation.
-	 * XLogSetAsyncXactLSN() conveniently will mark the LSN as to-be-synced
-	 * and nudge the WALWriter into action if sleeping. Check
-	 * XLogBackgroundFlush() for details why a record might not be flushed
-	 * without it.
-	 */
-	XLogSetAsyncXactLSN(recptr);
+  /*
+   * Ensure running_xacts information is synced to disk not too far in the
+   * future. We don't want to stall anything though (i.e. use XLogFlush()),
+   * so we let the wal writer do it during normal operation.
+   * XLogSetAsyncXactLSN() conveniently will mark the LSN as to-be-synced
+   * and nudge the WALWriter into action if sleeping. Check
+   * XLogBackgroundFlush() for details why a record might not be flushed
+   * without it.
+   */
+  XLogSetAsyncXactLSN(recptr);
 
-	return recptr;
+  return recptr;
 }
 
 /*
@@ -1412,16 +1381,16 @@ LogCurrentRunningXacts(RunningTransactions CurrRunningXacts)
 static void
 LogAccessExclusiveLocks(int nlocks, xl_standby_lock *locks)
 {
-	xl_standby_locks xlrec;
+  xl_standby_locks xlrec;
 
-	xlrec.nlocks = nlocks;
+  xlrec.nlocks = nlocks;
 
-	XLogBeginInsert();
-	XLogRegisterData(&xlrec, offsetof(xl_standby_locks, locks));
-	XLogRegisterData(locks, nlocks * sizeof(xl_standby_lock));
-	XLogSetRecordFlags(XLOG_MARK_UNIMPORTANT);
+  XLogBeginInsert();
+  XLogRegisterData(&xlrec, offsetof(xl_standby_locks, locks));
+  XLogRegisterData(locks, nlocks * sizeof(xl_standby_lock));
+  XLogSetRecordFlags(XLOG_MARK_UNIMPORTANT);
 
-	(void) XLogInsert(RM_STANDBY_ID, XLOG_STANDBY_LOCK);
+  (void) XLogInsert(RM_STANDBY_ID, XLOG_STANDBY_LOCK);
 }
 
 /*
@@ -1430,15 +1399,15 @@ LogAccessExclusiveLocks(int nlocks, xl_standby_lock *locks)
 void
 LogAccessExclusiveLock(Oid dbOid, Oid relOid)
 {
-	xl_standby_lock xlrec;
+  xl_standby_lock xlrec;
 
-	xlrec.xid = GetCurrentTransactionId();
+  xlrec.xid = GetCurrentTransactionId();
 
-	xlrec.dbOid = dbOid;
-	xlrec.relOid = relOid;
+  xlrec.dbOid = dbOid;
+  xlrec.relOid = relOid;
 
-	LogAccessExclusiveLocks(1, &xlrec);
-	MyXactFlags |= XACT_FLAGS_ACQUIREDACCESSEXCLUSIVELOCK;
+  LogAccessExclusiveLocks(1, &xlrec);
+  MyXactFlags |= XACT_FLAGS_ACQUIREDACCESSEXCLUSIVELOCK;
 }
 
 /*
@@ -1447,19 +1416,19 @@ LogAccessExclusiveLock(Oid dbOid, Oid relOid)
 void
 LogAccessExclusiveLockPrepare(void)
 {
-	/*
-	 * Ensure that a TransactionId has been assigned to this transaction, for
-	 * two reasons, both related to lock release on the standby. First, we
-	 * must assign an xid so that RecordTransactionCommit() and
-	 * RecordTransactionAbort() do not optimise away the transaction
-	 * completion record which recovery relies upon to release locks. It's a
-	 * hack, but for a corner case not worth adding code for into the main
-	 * commit path. Second, we must assign an xid before the lock is recorded
-	 * in shared memory, otherwise a concurrently executing
-	 * GetRunningTransactionLocks() might see a lock associated with an
-	 * InvalidTransactionId which we later assert cannot happen.
-	 */
-	(void) GetCurrentTransactionId();
+  /*
+   * Ensure that a TransactionId has been assigned to this transaction, for
+   * two reasons, both related to lock release on the standby. First, we
+   * must assign an xid so that RecordTransactionCommit() and
+   * RecordTransactionAbort() do not optimise away the transaction
+   * completion record which recovery relies upon to release locks. It's a
+   * hack, but for a corner case not worth adding code for into the main
+   * commit path. Second, we must assign an xid before the lock is recorded
+   * in shared memory, otherwise a concurrently executing
+   * GetRunningTransactionLocks() might see a lock associated with an
+   * InvalidTransactionId which we later assert cannot happen.
+   */
+  (void) GetCurrentTransactionId();
 }
 
 /*
@@ -1468,57 +1437,63 @@ LogAccessExclusiveLockPrepare(void)
  */
 void
 LogStandbyInvalidations(int nmsgs, SharedInvalidationMessage *msgs,
-						bool relcacheInitFileInval)
+                        bool relcacheInitFileInval)
 {
-	xl_invalidations xlrec;
+  xl_invalidations xlrec;
 
-	/* prepare record */
-	memset(&xlrec, 0, sizeof(xlrec));
-	xlrec.dbId = MyDatabaseId;
-	xlrec.tsId = MyDatabaseTableSpace;
-	xlrec.relcacheInitFileInval = relcacheInitFileInval;
-	xlrec.nmsgs = nmsgs;
+  /* prepare record */
+  memset(&xlrec, 0, sizeof(xlrec));
+  xlrec.dbId = MyDatabaseId;
+  xlrec.tsId = MyDatabaseTableSpace;
+  xlrec.relcacheInitFileInval = relcacheInitFileInval;
+  xlrec.nmsgs = nmsgs;
 
-	/* perform insertion */
-	XLogBeginInsert();
-	XLogRegisterData(&xlrec, MinSizeOfInvalidations);
-	XLogRegisterData(msgs,
-					 nmsgs * sizeof(SharedInvalidationMessage));
-	XLogInsert(RM_STANDBY_ID, XLOG_INVALIDATIONS);
+  /* perform insertion */
+  XLogBeginInsert();
+  XLogRegisterData(&xlrec, MinSizeOfInvalidations);
+  XLogRegisterData(msgs,
+                   nmsgs * sizeof(SharedInvalidationMessage));
+  XLogInsert(RM_STANDBY_ID, XLOG_INVALIDATIONS);
 }
 
 /* Return the description of recovery conflict */
 static const char *
 get_recovery_conflict_desc(ProcSignalReason reason)
 {
-	const char *reasonDesc = _("unknown reason");
+  const char *reasonDesc = _("unknown reason");
 
-	switch (reason)
-	{
-		case PROCSIG_RECOVERY_CONFLICT_BUFFERPIN:
-			reasonDesc = _("recovery conflict on buffer pin");
-			break;
-		case PROCSIG_RECOVERY_CONFLICT_LOCK:
-			reasonDesc = _("recovery conflict on lock");
-			break;
-		case PROCSIG_RECOVERY_CONFLICT_TABLESPACE:
-			reasonDesc = _("recovery conflict on tablespace");
-			break;
-		case PROCSIG_RECOVERY_CONFLICT_SNAPSHOT:
-			reasonDesc = _("recovery conflict on snapshot");
-			break;
-		case PROCSIG_RECOVERY_CONFLICT_LOGICALSLOT:
-			reasonDesc = _("recovery conflict on replication slot");
-			break;
-		case PROCSIG_RECOVERY_CONFLICT_STARTUP_DEADLOCK:
-			reasonDesc = _("recovery conflict on buffer deadlock");
-			break;
-		case PROCSIG_RECOVERY_CONFLICT_DATABASE:
-			reasonDesc = _("recovery conflict on database");
-			break;
-		default:
-			break;
-	}
+  switch (reason) {
+    case PROCSIG_RECOVERY_CONFLICT_BUFFERPIN:
+      reasonDesc = _("recovery conflict on buffer pin");
+      break;
 
-	return reasonDesc;
+    case PROCSIG_RECOVERY_CONFLICT_LOCK:
+      reasonDesc = _("recovery conflict on lock");
+      break;
+
+    case PROCSIG_RECOVERY_CONFLICT_TABLESPACE:
+      reasonDesc = _("recovery conflict on tablespace");
+      break;
+
+    case PROCSIG_RECOVERY_CONFLICT_SNAPSHOT:
+      reasonDesc = _("recovery conflict on snapshot");
+      break;
+
+    case PROCSIG_RECOVERY_CONFLICT_LOGICALSLOT:
+      reasonDesc = _("recovery conflict on replication slot");
+      break;
+
+    case PROCSIG_RECOVERY_CONFLICT_STARTUP_DEADLOCK:
+      reasonDesc = _("recovery conflict on buffer deadlock");
+      break;
+
+    case PROCSIG_RECOVERY_CONFLICT_DATABASE:
+      reasonDesc = _("recovery conflict on database");
+      break;
+
+    default:
+      break;
+  }
+
+  return reasonDesc;
 }

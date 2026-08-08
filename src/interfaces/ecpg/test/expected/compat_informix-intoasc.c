@@ -15,26 +15,26 @@
 #include "pgtypes_interval.h"
 
 /* exec sql begin declare section */
-       
-     
+
+
 
 #line 7 "intoasc.pgc"
- char dirty_str [ 100 ] = "aaaaaaaaa_bbbbbbbb_ccccccccc_ddddddddd_" ;
- 
+char dirty_str [ 100 ] = "aaaaaaaaa_bbbbbbbb_ccccccccc_ddddddddd_" ;
+
 #line 8 "intoasc.pgc"
- interval * interval_ptr ;
+interval * interval_ptr ;
 /* exec sql end declare section */
 #line 9 "intoasc.pgc"
 
 
 int main()
 {
-    interval_ptr = (interval *) malloc(sizeof(interval));
-    interval_ptr->time = 100000000;
-    interval_ptr->month = 240;
+  interval_ptr = (interval *) malloc(sizeof(interval));
+  interval_ptr->time = 100000000;
+  interval_ptr->month = 240;
 
-    printf("dirty_str contents before intoasc: %s\n", dirty_str);
-    intoasc(interval_ptr, dirty_str);
-    printf("dirty_str contents after intoasc: %s\n", dirty_str);
-    return 0;
+  printf("dirty_str contents before intoasc: %s\n", dirty_str);
+  intoasc(interval_ptr, dirty_str);
+  printf("dirty_str contents after intoasc: %s\n", dirty_str);
+  return 0;
 }

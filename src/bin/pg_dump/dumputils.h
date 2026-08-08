@@ -38,34 +38,34 @@
 
 extern char *sanitize_line(const char *str, bool want_hyphen);
 extern bool buildACLCommands(const char *name, const char *subname, const char *nspname,
-							 const char *type, const char *acls, const char *baseacls,
-							 const char *owner, const char *prefix, int remoteVersion,
-							 PQExpBuffer sql);
+                             const char *type, const char *acls, const char *baseacls,
+                             const char *owner, const char *prefix, int remoteVersion,
+                             PQExpBuffer sql);
 extern bool buildDefaultACLCommands(const char *type, const char *nspname,
-									const char *acls, const char *acldefault,
-									const char *owner,
-									int remoteVersion,
-									PQExpBuffer sql);
+                                    const char *acls, const char *acldefault,
+                                    const char *owner,
+                                    int remoteVersion,
+                                    PQExpBuffer sql);
 
 extern void quoteAclUserName(PQExpBuffer output, const char *input);
 
 extern void buildShSecLabelQuery(const char *catalog_name,
-								 Oid objectId, PQExpBuffer sql);
+                                 Oid objectId, PQExpBuffer sql);
 extern void emitShSecLabels(PGconn *conn, PGresult *res,
-							PQExpBuffer buffer, const char *objtype, const char *objname);
+                            PQExpBuffer buffer, const char *objtype, const char *objname);
 
 extern bool variable_is_guc_list_quote(const char *name);
 
 extern bool SplitGUCList(char *rawstring, char separator,
-						 char ***namelist);
+                         char ***namelist);
 
 extern void makeAlterConfigCommand(PGconn *conn, const char *configitem,
-								   const char *type, const char *name,
-								   const char *type2, const char *name2,
-								   PQExpBuffer buf);
+                                   const char *type, const char *name,
+                                   const char *type2, const char *name2,
+                                   PQExpBuffer buf);
 extern void create_or_open_dir(const char *dirname);
 
 extern char *generate_restrict_key(void);
 extern bool valid_restrict_key(const char *restrict_key);
 
-#endif							/* DUMPUTILS_H */
+#endif              /* DUMPUTILS_H */

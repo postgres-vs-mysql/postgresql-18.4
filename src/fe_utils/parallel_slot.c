@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
- *	parallel_slot.c
- *		Parallel support for front-end parallel database connections
+ *  parallel_slot.c
+ *    Parallel support for front-end parallel database connections
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -27,7 +27,7 @@
 
 #define ERRCODE_UNDEFINED_TABLE  "42P01"
 
-static int	select_loop(int maxFd, fd_set *workerset);
+static int  select_loop(int maxFd, fd_set *workerset);
 static bool processQueryResult(ParallelSlot *slot, PGresult *result);
 
 /*
@@ -38,15 +38,15 @@ static bool processQueryResult(ParallelSlot *slot, PGresult *result);
 static bool
 processQueryResult(ParallelSlot *slot, PGresult *result)
 {
-	Assert(slot->handler != NULL);
+  Assert(slot->handler != NULL);
 
-	/* On failure, the handler should return NULL after freeing the result */
-	if (!slot->handler(result, slot->connection, slot->handler_context))
-		return false;
+  /* On failure, the handler should return NULL after freeing the result */
+  if (!slot->handler(result, slot->connection, slot->handler_context))
+    return false;
 
-	/* Ok, we have to free it ourself */
-	PQclear(result);
-	return true;
+  /* Ok, we have to free it ourself */
+  PQclear(result);
+  return true;
 }
 
 /*
@@ -57,17 +57,18 @@ processQueryResult(ParallelSlot *slot, PGresult *result)
 static bool
 consumeQueryResult(ParallelSlot *slot)
 {
-	bool		ok = true;
-	PGresult   *result;
+  bool    ok = true;
+  PGresult   *result;
 
-	SetCancelConn(slot->connection);
-	while ((result = PQgetResult(slot->connection)) != NULL)
-	{
-		if (!processQueryResult(slot, result))
-			ok = false;
-	}
-	ResetCancelConn();
-	return ok;
+  SetCancelConn(slot->connection);
+
+  while ((result = PQgetResult(slot->connection)) != NULL) {
+    if (!processQueryResult(slot, result))
+      ok = false;
+  }
+
+  ResetCancelConn();
+  return ok;
 }
 
 /*
@@ -79,50 +80,53 @@ consumeQueryResult(ParallelSlot *slot)
 static int
 select_loop(int maxFd, fd_set *workerset)
 {
-	int			i;
-	fd_set		saveSet = *workerset;
+  int     i;
+  fd_set    saveSet = *workerset;
 
-	if (CancelRequested)
-		return -1;
+  if (CancelRequested)
+    return -1;
 
-	for (;;)
-	{
-		/*
-		 * On Windows, we need to check once in a while for cancel requests;
-		 * on other platforms we rely on select() returning when interrupted.
-		 */
-		struct timeval *tvp;
+  for (;;) {
+    /*
+     * On Windows, we need to check once in a while for cancel requests;
+     * on other platforms we rely on select() returning when interrupted.
+     */
+    struct timeval *tvp;
 #ifdef WIN32
-		struct timeval tv = {0, 1000000};
+    struct timeval tv = {0, 1000000};
 
-		tvp = &tv;
+    tvp = &tv;
 #else
-		tvp = NULL;
+    tvp = NULL;
 #endif
 
-		*workerset = saveSet;
-		i = select(maxFd + 1, workerset, NULL, NULL, tvp);
+    *workerset = saveSet;
+    i = select(maxFd + 1, workerset, NULL, NULL, tvp);
 
 #ifdef WIN32
-		if (i == SOCKET_ERROR)
-		{
-			i = -1;
 
-			if (WSAGetLastError() == WSAEINTR)
-				errno = EINTR;
-		}
+    if (i == SOCKET_ERROR) {
+      i = -1;
+
+      if (WSAGetLastError() == WSAEINTR)
+        errno = EINTR;
+    }
+
 #endif
 
-		if (i < 0 && errno == EINTR)
-			continue;			/* ignore this */
-		if (i < 0 || CancelRequested)
-			return -1;			/* but not this */
-		if (i == 0)
-			continue;			/* timeout (Win32 only) */
-		break;
-	}
+    if (i < 0 && errno == EINTR)
+      continue;     /* ignore this */
 
-	return i;
+    if (i < 0 || CancelRequested)
+      return -1;      /* but not this */
+
+    if (i == 0)
+      continue;     /* timeout (Win32 only) */
+
+    break;
+  }
+
+  return i;
 }
 
 /*
@@ -134,21 +138,21 @@ select_loop(int maxFd, fd_set *workerset)
 static int
 find_matching_idle_slot(const ParallelSlotArray *sa, const char *dbname)
 {
-	int			i;
+  int     i;
 
-	for (i = 0; i < sa->numslots; i++)
-	{
-		if (sa->slots[i].inUse)
-			continue;
+  for (i = 0; i < sa->numslots; i++) {
+    if (sa->slots[i].inUse)
+      continue;
 
-		if (sa->slots[i].connection == NULL)
-			continue;
+    if (sa->slots[i].connection == NULL)
+      continue;
 
-		if (dbname == NULL ||
-			strcmp(PQdb(sa->slots[i].connection), dbname) == 0)
-			return i;
-	}
-	return -1;
+    if (dbname == NULL ||
+        strcmp(PQdb(sa->slots[i].connection), dbname) == 0)
+      return i;
+  }
+
+  return -1;
 }
 
 /*
@@ -158,18 +162,17 @@ find_matching_idle_slot(const ParallelSlotArray *sa, const char *dbname)
 static int
 find_unconnected_slot(const ParallelSlotArray *sa)
 {
-	int			i;
+  int     i;
 
-	for (i = 0; i < sa->numslots; i++)
-	{
-		if (sa->slots[i].inUse)
-			continue;
+  for (i = 0; i < sa->numslots; i++) {
+    if (sa->slots[i].inUse)
+      continue;
 
-		if (sa->slots[i].connection == NULL)
-			return i;
-	}
+    if (sa->slots[i].connection == NULL)
+      return i;
+  }
 
-	return -1;
+  return -1;
 }
 
 /*
@@ -178,13 +181,13 @@ find_unconnected_slot(const ParallelSlotArray *sa)
 static int
 find_any_idle_slot(const ParallelSlotArray *sa)
 {
-	int			i;
+  int     i;
 
-	for (i = 0; i < sa->numslots; i++)
-		if (!sa->slots[i].inUse)
-			return i;
+  for (i = 0; i < sa->numslots; i++)
+    if (!sa->slots[i].inUse)
+      return i;
 
-	return -1;
+  return -1;
 }
 
 /*
@@ -195,87 +198,82 @@ find_any_idle_slot(const ParallelSlotArray *sa)
 static bool
 wait_on_slots(ParallelSlotArray *sa)
 {
-	int			i;
-	fd_set		slotset;
-	int			maxFd = 0;
-	PGconn	   *cancelconn = NULL;
+  int     i;
+  fd_set    slotset;
+  int     maxFd = 0;
+  PGconn     *cancelconn = NULL;
 
-	/* We must reconstruct the fd_set for each call to select_loop */
-	FD_ZERO(&slotset);
+  /* We must reconstruct the fd_set for each call to select_loop */
+  FD_ZERO(&slotset);
 
-	for (i = 0; i < sa->numslots; i++)
-	{
-		int			sock;
+  for (i = 0; i < sa->numslots; i++) {
+    int     sock;
 
-		/* We shouldn't get here if we still have slots without connections */
-		Assert(sa->slots[i].connection != NULL);
+    /* We shouldn't get here if we still have slots without connections */
+    Assert(sa->slots[i].connection != NULL);
 
-		sock = PQsocket(sa->slots[i].connection);
+    sock = PQsocket(sa->slots[i].connection);
 
-		/*
-		 * We don't really expect any connections to lose their sockets after
-		 * startup, but just in case, cope by ignoring them.
-		 */
-		if (sock < 0)
-			continue;
+    /*
+     * We don't really expect any connections to lose their sockets after
+     * startup, but just in case, cope by ignoring them.
+     */
+    if (sock < 0)
+      continue;
 
-		/* Keep track of the first valid connection we see. */
-		if (cancelconn == NULL)
-			cancelconn = sa->slots[i].connection;
+    /* Keep track of the first valid connection we see. */
+    if (cancelconn == NULL)
+      cancelconn = sa->slots[i].connection;
 
-		FD_SET(sock, &slotset);
-		if (sock > maxFd)
-			maxFd = sock;
-	}
+    FD_SET(sock, &slotset);
 
-	/*
-	 * If we get this far with no valid connections, processing cannot
-	 * continue.
-	 */
-	if (cancelconn == NULL)
-		return false;
+    if (sock > maxFd)
+      maxFd = sock;
+  }
 
-	SetCancelConn(cancelconn);
-	i = select_loop(maxFd, &slotset);
-	ResetCancelConn();
+  /*
+   * If we get this far with no valid connections, processing cannot
+   * continue.
+   */
+  if (cancelconn == NULL)
+    return false;
 
-	/* failure? */
-	if (i < 0)
-		return false;
+  SetCancelConn(cancelconn);
+  i = select_loop(maxFd, &slotset);
+  ResetCancelConn();
 
-	for (i = 0; i < sa->numslots; i++)
-	{
-		int			sock;
+  /* failure? */
+  if (i < 0)
+    return false;
 
-		sock = PQsocket(sa->slots[i].connection);
+  for (i = 0; i < sa->numslots; i++) {
+    int     sock;
 
-		if (sock >= 0 && FD_ISSET(sock, &slotset))
-		{
-			/* select() says input is available, so consume it */
-			PQconsumeInput(sa->slots[i].connection);
-		}
+    sock = PQsocket(sa->slots[i].connection);
 
-		/* Collect result(s) as long as any are available */
-		while (!PQisBusy(sa->slots[i].connection))
-		{
-			PGresult   *result = PQgetResult(sa->slots[i].connection);
+    if (sock >= 0 && FD_ISSET(sock, &slotset)) {
+      /* select() says input is available, so consume it */
+      PQconsumeInput(sa->slots[i].connection);
+    }
 
-			if (result != NULL)
-			{
-				/* Handle and discard the command result */
-				if (!processQueryResult(&sa->slots[i], result))
-					return false;
-			}
-			else
-			{
-				/* This connection has become idle */
-				sa->slots[i].inUse = false;
-				ParallelSlotClearHandler(&sa->slots[i]);
-				break;
-			}
-		}
-	}
-	return true;
+    /* Collect result(s) as long as any are available */
+    while (!PQisBusy(sa->slots[i].connection)) {
+      PGresult   *result = PQgetResult(sa->slots[i].connection);
+
+      if (result != NULL) {
+        /* Handle and discard the command result */
+        if (!processQueryResult(&sa->slots[i], result))
+          return false;
+      } else {
+        /* This connection has become idle */
+        sa->slots[i].inUse = false;
+        ParallelSlotClearHandler(&sa->slots[i]);
+        break;
+      }
+    }
+  }
+
+  return true;
 }
 
 /*
@@ -286,59 +284,61 @@ wait_on_slots(ParallelSlotArray *sa)
 static void
 connect_slot(ParallelSlotArray *sa, int slotno, const char *dbname)
 {
-	const char *old_override;
-	ParallelSlot *slot = &sa->slots[slotno];
+  const char *old_override;
+  ParallelSlot *slot = &sa->slots[slotno];
 
-	old_override = sa->cparams->override_dbname;
-	if (dbname)
-		sa->cparams->override_dbname = dbname;
-	slot->connection = connectDatabase(sa->cparams, sa->progname, sa->echo, false, true);
-	sa->cparams->override_dbname = old_override;
+  old_override = sa->cparams->override_dbname;
 
-	/*
-	 * POSIX defines FD_SETSIZE as the highest file descriptor acceptable to
-	 * FD_SET() and allied macros.  Windows defines it as a ceiling on the
-	 * count of file descriptors in the set, not a ceiling on the value of
-	 * each file descriptor; see
-	 * https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-select
-	 * and
-	 * https://learn.microsoft.com/en-us/windows/win32/api/winsock/ns-winsock-fd_set.
-	 * We can't ignore that, because Windows starts file descriptors at a
-	 * higher value, delays reuse, and skips values.  With less than ten
-	 * concurrent file descriptors, opened and closed rapidly, one can reach
-	 * file descriptor 1024.
-	 *
-	 * Doing a hard exit here is a bit grotty, but it doesn't seem worth
-	 * complicating the API to make it less grotty.
-	 */
+  if (dbname)
+    sa->cparams->override_dbname = dbname;
+
+  slot->connection = connectDatabase(sa->cparams, sa->progname, sa->echo, false, true);
+  sa->cparams->override_dbname = old_override;
+
+  /*
+   * POSIX defines FD_SETSIZE as the highest file descriptor acceptable to
+   * FD_SET() and allied macros.  Windows defines it as a ceiling on the
+   * count of file descriptors in the set, not a ceiling on the value of
+   * each file descriptor; see
+   * https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-select
+   * and
+   * https://learn.microsoft.com/en-us/windows/win32/api/winsock/ns-winsock-fd_set.
+   * We can't ignore that, because Windows starts file descriptors at a
+   * higher value, delays reuse, and skips values.  With less than ten
+   * concurrent file descriptors, opened and closed rapidly, one can reach
+   * file descriptor 1024.
+   *
+   * Doing a hard exit here is a bit grotty, but it doesn't seem worth
+   * complicating the API to make it less grotty.
+   */
 #ifdef WIN32
-	if (slotno >= FD_SETSIZE)
-	{
-		pg_log_error("too many jobs for this platform: %d", slotno);
-		exit(1);
-	}
-#else
-	{
-		int			fd = PQsocket(slot->connection);
 
-		if (fd >= FD_SETSIZE)
-		{
-			pg_log_error("socket file descriptor out of range for select(): %d",
-						 fd);
-			pg_log_error_hint("Try fewer jobs.");
-			exit(1);
-		}
-	}
+  if (slotno >= FD_SETSIZE) {
+    pg_log_error("too many jobs for this platform: %d", slotno);
+    exit(1);
+  }
+
+#else
+  {
+    int     fd = PQsocket(slot->connection);
+
+    if (fd >= FD_SETSIZE) {
+      pg_log_error("socket file descriptor out of range for select(): %d",
+                   fd);
+      pg_log_error_hint("Try fewer jobs.");
+      exit(1);
+    }
+  }
 #endif
 
-	/* Setup the connection using the supplied command, if any. */
-	if (sa->initcmd)
-		executeCommand(slot->connection, sa->initcmd, sa->echo);
+  /* Setup the connection using the supplied command, if any. */
+  if (sa->initcmd)
+    executeCommand(slot->connection, sa->initcmd, sa->echo);
 }
 
 /*
  * ParallelSlotsGetIdle
- *		Return a connection slot that is ready to execute a command.
+ *    Return a connection slot that is ready to execute a command.
  *
  * The slot returned is chosen as follows:
  *
@@ -370,54 +370,53 @@ connect_slot(ParallelSlotArray *sa, int slotno, const char *dbname)
 ParallelSlot *
 ParallelSlotsGetIdle(ParallelSlotArray *sa, const char *dbname)
 {
-	int			offset;
+  int     offset;
 
-	Assert(sa);
-	Assert(sa->numslots > 0);
+  Assert(sa);
+  Assert(sa->numslots > 0);
 
-	while (1)
-	{
-		/* First choice: a slot already connected to the desired database. */
-		offset = find_matching_idle_slot(sa, dbname);
-		if (offset >= 0)
-		{
-			sa->slots[offset].inUse = true;
-			return &sa->slots[offset];
-		}
+  while (1) {
+    /* First choice: a slot already connected to the desired database. */
+    offset = find_matching_idle_slot(sa, dbname);
 
-		/* Second choice: a slot not connected to any database. */
-		offset = find_unconnected_slot(sa);
-		if (offset >= 0)
-		{
-			connect_slot(sa, offset, dbname);
-			sa->slots[offset].inUse = true;
-			return &sa->slots[offset];
-		}
+    if (offset >= 0) {
+      sa->slots[offset].inUse = true;
+      return &sa->slots[offset];
+    }
 
-		/* Third choice: a slot connected to the wrong database. */
-		offset = find_any_idle_slot(sa);
-		if (offset >= 0)
-		{
-			disconnectDatabase(sa->slots[offset].connection);
-			sa->slots[offset].connection = NULL;
-			connect_slot(sa, offset, dbname);
-			sa->slots[offset].inUse = true;
-			return &sa->slots[offset];
-		}
+    /* Second choice: a slot not connected to any database. */
+    offset = find_unconnected_slot(sa);
 
-		/*
-		 * Fourth choice: block until one or more slots become available. If
-		 * any slots hit a fatal error, we'll find out about that here and
-		 * return NULL.
-		 */
-		if (!wait_on_slots(sa))
-			return NULL;
-	}
+    if (offset >= 0) {
+      connect_slot(sa, offset, dbname);
+      sa->slots[offset].inUse = true;
+      return &sa->slots[offset];
+    }
+
+    /* Third choice: a slot connected to the wrong database. */
+    offset = find_any_idle_slot(sa);
+
+    if (offset >= 0) {
+      disconnectDatabase(sa->slots[offset].connection);
+      sa->slots[offset].connection = NULL;
+      connect_slot(sa, offset, dbname);
+      sa->slots[offset].inUse = true;
+      return &sa->slots[offset];
+    }
+
+    /*
+     * Fourth choice: block until one or more slots become available. If
+     * any slots hit a fatal error, we'll find out about that here and
+     * return NULL.
+     */
+    if (!wait_on_slots(sa))
+      return NULL;
+  }
 }
 
 /*
  * ParallelSlotsSetup
- *		Prepare a set of parallel slots but do not connect to any database.
+ *    Prepare a set of parallel slots but do not connect to any database.
  *
  * This creates and initializes a set of slots, marking all parallel slots as
  * free and ready to use.  Establishing connections is delayed until requesting
@@ -426,29 +425,29 @@ ParallelSlotsGetIdle(ParallelSlotArray *sa, const char *dbname)
  */
 ParallelSlotArray *
 ParallelSlotsSetup(int numslots, ConnParams *cparams, const char *progname,
-				   bool echo, const char *initcmd)
+                   bool echo, const char *initcmd)
 {
-	ParallelSlotArray *sa;
+  ParallelSlotArray *sa;
 
-	Assert(numslots > 0);
-	Assert(cparams != NULL);
-	Assert(progname != NULL);
+  Assert(numslots > 0);
+  Assert(cparams != NULL);
+  Assert(progname != NULL);
 
-	sa = (ParallelSlotArray *) palloc0(offsetof(ParallelSlotArray, slots) +
-									   numslots * sizeof(ParallelSlot));
+  sa = (ParallelSlotArray *) palloc0(offsetof(ParallelSlotArray, slots) +
+                                     numslots * sizeof(ParallelSlot));
 
-	sa->numslots = numslots;
-	sa->cparams = cparams;
-	sa->progname = progname;
-	sa->echo = echo;
-	sa->initcmd = initcmd;
+  sa->numslots = numslots;
+  sa->cparams = cparams;
+  sa->progname = progname;
+  sa->echo = echo;
+  sa->initcmd = initcmd;
 
-	return sa;
+  return sa;
 }
 
 /*
  * ParallelSlotsAdoptConn
- *		Assign an open connection to the slots array for reuse.
+ *    Assign an open connection to the slots array for reuse.
  *
  * This turns over ownership of an open connection to a slots array.  The
  * caller should not further use or close the connection.  All the connection's
@@ -459,18 +458,19 @@ ParallelSlotsSetup(int numslots, ConnParams *cparams, const char *progname,
 void
 ParallelSlotsAdoptConn(ParallelSlotArray *sa, PGconn *conn)
 {
-	int			offset;
+  int     offset;
 
-	offset = find_unconnected_slot(sa);
-	if (offset >= 0)
-		sa->slots[offset].connection = conn;
-	else
-		disconnectDatabase(conn);
+  offset = find_unconnected_slot(sa);
+
+  if (offset >= 0)
+    sa->slots[offset].connection = conn;
+  else
+    disconnectDatabase(conn);
 }
 
 /*
  * ParallelSlotsTerminate
- *		Clean up a set of parallel slots
+ *    Clean up a set of parallel slots
  *
  * Iterate through all connections in a given set of ParallelSlots and
  * terminate all connections.
@@ -478,17 +478,16 @@ ParallelSlotsAdoptConn(ParallelSlotArray *sa, PGconn *conn)
 void
 ParallelSlotsTerminate(ParallelSlotArray *sa)
 {
-	int			i;
+  int     i;
 
-	for (i = 0; i < sa->numslots; i++)
-	{
-		PGconn	   *conn = sa->slots[i].connection;
+  for (i = 0; i < sa->numslots; i++) {
+    PGconn     *conn = sa->slots[i].connection;
 
-		if (conn == NULL)
-			continue;
+    if (conn == NULL)
+      continue;
 
-		disconnectDatabase(conn);
-	}
+    disconnectDatabase(conn);
+  }
 }
 
 /*
@@ -500,20 +499,21 @@ ParallelSlotsTerminate(ParallelSlotArray *sa)
 bool
 ParallelSlotsWaitCompletion(ParallelSlotArray *sa)
 {
-	int			i;
+  int     i;
 
-	for (i = 0; i < sa->numslots; i++)
-	{
-		if (sa->slots[i].connection == NULL)
-			continue;
-		if (!consumeQueryResult(&sa->slots[i]))
-			return false;
-		/* Mark connection as idle */
-		sa->slots[i].inUse = false;
-		ParallelSlotClearHandler(&sa->slots[i]);
-	}
+  for (i = 0; i < sa->numslots; i++) {
+    if (sa->slots[i].connection == NULL)
+      continue;
 
-	return true;
+    if (!consumeQueryResult(&sa->slots[i]))
+      return false;
+
+    /* Mark connection as idle */
+    sa->slots[i].inUse = false;
+    ParallelSlotClearHandler(&sa->slots[i]);
+  }
+
+  return true;
 }
 
 /*
@@ -539,26 +539,24 @@ ParallelSlotsWaitCompletion(ParallelSlotArray *sa)
 bool
 TableCommandResultHandler(PGresult *res, PGconn *conn, void *context)
 {
-	Assert(res != NULL);
-	Assert(conn != NULL);
+  Assert(res != NULL);
+  Assert(conn != NULL);
 
-	/*
-	 * If it's an error, report it.  Errors about a missing table are harmless
-	 * so we continue processing; but die for other errors.
-	 */
-	if (PQresultStatus(res) != PGRES_COMMAND_OK)
-	{
-		char	   *sqlState = PQresultErrorField(res, PG_DIAG_SQLSTATE);
+  /*
+   * If it's an error, report it.  Errors about a missing table are harmless
+   * so we continue processing; but die for other errors.
+   */
+  if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+    char     *sqlState = PQresultErrorField(res, PG_DIAG_SQLSTATE);
 
-		pg_log_error("processing of database \"%s\" failed: %s",
-					 PQdb(conn), PQerrorMessage(conn));
+    pg_log_error("processing of database \"%s\" failed: %s",
+                 PQdb(conn), PQerrorMessage(conn));
 
-		if (sqlState && strcmp(sqlState, ERRCODE_UNDEFINED_TABLE) != 0)
-		{
-			PQclear(res);
-			return false;
-		}
-	}
+    if (sqlState && strcmp(sqlState, ERRCODE_UNDEFINED_TABLE) != 0) {
+      PQclear(res);
+      return false;
+    }
+  }
 
-	return true;
+  return true;
 }

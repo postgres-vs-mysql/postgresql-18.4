@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * async.h
- *	  Asynchronous notification: NOTIFY, LISTEN, UNLISTEN
+ *    Asynchronous notification: NOTIFY, LISTEN, UNLISTEN
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -23,8 +23,8 @@ extern Size AsyncShmemSize(void);
 extern void AsyncShmemInit(void);
 
 extern void NotifyMyFrontEnd(const char *channel,
-							 const char *payload,
-							 int32 srcPid);
+                             const char *payload,
+                             int32 srcPid);
 
 /* notify-related SQL statements */
 extern void Async_Notify(const char *channel, const char *payload);
@@ -49,4 +49,4 @@ extern void ProcessNotifyInterrupt(bool flush);
 /* freeze old transaction IDs in notify queue (called by VACUUM) */
 extern void AsyncNotifyFreezeXids(TransactionId newFrozenXid);
 
-#endif							/* ASYNC_H */
+#endif              /* ASYNC_H */

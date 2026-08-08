@@ -31,4 +31,4 @@
 
 extern const char *gai_strerror(int ecode);
 
-#endif							/* WIN32_SYS_SOCKET_H */
+#endif              /* WIN32_SYS_SOCKET_H */

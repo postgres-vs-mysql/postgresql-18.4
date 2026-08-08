@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * bloomfilter.c
- *		Space-efficient set membership testing
+ *    Space-efficient set membership testing
  *
  * A Bloom filter is a probabilistic data structure that is used to test an
  * element's membership of a set.  False positives are possible, but false
@@ -27,7 +27,7 @@
  * Copyright (c) 2018-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/backend/lib/bloomfilter.c
+ *    src/backend/lib/bloomfilter.c
  *
  *-------------------------------------------------------------------------
  */
@@ -39,22 +39,21 @@
 #include "lib/bloomfilter.h"
 #include "port/pg_bitutils.h"
 
-#define MAX_HASH_FUNCS		10
+#define MAX_HASH_FUNCS    10
 
-struct bloom_filter
-{
-	/* K hash functions are used, seeded by caller's seed */
-	int			k_hash_funcs;
-	uint64		seed;
-	/* m is bitset size, in bits.  Must be a power of two <= 2^32.  */
-	uint64		m;
-	unsigned char bitset[FLEXIBLE_ARRAY_MEMBER];
+struct bloom_filter {
+  /* K hash functions are used, seeded by caller's seed */
+  int     k_hash_funcs;
+  uint64    seed;
+  /* m is bitset size, in bits.  Must be a power of two <= 2^32.  */
+  uint64    m;
+  unsigned char bitset[FLEXIBLE_ARRAY_MEMBER];
 };
 
-static int	my_bloom_power(uint64 target_bitset_bits);
-static int	optimal_k(uint64 bitset_bits, int64 total_elems);
+static int  my_bloom_power(uint64 target_bitset_bits);
+static int  optimal_k(uint64 bitset_bits, int64 total_elems);
 static void k_hashes(bloom_filter *filter, uint32 *hashes, unsigned char *elem,
-					 size_t len);
+                     size_t len);
 static inline uint32 mod_m(uint32 val, uint64 m);
 
 /*
@@ -86,37 +85,37 @@ static inline uint32 mod_m(uint32 val, uint64 m);
 bloom_filter *
 bloom_create(int64 total_elems, int bloom_work_mem, uint64 seed)
 {
-	bloom_filter *filter;
-	int			bloom_power;
-	uint64		bitset_bytes;
-	uint64		bitset_bits;
+  bloom_filter *filter;
+  int     bloom_power;
+  uint64    bitset_bytes;
+  uint64    bitset_bits;
 
-	/*
-	 * Aim for two bytes per element; this is sufficient to get a false
-	 * positive rate below 1%, independent of the size of the bitset or total
-	 * number of elements.  Also, if rounding down the size of the bitset to
-	 * the next lowest power of two turns out to be a significant drop, the
-	 * false positive rate still won't exceed 2% in almost all cases.
-	 */
-	bitset_bytes = Min(bloom_work_mem * UINT64CONST(1024), total_elems * 2);
-	bitset_bytes = Max(1024 * 1024, bitset_bytes);
+  /*
+   * Aim for two bytes per element; this is sufficient to get a false
+   * positive rate below 1%, independent of the size of the bitset or total
+   * number of elements.  Also, if rounding down the size of the bitset to
+   * the next lowest power of two turns out to be a significant drop, the
+   * false positive rate still won't exceed 2% in almost all cases.
+   */
+  bitset_bytes = Min(bloom_work_mem * UINT64CONST(1024), total_elems * 2);
+  bitset_bytes = Max(1024 * 1024, bitset_bytes);
 
-	/*
-	 * Size in bits should be the highest power of two <= target.  bitset_bits
-	 * is uint64 because PG_UINT32_MAX is 2^32 - 1, not 2^32
-	 */
-	bloom_power = my_bloom_power(bitset_bytes * BITS_PER_BYTE);
-	bitset_bits = UINT64CONST(1) << bloom_power;
-	bitset_bytes = bitset_bits / BITS_PER_BYTE;
+  /*
+   * Size in bits should be the highest power of two <= target.  bitset_bits
+   * is uint64 because PG_UINT32_MAX is 2^32 - 1, not 2^32
+   */
+  bloom_power = my_bloom_power(bitset_bytes * BITS_PER_BYTE);
+  bitset_bits = UINT64CONST(1) << bloom_power;
+  bitset_bytes = bitset_bits / BITS_PER_BYTE;
 
-	/* Allocate bloom filter with unset bitset */
-	filter = palloc0(offsetof(bloom_filter, bitset) +
-					 sizeof(unsigned char) * bitset_bytes);
-	filter->k_hash_funcs = optimal_k(bitset_bits, total_elems);
-	filter->seed = seed;
-	filter->m = bitset_bits;
+  /* Allocate bloom filter with unset bitset */
+  filter = palloc0(offsetof(bloom_filter, bitset) +
+                   sizeof(unsigned char) * bitset_bytes);
+  filter->k_hash_funcs = optimal_k(bitset_bits, total_elems);
+  filter->seed = seed;
+  filter->m = bitset_bits;
 
-	return filter;
+  return filter;
 }
 
 /*
@@ -125,7 +124,7 @@ bloom_create(int64 total_elems, int bloom_work_mem, uint64 seed)
 void
 bloom_free(bloom_filter *filter)
 {
-	pfree(filter);
+  pfree(filter);
 }
 
 /*
@@ -134,16 +133,15 @@ bloom_free(bloom_filter *filter)
 void
 bloom_add_element(bloom_filter *filter, unsigned char *elem, size_t len)
 {
-	uint32		hashes[MAX_HASH_FUNCS];
-	int			i;
+  uint32    hashes[MAX_HASH_FUNCS];
+  int     i;
 
-	k_hashes(filter, hashes, elem, len);
+  k_hashes(filter, hashes, elem, len);
 
-	/* Map a bit-wise address to a byte-wise address + bit offset */
-	for (i = 0; i < filter->k_hash_funcs; i++)
-	{
-		filter->bitset[hashes[i] >> 3] |= 1 << (hashes[i] & 7);
-	}
+  /* Map a bit-wise address to a byte-wise address + bit offset */
+  for (i = 0; i < filter->k_hash_funcs; i++) {
+    filter->bitset[hashes[i] >> 3] |= 1 << (hashes[i] & 7);
+  }
 }
 
 /*
@@ -156,19 +154,18 @@ bloom_add_element(bloom_filter *filter, unsigned char *elem, size_t len)
 bool
 bloom_lacks_element(bloom_filter *filter, unsigned char *elem, size_t len)
 {
-	uint32		hashes[MAX_HASH_FUNCS];
-	int			i;
+  uint32    hashes[MAX_HASH_FUNCS];
+  int     i;
 
-	k_hashes(filter, hashes, elem, len);
+  k_hashes(filter, hashes, elem, len);
 
-	/* Map a bit-wise address to a byte-wise address + bit offset */
-	for (i = 0; i < filter->k_hash_funcs; i++)
-	{
-		if (!(filter->bitset[hashes[i] >> 3] & (1 << (hashes[i] & 7))))
-			return true;
-	}
+  /* Map a bit-wise address to a byte-wise address + bit offset */
+  for (i = 0; i < filter->k_hash_funcs; i++) {
+    if (!(filter->bitset[hashes[i] >> 3] & (1 << (hashes[i] & 7))))
+      return true;
+  }
 
-	return false;
+  return false;
 }
 
 /*
@@ -186,10 +183,10 @@ bloom_lacks_element(bloom_filter *filter, unsigned char *elem, size_t len)
 double
 bloom_prop_bits_set(bloom_filter *filter)
 {
-	int			bitset_bytes = filter->m / BITS_PER_BYTE;
-	uint64		bits_set = pg_popcount((char *) filter->bitset, bitset_bytes);
+  int     bitset_bytes = filter->m / BITS_PER_BYTE;
+  uint64    bits_set = pg_popcount((char *) filter->bitset, bitset_bytes);
 
-	return bits_set / (double) filter->m;
+  return bits_set / (double) filter->m;
 }
 
 /*
@@ -209,15 +206,14 @@ bloom_prop_bits_set(bloom_filter *filter)
 static int
 my_bloom_power(uint64 target_bitset_bits)
 {
-	int			bloom_power = -1;
+  int     bloom_power = -1;
 
-	while (target_bitset_bits > 0 && bloom_power < 32)
-	{
-		bloom_power++;
-		target_bitset_bits >>= 1;
-	}
+  while (target_bitset_bits > 0 && bloom_power < 32) {
+    bloom_power++;
+    target_bitset_bits >>= 1;
+  }
 
-	return bloom_power;
+  return bloom_power;
 }
 
 /*
@@ -228,9 +224,9 @@ my_bloom_power(uint64 target_bitset_bits)
 static int
 optimal_k(uint64 bitset_bits, int64 total_elems)
 {
-	int			k = rint(log(2.0) * bitset_bits / total_elems);
+  int     k = rint(log(2.0) * bitset_bits / total_elems);
 
-	return Max(1, Min(k, MAX_HASH_FUNCS));
+  return Max(1, Min(k, MAX_HASH_FUNCS));
 }
 
 /*
@@ -249,30 +245,30 @@ optimal_k(uint64 bitset_bits, int64 total_elems)
 static void
 k_hashes(bloom_filter *filter, uint32 *hashes, unsigned char *elem, size_t len)
 {
-	uint64		hash;
-	uint32		x,
-				y;
-	uint64		m;
-	int			i;
+  uint64    hash;
+  uint32    x,
+            y;
+  uint64    m;
+  int     i;
 
-	/* Use 64-bit hashing to get two independent 32-bit hashes */
-	hash = DatumGetUInt64(hash_any_extended(elem, len, filter->seed));
-	x = (uint32) hash;
-	y = (uint32) (hash >> 32);
-	m = filter->m;
+  /* Use 64-bit hashing to get two independent 32-bit hashes */
+  hash = DatumGetUInt64(hash_any_extended(elem, len, filter->seed));
+  x = (uint32) hash;
+  y = (uint32) (hash >> 32);
+  m = filter->m;
 
-	x = mod_m(x, m);
-	y = mod_m(y, m);
+  x = mod_m(x, m);
+  y = mod_m(y, m);
 
-	/* Accumulate hashes */
-	hashes[0] = x;
-	for (i = 1; i < filter->k_hash_funcs; i++)
-	{
-		x = mod_m(x + y, m);
-		y = mod_m(y + i, m);
+  /* Accumulate hashes */
+  hashes[0] = x;
 
-		hashes[i] = x;
-	}
+  for (i = 1; i < filter->k_hash_funcs; i++) {
+    x = mod_m(x + y, m);
+    y = mod_m(y + i, m);
+
+    hashes[i] = x;
+  }
 }
 
 /*
@@ -287,8 +283,8 @@ k_hashes(bloom_filter *filter, uint32 *hashes, unsigned char *elem, size_t len)
 static inline uint32
 mod_m(uint32 val, uint64 m)
 {
-	Assert(m <= PG_UINT32_MAX + UINT64CONST(1));
-	Assert(((m - 1) & m) == 0);
+  Assert(m <= PG_UINT32_MAX + UINT64CONST(1));
+  Assert(((m - 1) & m) == 0);
 
-	return val & (m - 1);
+  return val & (m - 1);
 }

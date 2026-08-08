@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pgarch.h
- *	  Exports from postmaster/pgarch.c.
+ *    Exports from postmaster/pgarch.c.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -22,8 +22,8 @@
  * corresponding names with ".ready" or ".done" appended.
  * ----------
  */
-#define MIN_XFN_CHARS	16
-#define MAX_XFN_CHARS	40
+#define MIN_XFN_CHARS 16
+#define MAX_XFN_CHARS 40
 #define VALID_XFN_CHARS "0123456789ABCDEF.history.backup.partial"
 
 extern Size PgArchShmemSize(void);
@@ -33,4 +33,4 @@ pg_noreturn extern void PgArchiverMain(const void *startup_data, size_t startup_
 extern void PgArchWakeup(void);
 extern void PgArchForceDirScan(void);
 
-#endif							/* _PGARCH_H */
+#endif              /* _PGARCH_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * sync.h
- *	  File synchronization management code.
+ *    File synchronization management code.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -22,10 +22,10 @@
  */
 typedef enum SyncRequestType
 {
-	SYNC_REQUEST,				/* schedule a call of sync function */
-	SYNC_UNLINK_REQUEST,		/* schedule a call of unlink function */
-	SYNC_FORGET_REQUEST,		/* forget all calls for a tag */
-	SYNC_FILTER_REQUEST,		/* forget all calls satisfying match fn */
+  SYNC_REQUEST,       /* schedule a call of sync function */
+  SYNC_UNLINK_REQUEST,    /* schedule a call of unlink function */
+  SYNC_FORGET_REQUEST,    /* forget all calls for a tag */
+  SYNC_FILTER_REQUEST,    /* forget all calls satisfying match fn */
 } SyncRequestType;
 
 /*
@@ -34,12 +34,12 @@ typedef enum SyncRequestType
  */
 typedef enum SyncRequestHandler
 {
-	SYNC_HANDLER_MD = 0,
-	SYNC_HANDLER_CLOG,
-	SYNC_HANDLER_COMMIT_TS,
-	SYNC_HANDLER_MULTIXACT_OFFSET,
-	SYNC_HANDLER_MULTIXACT_MEMBER,
-	SYNC_HANDLER_NONE,
+  SYNC_HANDLER_MD = 0,
+  SYNC_HANDLER_CLOG,
+  SYNC_HANDLER_COMMIT_TS,
+  SYNC_HANDLER_MULTIXACT_OFFSET,
+  SYNC_HANDLER_MULTIXACT_MEMBER,
+  SYNC_HANDLER_NONE,
 } SyncRequestHandler;
 
 /*
@@ -49,10 +49,10 @@ typedef enum SyncRequestHandler
  */
 typedef struct FileTag
 {
-	int16		handler;		/* SyncRequestHandler value, saving space */
-	int16		forknum;		/* ForkNumber, saving space */
-	RelFileLocator rlocator;
-	uint64		segno;
+  int16   handler;    /* SyncRequestHandler value, saving space */
+  int16   forknum;    /* ForkNumber, saving space */
+  RelFileLocator rlocator;
+  uint64    segno;
 } FileTag;
 
 extern void InitSync(void);
@@ -61,6 +61,6 @@ extern void SyncPostCheckpoint(void);
 extern void ProcessSyncRequests(void);
 extern void RememberSyncRequest(const FileTag *ftag, SyncRequestType type);
 extern bool RegisterSyncRequest(const FileTag *ftag, SyncRequestType type,
-								bool retryOnError);
+                                bool retryOnError);
 
-#endif							/* SYNC_H */
+#endif              /* SYNC_H */

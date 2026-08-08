@@ -11,7 +11,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/include/parser/kwlist.h
+ *    src/include/parser/kwlist.h
  *
  *-------------------------------------------------------------------------
  */
@@ -38,7 +38,7 @@ PG_KEYWORD("all", ALL, RESERVED_KEYWORD, BARE_LABEL)
 PG_KEYWORD("also", ALSO, UNRESERVED_KEYWORD, BARE_LABEL)
 PG_KEYWORD("alter", ALTER, UNRESERVED_KEYWORD, BARE_LABEL)
 PG_KEYWORD("always", ALWAYS, UNRESERVED_KEYWORD, BARE_LABEL)
-PG_KEYWORD("analyse", ANALYSE, RESERVED_KEYWORD, BARE_LABEL)		/* British spelling */
+PG_KEYWORD("analyse", ANALYSE, RESERVED_KEYWORD, BARE_LABEL)    /* British spelling */
 PG_KEYWORD("analyze", ANALYZE, RESERVED_KEYWORD, BARE_LABEL)
 PG_KEYWORD("and", AND, RESERVED_KEYWORD, BARE_LABEL)
 PG_KEYWORD("any", ANY, RESERVED_KEYWORD, BARE_LABEL)

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * port.h
- *	  Header for src/port/ compatibility functions.
+ *    Header for src/port/ compatibility functions.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -51,7 +51,7 @@ extern char *first_dir_separator(const char *filename);
 extern char *last_dir_separator(const char *filename);
 extern char *first_path_var_separator(const char *pathlist);
 extern void join_path_components(char *ret_path,
-								 const char *head, const char *tail);
+                                 const char *head, const char *tail);
 extern void canonicalize_path(char *path);
 extern void canonicalize_path_enc(char *path, int encoding);
 extern void make_native_path(char *filename);
@@ -80,25 +80,25 @@ extern void get_parent_directory(char *path);
 extern char **pgfnames(const char *path);
 extern void pgfnames_cleanup(char **filenames);
 
-#define IS_NONWINDOWS_DIR_SEP(ch)	((ch) == '/')
+#define IS_NONWINDOWS_DIR_SEP(ch) ((ch) == '/')
 #define is_nonwindows_absolute_path(filename) \
 ( \
-	IS_NONWINDOWS_DIR_SEP((filename)[0]) \
+  IS_NONWINDOWS_DIR_SEP((filename)[0]) \
 )
 
-#define IS_WINDOWS_DIR_SEP(ch)	((ch) == '/' || (ch) == '\\')
+#define IS_WINDOWS_DIR_SEP(ch)  ((ch) == '/' || (ch) == '\\')
 /* See path_is_relative_and_below_cwd() for how we handle 'E:abc'. */
 #define is_windows_absolute_path(filename) \
 ( \
-	IS_WINDOWS_DIR_SEP((filename)[0]) || \
-	(isalpha((unsigned char) ((filename)[0])) && (filename)[1] == ':' && \
-	 IS_WINDOWS_DIR_SEP((filename)[2])) \
+  IS_WINDOWS_DIR_SEP((filename)[0]) || \
+  (isalpha((unsigned char) ((filename)[0])) && (filename)[1] == ':' && \
+   IS_WINDOWS_DIR_SEP((filename)[2])) \
 )
 
 /*
- *	is_absolute_path and IS_DIR_SEP
+ *  is_absolute_path and IS_DIR_SEP
  *
- *	By using macros here we avoid needing to include path.c in libpq.
+ *  By using macros here we avoid needing to include path.c in libpq.
  */
 #ifndef WIN32
 #define IS_DIR_SEP(ch) IS_NONWINDOWS_DIR_SEP(ch)
@@ -121,24 +121,24 @@ extern void pgfnames_cleanup(char **filenames);
  * while allowing the network failures to be reported generically.
  */
 #define ALL_CONNECTION_FAILURE_ERRNOS \
-	EPIPE: \
-	case ECONNRESET: \
-	case ECONNABORTED: \
-	case EHOSTDOWN: \
-	case EHOSTUNREACH: \
-	case ENETDOWN: \
-	case ENETRESET: \
-	case ENETUNREACH: \
-	case ETIMEDOUT
+  EPIPE: \
+  case ECONNRESET: \
+  case ECONNABORTED: \
+  case EHOSTDOWN: \
+  case EHOSTUNREACH: \
+  case ENETDOWN: \
+  case ENETRESET: \
+  case ENETUNREACH: \
+  case ETIMEDOUT
 
 /* Portable locale initialization (in exec.c) */
 extern void set_pglocale_pgservice(const char *argv0, const char *app);
 
 /* Portable way to find and execute binaries (in exec.c) */
-extern int	validate_exec(const char *path);
-extern int	find_my_exec(const char *argv0, char *retpath);
-extern int	find_other_exec(const char *argv0, const char *target,
-							const char *versionstr, char *retpath);
+extern int  validate_exec(const char *path);
+extern int  find_my_exec(const char *argv0, char *retpath);
+extern int  find_other_exec(const char *argv0, const char *target,
+                            const char *versionstr, char *retpath);
 extern char *pipe_read_line(char *cmd);
 
 /* Doesn't belong here, but this is used with find_other_exec(), so... */
@@ -146,7 +146,7 @@ extern char *pipe_read_line(char *cmd);
 
 #ifdef EXEC_BACKEND
 /* Disable ASLR before exec, for developer builds only (in exec.c) */
-extern int	pg_disable_aslr(void);
+extern int  pg_disable_aslr(void);
 #endif
 
 
@@ -166,8 +166,8 @@ extern int	pg_disable_aslr(void);
 extern void pg_usleep(long microsec);
 
 /* Portable SQL-like case-independent comparisons and conversions */
-extern int	pg_strcasecmp(const char *s1, const char *s2);
-extern int	pg_strncasecmp(const char *s1, const char *s2, size_t n);
+extern int  pg_strcasecmp(const char *s1, const char *s2);
+extern int  pg_strncasecmp(const char *s1, const char *s2, size_t n);
 extern unsigned char pg_toupper(unsigned char ch);
 extern unsigned char pg_tolower(unsigned char ch);
 extern unsigned char pg_ascii_toupper(unsigned char ch);
@@ -210,14 +210,14 @@ extern unsigned char pg_ascii_tolower(unsigned char ch);
 #undef printf
 #endif
 
-extern int	pg_vsnprintf(char *str, size_t count, const char *fmt, va_list args) pg_attribute_printf(3, 0);
-extern int	pg_snprintf(char *str, size_t count, const char *fmt,...) pg_attribute_printf(3, 4);
-extern int	pg_vsprintf(char *str, const char *fmt, va_list args) pg_attribute_printf(2, 0);
-extern int	pg_sprintf(char *str, const char *fmt,...) pg_attribute_printf(2, 3);
-extern int	pg_vfprintf(FILE *stream, const char *fmt, va_list args) pg_attribute_printf(2, 0);
-extern int	pg_fprintf(FILE *stream, const char *fmt,...) pg_attribute_printf(2, 3);
-extern int	pg_vprintf(const char *fmt, va_list args) pg_attribute_printf(1, 0);
-extern int	pg_printf(const char *fmt,...) pg_attribute_printf(1, 2);
+extern int  pg_vsnprintf(char *str, size_t count, const char *fmt, va_list args) pg_attribute_printf(3, 0);
+extern int  pg_snprintf(char *str, size_t count, const char *fmt, ...) pg_attribute_printf(3, 4);
+extern int  pg_vsprintf(char *str, const char *fmt, va_list args) pg_attribute_printf(2, 0);
+extern int  pg_sprintf(char *str, const char *fmt, ...) pg_attribute_printf(2, 3);
+extern int  pg_vfprintf(FILE *stream, const char *fmt, va_list args) pg_attribute_printf(2, 0);
+extern int  pg_fprintf(FILE *stream, const char *fmt, ...) pg_attribute_printf(2, 3);
+extern int  pg_vprintf(const char *fmt, va_list args) pg_attribute_printf(1, 0);
+extern int  pg_printf(const char *fmt, ...) pg_attribute_printf(1, 2);
 
 #ifndef WIN32
 /*
@@ -236,17 +236,17 @@ extern int	pg_printf(const char *fmt,...) pg_attribute_printf(1, 2);
  * pg_printf explicitly.)  For printf's sibling functions, use
  * parameterless macros so that function pointers will work unsurprisingly.
  */
-#define vsnprintf		pg_vsnprintf
-#define snprintf		pg_snprintf
-#define vsprintf		pg_vsprintf
-#define sprintf			pg_sprintf
-#define vfprintf		pg_vfprintf
-#define fprintf			pg_fprintf
-#define vprintf			pg_vprintf
-#define printf(...)		pg_printf(__VA_ARGS__)
+#define vsnprintf   pg_vsnprintf
+#define snprintf    pg_snprintf
+#define vsprintf    pg_vsprintf
+#define sprintf     pg_sprintf
+#define vfprintf    pg_vfprintf
+#define fprintf     pg_fprintf
+#define vprintf     pg_vprintf
+#define printf(...)   pg_printf(__VA_ARGS__)
 
 /* This is also provided by snprintf.c */
-extern int	pg_strfromd(char *str, size_t count, int precision, double value);
+extern int  pg_strfromd(char *str, size_t count, int precision, double value);
 
 /* Replace strerror() with our own, somewhat more robust wrapper */
 extern char *pg_strerror(int errnum);
@@ -255,12 +255,12 @@ extern char *pg_strerror(int errnum);
 /* Likewise for strerror_r(); note we prefer the GNU API for that */
 extern char *pg_strerror_r(int errnum, char *buf, size_t buflen);
 #define strerror_r pg_strerror_r
-#define PG_STRERROR_R_BUFLEN 256	/* Recommended buffer size for strerror_r */
+#define PG_STRERROR_R_BUFLEN 256  /* Recommended buffer size for strerror_r */
 
 /* Wrap strsignal(), or provide our own version if necessary */
 extern const char *pg_strsignal(int signum);
 
-extern int	pclose_check(FILE *stream);
+extern int  pclose_check(FILE *stream);
 
 /* Global variable holding time zone information. */
 #if defined(WIN32) || defined(__CYGWIN__)
@@ -273,35 +273,35 @@ extern int	pclose_check(FILE *stream);
 
 #if defined(WIN32) || defined(__CYGWIN__)
 /*
- *	Win32 doesn't have reliable rename/unlink during concurrent access.
+ *  Win32 doesn't have reliable rename/unlink during concurrent access.
  */
-extern int	pgrename(const char *from, const char *to);
-extern int	pgunlink(const char *path);
+extern int  pgrename(const char *from, const char *to);
+extern int  pgunlink(const char *path);
 
 /* Include this first so later includes don't see these defines */
 #ifdef _MSC_VER
 #include <io.h>
 #endif
 
-#define rename(from, to)		pgrename(from, to)
-#define unlink(path)			pgunlink(path)
-#endif							/* defined(WIN32) || defined(__CYGWIN__) */
+#define rename(from, to)    pgrename(from, to)
+#define unlink(path)      pgunlink(path)
+#endif              /* defined(WIN32) || defined(__CYGWIN__) */
 
 /*
- *	Win32 also doesn't have symlinks, but we can emulate them with
- *	junction points on newer Win32 versions.
+ *  Win32 also doesn't have symlinks, but we can emulate them with
+ *  junction points on newer Win32 versions.
  *
- *	Cygwin has its own symlinks which work on Win95/98/ME where
- *	junction points don't, so use those instead.  We have no way of
- *	knowing what type of system Cygwin binaries will be run on.
- *		Note: Some CYGWIN includes might #define WIN32.
+ *  Cygwin has its own symlinks which work on Win95/98/ME where
+ *  junction points don't, so use those instead.  We have no way of
+ *  knowing what type of system Cygwin binaries will be run on.
+ *    Note: Some CYGWIN includes might #define WIN32.
  */
 #if defined(WIN32) && !defined(__CYGWIN__)
-extern int	pgsymlink(const char *oldpath, const char *newpath);
-extern int	pgreadlink(const char *path, char *buf, size_t size);
+extern int  pgsymlink(const char *oldpath, const char *newpath);
+extern int  pgreadlink(const char *path, char *buf, size_t size);
 
-#define symlink(oldpath, newpath)	pgsymlink(oldpath, newpath)
-#define readlink(path, buf, size)	pgreadlink(path, buf, size)
+#define symlink(oldpath, newpath) pgsymlink(oldpath, newpath)
+#define readlink(path, buf, size) pgreadlink(path, buf, size)
 #endif
 
 extern bool rmtree(const char *path, bool rmtopdir);
@@ -340,10 +340,10 @@ extern bool rmtree(const char *path, bool rmtopdir);
  * passing of other special options.
  */
 extern HANDLE pgwin32_open_handle(const char *, int, bool);
-extern int	pgwin32_open(const char *, int,...);
+extern int  pgwin32_open(const char *, int, ...);
 extern FILE *pgwin32_fopen(const char *, const char *);
-#define		open(a,b,c) pgwin32_open(a,b,c)
-#define		fopen(a,b) pgwin32_fopen(a,b)
+#define   open(a,b,c) pgwin32_open(a,b,c)
+#define   fopen(a,b) pgwin32_fopen(a,b)
 
 /*
  * Mingw-w64 headers #define popen and pclose to _popen and _pclose.  We want
@@ -361,21 +361,21 @@ extern FILE *pgwin32_fopen(const char *, const char *);
  * system() and popen() replacements to enclose the command in an extra
  * pair of quotes.
  */
-extern int	pgwin32_system(const char *command);
+extern int  pgwin32_system(const char *command);
 extern FILE *pgwin32_popen(const char *command, const char *type);
 
 #define system(a) pgwin32_system(a)
 #define popen(a,b) pgwin32_popen(a,b)
 #define pclose(a) _pclose(a)
 
-#else							/* !WIN32 */
+#else             /* !WIN32 */
 
 /*
- *	Win32 requires a special close for sockets and pipes, while on Unix
- *	close() does them all.
+ *  Win32 requires a special close for sockets and pipes, while on Unix
+ *  close() does them all.
  */
 #define closesocket close
-#endif							/* WIN32 */
+#endif              /* WIN32 */
 
 /*
  * On Windows, setvbuf() does not support _IOLBF mode, and interprets that
@@ -386,9 +386,9 @@ extern FILE *pgwin32_popen(const char *command, const char *type);
  * directly in order to implement this behavior.
  */
 #ifndef WIN32
-#define PG_IOLBF	_IOLBF
+#define PG_IOLBF  _IOLBF
 #else
-#define PG_IOLBF	_IONBF
+#define PG_IOLBF  _IONBF
 #endif
 
 /*
@@ -397,14 +397,14 @@ extern FILE *pgwin32_popen(const char *command, const char *type);
  */
 
 /* Type to use with fseeko/ftello */
-#ifndef WIN32					/* WIN32 is handled in port/win32_port.h */
+#ifndef WIN32         /* WIN32 is handled in port/win32_port.h */
 #define pgoff_t off_t
 #endif
 
 #ifndef HAVE_GETPEEREID
 /* On Windows, Perl might have incompatible definitions of uid_t and gid_t. */
 #ifndef PLPERL_HAVE_UID_GID
-extern int	getpeereid(int sock, uid_t *uid, gid_t *gid);
+extern int  getpeereid(int sock, uid_t *uid, gid_t *gid);
 #endif
 #endif
 
@@ -421,8 +421,8 @@ extern int	getpeereid(int sock, uid_t *uid, gid_t *gid);
 #include <math.h>
 #undef isinf
 #define isinf __builtin_isinf
-#endif							/* __has_builtin(isinf) */
-#endif							/* __clang__ && !__cplusplus */
+#endif              /* __has_builtin(isinf) */
+#endif              /* __clang__ && !__cplusplus */
 
 #ifndef HAVE_EXPLICIT_BZERO
 extern void explicit_bzero(void *buf, size_t len);
@@ -435,7 +435,7 @@ extern float pg_strtof(const char *nptr, char **endptr);
 
 #ifdef WIN32
 /* src/port/win32link.c */
-extern int	link(const char *src, const char *dst);
+extern int  link(const char *src, const char *dst);
 #endif
 
 #ifndef HAVE_MKDTEMP
@@ -445,7 +445,7 @@ extern char *mkdtemp(char *path);
 #ifndef HAVE_INET_ATON
 #include <netinet/in.h>
 #include <arpa/inet.h>
-extern int	inet_aton(const char *cp, struct in_addr *addr);
+extern int  inet_aton(const char *cp, struct in_addr *addr);
 #endif
 
 #if !HAVE_DECL_STRLCAT
@@ -465,7 +465,7 @@ extern char *strsep(char **stringp, const char *delim);
 #endif
 
 #if !HAVE_DECL_TIMINGSAFE_BCMP
-extern int	timingsafe_bcmp(const void *b1, const void *b2, size_t len);
+extern int  timingsafe_bcmp(const void *b1, const void *b2, size_t len);
 #endif
 
 /*
@@ -473,40 +473,40 @@ extern int	timingsafe_bcmp(const void *b1, const void *b2, size_t len);
  * pg_qsort() directly.
  */
 extern void pg_qsort(void *base, size_t nel, size_t elsize,
-					 int (*cmp) (const void *, const void *));
-extern int	pg_qsort_strcmp(const void *a, const void *b);
+                     int (*cmp) (const void *, const void *));
+extern int  pg_qsort_strcmp(const void *a, const void *b);
 
 #define qsort(a,b,c,d) pg_qsort(a,b,c,d)
 
 typedef int (*qsort_arg_comparator) (const void *a, const void *b, void *arg);
 
 extern void qsort_arg(void *base, size_t nel, size_t elsize,
-					  qsort_arg_comparator cmp, void *arg);
+                      qsort_arg_comparator cmp, void *arg);
 
 extern void qsort_interruptible(void *base, size_t nel, size_t elsize,
-								qsort_arg_comparator cmp, void *arg);
+                                qsort_arg_comparator cmp, void *arg);
 
 extern void *bsearch_arg(const void *key, const void *base0,
-						 size_t nmemb, size_t size,
-						 int (*compar) (const void *, const void *, void *),
-						 void *arg);
+                         size_t nmemb, size_t size,
+                         int (*compar) (const void *, const void *, void *),
+                         void *arg);
 
 /* port/pg_localeconv_r.c */
-extern int	pg_localeconv_r(const char *lc_monetary,
-							const char *lc_numeric,
-							struct lconv *output);
+extern int  pg_localeconv_r(const char *lc_monetary,
+                            const char *lc_numeric,
+                            struct lconv *output);
 extern void pg_localeconv_free(struct lconv *lconv);
 
 /* port/chklocale.c */
-extern int	pg_get_encoding_from_locale(const char *ctype, bool write_message);
+extern int  pg_get_encoding_from_locale(const char *ctype, bool write_message);
 
 #if defined(WIN32) && !defined(FRONTEND)
-extern int	pg_codepage_to_encoding(UINT cp);
+extern int  pg_codepage_to_encoding(UINT cp);
 #endif
 
 /* port/inet_net_ntop.c */
 extern char *pg_inet_net_ntop(int af, const void *src, int bits,
-							  char *dst, size_t size);
+                              char *dst, size_t size);
 
 /* port/pg_strong_random.c */
 extern void pg_strong_random_init(void);
@@ -519,10 +519,10 @@ extern bool pg_strong_random(void *buf, size_t len);
 #define pg_backend_random pg_strong_random
 
 /* port/pgcheckdir.c */
-extern int	pg_check_dir(const char *dir);
+extern int  pg_check_dir(const char *dir);
 
 /* port/pgmkdirp.c */
-extern int	pg_mkdir_p(char *path, int omode);
+extern int  pg_mkdir_p(char *path, int omode);
 
 /* port/pqsignal.c (see also interfaces/libpq/legacy-pqsignal.c) */
 #ifdef FRONTEND
@@ -540,7 +540,7 @@ extern char *escape_single_quotes_ascii(const char *src);
 extern char *wait_result_to_str(int exitstatus);
 extern bool wait_result_is_signal(int exit_status, int signum);
 extern bool wait_result_is_any_signal(int exit_status, bool include_command_not_found);
-extern int	wait_result_to_exit_code(int exit_status);
+extern int  wait_result_to_exit_code(int exit_status);
 
 /*
  * Interfaces that we assume all Unix system have.  We retain individual macros
@@ -562,4 +562,4 @@ extern int	wait_result_to_exit_code(int exit_status);
 #define HAVE_SYMLINK 1
 #endif
 
-#endif							/* PG_PORT_H */
+#endif              /* PG_PORT_H */

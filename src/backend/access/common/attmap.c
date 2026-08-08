@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * attmap.c
- *	  Attribute mapping support.
+ *    Attribute mapping support.
  *
  * This file provides utility routines to build and manage attribute
  * mappings by comparing input and output TupleDescs.  Such mappings
@@ -15,7 +15,7 @@
  *
  *
  * IDENTIFICATION
- *	  src/backend/access/common/attmap.c
+ *    src/backend/access/common/attmap.c
  *
  *-------------------------------------------------------------------------
  */
@@ -27,8 +27,8 @@
 
 
 static bool check_attrmap_match(TupleDesc indesc,
-								TupleDesc outdesc,
-								AttrMap *attrMap);
+                                TupleDesc outdesc,
+                                AttrMap *attrMap);
 
 /*
  * make_attrmap
@@ -39,12 +39,12 @@ static bool check_attrmap_match(TupleDesc indesc,
 AttrMap *
 make_attrmap(int maplen)
 {
-	AttrMap    *res;
+  AttrMap    *res;
 
-	res = (AttrMap *) palloc0(sizeof(AttrMap));
-	res->maplen = maplen;
-	res->attnums = (AttrNumber *) palloc0(sizeof(AttrNumber) * maplen);
-	return res;
+  res = (AttrMap *) palloc0(sizeof(AttrMap));
+  res->maplen = maplen;
+  res->attnums = (AttrNumber *) palloc0(sizeof(AttrNumber) * maplen);
+  return res;
 }
 
 /*
@@ -55,8 +55,8 @@ make_attrmap(int maplen)
 void
 free_attrmap(AttrMap *map)
 {
-	pfree(map->attnums);
-	pfree(map);
+  pfree(map->attnums);
+  pfree(map);
 }
 
 /*
@@ -73,90 +73,93 @@ free_attrmap(AttrMap *map)
  */
 AttrMap *
 build_attrmap_by_position(TupleDesc indesc,
-						  TupleDesc outdesc,
-						  const char *msg)
+                          TupleDesc outdesc,
+                          const char *msg)
 {
-	AttrMap    *attrMap;
-	int			nincols;
-	int			noutcols;
-	int			n;
-	int			i;
-	int			j;
-	bool		same;
+  AttrMap    *attrMap;
+  int     nincols;
+  int     noutcols;
+  int     n;
+  int     i;
+  int     j;
+  bool    same;
 
-	/*
-	 * The length is computed as the number of attributes of the expected
-	 * rowtype as it includes dropped attributes in its count.
-	 */
-	n = outdesc->natts;
-	attrMap = make_attrmap(n);
+  /*
+   * The length is computed as the number of attributes of the expected
+   * rowtype as it includes dropped attributes in its count.
+   */
+  n = outdesc->natts;
+  attrMap = make_attrmap(n);
 
-	j = 0;						/* j is next physical input attribute */
-	nincols = noutcols = 0;		/* these count non-dropped attributes */
-	same = true;
-	for (i = 0; i < n; i++)
-	{
-		Form_pg_attribute outatt = TupleDescAttr(outdesc, i);
+  j = 0;            /* j is next physical input attribute */
+  nincols = noutcols = 0;   /* these count non-dropped attributes */
+  same = true;
 
-		if (outatt->attisdropped)
-			continue;			/* attrMap->attnums[i] is already 0 */
-		noutcols++;
-		for (; j < indesc->natts; j++)
-		{
-			Form_pg_attribute inatt = TupleDescAttr(indesc, j);
+  for (i = 0; i < n; i++) {
+    Form_pg_attribute outatt = TupleDescAttr(outdesc, i);
 
-			if (inatt->attisdropped)
-				continue;
-			nincols++;
+    if (outatt->attisdropped)
+      continue;     /* attrMap->attnums[i] is already 0 */
 
-			/* Found matching column, now check type */
-			if (outatt->atttypid != inatt->atttypid ||
-				(outatt->atttypmod != inatt->atttypmod && outatt->atttypmod >= 0))
-				ereport(ERROR,
-						(errcode(ERRCODE_DATATYPE_MISMATCH),
-						 errmsg_internal("%s", _(msg)),
-						 errdetail("Returned type %s does not match expected type %s in column \"%s\" (position %d).",
-								   format_type_with_typemod(inatt->atttypid,
-															inatt->atttypmod),
-								   format_type_with_typemod(outatt->atttypid,
-															outatt->atttypmod),
-								   NameStr(outatt->attname),
-								   noutcols)));
-			attrMap->attnums[i] = (AttrNumber) (j + 1);
-			j++;
-			break;
-		}
-		if (attrMap->attnums[i] == 0)
-			same = false;		/* we'll complain below */
-	}
+    noutcols++;
 
-	/* Check for unused input columns */
-	for (; j < indesc->natts; j++)
-	{
-		if (TupleDescCompactAttr(indesc, j)->attisdropped)
-			continue;
-		nincols++;
-		same = false;			/* we'll complain below */
-	}
+    for (; j < indesc->natts; j++) {
+      Form_pg_attribute inatt = TupleDescAttr(indesc, j);
 
-	/* Report column count mismatch using the non-dropped-column counts */
-	if (!same)
-		ereport(ERROR,
-				(errcode(ERRCODE_DATATYPE_MISMATCH),
-				 errmsg_internal("%s", _(msg)),
-				 errdetail("Number of returned columns (%d) does not match "
-						   "expected column count (%d).",
-						   nincols, noutcols)));
+      if (inatt->attisdropped)
+        continue;
 
-	/* Check if the map has a one-to-one match */
-	if (check_attrmap_match(indesc, outdesc, attrMap))
-	{
-		/* Runtime conversion is not needed */
-		free_attrmap(attrMap);
-		return NULL;
-	}
+      nincols++;
 
-	return attrMap;
+      /* Found matching column, now check type */
+      if (outatt->atttypid != inatt->atttypid ||
+          (outatt->atttypmod != inatt->atttypmod && outatt->atttypmod >= 0))
+        ereport(ERROR,
+                (errcode(ERRCODE_DATATYPE_MISMATCH),
+                 errmsg_internal("%s", _(msg)),
+                 errdetail("Returned type %s does not match expected type %s in column \"%s\" (position %d).",
+                           format_type_with_typemod(inatt->atttypid,
+                               inatt->atttypmod),
+                           format_type_with_typemod(outatt->atttypid,
+                               outatt->atttypmod),
+                           NameStr(outatt->attname),
+                           noutcols)));
+
+      attrMap->attnums[i] = (AttrNumber) (j + 1);
+      j++;
+      break;
+    }
+
+    if (attrMap->attnums[i] == 0)
+      same = false;   /* we'll complain below */
+  }
+
+  /* Check for unused input columns */
+  for (; j < indesc->natts; j++) {
+    if (TupleDescCompactAttr(indesc, j)->attisdropped)
+      continue;
+
+    nincols++;
+    same = false;     /* we'll complain below */
+  }
+
+  /* Report column count mismatch using the non-dropped-column counts */
+  if (!same)
+    ereport(ERROR,
+            (errcode(ERRCODE_DATATYPE_MISMATCH),
+             errmsg_internal("%s", _(msg)),
+             errdetail("Number of returned columns (%d) does not match "
+                       "expected column count (%d).",
+                       nincols, noutcols)));
+
+  /* Check if the map has a one-to-one match */
+  if (check_attrmap_match(indesc, outdesc, attrMap)) {
+    /* Runtime conversion is not needed */
+    free_attrmap(attrMap);
+    return NULL;
+  }
+
+  return attrMap;
 }
 
 /*
@@ -173,80 +176,85 @@ build_attrmap_by_position(TupleDesc indesc,
  */
 AttrMap *
 build_attrmap_by_name(TupleDesc indesc,
-					  TupleDesc outdesc,
-					  bool missing_ok)
+                      TupleDesc outdesc,
+                      bool missing_ok)
 {
-	AttrMap    *attrMap;
-	int			outnatts;
-	int			innatts;
-	int			i;
-	int			nextindesc = -1;
+  AttrMap    *attrMap;
+  int     outnatts;
+  int     innatts;
+  int     i;
+  int     nextindesc = -1;
 
-	outnatts = outdesc->natts;
-	innatts = indesc->natts;
+  outnatts = outdesc->natts;
+  innatts = indesc->natts;
 
-	attrMap = make_attrmap(outnatts);
-	for (i = 0; i < outnatts; i++)
-	{
-		Form_pg_attribute outatt = TupleDescAttr(outdesc, i);
-		char	   *attname;
-		Oid			atttypid;
-		int32		atttypmod;
-		int			j;
+  attrMap = make_attrmap(outnatts);
 
-		if (outatt->attisdropped)
-			continue;			/* attrMap->attnums[i] is already 0 */
-		attname = NameStr(outatt->attname);
-		atttypid = outatt->atttypid;
-		atttypmod = outatt->atttypmod;
+  for (i = 0; i < outnatts; i++) {
+    Form_pg_attribute outatt = TupleDescAttr(outdesc, i);
+    char     *attname;
+    Oid     atttypid;
+    int32   atttypmod;
+    int     j;
 
-		/*
-		 * Now search for an attribute with the same name in the indesc. It
-		 * seems likely that a partitioned table will have the attributes in
-		 * the same order as the partition, so the search below is optimized
-		 * for that case.  It is possible that columns are dropped in one of
-		 * the relations, but not the other, so we use the 'nextindesc'
-		 * counter to track the starting point of the search.  If the inner
-		 * loop encounters dropped columns then it will have to skip over
-		 * them, but it should leave 'nextindesc' at the correct position for
-		 * the next outer loop.
-		 */
-		for (j = 0; j < innatts; j++)
-		{
-			Form_pg_attribute inatt;
+    if (outatt->attisdropped)
+      continue;     /* attrMap->attnums[i] is already 0 */
 
-			nextindesc++;
-			if (nextindesc >= innatts)
-				nextindesc = 0;
+    attname = NameStr(outatt->attname);
+    atttypid = outatt->atttypid;
+    atttypmod = outatt->atttypmod;
 
-			inatt = TupleDescAttr(indesc, nextindesc);
-			if (inatt->attisdropped)
-				continue;
-			if (strcmp(attname, NameStr(inatt->attname)) == 0)
-			{
-				/* Found it, check type */
-				if (atttypid != inatt->atttypid || atttypmod != inatt->atttypmod)
-					ereport(ERROR,
-							(errcode(ERRCODE_DATATYPE_MISMATCH),
-							 errmsg("could not convert row type"),
-							 errdetail("Attribute \"%s\" of type %s does not match corresponding attribute of type %s.",
-									   attname,
-									   format_type_be(outdesc->tdtypeid),
-									   format_type_be(indesc->tdtypeid))));
-				attrMap->attnums[i] = inatt->attnum;
-				break;
-			}
-		}
-		if (attrMap->attnums[i] == 0 && !missing_ok)
-			ereport(ERROR,
-					(errcode(ERRCODE_DATATYPE_MISMATCH),
-					 errmsg("could not convert row type"),
-					 errdetail("Attribute \"%s\" of type %s does not exist in type %s.",
-							   attname,
-							   format_type_be(outdesc->tdtypeid),
-							   format_type_be(indesc->tdtypeid))));
-	}
-	return attrMap;
+    /*
+     * Now search for an attribute with the same name in the indesc. It
+     * seems likely that a partitioned table will have the attributes in
+     * the same order as the partition, so the search below is optimized
+     * for that case.  It is possible that columns are dropped in one of
+     * the relations, but not the other, so we use the 'nextindesc'
+     * counter to track the starting point of the search.  If the inner
+     * loop encounters dropped columns then it will have to skip over
+     * them, but it should leave 'nextindesc' at the correct position for
+     * the next outer loop.
+     */
+    for (j = 0; j < innatts; j++) {
+      Form_pg_attribute inatt;
+
+      nextindesc++;
+
+      if (nextindesc >= innatts)
+        nextindesc = 0;
+
+      inatt = TupleDescAttr(indesc, nextindesc);
+
+      if (inatt->attisdropped)
+        continue;
+
+      if (strcmp(attname, NameStr(inatt->attname)) == 0) {
+        /* Found it, check type */
+        if (atttypid != inatt->atttypid || atttypmod != inatt->atttypmod)
+          ereport(ERROR,
+                  (errcode(ERRCODE_DATATYPE_MISMATCH),
+                   errmsg("could not convert row type"),
+                   errdetail("Attribute \"%s\" of type %s does not match corresponding attribute of type %s.",
+                             attname,
+                             format_type_be(outdesc->tdtypeid),
+                             format_type_be(indesc->tdtypeid))));
+
+        attrMap->attnums[i] = inatt->attnum;
+        break;
+      }
+    }
+
+    if (attrMap->attnums[i] == 0 && !missing_ok)
+      ereport(ERROR,
+              (errcode(ERRCODE_DATATYPE_MISMATCH),
+               errmsg("could not convert row type"),
+               errdetail("Attribute \"%s\" of type %s does not exist in type %s.",
+                         attname,
+                         format_type_be(outdesc->tdtypeid),
+                         format_type_be(indesc->tdtypeid))));
+  }
+
+  return attrMap;
 }
 
 /*
@@ -259,23 +267,22 @@ build_attrmap_by_name(TupleDesc indesc,
  */
 AttrMap *
 build_attrmap_by_name_if_req(TupleDesc indesc,
-							 TupleDesc outdesc,
-							 bool missing_ok)
+                             TupleDesc outdesc,
+                             bool missing_ok)
 {
-	AttrMap    *attrMap;
+  AttrMap    *attrMap;
 
-	/* Verify compatibility and prepare attribute-number map */
-	attrMap = build_attrmap_by_name(indesc, outdesc, missing_ok);
+  /* Verify compatibility and prepare attribute-number map */
+  attrMap = build_attrmap_by_name(indesc, outdesc, missing_ok);
 
-	/* Check if the map has a one-to-one match */
-	if (check_attrmap_match(indesc, outdesc, attrMap))
-	{
-		/* Runtime conversion is not needed */
-		free_attrmap(attrMap);
-		return NULL;
-	}
+  /* Check if the map has a one-to-one match */
+  if (check_attrmap_match(indesc, outdesc, attrMap)) {
+    /* Runtime conversion is not needed */
+    free_attrmap(attrMap);
+    return NULL;
+  }
 
-	return attrMap;
+  return attrMap;
 }
 
 /*
@@ -286,44 +293,43 @@ build_attrmap_by_name_if_req(TupleDesc indesc,
  */
 static bool
 check_attrmap_match(TupleDesc indesc,
-					TupleDesc outdesc,
-					AttrMap *attrMap)
+                    TupleDesc outdesc,
+                    AttrMap *attrMap)
 {
-	int			i;
+  int     i;
 
-	/* no match if attribute numbers are not the same */
-	if (indesc->natts != outdesc->natts)
-		return false;
+  /* no match if attribute numbers are not the same */
+  if (indesc->natts != outdesc->natts)
+    return false;
 
-	for (i = 0; i < attrMap->maplen; i++)
-	{
-		CompactAttribute *inatt = TupleDescCompactAttr(indesc, i);
-		CompactAttribute *outatt;
+  for (i = 0; i < attrMap->maplen; i++) {
+    CompactAttribute *inatt = TupleDescCompactAttr(indesc, i);
+    CompactAttribute *outatt;
 
-		/*
-		 * If the input column has a missing attribute, we need a conversion.
-		 */
-		if (inatt->atthasmissing)
-			return false;
+    /*
+     * If the input column has a missing attribute, we need a conversion.
+     */
+    if (inatt->atthasmissing)
+      return false;
 
-		if (attrMap->attnums[i] == (i + 1))
-			continue;
+    if (attrMap->attnums[i] == (i + 1))
+      continue;
 
-		outatt = TupleDescCompactAttr(outdesc, i);
+    outatt = TupleDescCompactAttr(outdesc, i);
 
-		/*
-		 * If it's a dropped column and the corresponding input column is also
-		 * dropped, we don't need a conversion.  However, attlen and
-		 * attalignby must agree.
-		 */
-		if (attrMap->attnums[i] == 0 &&
-			inatt->attisdropped &&
-			inatt->attlen == outatt->attlen &&
-			inatt->attalignby == outatt->attalignby)
-			continue;
+    /*
+     * If it's a dropped column and the corresponding input column is also
+     * dropped, we don't need a conversion.  However, attlen and
+     * attalignby must agree.
+     */
+    if (attrMap->attnums[i] == 0 &&
+        inatt->attisdropped &&
+        inatt->attlen == outatt->attlen &&
+        inatt->attalignby == outatt->attalignby)
+      continue;
 
-		return false;
-	}
+    return false;
+  }
 
-	return true;
+  return true;
 }

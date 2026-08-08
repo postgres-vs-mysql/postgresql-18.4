@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * llvmjit_types.c
- *	  List of types needed by JIT emitting code.
+ *    List of types needed by JIT emitting code.
  *
  * JIT emitting code often needs to access struct elements, create functions
  * with the correct signature etc. To allow synchronizing these types with a
@@ -19,7 +19,7 @@
  * Copyright (c) 2016-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/backend/jit/llvm/llvmjit_types.c
+ *    src/backend/jit/llvm/llvmjit_types.c
  *
  *-------------------------------------------------------------------------
  */
@@ -45,20 +45,20 @@
  * clang/LLVM will omit them.  As this file will never be linked into
  * anything, that's harmless.
  */
-PGFunction	TypePGFunction;
-size_t		TypeSizeT;
-bool		TypeStorageBool;
+PGFunction  TypePGFunction;
+size_t    TypeSizeT;
+bool    TypeStorageBool;
 
 ExecEvalSubroutine TypeExecEvalSubroutine;
 ExecEvalBoolSubroutine TypeExecEvalBoolSubroutine;
 
 NullableDatum StructNullableDatum;
-AggState	StructAggState;
+AggState  StructAggState;
 AggStatePerGroupData StructAggStatePerGroupData;
 AggStatePerTransData StructAggStatePerTransData;
 ExprContext StructExprContext;
 ExprEvalStep StructExprEvalStep;
-ExprState	StructExprState;
+ExprState StructExprState;
 FunctionCallInfoBaseData StructFunctionCallInfoData;
 HeapTupleData StructHeapTupleData;
 HeapTupleHeaderData StructHeapTupleHeaderData;
@@ -67,7 +67,7 @@ TupleTableSlot StructTupleTableSlot;
 HeapTupleTableSlot StructHeapTupleTableSlot;
 MinimalTupleTableSlot StructMinimalTupleTableSlot;
 TupleDescData StructTupleDescData;
-PlanState	StructPlanState;
+PlanState StructPlanState;
 MinimalTupleData StructMinimalTupleData;
 
 
@@ -80,9 +80,9 @@ extern Datum AttributeTemplate(PG_FUNCTION_ARGS);
 Datum
 AttributeTemplate(PG_FUNCTION_ARGS)
 {
-	AssertVariableIsOfType(&AttributeTemplate, PGFunction);
+  AssertVariableIsOfType(&AttributeTemplate, PGFunction);
 
-	PG_RETURN_NULL();
+  PG_RETURN_NULL();
 }
 
 /*
@@ -91,29 +91,29 @@ AttributeTemplate(PG_FUNCTION_ARGS)
  */
 
 extern void ExecEvalSubroutineTemplate(ExprState *state,
-									   struct ExprEvalStep *op,
-									   ExprContext *econtext);
+                                       struct ExprEvalStep *op,
+                                       ExprContext *econtext);
 void
 ExecEvalSubroutineTemplate(ExprState *state,
-						   struct ExprEvalStep *op,
-						   ExprContext *econtext)
+                           struct ExprEvalStep *op,
+                           ExprContext *econtext)
 {
-	AssertVariableIsOfType(&ExecEvalSubroutineTemplate,
-						   ExecEvalSubroutine);
+  AssertVariableIsOfType(&ExecEvalSubroutineTemplate,
+                         ExecEvalSubroutine);
 }
 
 extern bool ExecEvalBoolSubroutineTemplate(ExprState *state,
-										   struct ExprEvalStep *op,
-										   ExprContext *econtext);
+    struct ExprEvalStep *op,
+    ExprContext *econtext);
 bool
 ExecEvalBoolSubroutineTemplate(ExprState *state,
-							   struct ExprEvalStep *op,
-							   ExprContext *econtext)
+                               struct ExprEvalStep *op,
+                               ExprContext *econtext)
 {
-	AssertVariableIsOfType(&ExecEvalBoolSubroutineTemplate,
-						   ExecEvalBoolSubroutine);
+  AssertVariableIsOfType(&ExecEvalBoolSubroutineTemplate,
+                         ExecEvalBoolSubroutine);
 
-	return false;
+  return false;
 }
 
 /*
@@ -125,7 +125,7 @@ extern bool FunctionReturningBool(void);
 bool
 FunctionReturningBool(void)
 {
-	return false;
+  return false;
 }
 
 /*
@@ -133,52 +133,51 @@ FunctionReturningBool(void)
  * reference the functions required. This again has to be non-static, to avoid
  * being removed as unnecessary.
  */
-void	   *referenced_functions[] =
-{
-	ExecAggInitGroup,
-	ExecAggCopyTransValue,
-	ExecEvalPreOrderedDistinctSingle,
-	ExecEvalPreOrderedDistinctMulti,
-	ExecEvalAggOrderedTransDatum,
-	ExecEvalAggOrderedTransTuple,
-	ExecEvalArrayCoerce,
-	ExecEvalArrayExpr,
-	ExecEvalConstraintCheck,
-	ExecEvalConstraintNotNull,
-	ExecEvalConvertRowtype,
-	ExecEvalCurrentOfExpr,
-	ExecEvalFieldSelect,
-	ExecEvalFieldStoreDeForm,
-	ExecEvalFieldStoreForm,
-	ExecEvalFuncExprFusage,
-	ExecEvalFuncExprStrictFusage,
-	ExecEvalGroupingFunc,
-	ExecEvalMergeSupportFunc,
-	ExecEvalMinMax,
-	ExecEvalNextValueExpr,
-	ExecEvalParamExec,
-	ExecEvalParamExtern,
-	ExecEvalParamSet,
-	ExecEvalRow,
-	ExecEvalRowNotNull,
-	ExecEvalRowNull,
-	ExecEvalCoerceViaIOSafe,
-	ExecEvalSQLValueFunction,
-	ExecEvalScalarArrayOp,
-	ExecEvalHashedScalarArrayOp,
-	ExecEvalSubPlan,
-	ExecEvalSysVar,
-	ExecEvalWholeRowVar,
-	ExecEvalXmlExpr,
-	ExecEvalJsonConstructor,
-	ExecEvalJsonIsPredicate,
-	ExecEvalJsonCoercion,
-	ExecEvalJsonCoercionFinish,
-	ExecEvalJsonExprPath,
-	MakeExpandedObjectReadOnlyInternal,
-	slot_getmissingattrs,
-	slot_getsomeattrs_int,
-	strlen,
-	varsize_any,
-	ExecInterpExprStillValid,
+void     *referenced_functions[] = {
+  ExecAggInitGroup,
+  ExecAggCopyTransValue,
+  ExecEvalPreOrderedDistinctSingle,
+  ExecEvalPreOrderedDistinctMulti,
+  ExecEvalAggOrderedTransDatum,
+  ExecEvalAggOrderedTransTuple,
+  ExecEvalArrayCoerce,
+  ExecEvalArrayExpr,
+  ExecEvalConstraintCheck,
+  ExecEvalConstraintNotNull,
+  ExecEvalConvertRowtype,
+  ExecEvalCurrentOfExpr,
+  ExecEvalFieldSelect,
+  ExecEvalFieldStoreDeForm,
+  ExecEvalFieldStoreForm,
+  ExecEvalFuncExprFusage,
+  ExecEvalFuncExprStrictFusage,
+  ExecEvalGroupingFunc,
+  ExecEvalMergeSupportFunc,
+  ExecEvalMinMax,
+  ExecEvalNextValueExpr,
+  ExecEvalParamExec,
+  ExecEvalParamExtern,
+  ExecEvalParamSet,
+  ExecEvalRow,
+  ExecEvalRowNotNull,
+  ExecEvalRowNull,
+  ExecEvalCoerceViaIOSafe,
+  ExecEvalSQLValueFunction,
+  ExecEvalScalarArrayOp,
+  ExecEvalHashedScalarArrayOp,
+  ExecEvalSubPlan,
+  ExecEvalSysVar,
+  ExecEvalWholeRowVar,
+  ExecEvalXmlExpr,
+  ExecEvalJsonConstructor,
+  ExecEvalJsonIsPredicate,
+  ExecEvalJsonCoercion,
+  ExecEvalJsonCoercionFinish,
+  ExecEvalJsonExprPath,
+  MakeExpandedObjectReadOnlyInternal,
+  slot_getmissingattrs,
+  slot_getsomeattrs_int,
+  strlen,
+  varsize_any,
+  ExecInterpExprStillValid,
 };

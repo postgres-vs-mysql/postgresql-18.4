@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * win32common.c
- *	  Common routines shared among the win32*.c ports.
+ *    Common routines shared among the win32*.c ports.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/port/win32common.c
+ *    src/port/win32common.c
  *
  *-------------------------------------------------------------------------
  */
@@ -30,35 +30,33 @@
 DWORD
 pgwin32_get_file_type(HANDLE hFile)
 {
-	DWORD		fileType = FILE_TYPE_UNKNOWN;
-	DWORD		lastError;
+  DWORD   fileType = FILE_TYPE_UNKNOWN;
+  DWORD   lastError;
 
-	errno = 0;
+  errno = 0;
 
-	/*
-	 * When stdin, stdout, and stderr aren't associated with a stream the
-	 * special value -2 is returned:
-	 * https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/get-osfhandle
-	 */
-	if (hFile == INVALID_HANDLE_VALUE || hFile == (HANDLE) -2)
-	{
-		errno = EINVAL;
-		return FILE_TYPE_UNKNOWN;
-	}
+  /*
+   * When stdin, stdout, and stderr aren't associated with a stream the
+   * special value -2 is returned:
+   * https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/get-osfhandle
+   */
+  if (hFile == INVALID_HANDLE_VALUE || hFile == (HANDLE) - 2) {
+    errno = EINVAL;
+    return FILE_TYPE_UNKNOWN;
+  }
 
-	fileType = GetFileType(hFile);
-	lastError = GetLastError();
+  fileType = GetFileType(hFile);
+  lastError = GetLastError();
 
-	/*
-	 * Invoke GetLastError in order to distinguish between a "valid" return of
-	 * FILE_TYPE_UNKNOWN and its return due to a calling error.  In case of
-	 * success, GetLastError() returns NO_ERROR.
-	 */
-	if (fileType == FILE_TYPE_UNKNOWN && lastError != NO_ERROR)
-	{
-		_dosmaperr(lastError);
-		return FILE_TYPE_UNKNOWN;
-	}
+  /*
+   * Invoke GetLastError in order to distinguish between a "valid" return of
+   * FILE_TYPE_UNKNOWN and its return due to a calling error.  In case of
+   * success, GetLastError() returns NO_ERROR.
+   */
+  if (fileType == FILE_TYPE_UNKNOWN && lastError != NO_ERROR) {
+    _dosmaperr(lastError);
+    return FILE_TYPE_UNKNOWN;
+  }
 
-	return fileType;
+  return fileType;
 }

@@ -1,13 +1,13 @@
 /*--------------------------------------------------------------------------
  *
  * injection_stats.c
- *		Code for statistics of injection points.
+ *    Code for statistics of injection points.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *		src/test/modules/injection_points/injection_stats.c
+ *    src/test/modules/injection_points/injection_stats.c
  *
  * -------------------------------------------------------------------------
  */
@@ -23,32 +23,30 @@
 #include "utils/pgstat_internal.h"
 
 /* Structures for statistics of injection points */
-typedef struct PgStat_StatInjEntry
-{
-	PgStat_Counter numcalls;	/* number of times point has been run */
+typedef struct PgStat_StatInjEntry {
+  PgStat_Counter numcalls;  /* number of times point has been run */
 } PgStat_StatInjEntry;
 
-typedef struct PgStatShared_InjectionPoint
-{
-	PgStatShared_Common header;
-	PgStat_StatInjEntry stats;
+typedef struct PgStatShared_InjectionPoint {
+  PgStatShared_Common header;
+  PgStat_StatInjEntry stats;
 } PgStatShared_InjectionPoint;
 
 static bool injection_stats_flush_cb(PgStat_EntryRef *entry_ref, bool nowait);
 
 static const PgStat_KindInfo injection_stats = {
-	.name = "injection_points",
-	.fixed_amount = false,		/* Bounded by the number of points */
-	.write_to_file = true,
+  .name = "injection_points",
+  .fixed_amount = false,    /* Bounded by the number of points */
+  .write_to_file = true,
 
-	/* Injection points are system-wide */
-	.accessed_across_databases = true,
+  /* Injection points are system-wide */
+  .accessed_across_databases = true,
 
-	.shared_size = sizeof(PgStatShared_InjectionPoint),
-	.shared_data_off = offsetof(PgStatShared_InjectionPoint, stats),
-	.shared_data_len = sizeof(((PgStatShared_InjectionPoint *) 0)->stats),
-	.pending_size = sizeof(PgStat_StatInjEntry),
-	.flush_pending_cb = injection_stats_flush_cb,
+  .shared_size = sizeof(PgStatShared_InjectionPoint),
+  .shared_data_off = offsetof(PgStatShared_InjectionPoint, stats),
+  .shared_data_len = sizeof(((PgStatShared_InjectionPoint *) 0)->stats),
+  .pending_size = sizeof(PgStat_StatInjEntry),
+  .flush_pending_cb = injection_stats_flush_cb,
 };
 
 /*
@@ -59,7 +57,7 @@ static const PgStat_KindInfo injection_stats = {
 /*
  * Kind ID reserved for statistics of injection points.
  */
-#define PGSTAT_KIND_INJECTION	25
+#define PGSTAT_KIND_INJECTION 25
 
 /* Track if stats are loaded */
 static bool inj_stats_loaded = false;
@@ -70,20 +68,20 @@ static bool inj_stats_loaded = false;
 static bool
 injection_stats_flush_cb(PgStat_EntryRef *entry_ref, bool nowait)
 {
-	PgStat_StatInjEntry *localent;
-	PgStatShared_InjectionPoint *shfuncent;
+  PgStat_StatInjEntry *localent;
+  PgStatShared_InjectionPoint *shfuncent;
 
-	localent = (PgStat_StatInjEntry *) entry_ref->pending;
-	shfuncent = (PgStatShared_InjectionPoint *) entry_ref->shared_stats;
+  localent = (PgStat_StatInjEntry *) entry_ref->pending;
+  shfuncent = (PgStatShared_InjectionPoint *) entry_ref->shared_stats;
 
-	if (!pgstat_lock_entry(entry_ref, nowait))
-		return false;
+  if (!pgstat_lock_entry(entry_ref, nowait))
+    return false;
 
-	shfuncent->stats.numcalls += localent->numcalls;
+  shfuncent->stats.numcalls += localent->numcalls;
 
-	pgstat_unlock_entry(entry_ref);
+  pgstat_unlock_entry(entry_ref);
 
-	return true;
+  return true;
 }
 
 /*
@@ -93,16 +91,16 @@ injection_stats_flush_cb(PgStat_EntryRef *entry_ref, bool nowait)
 static PgStat_StatInjEntry *
 pgstat_fetch_stat_injentry(const char *name)
 {
-	PgStat_StatInjEntry *entry = NULL;
+  PgStat_StatInjEntry *entry = NULL;
 
-	if (!inj_stats_loaded || !inj_stats_enabled)
-		return NULL;
+  if (!inj_stats_loaded || !inj_stats_enabled)
+    return NULL;
 
-	/* Compile the lookup key as a hash of the point name */
-	entry = (PgStat_StatInjEntry *) pgstat_fetch_entry(PGSTAT_KIND_INJECTION,
-													   InvalidOid,
-													   PGSTAT_INJ_IDX(name));
-	return entry;
+  /* Compile the lookup key as a hash of the point name */
+  entry = (PgStat_StatInjEntry *) pgstat_fetch_entry(PGSTAT_KIND_INJECTION,
+          InvalidOid,
+          PGSTAT_INJ_IDX(name));
+  return entry;
 }
 
 /*
@@ -111,10 +109,10 @@ pgstat_fetch_stat_injentry(const char *name)
 void
 pgstat_register_inj(void)
 {
-	pgstat_register_kind(PGSTAT_KIND_INJECTION, &injection_stats);
+  pgstat_register_kind(PGSTAT_KIND_INJECTION, &injection_stats);
 
-	/* mark stats as loaded */
-	inj_stats_loaded = true;
+  /* mark stats as loaded */
+  inj_stats_loaded = true;
 }
 
 /*
@@ -123,20 +121,20 @@ pgstat_register_inj(void)
 void
 pgstat_create_inj(const char *name)
 {
-	PgStat_EntryRef *entry_ref;
-	PgStatShared_InjectionPoint *shstatent;
+  PgStat_EntryRef *entry_ref;
+  PgStatShared_InjectionPoint *shstatent;
 
-	/* leave if disabled */
-	if (!inj_stats_loaded || !inj_stats_enabled)
-		return;
+  /* leave if disabled */
+  if (!inj_stats_loaded || !inj_stats_enabled)
+    return;
 
-	entry_ref = pgstat_prep_pending_entry(PGSTAT_KIND_INJECTION, InvalidOid,
-										  PGSTAT_INJ_IDX(name), NULL);
+  entry_ref = pgstat_prep_pending_entry(PGSTAT_KIND_INJECTION, InvalidOid,
+                                        PGSTAT_INJ_IDX(name), NULL);
 
-	shstatent = (PgStatShared_InjectionPoint *) entry_ref->shared_stats;
+  shstatent = (PgStatShared_InjectionPoint *) entry_ref->shared_stats;
 
-	/* initialize shared memory data */
-	memset(&shstatent->stats, 0, sizeof(shstatent->stats));
+  /* initialize shared memory data */
+  memset(&shstatent->stats, 0, sizeof(shstatent->stats));
 }
 
 /*
@@ -145,13 +143,13 @@ pgstat_create_inj(const char *name)
 void
 pgstat_drop_inj(const char *name)
 {
-	/* leave if disabled */
-	if (!inj_stats_loaded || !inj_stats_enabled)
-		return;
+  /* leave if disabled */
+  if (!inj_stats_loaded || !inj_stats_enabled)
+    return;
 
-	if (!pgstat_drop_entry(PGSTAT_KIND_INJECTION, InvalidOid,
-						   PGSTAT_INJ_IDX(name)))
-		pgstat_request_entry_refs_gc();
+  if (!pgstat_drop_entry(PGSTAT_KIND_INJECTION, InvalidOid,
+                         PGSTAT_INJ_IDX(name)))
+    pgstat_request_entry_refs_gc();
 }
 
 /*
@@ -163,20 +161,20 @@ pgstat_drop_inj(const char *name)
 void
 pgstat_report_inj(const char *name)
 {
-	PgStat_EntryRef *entry_ref;
-	PgStat_StatInjEntry *pending;
+  PgStat_EntryRef *entry_ref;
+  PgStat_StatInjEntry *pending;
 
-	/* leave if disabled */
-	if (!inj_stats_loaded || !inj_stats_enabled)
-		return;
+  /* leave if disabled */
+  if (!inj_stats_loaded || !inj_stats_enabled)
+    return;
 
-	entry_ref = pgstat_prep_pending_entry(PGSTAT_KIND_INJECTION, InvalidOid,
-										  PGSTAT_INJ_IDX(name), NULL);
+  entry_ref = pgstat_prep_pending_entry(PGSTAT_KIND_INJECTION, InvalidOid,
+                                        PGSTAT_INJ_IDX(name), NULL);
 
-	pending = (PgStat_StatInjEntry *) entry_ref->pending;
+  pending = (PgStat_StatInjEntry *) entry_ref->pending;
 
-	/* Update the injection point pending statistics */
-	pending->numcalls++;
+  /* Update the injection point pending statistics */
+  pending->numcalls++;
 }
 
 /*
@@ -187,20 +185,20 @@ PG_FUNCTION_INFO_V1(injection_points_stats_numcalls);
 Datum
 injection_points_stats_numcalls(PG_FUNCTION_ARGS)
 {
-	char	   *name = text_to_cstring(PG_GETARG_TEXT_PP(0));
-	PgStat_StatInjEntry *entry = pgstat_fetch_stat_injentry(name);
+  char     *name = text_to_cstring(PG_GETARG_TEXT_PP(0));
+  PgStat_StatInjEntry *entry = pgstat_fetch_stat_injentry(name);
 
-	if (entry == NULL)
-		PG_RETURN_NULL();
+  if (entry == NULL)
+    PG_RETURN_NULL();
 
-	PG_RETURN_INT64(entry->numcalls);
+  PG_RETURN_INT64(entry->numcalls);
 }
 
 /* Only used by injection_points_stats_drop() */
 static bool
 match_inj_entries(PgStatShared_HashEntry *entry, Datum match_data)
 {
-	return entry->key.kind == PGSTAT_KIND_INJECTION;
+  return entry->key.kind == PGSTAT_KIND_INJECTION;
 }
 
 /*
@@ -210,7 +208,7 @@ PG_FUNCTION_INFO_V1(injection_points_stats_drop);
 Datum
 injection_points_stats_drop(PG_FUNCTION_ARGS)
 {
-	pgstat_drop_matching_entries(match_inj_entries, 0);
+  pgstat_drop_matching_entries(match_inj_entries, 0);
 
-	PG_RETURN_VOID();
+  PG_RETURN_VOID();
 }

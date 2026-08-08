@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * dsm_registry.c
- *	  Functions for interfacing with the dynamic shared memory registry.
+ *    Functions for interfacing with the dynamic shared memory registry.
  *
  * This provides a way for libraries to use shared memory without needing
  * to request it at startup time via a shmem_request_hook.  The registry
@@ -19,7 +19,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/storage/ipc/dsm_registry.c
+ *    src/backend/storage/ipc/dsm_registry.c
  *
  *-------------------------------------------------------------------------
  */
@@ -32,28 +32,26 @@
 #include "storage/shmem.h"
 #include "utils/memutils.h"
 
-typedef struct DSMRegistryCtxStruct
-{
-	dsa_handle	dsah;
-	dshash_table_handle dshh;
+typedef struct DSMRegistryCtxStruct {
+  dsa_handle  dsah;
+  dshash_table_handle dshh;
 } DSMRegistryCtxStruct;
 
 static DSMRegistryCtxStruct *DSMRegistryCtx;
 
-typedef struct DSMRegistryEntry
-{
-	char		name[64];
-	dsm_handle	handle;
-	size_t		size;
+typedef struct DSMRegistryEntry {
+  char    name[64];
+  dsm_handle  handle;
+  size_t    size;
 } DSMRegistryEntry;
 
 static const dshash_parameters dsh_params = {
-	offsetof(DSMRegistryEntry, handle),
-	sizeof(DSMRegistryEntry),
-	dshash_strcmp,
-	dshash_strhash,
-	dshash_strcpy,
-	LWTRANCHE_DSM_REGISTRY_HASH
+  offsetof(DSMRegistryEntry, handle),
+  sizeof(DSMRegistryEntry),
+  dshash_strcmp,
+  dshash_strhash,
+  dshash_strcpy,
+  LWTRANCHE_DSM_REGISTRY_HASH
 };
 
 static dsa_area *dsm_registry_dsa;
@@ -62,24 +60,23 @@ static dshash_table *dsm_registry_table;
 Size
 DSMRegistryShmemSize(void)
 {
-	return MAXALIGN(sizeof(DSMRegistryCtxStruct));
+  return MAXALIGN(sizeof(DSMRegistryCtxStruct));
 }
 
 void
 DSMRegistryShmemInit(void)
 {
-	bool		found;
+  bool    found;
 
-	DSMRegistryCtx = (DSMRegistryCtxStruct *)
-		ShmemInitStruct("DSM Registry Data",
-						DSMRegistryShmemSize(),
-						&found);
+  DSMRegistryCtx = (DSMRegistryCtxStruct *)
+                   ShmemInitStruct("DSM Registry Data",
+                                   DSMRegistryShmemSize(),
+                                   &found);
 
-	if (!found)
-	{
-		DSMRegistryCtx->dsah = DSA_HANDLE_INVALID;
-		DSMRegistryCtx->dshh = DSHASH_HANDLE_INVALID;
-	}
+  if (!found) {
+    DSMRegistryCtx->dsah = DSA_HANDLE_INVALID;
+    DSMRegistryCtx->dshh = DSHASH_HANDLE_INVALID;
+  }
 }
 
 /*
@@ -90,36 +87,33 @@ DSMRegistryShmemInit(void)
 static void
 init_dsm_registry(void)
 {
-	/* Quick exit if we already did this. */
-	if (dsm_registry_table)
-		return;
+  /* Quick exit if we already did this. */
+  if (dsm_registry_table)
+    return;
 
-	/* Otherwise, use a lock to ensure only one process creates the table. */
-	LWLockAcquire(DSMRegistryLock, LW_EXCLUSIVE);
+  /* Otherwise, use a lock to ensure only one process creates the table. */
+  LWLockAcquire(DSMRegistryLock, LW_EXCLUSIVE);
 
-	if (DSMRegistryCtx->dshh == DSHASH_HANDLE_INVALID)
-	{
-		/* Initialize dynamic shared hash table for registry. */
-		dsm_registry_dsa = dsa_create(LWTRANCHE_DSM_REGISTRY_DSA);
-		dsm_registry_table = dshash_create(dsm_registry_dsa, &dsh_params, NULL);
+  if (DSMRegistryCtx->dshh == DSHASH_HANDLE_INVALID) {
+    /* Initialize dynamic shared hash table for registry. */
+    dsm_registry_dsa = dsa_create(LWTRANCHE_DSM_REGISTRY_DSA);
+    dsm_registry_table = dshash_create(dsm_registry_dsa, &dsh_params, NULL);
 
-		dsa_pin(dsm_registry_dsa);
-		dsa_pin_mapping(dsm_registry_dsa);
+    dsa_pin(dsm_registry_dsa);
+    dsa_pin_mapping(dsm_registry_dsa);
 
-		/* Store handles in shared memory for other backends to use. */
-		DSMRegistryCtx->dsah = dsa_get_handle(dsm_registry_dsa);
-		DSMRegistryCtx->dshh = dshash_get_hash_table_handle(dsm_registry_table);
-	}
-	else
-	{
-		/* Attach to existing dynamic shared hash table. */
-		dsm_registry_dsa = dsa_attach(DSMRegistryCtx->dsah);
-		dsa_pin_mapping(dsm_registry_dsa);
-		dsm_registry_table = dshash_attach(dsm_registry_dsa, &dsh_params,
-										   DSMRegistryCtx->dshh, NULL);
-	}
+    /* Store handles in shared memory for other backends to use. */
+    DSMRegistryCtx->dsah = dsa_get_handle(dsm_registry_dsa);
+    DSMRegistryCtx->dshh = dshash_get_hash_table_handle(dsm_registry_table);
+  } else {
+    /* Attach to existing dynamic shared hash table. */
+    dsm_registry_dsa = dsa_attach(DSMRegistryCtx->dsah);
+    dsa_pin_mapping(dsm_registry_dsa);
+    dsm_registry_table = dshash_attach(dsm_registry_dsa, &dsh_params,
+                                       DSMRegistryCtx->dshh, NULL);
+  }
 
-	LWLockRelease(DSMRegistryLock);
+  LWLockRelease(DSMRegistryLock);
 }
 
 /*
@@ -130,74 +124,71 @@ init_dsm_registry(void)
  */
 void *
 GetNamedDSMSegment(const char *name, size_t size,
-				   void (*init_callback) (void *ptr), bool *found)
+                   void (*init_callback) (void *ptr), bool *found)
 {
-	DSMRegistryEntry *entry;
-	MemoryContext oldcontext;
-	void	   *ret;
-	dsm_segment *seg;
+  DSMRegistryEntry *entry;
+  MemoryContext oldcontext;
+  void     *ret;
+  dsm_segment *seg;
 
-	Assert(found);
+  Assert(found);
 
-	if (!name || *name == '\0')
-		ereport(ERROR,
-				(errmsg("DSM segment name cannot be empty")));
+  if (!name || *name == '\0')
+    ereport(ERROR,
+            (errmsg("DSM segment name cannot be empty")));
 
-	if (strlen(name) >= offsetof(DSMRegistryEntry, handle))
-		ereport(ERROR,
-				(errmsg("DSM segment name too long")));
+  if (strlen(name) >= offsetof(DSMRegistryEntry, handle))
+    ereport(ERROR,
+            (errmsg("DSM segment name too long")));
 
-	if (size == 0)
-		ereport(ERROR,
-				(errmsg("DSM segment size must be nonzero")));
+  if (size == 0)
+    ereport(ERROR,
+            (errmsg("DSM segment size must be nonzero")));
 
-	/* Be sure any local memory allocated by DSM/DSA routines is persistent. */
-	oldcontext = MemoryContextSwitchTo(TopMemoryContext);
+  /* Be sure any local memory allocated by DSM/DSA routines is persistent. */
+  oldcontext = MemoryContextSwitchTo(TopMemoryContext);
 
-	/* Connect to the registry. */
-	init_dsm_registry();
+  /* Connect to the registry. */
+  init_dsm_registry();
 
-	entry = dshash_find_or_insert(dsm_registry_table, name, found);
-	if (!(*found))
-	{
-		entry->handle = DSM_HANDLE_INVALID;
-		entry->size = size;
-	}
-	else if (entry->size != size)
-		ereport(ERROR,
-				(errmsg("requested DSM segment size does not match size of existing segment")));
+  entry = dshash_find_or_insert(dsm_registry_table, name, found);
 
-	if (entry->handle == DSM_HANDLE_INVALID)
-	{
-		*found = false;
+  if (!(*found)) {
+    entry->handle = DSM_HANDLE_INVALID;
+    entry->size = size;
+  } else if (entry->size != size)
+    ereport(ERROR,
+            (errmsg("requested DSM segment size does not match size of existing segment")));
 
-		/* Initialize the segment. */
-		seg = dsm_create(size, 0);
+  if (entry->handle == DSM_HANDLE_INVALID) {
+    *found = false;
 
-		if (init_callback)
-			(*init_callback) (dsm_segment_address(seg));
+    /* Initialize the segment. */
+    seg = dsm_create(size, 0);
 
-		dsm_pin_segment(seg);
-		dsm_pin_mapping(seg);
-		entry->handle = dsm_segment_handle(seg);
-	}
-	else
-	{
-		/* If the existing segment is not already attached, attach it now. */
-		seg = dsm_find_mapping(entry->handle);
-		if (seg == NULL)
-		{
-			seg = dsm_attach(entry->handle);
-			if (seg == NULL)
-				elog(ERROR, "could not map dynamic shared memory segment");
+    if (init_callback)
+      (*init_callback) (dsm_segment_address(seg));
 
-			dsm_pin_mapping(seg);
-		}
-	}
+    dsm_pin_segment(seg);
+    dsm_pin_mapping(seg);
+    entry->handle = dsm_segment_handle(seg);
+  } else {
+    /* If the existing segment is not already attached, attach it now. */
+    seg = dsm_find_mapping(entry->handle);
 
-	ret = dsm_segment_address(seg);
-	dshash_release_lock(dsm_registry_table, entry);
-	MemoryContextSwitchTo(oldcontext);
+    if (seg == NULL) {
+      seg = dsm_attach(entry->handle);
 
-	return ret;
+      if (seg == NULL)
+        elog(ERROR, "could not map dynamic shared memory segment");
+
+      dsm_pin_mapping(seg);
+    }
+  }
+
+  ret = dsm_segment_address(seg);
+  dshash_release_lock(dsm_registry_table, entry);
+  MemoryContextSwitchTo(oldcontext);
+
+  return ret;
 }

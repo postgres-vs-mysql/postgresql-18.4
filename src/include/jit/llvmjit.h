@@ -1,6 +1,6 @@
 /*-------------------------------------------------------------------------
  * llvmjit.h
- *	  LLVM JIT provider.
+ *    LLVM JIT provider.
  *
  * Copyright (c) 2016-2025, PostgreSQL Global Development Group
  *
@@ -42,32 +42,32 @@ extern "C"
 
 typedef struct LLVMJitContext
 {
-	JitContext	base;
+  JitContext  base;
 
-	/* used to ensure cleanup of context */
-	ResourceOwner resowner;
+  /* used to ensure cleanup of context */
+  ResourceOwner resowner;
 
-	/* number of modules created */
-	size_t		module_generation;
+  /* number of modules created */
+  size_t    module_generation;
 
-	/*
-	 * The LLVM Context used by this JIT context. An LLVM context is reused
-	 * across many compilations, but occasionally reset to prevent it using
-	 * too much memory due to more and more types accumulating.
-	 */
-	LLVMContextRef llvm_context;
+  /*
+   * The LLVM Context used by this JIT context. An LLVM context is reused
+   * across many compilations, but occasionally reset to prevent it using
+   * too much memory due to more and more types accumulating.
+   */
+  LLVMContextRef llvm_context;
 
-	/* current, "open for write", module */
-	LLVMModuleRef module;
+  /* current, "open for write", module */
+  LLVMModuleRef module;
 
-	/* is there any pending code that needs to be emitted */
-	bool		compiled;
+  /* is there any pending code that needs to be emitted */
+  bool    compiled;
 
-	/* # of objects emitted, used to generate non-conflicting names */
-	int			counter;
+  /* # of objects emitted, used to generate non-conflicting names */
+  int     counter;
 
-	/* list of handles for code emitted via Orc */
-	List	   *handles;
+  /* list of handles for code emitted via Orc */
+  List     *handles;
 } LLVMJitContext;
 
 /* type and struct definitions */
@@ -115,9 +115,9 @@ extern LLVMTypeRef llvm_pg_var_func_type(const char *varname);
 extern LLVMValueRef llvm_pg_func(LLVMModuleRef mod, const char *funcname);
 extern void llvm_copy_attributes(LLVMValueRef from, LLVMValueRef to);
 extern LLVMValueRef llvm_function_reference(LLVMJitContext *context,
-						LLVMBuilderRef builder,
-						LLVMModuleRef mod,
-						FunctionCallInfo fcinfo);
+    LLVMBuilderRef builder,
+    LLVMModuleRef mod,
+    FunctionCallInfo fcinfo);
 
 extern void llvm_inline_reset_caches(void);
 extern void llvm_inline(LLVMModuleRef mod);
@@ -130,7 +130,7 @@ extern void llvm_inline(LLVMModuleRef mod);
 extern bool llvm_compile_expr(struct ExprState *state);
 struct TupleTableSlotOps;
 extern LLVMValueRef slot_compile_deform(struct LLVMJitContext *context, TupleDesc desc,
-										const struct TupleTableSlotOps *ops, int natts);
+                                        const struct TupleTableSlotOps *ops, int natts);
 
 /*
  ****************************************************************************
@@ -148,5 +148,5 @@ extern LLVMOrcObjectLayerRef LLVMOrcCreateRTDyldObjectLinkingLayerWithSafeSectio
 } /* extern "C" */
 #endif
 
-#endif							/* USE_LLVM */
-#endif							/* LLVMJIT_H */
+#endif              /* USE_LLVM */
+#endif              /* LLVMJIT_H */

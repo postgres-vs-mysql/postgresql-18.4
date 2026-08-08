@@ -42,4 +42,4 @@ extern void CreateSharedComments(Oid oid, Oid classoid, const char *comment);
 
 extern char *GetComment(Oid oid, Oid classoid, int32 subid);
 
-#endif							/* COMMENT_H */
+#endif              /* COMMENT_H */

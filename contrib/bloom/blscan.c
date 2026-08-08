@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * blscan.c
- *		Bloom index scan functions.
+ *    Bloom index scan functions.
  *
  * Copyright (c) 2016-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  contrib/bloom/blscan.c
+ *    contrib/bloom/blscan.c
  *
  *-------------------------------------------------------------------------
  */
@@ -24,18 +24,18 @@
 IndexScanDesc
 blbeginscan(Relation r, int nkeys, int norderbys)
 {
-	IndexScanDesc scan;
-	BloomScanOpaque so;
+  IndexScanDesc scan;
+  BloomScanOpaque so;
 
-	scan = RelationGetIndexScan(r, nkeys, norderbys);
+  scan = RelationGetIndexScan(r, nkeys, norderbys);
 
-	so = (BloomScanOpaque) palloc(sizeof(BloomScanOpaqueData));
-	initBloomState(&so->state, scan->indexRelation);
-	so->sign = NULL;
+  so = (BloomScanOpaque) palloc(sizeof(BloomScanOpaqueData));
+  initBloomState(&so->state, scan->indexRelation);
+  so->sign = NULL;
 
-	scan->opaque = so;
+  scan->opaque = so;
 
-	return scan;
+  return scan;
 }
 
 /*
@@ -43,16 +43,17 @@ blbeginscan(Relation r, int nkeys, int norderbys)
  */
 void
 blrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
-		 ScanKey orderbys, int norderbys)
+         ScanKey orderbys, int norderbys)
 {
-	BloomScanOpaque so = (BloomScanOpaque) scan->opaque;
+  BloomScanOpaque so = (BloomScanOpaque) scan->opaque;
 
-	if (so->sign)
-		pfree(so->sign);
-	so->sign = NULL;
+  if (so->sign)
+    pfree(so->sign);
 
-	if (scankey && scan->numberOfKeys > 0)
-		memcpy(scan->keyData, scankey, scan->numberOfKeys * sizeof(ScanKeyData));
+  so->sign = NULL;
+
+  if (scankey && scan->numberOfKeys > 0)
+    memcpy(scan->keyData, scankey, scan->numberOfKeys * sizeof(ScanKeyData));
 }
 
 /*
@@ -61,11 +62,12 @@ blrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
 void
 blendscan(IndexScanDesc scan)
 {
-	BloomScanOpaque so = (BloomScanOpaque) scan->opaque;
+  BloomScanOpaque so = (BloomScanOpaque) scan->opaque;
 
-	if (so->sign)
-		pfree(so->sign);
-	so->sign = NULL;
+  if (so->sign)
+    pfree(so->sign);
+
+  so->sign = NULL;
 }
 
 /*
@@ -74,95 +76,88 @@ blendscan(IndexScanDesc scan)
 int64
 blgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 {
-	int64		ntids = 0;
-	BlockNumber blkno = BLOOM_HEAD_BLKNO,
-				npages;
-	int			i;
-	BufferAccessStrategy bas;
-	BloomScanOpaque so = (BloomScanOpaque) scan->opaque;
+  int64   ntids = 0;
+  BlockNumber blkno = BLOOM_HEAD_BLKNO,
+              npages;
+  int     i;
+  BufferAccessStrategy bas;
+  BloomScanOpaque so = (BloomScanOpaque) scan->opaque;
 
-	if (so->sign == NULL)
-	{
-		/* New search: have to calculate search signature */
-		ScanKey		skey = scan->keyData;
+  if (so->sign == NULL) {
+    /* New search: have to calculate search signature */
+    ScanKey   skey = scan->keyData;
 
-		so->sign = palloc0(sizeof(BloomSignatureWord) * so->state.opts.bloomLength);
+    so->sign = palloc0(sizeof(BloomSignatureWord) * so->state.opts.bloomLength);
 
-		for (i = 0; i < scan->numberOfKeys; i++)
-		{
-			/*
-			 * Assume bloom-indexable operators to be strict, so nothing could
-			 * be found for NULL key.
-			 */
-			if (skey->sk_flags & SK_ISNULL)
-			{
-				pfree(so->sign);
-				so->sign = NULL;
-				return 0;
-			}
+    for (i = 0; i < scan->numberOfKeys; i++) {
+      /*
+       * Assume bloom-indexable operators to be strict, so nothing could
+       * be found for NULL key.
+       */
+      if (skey->sk_flags & SK_ISNULL) {
+        pfree(so->sign);
+        so->sign = NULL;
+        return 0;
+      }
 
-			/* Add next value to the signature */
-			signValue(&so->state, so->sign, skey->sk_argument,
-					  skey->sk_attno - 1);
+      /* Add next value to the signature */
+      signValue(&so->state, so->sign, skey->sk_argument,
+                skey->sk_attno - 1);
 
-			skey++;
-		}
-	}
+      skey++;
+    }
+  }
 
-	/*
-	 * We're going to read the whole index. This is why we use appropriate
-	 * buffer access strategy.
-	 */
-	bas = GetAccessStrategy(BAS_BULKREAD);
-	npages = RelationGetNumberOfBlocks(scan->indexRelation);
-	pgstat_count_index_scan(scan->indexRelation);
-	if (scan->instrument)
-		scan->instrument->nsearches++;
+  /*
+   * We're going to read the whole index. This is why we use appropriate
+   * buffer access strategy.
+   */
+  bas = GetAccessStrategy(BAS_BULKREAD);
+  npages = RelationGetNumberOfBlocks(scan->indexRelation);
+  pgstat_count_index_scan(scan->indexRelation);
 
-	for (blkno = BLOOM_HEAD_BLKNO; blkno < npages; blkno++)
-	{
-		Buffer		buffer;
-		Page		page;
+  if (scan->instrument)
+    scan->instrument->nsearches++;
 
-		buffer = ReadBufferExtended(scan->indexRelation, MAIN_FORKNUM,
-									blkno, RBM_NORMAL, bas);
+  for (blkno = BLOOM_HEAD_BLKNO; blkno < npages; blkno++) {
+    Buffer    buffer;
+    Page    page;
 
-		LockBuffer(buffer, BUFFER_LOCK_SHARE);
-		page = BufferGetPage(buffer);
+    buffer = ReadBufferExtended(scan->indexRelation, MAIN_FORKNUM,
+                                blkno, RBM_NORMAL, bas);
 
-		if (!PageIsNew(page) && !BloomPageIsDeleted(page))
-		{
-			OffsetNumber offset,
-						maxOffset = BloomPageGetMaxOffset(page);
+    LockBuffer(buffer, BUFFER_LOCK_SHARE);
+    page = BufferGetPage(buffer);
 
-			for (offset = 1; offset <= maxOffset; offset++)
-			{
-				BloomTuple *itup = BloomPageGetTuple(&so->state, page, offset);
-				bool		res = true;
+    if (!PageIsNew(page) && !BloomPageIsDeleted(page)) {
+      OffsetNumber offset,
+                   maxOffset = BloomPageGetMaxOffset(page);
 
-				/* Check index signature with scan signature */
-				for (i = 0; i < so->state.opts.bloomLength; i++)
-				{
-					if ((itup->sign[i] & so->sign[i]) != so->sign[i])
-					{
-						res = false;
-						break;
-					}
-				}
+      for (offset = 1; offset <= maxOffset; offset++) {
+        BloomTuple *itup = BloomPageGetTuple(&so->state, page, offset);
+        bool    res = true;
 
-				/* Add matching tuples to bitmap */
-				if (res)
-				{
-					tbm_add_tuples(tbm, &itup->heapPtr, 1, true);
-					ntids++;
-				}
-			}
-		}
+        /* Check index signature with scan signature */
+        for (i = 0; i < so->state.opts.bloomLength; i++) {
+          if ((itup->sign[i] & so->sign[i]) != so->sign[i]) {
+            res = false;
+            break;
+          }
+        }
 
-		UnlockReleaseBuffer(buffer);
-		CHECK_FOR_INTERRUPTS();
-	}
-	FreeAccessStrategy(bas);
+        /* Add matching tuples to bitmap */
+        if (res) {
+          tbm_add_tuples(tbm, &itup->heapPtr, 1, true);
+          ntids++;
+        }
+      }
+    }
 
-	return ntids;
+    UnlockReleaseBuffer(buffer);
+    CHECK_FOR_INTERRUPTS();
+  }
+
+  FreeAccessStrategy(bas);
+
+  return ntids;
 }

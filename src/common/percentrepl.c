@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * percentrepl.c
- *	  Common routines to replace percent placeholders in strings
+ *    Common routines to replace percent placeholders in strings
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/common/percentrepl.c
+ *    src/common/percentrepl.c
  *
  *-------------------------------------------------------------------------
  */
@@ -56,82 +56,73 @@
  * revised.
  */
 char *
-replace_percent_placeholders(const char *instr, const char *param_name, const char *letters,...)
+replace_percent_placeholders(const char *instr, const char *param_name, const char *letters, ...)
 {
-	StringInfoData result;
+  StringInfoData result;
 
-	initStringInfo(&result);
+  initStringInfo(&result);
 
-	for (const char *sp = instr; *sp; sp++)
-	{
-		if (*sp == '%')
-		{
-			if (sp[1] == '%')
-			{
-				/* Convert %% to a single % */
-				sp++;
-				appendStringInfoChar(&result, *sp);
-			}
-			else if (sp[1] == '\0')
-			{
-				/* Incomplete escape sequence, expected a character afterward */
+  for (const char *sp = instr; *sp; sp++) {
+    if (*sp == '%') {
+      if (sp[1] == '%') {
+        /* Convert %% to a single % */
+        sp++;
+        appendStringInfoChar(&result, *sp);
+      } else if (sp[1] == '\0') {
+        /* Incomplete escape sequence, expected a character afterward */
 #ifdef FRONTEND
-				pg_log_error("invalid value for parameter \"%s\": \"%s\"", param_name, instr);
-				pg_log_error_detail("String ends unexpectedly after escape character \"%%\".");
-				exit(1);
+        pg_log_error("invalid value for parameter \"%s\": \"%s\"", param_name, instr);
+        pg_log_error_detail("String ends unexpectedly after escape character \"%%\".");
+        exit(1);
 #else
-				ereport(ERROR,
-						errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-						errmsg("invalid value for parameter \"%s\": \"%s\"", param_name, instr),
-						errdetail("String ends unexpectedly after escape character \"%%\"."));
+        ereport(ERROR,
+                errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                errmsg("invalid value for parameter \"%s\": \"%s\"", param_name, instr),
+                errdetail("String ends unexpectedly after escape character \"%%\"."));
 #endif
-			}
-			else
-			{
-				/* Look up placeholder character */
-				bool		found = false;
-				va_list		ap;
+      } else {
+        /* Look up placeholder character */
+        bool    found = false;
+        va_list   ap;
 
-				sp++;
+        sp++;
 
-				va_start(ap, letters);
-				for (const char *lp = letters; *lp; lp++)
-				{
-					char	   *val = va_arg(ap, char *);
+        va_start(ap, letters);
 
-					if (*sp == *lp)
-					{
-						if (val)
-						{
-							appendStringInfoString(&result, val);
-							found = true;
-						}
-						/* If val is NULL, we will report an error. */
-						break;
-					}
-				}
-				va_end(ap);
-				if (!found)
-				{
-					/* Unknown placeholder */
+        for (const char *lp = letters; *lp; lp++) {
+          char     *val = va_arg(ap, char *);
+
+          if (*sp == *lp) {
+            if (val) {
+              appendStringInfoString(&result, val);
+              found = true;
+            }
+
+            /* If val is NULL, we will report an error. */
+            break;
+          }
+        }
+
+        va_end(ap);
+
+        if (!found) {
+          /* Unknown placeholder */
 #ifdef FRONTEND
-					pg_log_error("invalid value for parameter \"%s\": \"%s\"", param_name, instr);
-					pg_log_error_detail("String contains unexpected placeholder \"%%%c\".", *sp);
-					exit(1);
+          pg_log_error("invalid value for parameter \"%s\": \"%s\"", param_name, instr);
+          pg_log_error_detail("String contains unexpected placeholder \"%%%c\".", *sp);
+          exit(1);
 #else
-					ereport(ERROR,
-							errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-							errmsg("invalid value for parameter \"%s\": \"%s\"", param_name, instr),
-							errdetail("String contains unexpected placeholder \"%%%c\".", *sp));
+          ereport(ERROR,
+                  errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+                  errmsg("invalid value for parameter \"%s\": \"%s\"", param_name, instr),
+                  errdetail("String contains unexpected placeholder \"%%%c\".", *sp));
 #endif
-				}
-			}
-		}
-		else
-		{
-			appendStringInfoChar(&result, *sp);
-		}
-	}
+        }
+      }
+    } else {
+      appendStringInfoChar(&result, *sp);
+    }
+  }
 
-	return result.data;
+  return result.data;
 }

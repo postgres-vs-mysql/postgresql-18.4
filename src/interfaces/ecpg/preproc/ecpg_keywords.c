@@ -1,10 +1,10 @@
 /*-------------------------------------------------------------------------
  *
  * ecpg_keywords.c
- *	  lexical token lookup for reserved words in postgres embedded SQL
+ *    lexical token lookup for reserved words in postgres embedded SQL
  *
  * IDENTIFICATION
- *	  src/interfaces/ecpg/preproc/ecpg_keywords.c
+ *    src/interfaces/ecpg/preproc/ecpg_keywords.c
  *
  *-------------------------------------------------------------------------
  */
@@ -38,17 +38,19 @@ static const uint16 ECPGScanKeywordTokens[] = {
 int
 ScanECPGKeywordLookup(const char *text)
 {
-	int			kwnum;
+  int     kwnum;
 
-	/* First check SQL symbols defined by the backend. */
-	kwnum = ScanKeywordLookup(text, &ScanKeywords);
-	if (kwnum >= 0)
-		return SQLScanKeywordTokens[kwnum];
+  /* First check SQL symbols defined by the backend. */
+  kwnum = ScanKeywordLookup(text, &ScanKeywords);
 
-	/* Try ECPG-specific keywords. */
-	kwnum = ScanKeywordLookup(text, &ScanECPGKeywords);
-	if (kwnum >= 0)
-		return ECPGScanKeywordTokens[kwnum];
+  if (kwnum >= 0)
+    return SQLScanKeywordTokens[kwnum];
 
-	return -1;
+  /* Try ECPG-specific keywords. */
+  kwnum = ScanKeywordLookup(text, &ScanECPGKeywords);
+
+  if (kwnum >= 0)
+    return ECPGScanKeywordTokens[kwnum];
+
+  return -1;
 }

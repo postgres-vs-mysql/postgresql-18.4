@@ -1,11 +1,11 @@
 /*-------------------------------------------------------------------------
  *
  * qunique.h
- *		inline array unique functions
+ *    inline array unique functions
  * Portions Copyright (c) 2019-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *		src/include/lib/qunique.h
+ *    src/include/lib/qunique.h
  *-------------------------------------------------------------------------
  */
 
@@ -19,23 +19,23 @@
  */
 static inline size_t
 qunique(void *array, size_t elements, size_t width,
-		int (*compare) (const void *, const void *))
+        int (*compare) (const void *, const void *))
 {
-	char	   *bytes = (char *) array;
-	size_t		i,
-				j;
+  char     *bytes = (char *) array;
+  size_t    i,
+            j;
 
-	if (elements <= 1)
-		return elements;
+  if (elements <= 1)
+    return elements;
 
-	for (i = 1, j = 0; i < elements; ++i)
-	{
-		if (compare(bytes + i * width, bytes + j * width) != 0 &&
-			++j != i)
-			memcpy(bytes + j * width, bytes + i * width, width);
-	}
+  for (i = 1, j = 0; i < elements; ++i)
+  {
+    if (compare(bytes + i * width, bytes + j * width) != 0 &&
+        ++j != i)
+      memcpy(bytes + j * width, bytes + i * width, width);
+  }
 
-	return j + 1;
+  return j + 1;
 }
 
 /*
@@ -44,24 +44,24 @@ qunique(void *array, size_t elements, size_t width,
  */
 static inline size_t
 qunique_arg(void *array, size_t elements, size_t width,
-			int (*compare) (const void *, const void *, void *),
-			void *arg)
+            int (*compare) (const void *, const void *, void *),
+            void *arg)
 {
-	char	   *bytes = (char *) array;
-	size_t		i,
-				j;
+  char     *bytes = (char *) array;
+  size_t    i,
+            j;
 
-	if (elements <= 1)
-		return elements;
+  if (elements <= 1)
+    return elements;
 
-	for (i = 1, j = 0; i < elements; ++i)
-	{
-		if (compare(bytes + i * width, bytes + j * width, arg) != 0 &&
-			++j != i)
-			memcpy(bytes + j * width, bytes + i * width, width);
-	}
+  for (i = 1, j = 0; i < elements; ++i)
+  {
+    if (compare(bytes + i * width, bytes + j * width, arg) != 0 &&
+        ++j != i)
+      memcpy(bytes + j * width, bytes + i * width, width);
+  }
 
-	return j + 1;
+  return j + 1;
 }
 
-#endif							/* QUNIQUE_H */
+#endif              /* QUNIQUE_H */

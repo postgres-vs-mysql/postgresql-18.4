@@ -45,9 +45,9 @@
 
 /* must be kept in sync with RmgrData definition in xlog_internal.h */
 #define PG_RMGR(symname,name,redo,desc,identify,startup,cleanup,mask,decode) \
-	{ name, redo, desc, identify, startup, cleanup, mask, decode },
+  { name, redo, desc, identify, startup, cleanup, mask, decode },
 
-RmgrData	RmgrTable[RM_MAX_ID + 1] = {
+RmgrData  RmgrTable[RM_MAX_ID + 1] = {
 #include "access/rmgrlist.h"
 };
 
@@ -57,14 +57,13 @@ RmgrData	RmgrTable[RM_MAX_ID + 1] = {
 void
 RmgrStartup(void)
 {
-	for (int rmid = 0; rmid <= RM_MAX_ID; rmid++)
-	{
-		if (!RmgrIdExists(rmid))
-			continue;
+  for (int rmid = 0; rmid <= RM_MAX_ID; rmid++) {
+    if (!RmgrIdExists(rmid))
+      continue;
 
-		if (RmgrTable[rmid].rm_startup != NULL)
-			RmgrTable[rmid].rm_startup();
-	}
+    if (RmgrTable[rmid].rm_startup != NULL)
+      RmgrTable[rmid].rm_startup();
+  }
 }
 
 /*
@@ -73,14 +72,13 @@ RmgrStartup(void)
 void
 RmgrCleanup(void)
 {
-	for (int rmid = 0; rmid <= RM_MAX_ID; rmid++)
-	{
-		if (!RmgrIdExists(rmid))
-			continue;
+  for (int rmid = 0; rmid <= RM_MAX_ID; rmid++) {
+    if (!RmgrIdExists(rmid))
+      continue;
 
-		if (RmgrTable[rmid].rm_cleanup != NULL)
-			RmgrTable[rmid].rm_cleanup();
-	}
+    if (RmgrTable[rmid].rm_cleanup != NULL)
+      RmgrTable[rmid].rm_cleanup();
+  }
 }
 
 /*
@@ -90,8 +88,8 @@ RmgrCleanup(void)
 void
 RmgrNotFound(RmgrId rmid)
 {
-	ereport(ERROR, (errmsg("resource manager with ID %d not registered", rmid),
-					errhint("Include the extension module that implements this resource manager in \"shared_preload_libraries\".")));
+  ereport(ERROR, (errmsg("resource manager with ID %d not registered", rmid),
+                  errhint("Include the extension module that implements this resource manager in \"shared_preload_libraries\".")));
 }
 
 /*
@@ -106,43 +104,42 @@ RmgrNotFound(RmgrId rmid)
 void
 RegisterCustomRmgr(RmgrId rmid, const RmgrData *rmgr)
 {
-	if (rmgr->rm_name == NULL || strlen(rmgr->rm_name) == 0)
-		ereport(ERROR, (errmsg("custom resource manager name is invalid"),
-						errhint("Provide a non-empty name for the custom resource manager.")));
+  if (rmgr->rm_name == NULL || strlen(rmgr->rm_name) == 0)
+    ereport(ERROR, (errmsg("custom resource manager name is invalid"),
+                    errhint("Provide a non-empty name for the custom resource manager.")));
 
-	if (!RmgrIdIsCustom(rmid))
-		ereport(ERROR, (errmsg("custom resource manager ID %d is out of range", rmid),
-						errhint("Provide a custom resource manager ID between %d and %d.",
-								RM_MIN_CUSTOM_ID, RM_MAX_CUSTOM_ID)));
+  if (!RmgrIdIsCustom(rmid))
+    ereport(ERROR, (errmsg("custom resource manager ID %d is out of range", rmid),
+                    errhint("Provide a custom resource manager ID between %d and %d.",
+                            RM_MIN_CUSTOM_ID, RM_MAX_CUSTOM_ID)));
 
-	if (!process_shared_preload_libraries_in_progress)
-		ereport(ERROR,
-				(errmsg("failed to register custom resource manager \"%s\" with ID %d", rmgr->rm_name, rmid),
-				 errdetail("Custom resource manager must be registered while initializing modules in \"shared_preload_libraries\".")));
+  if (!process_shared_preload_libraries_in_progress)
+    ereport(ERROR,
+            (errmsg("failed to register custom resource manager \"%s\" with ID %d", rmgr->rm_name, rmid),
+             errdetail("Custom resource manager must be registered while initializing modules in \"shared_preload_libraries\".")));
 
-	if (RmgrTable[rmid].rm_name != NULL)
-		ereport(ERROR,
-				(errmsg("failed to register custom resource manager \"%s\" with ID %d", rmgr->rm_name, rmid),
-				 errdetail("Custom resource manager \"%s\" already registered with the same ID.",
-						   RmgrTable[rmid].rm_name)));
+  if (RmgrTable[rmid].rm_name != NULL)
+    ereport(ERROR,
+            (errmsg("failed to register custom resource manager \"%s\" with ID %d", rmgr->rm_name, rmid),
+             errdetail("Custom resource manager \"%s\" already registered with the same ID.",
+                       RmgrTable[rmid].rm_name)));
 
-	/* check for existing rmgr with the same name */
-	for (int existing_rmid = 0; existing_rmid <= RM_MAX_ID; existing_rmid++)
-	{
-		if (!RmgrIdExists(existing_rmid))
-			continue;
+  /* check for existing rmgr with the same name */
+  for (int existing_rmid = 0; existing_rmid <= RM_MAX_ID; existing_rmid++) {
+    if (!RmgrIdExists(existing_rmid))
+      continue;
 
-		if (!pg_strcasecmp(RmgrTable[existing_rmid].rm_name, rmgr->rm_name))
-			ereport(ERROR,
-					(errmsg("failed to register custom resource manager \"%s\" with ID %d", rmgr->rm_name, rmid),
-					 errdetail("Existing resource manager with ID %d has the same name.", existing_rmid)));
-	}
+    if (!pg_strcasecmp(RmgrTable[existing_rmid].rm_name, rmgr->rm_name))
+      ereport(ERROR,
+              (errmsg("failed to register custom resource manager \"%s\" with ID %d", rmgr->rm_name, rmid),
+               errdetail("Existing resource manager with ID %d has the same name.", existing_rmid)));
+  }
 
-	/* register it */
-	RmgrTable[rmid] = *rmgr;
-	ereport(LOG,
-			(errmsg("registered custom resource manager \"%s\" with ID %d",
-					rmgr->rm_name, rmid)));
+  /* register it */
+  RmgrTable[rmid] = *rmgr;
+  ereport(LOG,
+          (errmsg("registered custom resource manager \"%s\" with ID %d",
+                  rmgr->rm_name, rmid)));
 }
 
 /* SQL SRF showing loaded resource managers */
@@ -150,21 +147,21 @@ Datum
 pg_get_wal_resource_managers(PG_FUNCTION_ARGS)
 {
 #define PG_GET_RESOURCE_MANAGERS_COLS 3
-	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
-	Datum		values[PG_GET_RESOURCE_MANAGERS_COLS];
-	bool		nulls[PG_GET_RESOURCE_MANAGERS_COLS] = {0};
+  ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+  Datum   values[PG_GET_RESOURCE_MANAGERS_COLS];
+  bool    nulls[PG_GET_RESOURCE_MANAGERS_COLS] = {0};
 
-	InitMaterializedSRF(fcinfo, 0);
+  InitMaterializedSRF(fcinfo, 0);
 
-	for (int rmid = 0; rmid <= RM_MAX_ID; rmid++)
-	{
-		if (!RmgrIdExists(rmid))
-			continue;
-		values[0] = Int32GetDatum(rmid);
-		values[1] = CStringGetTextDatum(GetRmgr(rmid).rm_name);
-		values[2] = BoolGetDatum(RmgrIdIsBuiltin(rmid));
-		tuplestore_putvalues(rsinfo->setResult, rsinfo->setDesc, values, nulls);
-	}
+  for (int rmid = 0; rmid <= RM_MAX_ID; rmid++) {
+    if (!RmgrIdExists(rmid))
+      continue;
 
-	return (Datum) 0;
+    values[0] = Int32GetDatum(rmid);
+    values[1] = CStringGetTextDatum(GetRmgr(rmid).rm_name);
+    values[2] = BoolGetDatum(RmgrIdIsBuiltin(rmid));
+    tuplestore_putvalues(rsinfo->setResult, rsinfo->setDesc, values, nulls);
+  }
+
+  return (Datum) 0;
 }

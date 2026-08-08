@@ -49,10 +49,10 @@ extern PGDLLIMPORT bool InRecovery;
  */
 typedef enum
 {
-	STANDBY_DISABLED,
-	STANDBY_INITIALIZED,
-	STANDBY_SNAPSHOT_PENDING,
-	STANDBY_SNAPSHOT_READY,
+  STANDBY_DISABLED,
+  STANDBY_INITIALIZED,
+  STANDBY_SNAPSHOT_PENDING,
+  STANDBY_SNAPSHOT_READY,
 } HotStandbyState;
 
 extern PGDLLIMPORT HotStandbyState standbyState;
@@ -66,55 +66,55 @@ extern void XLogCheckInvalidPages(void);
 extern void XLogDropRelation(RelFileLocator rlocator, ForkNumber forknum);
 extern void XLogDropDatabase(Oid dbid);
 extern void XLogTruncateRelation(RelFileLocator rlocator, ForkNumber forkNum,
-								 BlockNumber nblocks);
+                                 BlockNumber nblocks);
 
 /* Result codes for XLogReadBufferForRedo[Extended] */
 typedef enum
 {
-	BLK_NEEDS_REDO,				/* changes from WAL record need to be applied */
-	BLK_DONE,					/* block is already up-to-date */
-	BLK_RESTORED,				/* block was restored from a full-page image */
-	BLK_NOTFOUND,				/* block was not found (and hence does not
-								 * need to be replayed) */
+  BLK_NEEDS_REDO,       /* changes from WAL record need to be applied */
+  BLK_DONE,         /* block is already up-to-date */
+  BLK_RESTORED,       /* block was restored from a full-page image */
+  BLK_NOTFOUND,       /* block was not found (and hence does not
+                 * need to be replayed) */
 } XLogRedoAction;
 
 /* Private data of the read_local_xlog_page_no_wait callback. */
 typedef struct ReadLocalXLogPageNoWaitPrivate
 {
-	bool		end_of_wal;		/* true, when end of WAL is reached */
+  bool    end_of_wal;   /* true, when end of WAL is reached */
 } ReadLocalXLogPageNoWaitPrivate;
 
 extern XLogRedoAction XLogReadBufferForRedo(XLogReaderState *record,
-											uint8 block_id, Buffer *buf);
+    uint8 block_id, Buffer *buf);
 extern Buffer XLogInitBufferForRedo(XLogReaderState *record, uint8 block_id);
 extern XLogRedoAction XLogReadBufferForRedoExtended(XLogReaderState *record,
-													uint8 block_id,
-													ReadBufferMode mode, bool get_cleanup_lock,
-													Buffer *buf);
+    uint8 block_id,
+    ReadBufferMode mode, bool get_cleanup_lock,
+    Buffer *buf);
 
 extern Buffer XLogReadBufferExtended(RelFileLocator rlocator, ForkNumber forknum,
-									 BlockNumber blkno, ReadBufferMode mode,
-									 Buffer recent_buffer);
+                                     BlockNumber blkno, ReadBufferMode mode,
+                                     Buffer recent_buffer);
 
 extern Relation CreateFakeRelcacheEntry(RelFileLocator rlocator);
 extern void FreeFakeRelcacheEntry(Relation fakerel);
 
-extern int	read_local_xlog_page(XLogReaderState *state,
-								 XLogRecPtr targetPagePtr, int reqLen,
-								 XLogRecPtr targetRecPtr, char *cur_page);
-extern int	read_local_xlog_page_no_wait(XLogReaderState *state,
-										 XLogRecPtr targetPagePtr, int reqLen,
-										 XLogRecPtr targetRecPtr,
-										 char *cur_page);
+extern int  read_local_xlog_page(XLogReaderState *state,
+                                 XLogRecPtr targetPagePtr, int reqLen,
+                                 XLogRecPtr targetRecPtr, char *cur_page);
+extern int  read_local_xlog_page_no_wait(XLogReaderState *state,
+    XLogRecPtr targetPagePtr, int reqLen,
+    XLogRecPtr targetRecPtr,
+    char *cur_page);
 extern void wal_segment_open(XLogReaderState *state,
-							 XLogSegNo nextSegNo,
-							 TimeLineID *tli_p);
+                             XLogSegNo nextSegNo,
+                             TimeLineID *tli_p);
 extern void wal_segment_close(XLogReaderState *state);
 
 extern void XLogReadDetermineTimeline(XLogReaderState *state,
-									  XLogRecPtr wantPage,
-									  uint32 wantLength,
-									  TimeLineID currTLI);
+                                      XLogRecPtr wantPage,
+                                      uint32 wantLength,
+                                      TimeLineID currTLI);
 
 extern void WALReadRaiseError(WALReadError *errinfo);
 

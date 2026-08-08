@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * bloom.h
- *	  Header for bloom index.
+ *    Header for bloom index.
  *
  * Copyright (c) 2016-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  contrib/bloom/bloom.h
+ *    contrib/bloom/bloom.h
  *
  *-------------------------------------------------------------------------
  */
@@ -21,30 +21,30 @@
 #include "nodes/pathnodes.h"
 
 /* Support procedures numbers */
-#define BLOOM_HASH_PROC			1
-#define BLOOM_OPTIONS_PROC		2
-#define BLOOM_NPROC				2
+#define BLOOM_HASH_PROC     1
+#define BLOOM_OPTIONS_PROC    2
+#define BLOOM_NPROC       2
 
 /* Scan strategies */
-#define BLOOM_EQUAL_STRATEGY	1
-#define BLOOM_NSTRATEGIES		1
+#define BLOOM_EQUAL_STRATEGY  1
+#define BLOOM_NSTRATEGIES   1
 
 /* Opaque for bloom pages */
 typedef struct BloomPageOpaqueData
 {
-	OffsetNumber maxoff;		/* number of index tuples on page */
-	uint16		flags;			/* see bit definitions below */
-	uint16		unused;			/* placeholder to force maxaligning of size of
-								 * BloomPageOpaqueData and to place
-								 * bloom_page_id exactly at the end of page */
-	uint16		bloom_page_id;	/* for identification of BLOOM indexes */
+  OffsetNumber maxoff;    /* number of index tuples on page */
+  uint16    flags;      /* see bit definitions below */
+  uint16    unused;     /* placeholder to force maxaligning of size of
+                 * BloomPageOpaqueData and to place
+                 * bloom_page_id exactly at the end of page */
+  uint16    bloom_page_id;  /* for identification of BLOOM indexes */
 } BloomPageOpaqueData;
 
 typedef BloomPageOpaqueData *BloomPageOpaque;
 
 /* Bloom page flags */
-#define BLOOM_META		(1<<0)
-#define BLOOM_DELETED	(2<<0)
+#define BLOOM_META    (1<<0)
+#define BLOOM_DELETED (2<<0)
 
 /*
  * The page ID is for the convenience of pg_filedump and similar utilities,
@@ -54,29 +54,29 @@ typedef BloomPageOpaqueData *BloomPageOpaque;
  *
  * See comments above GinPageOpaqueData.
  */
-#define BLOOM_PAGE_ID		0xFF83
+#define BLOOM_PAGE_ID   0xFF83
 
 /* Macros for accessing bloom page structures */
 #define BloomPageGetOpaque(page) ((BloomPageOpaque) PageGetSpecialPointer(page))
 #define BloomPageGetMaxOffset(page) (BloomPageGetOpaque(page)->maxoff)
 #define BloomPageIsMeta(page) \
-	((BloomPageGetOpaque(page)->flags & BLOOM_META) != 0)
+  ((BloomPageGetOpaque(page)->flags & BLOOM_META) != 0)
 #define BloomPageIsDeleted(page) \
-	((BloomPageGetOpaque(page)->flags & BLOOM_DELETED) != 0)
+  ((BloomPageGetOpaque(page)->flags & BLOOM_DELETED) != 0)
 #define BloomPageSetDeleted(page) \
-	(BloomPageGetOpaque(page)->flags |= BLOOM_DELETED)
+  (BloomPageGetOpaque(page)->flags |= BLOOM_DELETED)
 #define BloomPageSetNonDeleted(page) \
-	(BloomPageGetOpaque(page)->flags &= ~BLOOM_DELETED)
-#define BloomPageGetData(page)		((BloomTuple *)PageGetContents(page))
+  (BloomPageGetOpaque(page)->flags &= ~BLOOM_DELETED)
+#define BloomPageGetData(page)    ((BloomTuple *)PageGetContents(page))
 #define BloomPageGetTuple(state, page, offset) \
-	((BloomTuple *)(PageGetContents(page) \
-		+ (state)->sizeOfBloomTuple * ((offset) - 1)))
+  ((BloomTuple *)(PageGetContents(page) \
+    + (state)->sizeOfBloomTuple * ((offset) - 1)))
 #define BloomPageGetNextTuple(state, tuple) \
-	((BloomTuple *)((Pointer)(tuple) + (state)->sizeOfBloomTuple))
+  ((BloomTuple *)((Pointer)(tuple) + (state)->sizeOfBloomTuple))
 
 /* Preserved page numbers */
-#define BLOOM_METAPAGE_BLKNO	(0)
-#define BLOOM_HEAD_BLKNO		(1) /* first data page */
+#define BLOOM_METAPAGE_BLKNO  (0)
+#define BLOOM_HEAD_BLKNO    (1) /* first data page */
 
 /*
  * We store Bloom signatures as arrays of uint16 words.
@@ -88,22 +88,22 @@ typedef uint16 BloomSignatureWord;
 /*
  * Default and maximum Bloom signature length in bits.
  */
-#define DEFAULT_BLOOM_LENGTH	(5 * SIGNWORDBITS)
-#define MAX_BLOOM_LENGTH		(256 * SIGNWORDBITS)
+#define DEFAULT_BLOOM_LENGTH  (5 * SIGNWORDBITS)
+#define MAX_BLOOM_LENGTH    (256 * SIGNWORDBITS)
 
 /*
  * Default and maximum signature bits generated per index key.
  */
-#define DEFAULT_BLOOM_BITS		2
-#define MAX_BLOOM_BITS			(MAX_BLOOM_LENGTH - 1)
+#define DEFAULT_BLOOM_BITS    2
+#define MAX_BLOOM_BITS      (MAX_BLOOM_LENGTH - 1)
 
 /* Bloom index options */
 typedef struct BloomOptions
 {
-	int32		vl_len_;		/* varlena header (do not touch directly!) */
-	int			bloomLength;	/* length of signature in words (not bits!) */
-	int			bitSize[INDEX_MAX_KEYS];	/* # of bits generated for each
-											 * index key */
+  int32   vl_len_;    /* varlena header (do not touch directly!) */
+  int     bloomLength;  /* length of signature in words (not bits!) */
+  int     bitSize[INDEX_MAX_KEYS];  /* # of bits generated for each
+                       * index key */
 } BloomOptions;
 
 /*
@@ -111,53 +111,53 @@ typedef struct BloomOptions
  * all space in metapage.
  */
 typedef BlockNumber FreeBlockNumberArray[MAXALIGN_DOWN(BLCKSZ - SizeOfPageHeaderData - MAXALIGN(sizeof(BloomPageOpaqueData))
-													   - MAXALIGN(sizeof(uint16) * 2 + sizeof(uint32) + sizeof(BloomOptions)))
-										 / sizeof(BlockNumber)];
+                         - MAXALIGN(sizeof(uint16) * 2 + sizeof(uint32) + sizeof(BloomOptions)))
+                         / sizeof(BlockNumber)];
 
 /* Metadata of bloom index */
 typedef struct BloomMetaPageData
 {
-	uint32		magickNumber;
-	uint16		nStart;
-	uint16		nEnd;
-	BloomOptions opts;
-	FreeBlockNumberArray notFullPage;
+  uint32    magickNumber;
+  uint16    nStart;
+  uint16    nEnd;
+  BloomOptions opts;
+  FreeBlockNumberArray notFullPage;
 } BloomMetaPageData;
 
 /* Magic number to distinguish bloom pages from others */
 #define BLOOM_MAGICK_NUMBER (0xDBAC0DED)
 
 /* Number of blocks numbers fit in BloomMetaPageData */
-#define BloomMetaBlockN		(sizeof(FreeBlockNumberArray) / sizeof(BlockNumber))
+#define BloomMetaBlockN   (sizeof(FreeBlockNumberArray) / sizeof(BlockNumber))
 
-#define BloomPageGetMeta(page)	((BloomMetaPageData *) PageGetContents(page))
+#define BloomPageGetMeta(page)  ((BloomMetaPageData *) PageGetContents(page))
 
 typedef struct BloomState
 {
-	FmgrInfo	hashFn[INDEX_MAX_KEYS];
-	Oid			collations[INDEX_MAX_KEYS];
-	BloomOptions opts;			/* copy of options on index's metapage */
-	int32		nColumns;
+  FmgrInfo  hashFn[INDEX_MAX_KEYS];
+  Oid     collations[INDEX_MAX_KEYS];
+  BloomOptions opts;      /* copy of options on index's metapage */
+  int32   nColumns;
 
-	/*
-	 * sizeOfBloomTuple is index-specific, and it depends on reloptions, so
-	 * precompute it
-	 */
-	Size		sizeOfBloomTuple;
+  /*
+   * sizeOfBloomTuple is index-specific, and it depends on reloptions, so
+   * precompute it
+   */
+  Size    sizeOfBloomTuple;
 } BloomState;
 
 #define BloomPageGetFreeSpace(state, page) \
-	(BLCKSZ - MAXALIGN(SizeOfPageHeaderData) \
-		- BloomPageGetMaxOffset(page) * (state)->sizeOfBloomTuple \
-		- MAXALIGN(sizeof(BloomPageOpaqueData)))
+  (BLCKSZ - MAXALIGN(SizeOfPageHeaderData) \
+    - BloomPageGetMaxOffset(page) * (state)->sizeOfBloomTuple \
+    - MAXALIGN(sizeof(BloomPageOpaqueData)))
 
 /*
  * Tuples are very different from all other relations
  */
 typedef struct BloomTuple
 {
-	ItemPointerData heapPtr;
-	BloomSignatureWord sign[FLEXIBLE_ARRAY_MEMBER];
+  ItemPointerData heapPtr;
+  BloomSignatureWord sign[FLEXIBLE_ARRAY_MEMBER];
 } BloomTuple;
 
 #define BLOOMTUPLEHDRSZ offsetof(BloomTuple, sign)
@@ -165,8 +165,8 @@ typedef struct BloomTuple
 /* Opaque data structure for bloom index scan */
 typedef struct BloomScanOpaqueData
 {
-	BloomSignatureWord *sign;	/* Scan signature */
-	BloomState	state;
+  BloomSignatureWord *sign; /* Scan signature */
+  BloomState  state;
 } BloomScanOpaqueData;
 
 typedef BloomScanOpaqueData *BloomScanOpaque;
@@ -186,27 +186,27 @@ extern bool blvalidate(Oid opclassoid);
 
 /* index access method interface functions */
 extern bool blinsert(Relation index, Datum *values, bool *isnull,
-					 ItemPointer ht_ctid, Relation heapRel,
-					 IndexUniqueCheck checkUnique,
-					 bool indexUnchanged,
-					 struct IndexInfo *indexInfo);
+                     ItemPointer ht_ctid, Relation heapRel,
+                     IndexUniqueCheck checkUnique,
+                     bool indexUnchanged,
+                     struct IndexInfo *indexInfo);
 extern IndexScanDesc blbeginscan(Relation r, int nkeys, int norderbys);
 extern int64 blgetbitmap(IndexScanDesc scan, TIDBitmap *tbm);
 extern void blrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
-					 ScanKey orderbys, int norderbys);
+                     ScanKey orderbys, int norderbys);
 extern void blendscan(IndexScanDesc scan);
 extern IndexBuildResult *blbuild(Relation heap, Relation index,
-								 struct IndexInfo *indexInfo);
+                                 struct IndexInfo *indexInfo);
 extern void blbuildempty(Relation index);
 extern IndexBulkDeleteResult *blbulkdelete(IndexVacuumInfo *info,
-										   IndexBulkDeleteResult *stats, IndexBulkDeleteCallback callback,
-										   void *callback_state);
+    IndexBulkDeleteResult *stats, IndexBulkDeleteCallback callback,
+    void *callback_state);
 extern IndexBulkDeleteResult *blvacuumcleanup(IndexVacuumInfo *info,
-											  IndexBulkDeleteResult *stats);
+    IndexBulkDeleteResult *stats);
 extern bytea *bloptions(Datum reloptions, bool validate);
 extern void blcostestimate(PlannerInfo *root, IndexPath *path,
-						   double loop_count, Cost *indexStartupCost,
-						   Cost *indexTotalCost, Selectivity *indexSelectivity,
-						   double *indexCorrelation, double *indexPages);
+                           double loop_count, Cost *indexStartupCost,
+                           Cost *indexTotalCost, Selectivity *indexSelectivity,
+                           double *indexCorrelation, double *indexPages);
 
 #endif

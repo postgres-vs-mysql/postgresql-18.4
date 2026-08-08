@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * visibilitymap.h
- *		visibility map interface
+ *    visibility map interface
  *
  *
  * Portions Copyright (c) 2007-2025, PostgreSQL Global Development Group
@@ -22,25 +22,25 @@
 
 /* Macros for visibilitymap test */
 #define VM_ALL_VISIBLE(r, b, v) \
-	((visibilitymap_get_status((r), (b), (v)) & VISIBILITYMAP_ALL_VISIBLE) != 0)
+  ((visibilitymap_get_status((r), (b), (v)) & VISIBILITYMAP_ALL_VISIBLE) != 0)
 #define VM_ALL_FROZEN(r, b, v) \
-	((visibilitymap_get_status((r), (b), (v)) & VISIBILITYMAP_ALL_FROZEN) != 0)
+  ((visibilitymap_get_status((r), (b), (v)) & VISIBILITYMAP_ALL_FROZEN) != 0)
 
 extern bool visibilitymap_clear(Relation rel, BlockNumber heapBlk,
-								Buffer vmbuf, uint8 flags);
+                                Buffer vmbuf, uint8 flags);
 extern void visibilitymap_pin(Relation rel, BlockNumber heapBlk,
-							  Buffer *vmbuf);
+                              Buffer *vmbuf);
 extern bool visibilitymap_pin_ok(BlockNumber heapBlk, Buffer vmbuf);
 extern uint8 visibilitymap_set(Relation rel,
-							   BlockNumber heapBlk, Buffer heapBuf,
-							   XLogRecPtr recptr,
-							   Buffer vmBuf,
-							   TransactionId cutoff_xid,
-							   uint8 flags);
+                               BlockNumber heapBlk, Buffer heapBuf,
+                               XLogRecPtr recptr,
+                               Buffer vmBuf,
+                               TransactionId cutoff_xid,
+                               uint8 flags);
 extern uint8 visibilitymap_get_status(Relation rel, BlockNumber heapBlk, Buffer *vmbuf);
 extern void visibilitymap_count(Relation rel, BlockNumber *all_visible, BlockNumber *all_frozen);
 extern BlockNumber visibilitymap_prepare_truncate(Relation rel,
-												  BlockNumber nheapblocks);
+    BlockNumber nheapblocks);
 extern BlockNumber visibilitymap_truncation_length(BlockNumber nheapblocks);
 
-#endif							/* VISIBILITYMAP_H */
+#endif              /* VISIBILITYMAP_H */

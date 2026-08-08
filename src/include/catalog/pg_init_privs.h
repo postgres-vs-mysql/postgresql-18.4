@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_init_privs.h
- *	  definition of the "initial privileges" system catalog (pg_init_privs)
+ *    definition of the "initial privileges" system catalog (pg_init_privs)
  *
  * NOTE: an object is identified by the OID of the row that primarily
  * defines the object, plus the OID of the table that that row appears in.
@@ -27,8 +27,8 @@
  * src/include/catalog/pg_init_privs.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -36,29 +36,30 @@
 #define PG_INIT_PRIVS_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_init_privs_d.h"	/* IWYU pragma: export */
+#include "catalog/pg_init_privs_d.h"  /* IWYU pragma: export */
 
 /* ----------------
- *		pg_init_privs definition.  cpp turns this into
- *		typedef struct FormData_pg_init_privs
+ *    pg_init_privs definition.  cpp turns this into
+ *    typedef struct FormData_pg_init_privs
  * ----------------
  */
-CATALOG(pg_init_privs,3394,InitPrivsRelationId)
+CATALOG(pg_init_privs, 3394, InitPrivsRelationId)
 {
-	Oid			objoid;			/* OID of object itself */
-	Oid			classoid BKI_LOOKUP(pg_class);	/* OID of table containing
-												 * object */
-	int32		objsubid;		/* column number, or 0 if not used */
-	char		privtype;		/* from initdb or extension? */
+  Oid     objoid;     /* OID of object itself */
+  Oid     classoid BKI_LOOKUP(pg_class);  /* OID of table containing
+                         * object */
+  int32   objsubid;   /* column number, or 0 if not used */
+  char    privtype;   /* from initdb or extension? */
 
-#ifdef CATALOG_VARLEN			/* variable-length fields start here */
-	aclitem		initprivs[1] BKI_FORCE_NOT_NULL;	/* initial privs on object */
+#ifdef CATALOG_VARLEN     /* variable-length fields start here */
+  aclitem   initprivs[1] BKI_FORCE_NOT_NULL;  /* initial privs on object */
 #endif
-} FormData_pg_init_privs;
+}
+FormData_pg_init_privs;
 
 /* ----------------
- *		Form_pg_init_privs corresponds to a pointer to a tuple with
- *		the format of pg_init_privs relation.
+ *    Form_pg_init_privs corresponds to a pointer to a tuple with
+ *    the format of pg_init_privs relation.
  * ----------------
  */
 typedef FormData_pg_init_privs * Form_pg_init_privs;
@@ -76,8 +77,8 @@ DECLARE_UNIQUE_INDEX_PKEY(pg_init_privs_o_c_o_index, 3395, InitPrivsObjIndexId, 
 
 typedef enum InitPrivsType
 {
-	INITPRIVS_INITDB = 'i',
-	INITPRIVS_EXTENSION = 'e',
-}			InitPrivsType;
+  INITPRIVS_INITDB = 'i',
+  INITPRIVS_EXTENSION = 'e',
+}     InitPrivsType;
 
-#endif							/* PG_INIT_PRIVS_H */
+#endif              /* PG_INIT_PRIVS_H */

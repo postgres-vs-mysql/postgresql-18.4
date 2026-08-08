@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_language.h
- *	  definition of the "language" system catalog (pg_language)
+ *    definition of the "language" system catalog (pg_language)
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -10,8 +10,8 @@
  * src/include/catalog/pg_language.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -19,47 +19,48 @@
 #define PG_LANGUAGE_H
 
 #include "catalog/genbki.h"
-#include "catalog/pg_language_d.h"	/* IWYU pragma: export */
+#include "catalog/pg_language_d.h"  /* IWYU pragma: export */
 
 /* ----------------
- *		pg_language definition.  cpp turns this into
- *		typedef struct FormData_pg_language
+ *    pg_language definition.  cpp turns this into
+ *    typedef struct FormData_pg_language
  * ----------------
  */
-CATALOG(pg_language,2612,LanguageRelationId)
+CATALOG(pg_language, 2612, LanguageRelationId)
 {
-	Oid			oid;			/* oid */
+  Oid     oid;      /* oid */
 
-	/* Language name */
-	NameData	lanname;
+  /* Language name */
+  NameData  lanname;
 
-	/* Language's owner */
-	Oid			lanowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
+  /* Language's owner */
+  Oid     lanowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
 
-	/* Is a procedural language */
-	bool		lanispl BKI_DEFAULT(f);
+  /* Is a procedural language */
+  bool    lanispl BKI_DEFAULT(f);
 
-	/* PL is trusted */
-	bool		lanpltrusted BKI_DEFAULT(f);
+  /* PL is trusted */
+  bool    lanpltrusted BKI_DEFAULT(f);
 
-	/* Call handler, if it's a PL */
-	Oid			lanplcallfoid BKI_DEFAULT(0) BKI_LOOKUP_OPT(pg_proc);
+  /* Call handler, if it's a PL */
+  Oid     lanplcallfoid BKI_DEFAULT(0) BKI_LOOKUP_OPT(pg_proc);
 
-	/* Optional anonymous-block handler function */
-	Oid			laninline BKI_DEFAULT(0) BKI_LOOKUP_OPT(pg_proc);
+  /* Optional anonymous-block handler function */
+  Oid     laninline BKI_DEFAULT(0) BKI_LOOKUP_OPT(pg_proc);
 
-	/* Optional validation function */
-	Oid			lanvalidator BKI_DEFAULT(0) BKI_LOOKUP_OPT(pg_proc);
+  /* Optional validation function */
+  Oid     lanvalidator BKI_DEFAULT(0) BKI_LOOKUP_OPT(pg_proc);
 
-#ifdef CATALOG_VARLEN			/* variable-length fields start here */
-	/* Access privileges */
-	aclitem		lanacl[1] BKI_DEFAULT(_null_);
+#ifdef CATALOG_VARLEN     /* variable-length fields start here */
+  /* Access privileges */
+  aclitem   lanacl[1] BKI_DEFAULT(_null_);
 #endif
-} FormData_pg_language;
+}
+FormData_pg_language;
 
 /* ----------------
- *		Form_pg_language corresponds to a pointer to a tuple with
- *		the format of pg_language relation.
+ *    Form_pg_language corresponds to a pointer to a tuple with
+ *    the format of pg_language relation.
  * ----------------
  */
 typedef FormData_pg_language *Form_pg_language;
@@ -72,4 +73,4 @@ DECLARE_UNIQUE_INDEX_PKEY(pg_language_oid_index, 2682, LanguageOidIndexId, pg_la
 MAKE_SYSCACHE(LANGNAME, pg_language_name_index, 4);
 MAKE_SYSCACHE(LANGOID, pg_language_oid_index, 4);
 
-#endif							/* PG_LANGUAGE_H */
+#endif              /* PG_LANGUAGE_H */

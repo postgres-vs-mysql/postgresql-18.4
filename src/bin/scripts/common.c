@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
- *	common.c
- *		Common support routines for bin/scripts/
+ *  common.c
+ *    Common support routines for bin/scripts/
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -31,30 +31,29 @@
  */
 void
 splitTableColumnsSpec(const char *spec, int encoding,
-					  char **table, const char **columns)
+                      char **table, const char **columns)
 {
-	bool		inquotes = false;
-	const char *cp = spec;
+  bool    inquotes = false;
+  const char *cp = spec;
 
-	/*
-	 * Find the first '(' not identifier-quoted.  Based on
-	 * dequote_downcase_identifier().
-	 */
-	while (*cp && (*cp != '(' || inquotes))
-	{
-		if (*cp == '"')
-		{
-			if (inquotes && cp[1] == '"')
-				cp++;			/* pair does not affect quoting */
-			else
-				inquotes = !inquotes;
-			cp++;
-		}
-		else
-			cp += PQmblenBounded(cp, encoding);
-	}
-	*table = pnstrdup(spec, cp - spec);
-	*columns = cp;
+  /*
+   * Find the first '(' not identifier-quoted.  Based on
+   * dequote_downcase_identifier().
+   */
+  while (*cp && (*cp != '(' || inquotes)) {
+    if (*cp == '"') {
+      if (inquotes && cp[1] == '"')
+        cp++;     /* pair does not affect quoting */
+      else
+        inquotes = !inquotes;
+
+      cp++;
+    } else
+      cp += PQmblenBounded(cp, encoding);
+  }
+
+  *table = pnstrdup(spec, cp - spec);
+  *columns = cp;
 }
 
 /*
@@ -66,60 +65,61 @@ splitTableColumnsSpec(const char *spec, int encoding,
  */
 void
 appendQualifiedRelation(PQExpBuffer buf, const char *spec,
-						PGconn *conn, bool echo)
+                        PGconn *conn, bool echo)
 {
-	char	   *table;
-	const char *columns;
-	PQExpBufferData sql;
-	PGresult   *res;
-	int			ntups;
+  char     *table;
+  const char *columns;
+  PQExpBufferData sql;
+  PGresult   *res;
+  int     ntups;
 
-	splitTableColumnsSpec(spec, PQclientEncoding(conn), &table, &columns);
+  splitTableColumnsSpec(spec, PQclientEncoding(conn), &table, &columns);
 
-	/*
-	 * Query must remain ABSOLUTELY devoid of unqualified names.  This would
-	 * be unnecessary given a regclassin() variant taking a search_path
-	 * argument.
-	 */
-	initPQExpBuffer(&sql);
-	appendPQExpBufferStr(&sql,
-						 "SELECT c.relname, ns.nspname\n"
-						 " FROM pg_catalog.pg_class c,"
-						 " pg_catalog.pg_namespace ns\n"
-						 " WHERE c.relnamespace OPERATOR(pg_catalog.=) ns.oid\n"
-						 "  AND c.oid OPERATOR(pg_catalog.=) ");
-	appendStringLiteralConn(&sql, table, conn);
-	appendPQExpBufferStr(&sql, "::pg_catalog.regclass;");
+  /*
+   * Query must remain ABSOLUTELY devoid of unqualified names.  This would
+   * be unnecessary given a regclassin() variant taking a search_path
+   * argument.
+   */
+  initPQExpBuffer(&sql);
+  appendPQExpBufferStr(&sql,
+                       "SELECT c.relname, ns.nspname\n"
+                       " FROM pg_catalog.pg_class c,"
+                       " pg_catalog.pg_namespace ns\n"
+                       " WHERE c.relnamespace OPERATOR(pg_catalog.=) ns.oid\n"
+                       "  AND c.oid OPERATOR(pg_catalog.=) ");
+  appendStringLiteralConn(&sql, table, conn);
+  appendPQExpBufferStr(&sql, "::pg_catalog.regclass;");
 
-	executeCommand(conn, "RESET search_path;", echo);
+  executeCommand(conn, "RESET search_path;", echo);
 
-	/*
-	 * One row is a typical result, as is a nonexistent relation ERROR.
-	 * regclassin() unconditionally accepts all-digits input as an OID; if no
-	 * relation has that OID; this query returns no rows.  Catalog corruption
-	 * might elicit other row counts.
-	 */
-	res = executeQuery(conn, sql.data, echo);
-	ntups = PQntuples(res);
-	if (ntups != 1)
-	{
-		pg_log_error(ngettext("query returned %d row instead of one: %s",
-							  "query returned %d rows instead of one: %s",
-							  ntups),
-					 ntups, sql.data);
-		PQfinish(conn);
-		exit(1);
-	}
-	appendPQExpBufferStr(buf,
-						 fmtQualifiedIdEnc(PQgetvalue(res, 0, 1),
-										   PQgetvalue(res, 0, 0),
-										   PQclientEncoding(conn)));
-	appendPQExpBufferStr(buf, columns);
-	PQclear(res);
-	termPQExpBuffer(&sql);
-	pg_free(table);
+  /*
+   * One row is a typical result, as is a nonexistent relation ERROR.
+   * regclassin() unconditionally accepts all-digits input as an OID; if no
+   * relation has that OID; this query returns no rows.  Catalog corruption
+   * might elicit other row counts.
+   */
+  res = executeQuery(conn, sql.data, echo);
+  ntups = PQntuples(res);
 
-	PQclear(executeQuery(conn, ALWAYS_SECURE_SEARCH_PATH_SQL, echo));
+  if (ntups != 1) {
+    pg_log_error(ngettext("query returned %d row instead of one: %s",
+                          "query returned %d rows instead of one: %s",
+                          ntups),
+                 ntups, sql.data);
+    PQfinish(conn);
+    exit(1);
+  }
+
+  appendPQExpBufferStr(buf,
+                       fmtQualifiedIdEnc(PQgetvalue(res, 0, 1),
+                                         PQgetvalue(res, 0, 0),
+                                         PQclientEncoding(conn)));
+  appendPQExpBufferStr(buf, columns);
+  PQclear(res);
+  termPQExpBuffer(&sql);
+  pg_free(table);
+
+  PQclear(executeQuery(conn, ALWAYS_SECURE_SEARCH_PATH_SQL, echo));
 }
 
 
@@ -135,33 +135,32 @@ appendQualifiedRelation(PQExpBuffer buf, const char *spec,
 bool
 yesno_prompt(const char *question)
 {
-	char		prompt[256];
+  char    prompt[256];
 
-	/*------
-	   translator: This is a question followed by the translated options for
-	   "yes" and "no". */
-	snprintf(prompt, sizeof(prompt), _("%s (%s/%s) "),
-			 _(question), _(PG_YESLETTER), _(PG_NOLETTER));
+  /*------
+     translator: This is a question followed by the translated options for
+     "yes" and "no". */
+  snprintf(prompt, sizeof(prompt), _("%s (%s/%s) "),
+           _(question), _(PG_YESLETTER), _(PG_NOLETTER));
 
-	for (;;)
-	{
-		char	   *resp;
+  for (;;) {
+    char     *resp;
 
-		resp = simple_prompt(prompt, true);
+    resp = simple_prompt(prompt, true);
 
-		if (strcmp(resp, _(PG_YESLETTER)) == 0)
-		{
-			free(resp);
-			return true;
-		}
-		if (strcmp(resp, _(PG_NOLETTER)) == 0)
-		{
-			free(resp);
-			return false;
-		}
-		free(resp);
+    if (strcmp(resp, _(PG_YESLETTER)) == 0) {
+      free(resp);
+      return true;
+    }
 
-		printf(_("Please answer \"%s\" or \"%s\".\n"),
-			   _(PG_YESLETTER), _(PG_NOLETTER));
-	}
+    if (strcmp(resp, _(PG_NOLETTER)) == 0) {
+      free(resp);
+      return false;
+    }
+
+    free(resp);
+
+    printf(_("Please answer \"%s\" or \"%s\".\n"),
+           _(PG_YESLETTER), _(PG_NOLETTER));
+  }
 }

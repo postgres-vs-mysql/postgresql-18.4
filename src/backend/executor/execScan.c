@@ -1,18 +1,18 @@
 /*-------------------------------------------------------------------------
  *
  * execScan.c
- *	  This code provides support for generalized relation scans. ExecScan
- *	  is passed a node and a pointer to a function to "do the right thing"
- *	  and return a tuple from the relation. ExecScan then does the tedious
- *	  stuff - checking the qualification and projecting the tuple
- *	  appropriately.
+ *    This code provides support for generalized relation scans. ExecScan
+ *    is passed a node and a pointer to a function to "do the right thing"
+ *    and return a tuple from the relation. ExecScan then does the tedious
+ *    stuff - checking the qualification and projecting the tuple
+ *    appropriately.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/backend/executor/execScan.c
+ *    src/backend/executor/execScan.c
  *
  *-------------------------------------------------------------------------
  */
@@ -23,50 +23,50 @@
 #include "miscadmin.h"
 
 /* ----------------------------------------------------------------
- *		ExecScan
+ *    ExecScan
  *
- *		Scans the relation using the 'access method' indicated and
- *		returns the next qualifying tuple.
- *		The access method returns the next tuple and ExecScan() is
- *		responsible for checking the tuple returned against the qual-clause.
+ *    Scans the relation using the 'access method' indicated and
+ *    returns the next qualifying tuple.
+ *    The access method returns the next tuple and ExecScan() is
+ *    responsible for checking the tuple returned against the qual-clause.
  *
- *		A 'recheck method' must also be provided that can check an
- *		arbitrary tuple of the relation against any qual conditions
- *		that are implemented internal to the access method.
+ *    A 'recheck method' must also be provided that can check an
+ *    arbitrary tuple of the relation against any qual conditions
+ *    that are implemented internal to the access method.
  *
- *		Conditions:
- *		  -- the "cursor" maintained by the AMI is positioned at the tuple
- *			 returned previously.
+ *    Conditions:
+ *      -- the "cursor" maintained by the AMI is positioned at the tuple
+ *       returned previously.
  *
- *		Initial States:
- *		  -- the relation indicated is opened for scanning so that the
- *			 "cursor" is positioned before the first qualifying tuple.
+ *    Initial States:
+ *      -- the relation indicated is opened for scanning so that the
+ *       "cursor" is positioned before the first qualifying tuple.
  * ----------------------------------------------------------------
  */
 TupleTableSlot *
 ExecScan(ScanState *node,
-		 ExecScanAccessMtd accessMtd,	/* function returning a tuple */
-		 ExecScanRecheckMtd recheckMtd)
+         ExecScanAccessMtd accessMtd, /* function returning a tuple */
+         ExecScanRecheckMtd recheckMtd)
 {
-	EPQState   *epqstate;
-	ExprState  *qual;
-	ProjectionInfo *projInfo;
+  EPQState   *epqstate;
+  ExprState  *qual;
+  ProjectionInfo *projInfo;
 
-	epqstate = node->ps.state->es_epq_active;
-	qual = node->ps.qual;
-	projInfo = node->ps.ps_ProjInfo;
+  epqstate = node->ps.state->es_epq_active;
+  qual = node->ps.qual;
+  projInfo = node->ps.ps_ProjInfo;
 
-	return ExecScanExtended(node,
-							accessMtd,
-							recheckMtd,
-							epqstate,
-							qual,
-							projInfo);
+  return ExecScanExtended(node,
+                          accessMtd,
+                          recheckMtd,
+                          epqstate,
+                          qual,
+                          projInfo);
 }
 
 /*
  * ExecAssignScanProjectionInfo
- *		Set up projection info for a scan node, if necessary.
+ *    Set up projection info for a scan node, if necessary.
  *
  * We can avoid a projection step if the requested tlist exactly matches
  * the underlying tuple type.  If so, we just set ps_ProjInfo to NULL.
@@ -80,22 +80,22 @@ ExecScan(ScanState *node,
 void
 ExecAssignScanProjectionInfo(ScanState *node)
 {
-	Scan	   *scan = (Scan *) node->ps.plan;
-	TupleDesc	tupdesc = node->ss_ScanTupleSlot->tts_tupleDescriptor;
+  Scan     *scan = (Scan *) node->ps.plan;
+  TupleDesc tupdesc = node->ss_ScanTupleSlot->tts_tupleDescriptor;
 
-	ExecConditionalAssignProjectionInfo(&node->ps, tupdesc, scan->scanrelid);
+  ExecConditionalAssignProjectionInfo(&node->ps, tupdesc, scan->scanrelid);
 }
 
 /*
  * ExecAssignScanProjectionInfoWithVarno
- *		As above, but caller can specify varno expected in Vars in the tlist.
+ *    As above, but caller can specify varno expected in Vars in the tlist.
  */
 void
 ExecAssignScanProjectionInfoWithVarno(ScanState *node, int varno)
 {
-	TupleDesc	tupdesc = node->ss_ScanTupleSlot->tts_tupleDescriptor;
+  TupleDesc tupdesc = node->ss_ScanTupleSlot->tts_tupleDescriptor;
 
-	ExecConditionalAssignProjectionInfo(&node->ps, tupdesc, varno);
+  ExecConditionalAssignProjectionInfo(&node->ps, tupdesc, varno);
 }
 
 /*
@@ -107,50 +107,47 @@ ExecAssignScanProjectionInfoWithVarno(ScanState *node, int varno)
 void
 ExecScanReScan(ScanState *node)
 {
-	EState	   *estate = node->ps.state;
+  EState     *estate = node->ps.state;
 
-	/*
-	 * We must clear the scan tuple so that observers (e.g., execCurrent.c)
-	 * can tell that this plan node is not positioned on a tuple.
-	 */
-	ExecClearTuple(node->ss_ScanTupleSlot);
+  /*
+   * We must clear the scan tuple so that observers (e.g., execCurrent.c)
+   * can tell that this plan node is not positioned on a tuple.
+   */
+  ExecClearTuple(node->ss_ScanTupleSlot);
 
-	/*
-	 * Rescan EvalPlanQual tuple(s) if we're inside an EvalPlanQual recheck.
-	 * But don't lose the "blocked" status of blocked target relations.
-	 */
-	if (estate->es_epq_active != NULL)
-	{
-		EPQState   *epqstate = estate->es_epq_active;
-		Index		scanrelid = ((Scan *) node->ps.plan)->scanrelid;
+  /*
+   * Rescan EvalPlanQual tuple(s) if we're inside an EvalPlanQual recheck.
+   * But don't lose the "blocked" status of blocked target relations.
+   */
+  if (estate->es_epq_active != NULL) {
+    EPQState   *epqstate = estate->es_epq_active;
+    Index   scanrelid = ((Scan *) node->ps.plan)->scanrelid;
 
-		if (scanrelid > 0)
-			epqstate->relsubs_done[scanrelid - 1] =
-				epqstate->relsubs_blocked[scanrelid - 1];
-		else
-		{
-			Bitmapset  *relids;
-			int			rtindex = -1;
+    if (scanrelid > 0)
+      epqstate->relsubs_done[scanrelid - 1] =
+        epqstate->relsubs_blocked[scanrelid - 1];
+    else {
+      Bitmapset  *relids;
+      int     rtindex = -1;
 
-			/*
-			 * If an FDW or custom scan provider has replaced the join with a
-			 * scan, there are multiple RTIs; reset the relsubs_done flag for
-			 * all of them.
-			 */
-			if (IsA(node->ps.plan, ForeignScan))
-				relids = ((ForeignScan *) node->ps.plan)->fs_base_relids;
-			else if (IsA(node->ps.plan, CustomScan))
-				relids = ((CustomScan *) node->ps.plan)->custom_relids;
-			else
-				elog(ERROR, "unexpected scan node: %d",
-					 (int) nodeTag(node->ps.plan));
+      /*
+       * If an FDW or custom scan provider has replaced the join with a
+       * scan, there are multiple RTIs; reset the relsubs_done flag for
+       * all of them.
+       */
+      if (IsA(node->ps.plan, ForeignScan))
+        relids = ((ForeignScan *) node->ps.plan)->fs_base_relids;
+      else if (IsA(node->ps.plan, CustomScan))
+        relids = ((CustomScan *) node->ps.plan)->custom_relids;
+      else
+        elog(ERROR, "unexpected scan node: %d",
+             (int) nodeTag(node->ps.plan));
 
-			while ((rtindex = bms_next_member(relids, rtindex)) >= 0)
-			{
-				Assert(rtindex > 0);
-				epqstate->relsubs_done[rtindex - 1] =
-					epqstate->relsubs_blocked[rtindex - 1];
-			}
-		}
-	}
+      while ((rtindex = bms_next_member(relids, rtindex)) >= 0) {
+        Assert(rtindex > 0);
+        epqstate->relsubs_done[rtindex - 1] =
+          epqstate->relsubs_blocked[rtindex - 1];
+      }
+    }
+  }
 }

@@ -17,12 +17,12 @@
 typedef void (*help_handler) (const char *progname);
 
 extern void handle_help_version_opts(int argc, char *argv[],
-									 const char *fixed_progname,
-									 help_handler hlp);
+                                     const char *fixed_progname,
+                                     help_handler hlp);
 extern bool option_parse_int(const char *optarg, const char *optname,
-							 int min_range, int max_range,
-							 int *result);
+                             int min_range, int max_range,
+                             int *result);
 extern bool parse_sync_method(const char *optarg,
-							  DataDirSyncMethod *sync_method);
+                              DataDirSyncMethod *sync_method);
 
-#endif							/* OPTION_UTILS_H */
+#endif              /* OPTION_UTILS_H */

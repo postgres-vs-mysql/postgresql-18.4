@@ -9,7 +9,7 @@
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *		  src/fe_utils/astreamer_lz4.c
+ *      src/fe_utils/astreamer_lz4.c
  *-------------------------------------------------------------------------
  */
 
@@ -25,42 +25,41 @@
 #include "fe_utils/astreamer.h"
 
 #ifdef USE_LZ4
-typedef struct astreamer_lz4_frame
-{
-	astreamer	base;
+typedef struct astreamer_lz4_frame {
+  astreamer base;
 
-	LZ4F_compressionContext_t cctx;
-	LZ4F_decompressionContext_t dctx;
-	LZ4F_preferences_t prefs;
+  LZ4F_compressionContext_t cctx;
+  LZ4F_decompressionContext_t dctx;
+  LZ4F_preferences_t prefs;
 
-	size_t		bytes_written;
-	bool		header_written;
+  size_t    bytes_written;
+  bool    header_written;
 } astreamer_lz4_frame;
 
 static void astreamer_lz4_compressor_content(astreamer *streamer,
-											 astreamer_member *member,
-											 const char *data, int len,
-											 astreamer_archive_context context);
+    astreamer_member *member,
+    const char *data, int len,
+    astreamer_archive_context context);
 static void astreamer_lz4_compressor_finalize(astreamer *streamer);
 static void astreamer_lz4_compressor_free(astreamer *streamer);
 
 static const astreamer_ops astreamer_lz4_compressor_ops = {
-	.content = astreamer_lz4_compressor_content,
-	.finalize = astreamer_lz4_compressor_finalize,
-	.free = astreamer_lz4_compressor_free
+  .content = astreamer_lz4_compressor_content,
+  .finalize = astreamer_lz4_compressor_finalize,
+  .free = astreamer_lz4_compressor_free
 };
 
 static void astreamer_lz4_decompressor_content(astreamer *streamer,
-											   astreamer_member *member,
-											   const char *data, int len,
-											   astreamer_archive_context context);
+    astreamer_member *member,
+    const char *data, int len,
+    astreamer_archive_context context);
 static void astreamer_lz4_decompressor_finalize(astreamer *streamer);
 static void astreamer_lz4_decompressor_free(astreamer *streamer);
 
 static const astreamer_ops astreamer_lz4_decompressor_ops = {
-	.content = astreamer_lz4_decompressor_content,
-	.finalize = astreamer_lz4_decompressor_finalize,
-	.free = astreamer_lz4_decompressor_free
+  .content = astreamer_lz4_decompressor_content,
+  .finalize = astreamer_lz4_decompressor_finalize,
+  .free = astreamer_lz4_decompressor_free
 };
 #endif
 
@@ -72,35 +71,36 @@ astreamer *
 astreamer_lz4_compressor_new(astreamer *next, pg_compress_specification *compress)
 {
 #ifdef USE_LZ4
-	astreamer_lz4_frame *streamer;
-	LZ4F_errorCode_t ctxError;
-	LZ4F_preferences_t *prefs;
+  astreamer_lz4_frame *streamer;
+  LZ4F_errorCode_t ctxError;
+  LZ4F_preferences_t *prefs;
 
-	Assert(next != NULL);
+  Assert(next != NULL);
 
-	streamer = palloc0(sizeof(astreamer_lz4_frame));
-	*((const astreamer_ops **) &streamer->base.bbs_ops) =
-		&astreamer_lz4_compressor_ops;
+  streamer = palloc0(sizeof(astreamer_lz4_frame));
+  *((const astreamer_ops **) &streamer->base.bbs_ops) =
+    &astreamer_lz4_compressor_ops;
 
-	streamer->base.bbs_next = next;
-	initStringInfo(&streamer->base.bbs_buffer);
-	streamer->header_written = false;
+  streamer->base.bbs_next = next;
+  initStringInfo(&streamer->base.bbs_buffer);
+  streamer->header_written = false;
 
-	/* Initialize stream compression preferences */
-	prefs = &streamer->prefs;
-	memset(prefs, 0, sizeof(LZ4F_preferences_t));
-	prefs->frameInfo.blockSizeID = LZ4F_max256KB;
-	prefs->compressionLevel = compress->level;
+  /* Initialize stream compression preferences */
+  prefs = &streamer->prefs;
+  memset(prefs, 0, sizeof(LZ4F_preferences_t));
+  prefs->frameInfo.blockSizeID = LZ4F_max256KB;
+  prefs->compressionLevel = compress->level;
 
-	ctxError = LZ4F_createCompressionContext(&streamer->cctx, LZ4F_VERSION);
-	if (LZ4F_isError(ctxError))
-		pg_fatal("could not create lz4 compression context: %s",
-				 LZ4F_getErrorName(ctxError));
+  ctxError = LZ4F_createCompressionContext(&streamer->cctx, LZ4F_VERSION);
 
-	return &streamer->base;
+  if (LZ4F_isError(ctxError))
+    pg_fatal("could not create lz4 compression context: %s",
+             LZ4F_getErrorName(ctxError));
+
+  return &streamer->base;
 #else
-	pg_fatal("this build does not support compression with %s", "LZ4");
-	return NULL;				/* keep compiler quiet */
+  pg_fatal("this build does not support compression with %s", "LZ4");
+  return NULL;        /* keep compiler quiet */
 #endif
 }
 
@@ -116,82 +116,81 @@ astreamer_lz4_compressor_new(astreamer *next, pg_compress_specification *compres
  */
 static void
 astreamer_lz4_compressor_content(astreamer *streamer,
-								 astreamer_member *member,
-								 const char *data, int len,
-								 astreamer_archive_context context)
+                                 astreamer_member *member,
+                                 const char *data, int len,
+                                 astreamer_archive_context context)
 {
-	astreamer_lz4_frame *mystreamer;
-	uint8	   *next_in,
-			   *next_out;
-	size_t		out_bound,
-				compressed_size,
-				avail_out;
+  astreamer_lz4_frame *mystreamer;
+  uint8    *next_in,
+           *next_out;
+  size_t    out_bound,
+            compressed_size,
+            avail_out;
 
-	mystreamer = (astreamer_lz4_frame *) streamer;
-	next_in = (uint8 *) data;
+  mystreamer = (astreamer_lz4_frame *) streamer;
+  next_in = (uint8 *) data;
 
-	/* Write header before processing the first input chunk. */
-	if (!mystreamer->header_written)
-	{
-		compressed_size = LZ4F_compressBegin(mystreamer->cctx,
-											 (uint8 *) mystreamer->base.bbs_buffer.data,
-											 mystreamer->base.bbs_buffer.maxlen,
-											 &mystreamer->prefs);
+  /* Write header before processing the first input chunk. */
+  if (!mystreamer->header_written) {
+    compressed_size = LZ4F_compressBegin(mystreamer->cctx,
+                                         (uint8 *) mystreamer->base.bbs_buffer.data,
+                                         mystreamer->base.bbs_buffer.maxlen,
+                                         &mystreamer->prefs);
 
-		if (LZ4F_isError(compressed_size))
-			pg_fatal("could not write lz4 header: %s",
-					 LZ4F_getErrorName(compressed_size));
+    if (LZ4F_isError(compressed_size))
+      pg_fatal("could not write lz4 header: %s",
+               LZ4F_getErrorName(compressed_size));
 
-		mystreamer->bytes_written += compressed_size;
-		mystreamer->header_written = true;
-	}
+    mystreamer->bytes_written += compressed_size;
+    mystreamer->header_written = true;
+  }
 
-	/*
-	 * Update the offset and capacity of output buffer based on number of
-	 * bytes written to output buffer.
-	 */
-	next_out = (uint8 *) mystreamer->base.bbs_buffer.data + mystreamer->bytes_written;
-	avail_out = mystreamer->base.bbs_buffer.maxlen - mystreamer->bytes_written;
+  /*
+   * Update the offset and capacity of output buffer based on number of
+   * bytes written to output buffer.
+   */
+  next_out = (uint8 *) mystreamer->base.bbs_buffer.data + mystreamer->bytes_written;
+  avail_out = mystreamer->base.bbs_buffer.maxlen - mystreamer->bytes_written;
 
-	/*
-	 * Find out the compression bound and make sure that output buffer has the
-	 * required capacity for the success of LZ4F_compressUpdate. If needed
-	 * forward the content to next streamer and empty the buffer.
-	 */
-	out_bound = LZ4F_compressBound(len, &mystreamer->prefs);
-	if (avail_out < out_bound)
-	{
-		astreamer_content(mystreamer->base.bbs_next, member,
-						  mystreamer->base.bbs_buffer.data,
-						  mystreamer->bytes_written,
-						  context);
+  /*
+   * Find out the compression bound and make sure that output buffer has the
+   * required capacity for the success of LZ4F_compressUpdate. If needed
+   * forward the content to next streamer and empty the buffer.
+   */
+  out_bound = LZ4F_compressBound(len, &mystreamer->prefs);
 
-		/* Enlarge buffer if it falls short of out bound. */
-		if (mystreamer->base.bbs_buffer.maxlen < out_bound)
-			enlargeStringInfo(&mystreamer->base.bbs_buffer, out_bound);
+  if (avail_out < out_bound) {
+    astreamer_content(mystreamer->base.bbs_next, member,
+                      mystreamer->base.bbs_buffer.data,
+                      mystreamer->bytes_written,
+                      context);
 
-		avail_out = mystreamer->base.bbs_buffer.maxlen;
-		mystreamer->bytes_written = 0;
-		next_out = (uint8 *) mystreamer->base.bbs_buffer.data;
-	}
+    /* Enlarge buffer if it falls short of out bound. */
+    if (mystreamer->base.bbs_buffer.maxlen < out_bound)
+      enlargeStringInfo(&mystreamer->base.bbs_buffer, out_bound);
 
-	/*
-	 * This call compresses the data starting at next_in and generates the
-	 * output starting at next_out. It expects the caller to provide the size
-	 * of input buffer and capacity of output buffer by providing parameters
-	 * len and avail_out.
-	 *
-	 * It returns the number of bytes compressed to output buffer.
-	 */
-	compressed_size = LZ4F_compressUpdate(mystreamer->cctx,
-										  next_out, avail_out,
-										  next_in, len, NULL);
+    avail_out = mystreamer->base.bbs_buffer.maxlen;
+    mystreamer->bytes_written = 0;
+    next_out = (uint8 *) mystreamer->base.bbs_buffer.data;
+  }
 
-	if (LZ4F_isError(compressed_size))
-		pg_fatal("could not compress data: %s",
-				 LZ4F_getErrorName(compressed_size));
+  /*
+   * This call compresses the data starting at next_in and generates the
+   * output starting at next_out. It expects the caller to provide the size
+   * of input buffer and capacity of output buffer by providing parameters
+   * len and avail_out.
+   *
+   * It returns the number of bytes compressed to output buffer.
+   */
+  compressed_size = LZ4F_compressUpdate(mystreamer->cctx,
+                                        next_out, avail_out,
+                                        next_in, len, NULL);
 
-	mystreamer->bytes_written += compressed_size;
+  if (LZ4F_isError(compressed_size))
+    pg_fatal("could not compress data: %s",
+             LZ4F_getErrorName(compressed_size));
+
+  mystreamer->bytes_written += compressed_size;
 }
 
 /*
@@ -200,57 +199,55 @@ astreamer_lz4_compressor_content(astreamer *streamer,
 static void
 astreamer_lz4_compressor_finalize(astreamer *streamer)
 {
-	astreamer_lz4_frame *mystreamer;
-	uint8	   *next_out;
-	size_t		footer_bound,
-				compressed_size,
-				avail_out;
+  astreamer_lz4_frame *mystreamer;
+  uint8    *next_out;
+  size_t    footer_bound,
+            compressed_size,
+            avail_out;
 
-	mystreamer = (astreamer_lz4_frame *) streamer;
+  mystreamer = (astreamer_lz4_frame *) streamer;
 
-	/* Find out the footer bound and update the output buffer. */
-	footer_bound = LZ4F_compressBound(0, &mystreamer->prefs);
-	if ((mystreamer->base.bbs_buffer.maxlen - mystreamer->bytes_written) <
-		footer_bound)
-	{
-		astreamer_content(mystreamer->base.bbs_next, NULL,
-						  mystreamer->base.bbs_buffer.data,
-						  mystreamer->bytes_written,
-						  ASTREAMER_UNKNOWN);
+  /* Find out the footer bound and update the output buffer. */
+  footer_bound = LZ4F_compressBound(0, &mystreamer->prefs);
 
-		/* Enlarge buffer if it falls short of footer bound. */
-		if (mystreamer->base.bbs_buffer.maxlen < footer_bound)
-			enlargeStringInfo(&mystreamer->base.bbs_buffer, footer_bound);
+  if ((mystreamer->base.bbs_buffer.maxlen - mystreamer->bytes_written) <
+      footer_bound) {
+    astreamer_content(mystreamer->base.bbs_next, NULL,
+                      mystreamer->base.bbs_buffer.data,
+                      mystreamer->bytes_written,
+                      ASTREAMER_UNKNOWN);
 
-		avail_out = mystreamer->base.bbs_buffer.maxlen;
-		mystreamer->bytes_written = 0;
-		next_out = (uint8 *) mystreamer->base.bbs_buffer.data;
-	}
-	else
-	{
-		next_out = (uint8 *) mystreamer->base.bbs_buffer.data + mystreamer->bytes_written;
-		avail_out = mystreamer->base.bbs_buffer.maxlen - mystreamer->bytes_written;
-	}
+    /* Enlarge buffer if it falls short of footer bound. */
+    if (mystreamer->base.bbs_buffer.maxlen < footer_bound)
+      enlargeStringInfo(&mystreamer->base.bbs_buffer, footer_bound);
 
-	/*
-	 * Finalize the frame and flush whatever data remaining in compression
-	 * context.
-	 */
-	compressed_size = LZ4F_compressEnd(mystreamer->cctx,
-									   next_out, avail_out, NULL);
+    avail_out = mystreamer->base.bbs_buffer.maxlen;
+    mystreamer->bytes_written = 0;
+    next_out = (uint8 *) mystreamer->base.bbs_buffer.data;
+  } else {
+    next_out = (uint8 *) mystreamer->base.bbs_buffer.data + mystreamer->bytes_written;
+    avail_out = mystreamer->base.bbs_buffer.maxlen - mystreamer->bytes_written;
+  }
 
-	if (LZ4F_isError(compressed_size))
-		pg_fatal("could not end lz4 compression: %s",
-				 LZ4F_getErrorName(compressed_size));
+  /*
+   * Finalize the frame and flush whatever data remaining in compression
+   * context.
+   */
+  compressed_size = LZ4F_compressEnd(mystreamer->cctx,
+                                     next_out, avail_out, NULL);
 
-	mystreamer->bytes_written += compressed_size;
+  if (LZ4F_isError(compressed_size))
+    pg_fatal("could not end lz4 compression: %s",
+             LZ4F_getErrorName(compressed_size));
 
-	astreamer_content(mystreamer->base.bbs_next, NULL,
-					  mystreamer->base.bbs_buffer.data,
-					  mystreamer->bytes_written,
-					  ASTREAMER_UNKNOWN);
+  mystreamer->bytes_written += compressed_size;
 
-	astreamer_finalize(mystreamer->base.bbs_next);
+  astreamer_content(mystreamer->base.bbs_next, NULL,
+                    mystreamer->base.bbs_buffer.data,
+                    mystreamer->bytes_written,
+                    ASTREAMER_UNKNOWN);
+
+  astreamer_finalize(mystreamer->base.bbs_next);
 }
 
 /*
@@ -259,13 +256,13 @@ astreamer_lz4_compressor_finalize(astreamer *streamer)
 static void
 astreamer_lz4_compressor_free(astreamer *streamer)
 {
-	astreamer_lz4_frame *mystreamer;
+  astreamer_lz4_frame *mystreamer;
 
-	mystreamer = (astreamer_lz4_frame *) streamer;
-	astreamer_free(streamer->bbs_next);
-	LZ4F_freeCompressionContext(mystreamer->cctx);
-	pfree(streamer->bbs_buffer.data);
-	pfree(streamer);
+  mystreamer = (astreamer_lz4_frame *) streamer;
+  astreamer_free(streamer->bbs_next);
+  LZ4F_freeCompressionContext(mystreamer->cctx);
+  pfree(streamer->bbs_buffer.data);
+  pfree(streamer);
 }
 #endif
 
@@ -277,28 +274,29 @@ astreamer *
 astreamer_lz4_decompressor_new(astreamer *next)
 {
 #ifdef USE_LZ4
-	astreamer_lz4_frame *streamer;
-	LZ4F_errorCode_t ctxError;
+  astreamer_lz4_frame *streamer;
+  LZ4F_errorCode_t ctxError;
 
-	Assert(next != NULL);
+  Assert(next != NULL);
 
-	streamer = palloc0(sizeof(astreamer_lz4_frame));
-	*((const astreamer_ops **) &streamer->base.bbs_ops) =
-		&astreamer_lz4_decompressor_ops;
+  streamer = palloc0(sizeof(astreamer_lz4_frame));
+  *((const astreamer_ops **) &streamer->base.bbs_ops) =
+    &astreamer_lz4_decompressor_ops;
 
-	streamer->base.bbs_next = next;
-	initStringInfo(&streamer->base.bbs_buffer);
+  streamer->base.bbs_next = next;
+  initStringInfo(&streamer->base.bbs_buffer);
 
-	/* Initialize internal stream state for decompression */
-	ctxError = LZ4F_createDecompressionContext(&streamer->dctx, LZ4F_VERSION);
-	if (LZ4F_isError(ctxError))
-		pg_fatal("could not initialize compression library: %s",
-				 LZ4F_getErrorName(ctxError));
+  /* Initialize internal stream state for decompression */
+  ctxError = LZ4F_createDecompressionContext(&streamer->dctx, LZ4F_VERSION);
 
-	return &streamer->base;
+  if (LZ4F_isError(ctxError))
+    pg_fatal("could not initialize compression library: %s",
+             LZ4F_getErrorName(ctxError));
+
+  return &streamer->base;
 #else
-	pg_fatal("this build does not support compression with %s", "LZ4");
-	return NULL;				/* keep compiler quiet */
+  pg_fatal("this build does not support compression with %s", "LZ4");
+  return NULL;        /* keep compiler quiet */
 #endif
 }
 
@@ -310,77 +308,75 @@ astreamer_lz4_decompressor_new(astreamer *next)
  */
 static void
 astreamer_lz4_decompressor_content(astreamer *streamer,
-								   astreamer_member *member,
-								   const char *data, int len,
-								   astreamer_archive_context context)
+                                   astreamer_member *member,
+                                   const char *data, int len,
+                                   astreamer_archive_context context)
 {
-	astreamer_lz4_frame *mystreamer;
-	uint8	   *next_in,
-			   *next_out;
-	size_t		avail_in,
-				avail_out;
+  astreamer_lz4_frame *mystreamer;
+  uint8    *next_in,
+           *next_out;
+  size_t    avail_in,
+            avail_out;
 
-	mystreamer = (astreamer_lz4_frame *) streamer;
-	next_in = (uint8 *) data;
-	next_out = (uint8 *) mystreamer->base.bbs_buffer.data + mystreamer->bytes_written;
-	avail_in = len;
-	avail_out = mystreamer->base.bbs_buffer.maxlen - mystreamer->bytes_written;
+  mystreamer = (astreamer_lz4_frame *) streamer;
+  next_in = (uint8 *) data;
+  next_out = (uint8 *) mystreamer->base.bbs_buffer.data + mystreamer->bytes_written;
+  avail_in = len;
+  avail_out = mystreamer->base.bbs_buffer.maxlen - mystreamer->bytes_written;
 
-	while (avail_in > 0)
-	{
-		size_t		ret,
-					read_size,
-					out_size;
+  while (avail_in > 0) {
+    size_t    ret,
+              read_size,
+              out_size;
 
-		read_size = avail_in;
-		out_size = avail_out;
+    read_size = avail_in;
+    out_size = avail_out;
 
-		/*
-		 * This call decompresses the data starting at next_in and generates
-		 * the output data starting at next_out. It expects the caller to
-		 * provide size of the input buffer and total capacity of the output
-		 * buffer by providing the read_size and out_size parameters
-		 * respectively.
-		 *
-		 * Per the documentation of LZ4, parameters read_size and out_size
-		 * behaves as dual parameters. On return, the number of bytes consumed
-		 * from the input buffer will be written back to read_size and the
-		 * number of bytes decompressed to output buffer will be written back
-		 * to out_size respectively.
-		 */
-		ret = LZ4F_decompress(mystreamer->dctx,
-							  next_out, &out_size,
-							  next_in, &read_size, NULL);
+    /*
+     * This call decompresses the data starting at next_in and generates
+     * the output data starting at next_out. It expects the caller to
+     * provide size of the input buffer and total capacity of the output
+     * buffer by providing the read_size and out_size parameters
+     * respectively.
+     *
+     * Per the documentation of LZ4, parameters read_size and out_size
+     * behaves as dual parameters. On return, the number of bytes consumed
+     * from the input buffer will be written back to read_size and the
+     * number of bytes decompressed to output buffer will be written back
+     * to out_size respectively.
+     */
+    ret = LZ4F_decompress(mystreamer->dctx,
+                          next_out, &out_size,
+                          next_in, &read_size, NULL);
 
-		if (LZ4F_isError(ret))
-			pg_fatal("could not decompress data: %s",
-					 LZ4F_getErrorName(ret));
+    if (LZ4F_isError(ret))
+      pg_fatal("could not decompress data: %s",
+               LZ4F_getErrorName(ret));
 
-		/* Update input buffer based on number of bytes consumed */
-		avail_in -= read_size;
-		next_in += read_size;
+    /* Update input buffer based on number of bytes consumed */
+    avail_in -= read_size;
+    next_in += read_size;
 
-		/* Update output buffer based on number of bytes produced */
-		avail_out -= out_size;
-		next_out += out_size;
-		mystreamer->bytes_written += out_size;
+    /* Update output buffer based on number of bytes produced */
+    avail_out -= out_size;
+    next_out += out_size;
+    mystreamer->bytes_written += out_size;
 
-		/*
-		 * If output buffer is full then forward the content to next streamer
-		 * and reset the output buffer.
-		 */
-		if (mystreamer->bytes_written >= mystreamer->base.bbs_buffer.maxlen)
-		{
-			astreamer_content(mystreamer->base.bbs_next, member,
-							  mystreamer->base.bbs_buffer.data,
-							  mystreamer->base.bbs_buffer.maxlen,
-							  context);
+    /*
+     * If output buffer is full then forward the content to next streamer
+     * and reset the output buffer.
+     */
+    if (mystreamer->bytes_written >= mystreamer->base.bbs_buffer.maxlen) {
+      astreamer_content(mystreamer->base.bbs_next, member,
+                        mystreamer->base.bbs_buffer.data,
+                        mystreamer->base.bbs_buffer.maxlen,
+                        context);
 
-			avail_out = mystreamer->base.bbs_buffer.maxlen;
-			next_out = (uint8 *) mystreamer->base.bbs_buffer.data;
-			mystreamer->bytes_written = 0;
-		}
-	}
+      avail_out = mystreamer->base.bbs_buffer.maxlen;
+      next_out = (uint8 *) mystreamer->base.bbs_buffer.data;
+      mystreamer->bytes_written = 0;
+    }
+  }
 }
 
 /*
@@ -389,21 +385,21 @@ astreamer_lz4_decompressor_content(astreamer *streamer,
 static void
 astreamer_lz4_decompressor_finalize(astreamer *streamer)
 {
-	astreamer_lz4_frame *mystreamer;
+  astreamer_lz4_frame *mystreamer;
 
-	mystreamer = (astreamer_lz4_frame *) streamer;
+  mystreamer = (astreamer_lz4_frame *) streamer;
 
-	/*
-	 * End of the stream, if there is some pending data in output buffers then
-	 * we must forward it to next streamer.
-	 */
-	if (mystreamer->bytes_written > 0)
-		astreamer_content(mystreamer->base.bbs_next, NULL,
-						  mystreamer->base.bbs_buffer.data,
-						  mystreamer->bytes_written,
-						  ASTREAMER_UNKNOWN);
+  /*
+   * End of the stream, if there is some pending data in output buffers then
+   * we must forward it to next streamer.
+   */
+  if (mystreamer->bytes_written > 0)
+    astreamer_content(mystreamer->base.bbs_next, NULL,
+                      mystreamer->base.bbs_buffer.data,
+                      mystreamer->bytes_written,
+                      ASTREAMER_UNKNOWN);
 
-	astreamer_finalize(mystreamer->base.bbs_next);
+  astreamer_finalize(mystreamer->base.bbs_next);
 }
 
 /*
@@ -412,12 +408,12 @@ astreamer_lz4_decompressor_finalize(astreamer *streamer)
 static void
 astreamer_lz4_decompressor_free(astreamer *streamer)
 {
-	astreamer_lz4_frame *mystreamer;
+  astreamer_lz4_frame *mystreamer;
 
-	mystreamer = (astreamer_lz4_frame *) streamer;
-	astreamer_free(streamer->bbs_next);
-	LZ4F_freeDecompressionContext(mystreamer->dctx);
-	pfree(streamer->bbs_buffer.data);
-	pfree(streamer);
+  mystreamer = (astreamer_lz4_frame *) streamer;
+  astreamer_free(streamer->bbs_next);
+  LZ4F_freeDecompressionContext(mystreamer->dctx);
+  pfree(streamer->bbs_buffer.data);
+  pfree(streamer);
 }
 #endif

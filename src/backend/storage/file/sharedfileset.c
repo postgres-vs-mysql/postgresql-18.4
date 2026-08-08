@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * sharedfileset.c
- *	  Shared temporary file management.
+ *    Shared temporary file management.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/storage/file/sharedfileset.c
+ *    src/backend/storage/file/sharedfileset.c
  *
  * SharedFileSets provide a temporary namespace (think directory) so that
  * files can be discovered by name, and a shared ownership semantics so that
@@ -37,16 +37,16 @@ static void SharedFileSetOnDetach(dsm_segment *segment, Datum datum);
 void
 SharedFileSetInit(SharedFileSet *fileset, dsm_segment *seg)
 {
-	/* Initialize the shared fileset specific members. */
-	SpinLockInit(&fileset->mutex);
-	fileset->refcnt = 1;
+  /* Initialize the shared fileset specific members. */
+  SpinLockInit(&fileset->mutex);
+  fileset->refcnt = 1;
 
-	/* Initialize the fileset. */
-	FileSetInit(&fileset->fs);
+  /* Initialize the fileset. */
+  FileSetInit(&fileset->fs);
 
-	/* Register our cleanup callback. */
-	if (seg)
-		on_dsm_detach(seg, SharedFileSetOnDetach, PointerGetDatum(fileset));
+  /* Register our cleanup callback. */
+  if (seg)
+    on_dsm_detach(seg, SharedFileSetOnDetach, PointerGetDatum(fileset));
 }
 
 /*
@@ -55,25 +55,26 @@ SharedFileSetInit(SharedFileSet *fileset, dsm_segment *seg)
 void
 SharedFileSetAttach(SharedFileSet *fileset, dsm_segment *seg)
 {
-	bool		success;
+  bool    success;
 
-	SpinLockAcquire(&fileset->mutex);
-	if (fileset->refcnt == 0)
-		success = false;
-	else
-	{
-		++fileset->refcnt;
-		success = true;
-	}
-	SpinLockRelease(&fileset->mutex);
+  SpinLockAcquire(&fileset->mutex);
 
-	if (!success)
-		ereport(ERROR,
-				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-				 errmsg("could not attach to a SharedFileSet that is already destroyed")));
+  if (fileset->refcnt == 0)
+    success = false;
+  else {
+    ++fileset->refcnt;
+    success = true;
+  }
 
-	/* Register our cleanup callback. */
-	on_dsm_detach(seg, SharedFileSetOnDetach, PointerGetDatum(fileset));
+  SpinLockRelease(&fileset->mutex);
+
+  if (!success)
+    ereport(ERROR,
+            (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+             errmsg("could not attach to a SharedFileSet that is already destroyed")));
+
+  /* Register our cleanup callback. */
+  on_dsm_detach(seg, SharedFileSetOnDetach, PointerGetDatum(fileset));
 }
 
 /*
@@ -82,7 +83,7 @@ SharedFileSetAttach(SharedFileSet *fileset, dsm_segment *seg)
 void
 SharedFileSetDeleteAll(SharedFileSet *fileset)
 {
-	FileSetDeleteAll(&fileset->fs);
+  FileSetDeleteAll(&fileset->fs);
 }
 
 /*
@@ -95,20 +96,22 @@ SharedFileSetDeleteAll(SharedFileSet *fileset)
 static void
 SharedFileSetOnDetach(dsm_segment *segment, Datum datum)
 {
-	bool		unlink_all = false;
-	SharedFileSet *fileset = (SharedFileSet *) DatumGetPointer(datum);
+  bool    unlink_all = false;
+  SharedFileSet *fileset = (SharedFileSet *) DatumGetPointer(datum);
 
-	SpinLockAcquire(&fileset->mutex);
-	Assert(fileset->refcnt > 0);
-	if (--fileset->refcnt == 0)
-		unlink_all = true;
-	SpinLockRelease(&fileset->mutex);
+  SpinLockAcquire(&fileset->mutex);
+  Assert(fileset->refcnt > 0);
 
-	/*
-	 * If we are the last to detach, we delete the directory in all
-	 * tablespaces.  Note that we are still actually attached for the rest of
-	 * this function so we can safely access its data.
-	 */
-	if (unlink_all)
-		FileSetDeleteAll(&fileset->fs);
+  if (--fileset->refcnt == 0)
+    unlink_all = true;
+
+  SpinLockRelease(&fileset->mutex);
+
+  /*
+   * If we are the last to detach, we delete the directory in all
+   * tablespaces.  Note that we are still actually attached for the rest of
+   * this function so we can safely access its data.
+   */
+  if (unlink_all)
+    FileSetDeleteAll(&fileset->fs);
 }

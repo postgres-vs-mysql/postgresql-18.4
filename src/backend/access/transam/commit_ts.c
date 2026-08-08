@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * commit_ts.c
- *		PostgreSQL commit timestamp manager
+ *    PostgreSQL commit timestamp manager
  *
  * This module is a pg_xact-like system that stores the commit timestamp
  * for each transaction.
@@ -51,17 +51,16 @@
  * the largest possible file name is more than 5 chars long; see
  * SlruScanDirectory.
  */
-typedef struct CommitTimestampEntry
-{
-	TimestampTz time;
-	RepOriginId nodeid;
+typedef struct CommitTimestampEntry {
+  TimestampTz time;
+  RepOriginId nodeid;
 } CommitTimestampEntry;
 
 #define SizeOfCommitTimestampEntry (offsetof(CommitTimestampEntry, nodeid) + \
-									sizeof(RepOriginId))
+                  sizeof(RepOriginId))
 
 #define COMMIT_TS_XACTS_PER_PAGE \
-	(BLCKSZ / SizeOfCommitTimestampEntry)
+  (BLCKSZ / SizeOfCommitTimestampEntry)
 
 
 /*
@@ -71,11 +70,11 @@ typedef struct CommitTimestampEntry
 static inline int64
 TransactionIdToCTsPage(TransactionId xid)
 {
-	return xid / (int64) COMMIT_TS_XACTS_PER_PAGE;
+  return xid / (int64) COMMIT_TS_XACTS_PER_PAGE;
 }
 
-#define TransactionIdToCTsEntry(xid)	\
-	((xid) % (TransactionId) COMMIT_TS_XACTS_PER_PAGE)
+#define TransactionIdToCTsEntry(xid)  \
+  ((xid) % (TransactionId) COMMIT_TS_XACTS_PER_PAGE)
 
 /*
  * Link to shared-memory data structures for CommitTs control
@@ -95,26 +94,25 @@ static SlruCtlData CommitTsCtlData;
  * without acquiring the lock; where this happens, a comment explains the
  * rationale for it.
  */
-typedef struct CommitTimestampShared
-{
-	TransactionId xidLastCommit;
-	CommitTimestampEntry dataLastCommit;
-	bool		commitTsActive;
+typedef struct CommitTimestampShared {
+  TransactionId xidLastCommit;
+  CommitTimestampEntry dataLastCommit;
+  bool    commitTsActive;
 } CommitTimestampShared;
 
 static CommitTimestampShared *commitTsShared;
 
 
 /* GUC variable */
-bool		track_commit_timestamp;
+bool    track_commit_timestamp;
 
 static void SetXidCommitTsInPage(TransactionId xid, int nsubxids,
-								 TransactionId *subxids, TimestampTz ts,
-								 RepOriginId nodeid, int64 pageno);
+                                 TransactionId *subxids, TimestampTz ts,
+                                 RepOriginId nodeid, int64 pageno);
 static void TransactionIdSetCommitTs(TransactionId xid, TimestampTz ts,
-									 RepOriginId nodeid, int slotno);
+                                     RepOriginId nodeid, int slotno);
 static void error_commit_ts_disabled(void);
-static int	ZeroCommitTsPage(int64 pageno, bool writeXlog);
+static int  ZeroCommitTsPage(int64 pageno, bool writeXlog);
 static bool CommitTsPagePrecedes(int64 page1, int64 page2);
 static void ActivateCommitTs(void);
 static void DeactivateCommitTs(void);
@@ -139,79 +137,80 @@ static void WriteTruncateXlogRec(int64 pageno, TransactionId oldestXid);
  */
 void
 TransactionTreeSetCommitTsData(TransactionId xid, int nsubxids,
-							   TransactionId *subxids, TimestampTz timestamp,
-							   RepOriginId nodeid)
+                               TransactionId *subxids, TimestampTz timestamp,
+                               RepOriginId nodeid)
 {
-	int			i;
-	TransactionId headxid;
-	TransactionId newestXact;
+  int     i;
+  TransactionId headxid;
+  TransactionId newestXact;
 
-	/*
-	 * No-op if the module is not active.
-	 *
-	 * An unlocked read here is fine, because in a standby (the only place
-	 * where the flag can change in flight) this routine is only called by the
-	 * recovery process, which is also the only process which can change the
-	 * flag.
-	 */
-	if (!commitTsShared->commitTsActive)
-		return;
+  /*
+   * No-op if the module is not active.
+   *
+   * An unlocked read here is fine, because in a standby (the only place
+   * where the flag can change in flight) this routine is only called by the
+   * recovery process, which is also the only process which can change the
+   * flag.
+   */
+  if (!commitTsShared->commitTsActive)
+    return;
 
-	/*
-	 * Figure out the latest Xid in this batch: either the last subxid if
-	 * there's any, otherwise the parent xid.
-	 */
-	if (nsubxids > 0)
-		newestXact = subxids[nsubxids - 1];
-	else
-		newestXact = xid;
+  /*
+   * Figure out the latest Xid in this batch: either the last subxid if
+   * there's any, otherwise the parent xid.
+   */
+  if (nsubxids > 0)
+    newestXact = subxids[nsubxids - 1];
+  else
+    newestXact = xid;
 
-	/*
-	 * We split the xids to set the timestamp to in groups belonging to the
-	 * same SLRU page; the first element in each such set is its head.  The
-	 * first group has the main XID as the head; subsequent sets use the first
-	 * subxid not on the previous page as head.  This way, we only have to
-	 * lock/modify each SLRU page once.
-	 */
-	headxid = xid;
-	i = 0;
-	for (;;)
-	{
-		int64		pageno = TransactionIdToCTsPage(headxid);
-		int			j;
+  /*
+   * We split the xids to set the timestamp to in groups belonging to the
+   * same SLRU page; the first element in each such set is its head.  The
+   * first group has the main XID as the head; subsequent sets use the first
+   * subxid not on the previous page as head.  This way, we only have to
+   * lock/modify each SLRU page once.
+   */
+  headxid = xid;
+  i = 0;
 
-		for (j = i; j < nsubxids; j++)
-		{
-			if (TransactionIdToCTsPage(subxids[j]) != pageno)
-				break;
-		}
-		/* subxids[i..j] are on the same page as the head */
+  for (;;) {
+    int64   pageno = TransactionIdToCTsPage(headxid);
+    int     j;
 
-		SetXidCommitTsInPage(headxid, j - i, subxids + i, timestamp, nodeid,
-							 pageno);
+    for (j = i; j < nsubxids; j++) {
+      if (TransactionIdToCTsPage(subxids[j]) != pageno)
+        break;
+    }
 
-		/* if we wrote out all subxids, we're done. */
-		if (j >= nsubxids)
-			break;
+    /* subxids[i..j] are on the same page as the head */
 
-		/*
-		 * Set the new head and skip over it, as well as over the subxids we
-		 * just wrote.
-		 */
-		headxid = subxids[j];
-		i = j + 1;
-	}
+    SetXidCommitTsInPage(headxid, j - i, subxids + i, timestamp, nodeid,
+                         pageno);
 
-	/* update the cached value in shared memory */
-	LWLockAcquire(CommitTsLock, LW_EXCLUSIVE);
-	commitTsShared->xidLastCommit = xid;
-	commitTsShared->dataLastCommit.time = timestamp;
-	commitTsShared->dataLastCommit.nodeid = nodeid;
+    /* if we wrote out all subxids, we're done. */
+    if (j >= nsubxids)
+      break;
 
-	/* and move forwards our endpoint, if needed */
-	if (TransactionIdPrecedes(TransamVariables->newestCommitTsXid, newestXact))
-		TransamVariables->newestCommitTsXid = newestXact;
-	LWLockRelease(CommitTsLock);
+    /*
+     * Set the new head and skip over it, as well as over the subxids we
+     * just wrote.
+     */
+    headxid = subxids[j];
+    i = j + 1;
+  }
+
+  /* update the cached value in shared memory */
+  LWLockAcquire(CommitTsLock, LW_EXCLUSIVE);
+  commitTsShared->xidLastCommit = xid;
+  commitTsShared->dataLastCommit.time = timestamp;
+  commitTsShared->dataLastCommit.nodeid = nodeid;
+
+  /* and move forwards our endpoint, if needed */
+  if (TransactionIdPrecedes(TransamVariables->newestCommitTsXid, newestXact))
+    TransamVariables->newestCommitTsXid = newestXact;
+
+  LWLockRelease(CommitTsLock);
 }
 
 /*
@@ -220,24 +219,25 @@ TransactionTreeSetCommitTsData(TransactionId xid, int nsubxids,
  */
 static void
 SetXidCommitTsInPage(TransactionId xid, int nsubxids,
-					 TransactionId *subxids, TimestampTz ts,
-					 RepOriginId nodeid, int64 pageno)
+                     TransactionId *subxids, TimestampTz ts,
+                     RepOriginId nodeid, int64 pageno)
 {
-	LWLock	   *lock = SimpleLruGetBankLock(CommitTsCtl, pageno);
-	int			slotno;
-	int			i;
+  LWLock     *lock = SimpleLruGetBankLock(CommitTsCtl, pageno);
+  int     slotno;
+  int     i;
 
-	LWLockAcquire(lock, LW_EXCLUSIVE);
+  LWLockAcquire(lock, LW_EXCLUSIVE);
 
-	slotno = SimpleLruReadPage(CommitTsCtl, pageno, true, xid);
+  slotno = SimpleLruReadPage(CommitTsCtl, pageno, true, xid);
 
-	TransactionIdSetCommitTs(xid, ts, nodeid, slotno);
-	for (i = 0; i < nsubxids; i++)
-		TransactionIdSetCommitTs(subxids[i], ts, nodeid, slotno);
+  TransactionIdSetCommitTs(xid, ts, nodeid, slotno);
 
-	CommitTsCtl->shared->page_dirty[slotno] = true;
+  for (i = 0; i < nsubxids; i++)
+    TransactionIdSetCommitTs(subxids[i], ts, nodeid, slotno);
 
-	LWLockRelease(lock);
+  CommitTsCtl->shared->page_dirty[slotno] = true;
+
+  LWLockRelease(lock);
 }
 
 /*
@@ -247,19 +247,19 @@ SetXidCommitTsInPage(TransactionId xid, int nsubxids,
  */
 static void
 TransactionIdSetCommitTs(TransactionId xid, TimestampTz ts,
-						 RepOriginId nodeid, int slotno)
+                         RepOriginId nodeid, int slotno)
 {
-	int			entryno = TransactionIdToCTsEntry(xid);
-	CommitTimestampEntry entry;
+  int     entryno = TransactionIdToCTsEntry(xid);
+  CommitTimestampEntry entry;
 
-	Assert(TransactionIdIsNormal(xid));
+  Assert(TransactionIdIsNormal(xid));
 
-	entry.time = ts;
-	entry.nodeid = nodeid;
+  entry.time = ts;
+  entry.nodeid = nodeid;
 
-	memcpy(CommitTsCtl->shared->page_buffer[slotno] +
-		   SizeOfCommitTimestampEntry * entryno,
-		   &entry, SizeOfCommitTimestampEntry);
+  memcpy(CommitTsCtl->shared->page_buffer[slotno] +
+         SizeOfCommitTimestampEntry * entryno,
+         &entry, SizeOfCommitTimestampEntry);
 }
 
 /*
@@ -272,80 +272,83 @@ TransactionIdSetCommitTs(TransactionId xid, TimestampTz ts,
  */
 bool
 TransactionIdGetCommitTsData(TransactionId xid, TimestampTz *ts,
-							 RepOriginId *nodeid)
+                             RepOriginId *nodeid)
 {
-	int64		pageno = TransactionIdToCTsPage(xid);
-	int			entryno = TransactionIdToCTsEntry(xid);
-	int			slotno;
-	CommitTimestampEntry entry;
-	TransactionId oldestCommitTsXid;
-	TransactionId newestCommitTsXid;
+  int64   pageno = TransactionIdToCTsPage(xid);
+  int     entryno = TransactionIdToCTsEntry(xid);
+  int     slotno;
+  CommitTimestampEntry entry;
+  TransactionId oldestCommitTsXid;
+  TransactionId newestCommitTsXid;
 
-	if (!TransactionIdIsValid(xid))
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("cannot retrieve commit timestamp for transaction %u", xid)));
-	else if (!TransactionIdIsNormal(xid))
-	{
-		/* frozen and bootstrap xids are always committed far in the past */
-		*ts = 0;
-		if (nodeid)
-			*nodeid = 0;
-		return false;
-	}
+  if (!TransactionIdIsValid(xid))
+    ereport(ERROR,
+            (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+             errmsg("cannot retrieve commit timestamp for transaction %u", xid)));
+  else if (!TransactionIdIsNormal(xid)) {
+    /* frozen and bootstrap xids are always committed far in the past */
+    *ts = 0;
 
-	LWLockAcquire(CommitTsLock, LW_SHARED);
+    if (nodeid)
+      *nodeid = 0;
 
-	/* Error if module not enabled */
-	if (!commitTsShared->commitTsActive)
-		error_commit_ts_disabled();
+    return false;
+  }
 
-	/*
-	 * If we're asked for the cached value, return that.  Otherwise, fall
-	 * through to read from SLRU.
-	 */
-	if (commitTsShared->xidLastCommit == xid)
-	{
-		*ts = commitTsShared->dataLastCommit.time;
-		if (nodeid)
-			*nodeid = commitTsShared->dataLastCommit.nodeid;
+  LWLockAcquire(CommitTsLock, LW_SHARED);
 
-		LWLockRelease(CommitTsLock);
-		return *ts != 0;
-	}
+  /* Error if module not enabled */
+  if (!commitTsShared->commitTsActive)
+    error_commit_ts_disabled();
 
-	oldestCommitTsXid = TransamVariables->oldestCommitTsXid;
-	newestCommitTsXid = TransamVariables->newestCommitTsXid;
-	/* neither is invalid, or both are */
-	Assert(TransactionIdIsValid(oldestCommitTsXid) == TransactionIdIsValid(newestCommitTsXid));
-	LWLockRelease(CommitTsLock);
+  /*
+   * If we're asked for the cached value, return that.  Otherwise, fall
+   * through to read from SLRU.
+   */
+  if (commitTsShared->xidLastCommit == xid) {
+    *ts = commitTsShared->dataLastCommit.time;
 
-	/*
-	 * Return empty if the requested value is outside our valid range.
-	 */
-	if (!TransactionIdIsValid(oldestCommitTsXid) ||
-		TransactionIdPrecedes(xid, oldestCommitTsXid) ||
-		TransactionIdPrecedes(newestCommitTsXid, xid))
-	{
-		*ts = 0;
-		if (nodeid)
-			*nodeid = InvalidRepOriginId;
-		return false;
-	}
+    if (nodeid)
+      *nodeid = commitTsShared->dataLastCommit.nodeid;
 
-	/* lock is acquired by SimpleLruReadPage_ReadOnly */
-	slotno = SimpleLruReadPage_ReadOnly(CommitTsCtl, pageno, xid);
-	memcpy(&entry,
-		   CommitTsCtl->shared->page_buffer[slotno] +
-		   SizeOfCommitTimestampEntry * entryno,
-		   SizeOfCommitTimestampEntry);
+    LWLockRelease(CommitTsLock);
+    return *ts != 0;
+  }
 
-	*ts = entry.time;
-	if (nodeid)
-		*nodeid = entry.nodeid;
+  oldestCommitTsXid = TransamVariables->oldestCommitTsXid;
+  newestCommitTsXid = TransamVariables->newestCommitTsXid;
+  /* neither is invalid, or both are */
+  Assert(TransactionIdIsValid(oldestCommitTsXid) == TransactionIdIsValid(newestCommitTsXid));
+  LWLockRelease(CommitTsLock);
 
-	LWLockRelease(SimpleLruGetBankLock(CommitTsCtl, pageno));
-	return *ts != 0;
+  /*
+   * Return empty if the requested value is outside our valid range.
+   */
+  if (!TransactionIdIsValid(oldestCommitTsXid) ||
+      TransactionIdPrecedes(xid, oldestCommitTsXid) ||
+      TransactionIdPrecedes(newestCommitTsXid, xid)) {
+    *ts = 0;
+
+    if (nodeid)
+      *nodeid = InvalidRepOriginId;
+
+    return false;
+  }
+
+  /* lock is acquired by SimpleLruReadPage_ReadOnly */
+  slotno = SimpleLruReadPage_ReadOnly(CommitTsCtl, pageno, xid);
+  memcpy(&entry,
+         CommitTsCtl->shared->page_buffer[slotno] +
+         SizeOfCommitTimestampEntry * entryno,
+         SizeOfCommitTimestampEntry);
+
+  *ts = entry.time;
+
+  if (nodeid)
+    *nodeid = entry.nodeid;
+
+  LWLockRelease(SimpleLruGetBankLock(CommitTsCtl, pageno));
+  return *ts != 0;
 }
 
 /*
@@ -359,35 +362,38 @@ TransactionIdGetCommitTsData(TransactionId xid, TimestampTz *ts,
 TransactionId
 GetLatestCommitTsData(TimestampTz *ts, RepOriginId *nodeid)
 {
-	TransactionId xid;
+  TransactionId xid;
 
-	LWLockAcquire(CommitTsLock, LW_SHARED);
+  LWLockAcquire(CommitTsLock, LW_SHARED);
 
-	/* Error if module not enabled */
-	if (!commitTsShared->commitTsActive)
-		error_commit_ts_disabled();
+  /* Error if module not enabled */
+  if (!commitTsShared->commitTsActive)
+    error_commit_ts_disabled();
 
-	xid = commitTsShared->xidLastCommit;
-	if (ts)
-		*ts = commitTsShared->dataLastCommit.time;
-	if (nodeid)
-		*nodeid = commitTsShared->dataLastCommit.nodeid;
-	LWLockRelease(CommitTsLock);
+  xid = commitTsShared->xidLastCommit;
 
-	return xid;
+  if (ts)
+    *ts = commitTsShared->dataLastCommit.time;
+
+  if (nodeid)
+    *nodeid = commitTsShared->dataLastCommit.nodeid;
+
+  LWLockRelease(CommitTsLock);
+
+  return xid;
 }
 
 static void
 error_commit_ts_disabled(void)
 {
-	ereport(ERROR,
-			(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-			 errmsg("could not get commit timestamp data"),
-			 RecoveryInProgress() ?
-			 errhint("Make sure the configuration parameter \"%s\" is set on the primary server.",
-					 "track_commit_timestamp") :
-			 errhint("Make sure the configuration parameter \"%s\" is set.",
-					 "track_commit_timestamp")));
+  ereport(ERROR,
+          (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+           errmsg("could not get commit timestamp data"),
+           RecoveryInProgress() ?
+           errhint("Make sure the configuration parameter \"%s\" is set on the primary server.",
+                   "track_commit_timestamp") :
+           errhint("Make sure the configuration parameter \"%s\" is set.",
+                   "track_commit_timestamp")));
 }
 
 /*
@@ -396,16 +402,16 @@ error_commit_ts_disabled(void)
 Datum
 pg_xact_commit_timestamp(PG_FUNCTION_ARGS)
 {
-	TransactionId xid = PG_GETARG_TRANSACTIONID(0);
-	TimestampTz ts;
-	bool		found;
+  TransactionId xid = PG_GETARG_TRANSACTIONID(0);
+  TimestampTz ts;
+  bool    found;
 
-	found = TransactionIdGetCommitTsData(xid, &ts, NULL);
+  found = TransactionIdGetCommitTsData(xid, &ts, NULL);
 
-	if (!found)
-		PG_RETURN_NULL();
+  if (!found)
+    PG_RETURN_NULL();
 
-	PG_RETURN_TIMESTAMPTZ(ts);
+  PG_RETURN_TIMESTAMPTZ(ts);
 }
 
 
@@ -419,39 +425,36 @@ pg_xact_commit_timestamp(PG_FUNCTION_ARGS)
 Datum
 pg_last_committed_xact(PG_FUNCTION_ARGS)
 {
-	TransactionId xid;
-	RepOriginId nodeid;
-	TimestampTz ts;
-	Datum		values[3];
-	bool		nulls[3];
-	TupleDesc	tupdesc;
-	HeapTuple	htup;
+  TransactionId xid;
+  RepOriginId nodeid;
+  TimestampTz ts;
+  Datum   values[3];
+  bool    nulls[3];
+  TupleDesc tupdesc;
+  HeapTuple htup;
 
-	/* and construct a tuple with our data */
-	xid = GetLatestCommitTsData(&ts, &nodeid);
+  /* and construct a tuple with our data */
+  xid = GetLatestCommitTsData(&ts, &nodeid);
 
-	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
-		elog(ERROR, "return type must be a row type");
+  if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+    elog(ERROR, "return type must be a row type");
 
-	if (!TransactionIdIsNormal(xid))
-	{
-		memset(nulls, true, sizeof(nulls));
-	}
-	else
-	{
-		values[0] = TransactionIdGetDatum(xid);
-		nulls[0] = false;
+  if (!TransactionIdIsNormal(xid)) {
+    memset(nulls, true, sizeof(nulls));
+  } else {
+    values[0] = TransactionIdGetDatum(xid);
+    nulls[0] = false;
 
-		values[1] = TimestampTzGetDatum(ts);
-		nulls[1] = false;
+    values[1] = TimestampTzGetDatum(ts);
+    nulls[1] = false;
 
-		values[2] = ObjectIdGetDatum((Oid) nodeid);
-		nulls[2] = false;
-	}
+    values[2] = ObjectIdGetDatum((Oid) nodeid);
+    nulls[2] = false;
+  }
 
-	htup = heap_form_tuple(tupdesc, values, nulls);
+  htup = heap_form_tuple(tupdesc, values, nulls);
 
-	PG_RETURN_DATUM(HeapTupleGetDatum(htup));
+  PG_RETURN_DATUM(HeapTupleGetDatum(htup));
 }
 
 /*
@@ -463,36 +466,33 @@ pg_last_committed_xact(PG_FUNCTION_ARGS)
 Datum
 pg_xact_commit_timestamp_origin(PG_FUNCTION_ARGS)
 {
-	TransactionId xid = PG_GETARG_TRANSACTIONID(0);
-	RepOriginId nodeid;
-	TimestampTz ts;
-	Datum		values[2];
-	bool		nulls[2];
-	TupleDesc	tupdesc;
-	HeapTuple	htup;
-	bool		found;
+  TransactionId xid = PG_GETARG_TRANSACTIONID(0);
+  RepOriginId nodeid;
+  TimestampTz ts;
+  Datum   values[2];
+  bool    nulls[2];
+  TupleDesc tupdesc;
+  HeapTuple htup;
+  bool    found;
 
-	found = TransactionIdGetCommitTsData(xid, &ts, &nodeid);
+  found = TransactionIdGetCommitTsData(xid, &ts, &nodeid);
 
-	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
-		elog(ERROR, "return type must be a row type");
+  if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+    elog(ERROR, "return type must be a row type");
 
-	if (!found)
-	{
-		memset(nulls, true, sizeof(nulls));
-	}
-	else
-	{
-		values[0] = TimestampTzGetDatum(ts);
-		nulls[0] = false;
+  if (!found) {
+    memset(nulls, true, sizeof(nulls));
+  } else {
+    values[0] = TimestampTzGetDatum(ts);
+    nulls[0] = false;
 
-		values[1] = ObjectIdGetDatum((Oid) nodeid);
-		nulls[1] = false;
-	}
+    values[1] = ObjectIdGetDatum((Oid) nodeid);
+    nulls[1] = false;
+  }
 
-	htup = heap_form_tuple(tupdesc, values, nulls);
+  htup = heap_form_tuple(tupdesc, values, nulls);
 
-	PG_RETURN_DATUM(HeapTupleGetDatum(htup));
+  PG_RETURN_DATUM(HeapTupleGetDatum(htup));
 }
 
 /*
@@ -505,11 +505,11 @@ pg_xact_commit_timestamp_origin(PG_FUNCTION_ARGS)
 static int
 CommitTsShmemBuffers(void)
 {
-	/* auto-tune based on shared buffers */
-	if (commit_timestamp_buffers == 0)
-		return SimpleLruAutotuneBuffers(512, 1024);
+  /* auto-tune based on shared buffers */
+  if (commit_timestamp_buffers == 0)
+    return SimpleLruAutotuneBuffers(512, 1024);
 
-	return Min(Max(16, commit_timestamp_buffers), SLRU_MAX_ALLOWED_BUFFERS);
+  return Min(Max(16, commit_timestamp_buffers), SLRU_MAX_ALLOWED_BUFFERS);
 }
 
 /*
@@ -518,8 +518,8 @@ CommitTsShmemBuffers(void)
 Size
 CommitTsShmemSize(void)
 {
-	return SimpleLruShmemSize(CommitTsShmemBuffers(), 0) +
-		sizeof(CommitTimestampShared);
+  return SimpleLruShmemSize(CommitTsShmemBuffers(), 0) +
+         sizeof(CommitTimestampShared);
 }
 
 /*
@@ -529,52 +529,50 @@ CommitTsShmemSize(void)
 void
 CommitTsShmemInit(void)
 {
-	bool		found;
+  bool    found;
 
-	/* If auto-tuning is requested, now is the time to do it */
-	if (commit_timestamp_buffers == 0)
-	{
-		char		buf[32];
+  /* If auto-tuning is requested, now is the time to do it */
+  if (commit_timestamp_buffers == 0) {
+    char    buf[32];
 
-		snprintf(buf, sizeof(buf), "%d", CommitTsShmemBuffers());
-		SetConfigOption("commit_timestamp_buffers", buf, PGC_POSTMASTER,
-						PGC_S_DYNAMIC_DEFAULT);
+    snprintf(buf, sizeof(buf), "%d", CommitTsShmemBuffers());
+    SetConfigOption("commit_timestamp_buffers", buf, PGC_POSTMASTER,
+                    PGC_S_DYNAMIC_DEFAULT);
 
-		/*
-		 * We prefer to report this value's source as PGC_S_DYNAMIC_DEFAULT.
-		 * However, if the DBA explicitly set commit_timestamp_buffers = 0 in
-		 * the config file, then PGC_S_DYNAMIC_DEFAULT will fail to override
-		 * that and we must force the matter with PGC_S_OVERRIDE.
-		 */
-		if (commit_timestamp_buffers == 0)	/* failed to apply it? */
-			SetConfigOption("commit_timestamp_buffers", buf, PGC_POSTMASTER,
-							PGC_S_OVERRIDE);
-	}
-	Assert(commit_timestamp_buffers != 0);
+    /*
+     * We prefer to report this value's source as PGC_S_DYNAMIC_DEFAULT.
+     * However, if the DBA explicitly set commit_timestamp_buffers = 0 in
+     * the config file, then PGC_S_DYNAMIC_DEFAULT will fail to override
+     * that and we must force the matter with PGC_S_OVERRIDE.
+     */
+    if (commit_timestamp_buffers == 0)  /* failed to apply it? */
+      SetConfigOption("commit_timestamp_buffers", buf, PGC_POSTMASTER,
+                      PGC_S_OVERRIDE);
+  }
 
-	CommitTsCtl->PagePrecedes = CommitTsPagePrecedes;
-	SimpleLruInit(CommitTsCtl, "commit_timestamp", CommitTsShmemBuffers(), 0,
-				  "pg_commit_ts", LWTRANCHE_COMMITTS_BUFFER,
-				  LWTRANCHE_COMMITTS_SLRU,
-				  SYNC_HANDLER_COMMIT_TS,
-				  false);
-	SlruPagePrecedesUnitTests(CommitTsCtl, COMMIT_TS_XACTS_PER_PAGE);
+  Assert(commit_timestamp_buffers != 0);
 
-	commitTsShared = ShmemInitStruct("CommitTs shared",
-									 sizeof(CommitTimestampShared),
-									 &found);
+  CommitTsCtl->PagePrecedes = CommitTsPagePrecedes;
+  SimpleLruInit(CommitTsCtl, "commit_timestamp", CommitTsShmemBuffers(), 0,
+                "pg_commit_ts", LWTRANCHE_COMMITTS_BUFFER,
+                LWTRANCHE_COMMITTS_SLRU,
+                SYNC_HANDLER_COMMIT_TS,
+                false);
+  SlruPagePrecedesUnitTests(CommitTsCtl, COMMIT_TS_XACTS_PER_PAGE);
 
-	if (!IsUnderPostmaster)
-	{
-		Assert(!found);
+  commitTsShared = ShmemInitStruct("CommitTs shared",
+                                   sizeof(CommitTimestampShared),
+                                   &found);
 
-		commitTsShared->xidLastCommit = InvalidTransactionId;
-		TIMESTAMP_NOBEGIN(commitTsShared->dataLastCommit.time);
-		commitTsShared->dataLastCommit.nodeid = InvalidRepOriginId;
-		commitTsShared->commitTsActive = false;
-	}
-	else
-		Assert(found);
+  if (!IsUnderPostmaster) {
+    Assert(!found);
+
+    commitTsShared->xidLastCommit = InvalidTransactionId;
+    TIMESTAMP_NOBEGIN(commitTsShared->dataLastCommit.time);
+    commitTsShared->dataLastCommit.nodeid = InvalidRepOriginId;
+    commitTsShared->commitTsActive = false;
+  } else
+    Assert(found);
 }
 
 /*
@@ -583,7 +581,7 @@ CommitTsShmemInit(void)
 bool
 check_commit_ts_buffers(int *newval, void **extra, GucSource source)
 {
-	return check_slru_buffers("commit_timestamp_buffers", newval);
+  return check_slru_buffers("commit_timestamp_buffers", newval);
 }
 
 /*
@@ -595,11 +593,11 @@ check_commit_ts_buffers(int *newval, void **extra, GucSource source)
 void
 BootStrapCommitTs(void)
 {
-	/*
-	 * Nothing to do here at present, unlike most other SLRU modules; segments
-	 * are created when the server is started with this module enabled. See
-	 * ActivateCommitTs.
-	 */
+  /*
+   * Nothing to do here at present, unlike most other SLRU modules; segments
+   * are created when the server is started with this module enabled. See
+   * ActivateCommitTs.
+   */
 }
 
 /*
@@ -614,14 +612,14 @@ BootStrapCommitTs(void)
 static int
 ZeroCommitTsPage(int64 pageno, bool writeXlog)
 {
-	int			slotno;
+  int     slotno;
 
-	slotno = SimpleLruZeroPage(CommitTsCtl, pageno);
+  slotno = SimpleLruZeroPage(CommitTsCtl, pageno);
 
-	if (writeXlog)
-		WriteZeroPageXlogRec(pageno);
+  if (writeXlog)
+    WriteZeroPageXlogRec(pageno);
 
-	return slotno;
+  return slotno;
 }
 
 /*
@@ -631,7 +629,7 @@ ZeroCommitTsPage(int64 pageno, bool writeXlog)
 void
 StartupCommitTs(void)
 {
-	ActivateCommitTs();
+  ActivateCommitTs();
 }
 
 /*
@@ -641,19 +639,19 @@ StartupCommitTs(void)
 void
 CompleteCommitTsInitialization(void)
 {
-	/*
-	 * If the feature is not enabled, turn it off for good.  This also removes
-	 * any leftover data.
-	 *
-	 * Conversely, we activate the module if the feature is enabled.  This is
-	 * necessary for primary and standby as the activation depends on the
-	 * control file contents at the beginning of recovery or when a
-	 * XLOG_PARAMETER_CHANGE is replayed.
-	 */
-	if (!track_commit_timestamp)
-		DeactivateCommitTs();
-	else
-		ActivateCommitTs();
+  /*
+   * If the feature is not enabled, turn it off for good.  This also removes
+   * any leftover data.
+   *
+   * Conversely, we activate the module if the feature is enabled.  This is
+   * necessary for primary and standby as the activation depends on the
+   * control file contents at the beginning of recovery or when a
+   * XLOG_PARAMETER_CHANGE is replayed.
+   */
+  if (!track_commit_timestamp)
+    DeactivateCommitTs();
+  else
+    ActivateCommitTs();
 }
 
 /*
@@ -663,33 +661,31 @@ CompleteCommitTsInitialization(void)
 void
 CommitTsParameterChange(bool newvalue, bool oldvalue)
 {
-	/*
-	 * If the commit_ts module is disabled in this server and we get word from
-	 * the primary server that it is enabled there, activate it so that we can
-	 * replay future WAL records involving it; also mark it as active on
-	 * pg_control.  If the old value was already set, we already did this, so
-	 * don't do anything.
-	 *
-	 * If the module is disabled in the primary, disable it here too, unless
-	 * the module is enabled locally.
-	 *
-	 * Note this only runs in the recovery process, so an unlocked read is
-	 * fine.
-	 */
-	if (newvalue)
-	{
-		if (!commitTsShared->commitTsActive)
-			ActivateCommitTs();
-	}
-	else if (commitTsShared->commitTsActive)
-		DeactivateCommitTs();
+  /*
+   * If the commit_ts module is disabled in this server and we get word from
+   * the primary server that it is enabled there, activate it so that we can
+   * replay future WAL records involving it; also mark it as active on
+   * pg_control.  If the old value was already set, we already did this, so
+   * don't do anything.
+   *
+   * If the module is disabled in the primary, disable it here too, unless
+   * the module is enabled locally.
+   *
+   * Note this only runs in the recovery process, so an unlocked read is
+   * fine.
+   */
+  if (newvalue) {
+    if (!commitTsShared->commitTsActive)
+      ActivateCommitTs();
+  } else if (commitTsShared->commitTsActive)
+    DeactivateCommitTs();
 }
 
 /*
  * Activate this module whenever necessary.
- *		This must happen during postmaster or standalone-backend startup,
- *		or during WAL replay anytime the track_commit_timestamp setting is
- *		changed in the primary.
+ *    This must happen during postmaster or standalone-backend startup,
+ *    or during WAL replay anytime the track_commit_timestamp setting is
+ *    changed in the primary.
  *
  * The reason why this SLRU needs separate activation/deactivation functions is
  * that it can be enabled/disabled during start and the activation/deactivation
@@ -704,71 +700,72 @@ CommitTsParameterChange(bool newvalue, bool oldvalue)
 static void
 ActivateCommitTs(void)
 {
-	TransactionId xid;
-	int64		pageno;
+  TransactionId xid;
+  int64   pageno;
 
-	/*
-	 * During bootstrap, we should not register commit timestamps so skip the
-	 * activation in this case.
-	 */
-	if (IsBootstrapProcessingMode())
-		return;
+  /*
+   * During bootstrap, we should not register commit timestamps so skip the
+   * activation in this case.
+   */
+  if (IsBootstrapProcessingMode())
+    return;
 
-	/* If we've done this already, there's nothing to do */
-	LWLockAcquire(CommitTsLock, LW_EXCLUSIVE);
-	if (commitTsShared->commitTsActive)
-	{
-		LWLockRelease(CommitTsLock);
-		return;
-	}
-	LWLockRelease(CommitTsLock);
+  /* If we've done this already, there's nothing to do */
+  LWLockAcquire(CommitTsLock, LW_EXCLUSIVE);
 
-	xid = XidFromFullTransactionId(TransamVariables->nextXid);
-	pageno = TransactionIdToCTsPage(xid);
+  if (commitTsShared->commitTsActive) {
+    LWLockRelease(CommitTsLock);
+    return;
+  }
 
-	/*
-	 * Re-Initialize our idea of the latest page number.
-	 */
-	pg_atomic_write_u64(&CommitTsCtl->shared->latest_page_number, pageno);
+  LWLockRelease(CommitTsLock);
 
-	/*
-	 * If CommitTs is enabled, but it wasn't in the previous server run, we
-	 * need to set the oldest and newest values to the next Xid; that way, we
-	 * will not try to read data that might not have been set.
-	 *
-	 * XXX does this have a problem if a server is started with commitTs
-	 * enabled, then started with commitTs disabled, then restarted with it
-	 * enabled again?  It doesn't look like it does, because there should be a
-	 * checkpoint that sets the value to InvalidTransactionId at end of
-	 * recovery; and so any chance of injecting new transactions without
-	 * CommitTs values would occur after the oldestCommitTsXid has been set to
-	 * Invalid temporarily.
-	 */
-	LWLockAcquire(CommitTsLock, LW_EXCLUSIVE);
-	if (TransamVariables->oldestCommitTsXid == InvalidTransactionId)
-	{
-		TransamVariables->oldestCommitTsXid =
-			TransamVariables->newestCommitTsXid = ReadNextTransactionId();
-	}
-	LWLockRelease(CommitTsLock);
+  xid = XidFromFullTransactionId(TransamVariables->nextXid);
+  pageno = TransactionIdToCTsPage(xid);
 
-	/* Create the current segment file, if necessary */
-	if (!SimpleLruDoesPhysicalPageExist(CommitTsCtl, pageno))
-	{
-		LWLock	   *lock = SimpleLruGetBankLock(CommitTsCtl, pageno);
-		int			slotno;
+  /*
+   * Re-Initialize our idea of the latest page number.
+   */
+  pg_atomic_write_u64(&CommitTsCtl->shared->latest_page_number, pageno);
 
-		LWLockAcquire(lock, LW_EXCLUSIVE);
-		slotno = ZeroCommitTsPage(pageno, false);
-		SimpleLruWritePage(CommitTsCtl, slotno);
-		Assert(!CommitTsCtl->shared->page_dirty[slotno]);
-		LWLockRelease(lock);
-	}
+  /*
+   * If CommitTs is enabled, but it wasn't in the previous server run, we
+   * need to set the oldest and newest values to the next Xid; that way, we
+   * will not try to read data that might not have been set.
+   *
+   * XXX does this have a problem if a server is started with commitTs
+   * enabled, then started with commitTs disabled, then restarted with it
+   * enabled again?  It doesn't look like it does, because there should be a
+   * checkpoint that sets the value to InvalidTransactionId at end of
+   * recovery; and so any chance of injecting new transactions without
+   * CommitTs values would occur after the oldestCommitTsXid has been set to
+   * Invalid temporarily.
+   */
+  LWLockAcquire(CommitTsLock, LW_EXCLUSIVE);
 
-	/* Change the activation status in shared memory. */
-	LWLockAcquire(CommitTsLock, LW_EXCLUSIVE);
-	commitTsShared->commitTsActive = true;
-	LWLockRelease(CommitTsLock);
+  if (TransamVariables->oldestCommitTsXid == InvalidTransactionId) {
+    TransamVariables->oldestCommitTsXid =
+      TransamVariables->newestCommitTsXid = ReadNextTransactionId();
+  }
+
+  LWLockRelease(CommitTsLock);
+
+  /* Create the current segment file, if necessary */
+  if (!SimpleLruDoesPhysicalPageExist(CommitTsCtl, pageno)) {
+    LWLock     *lock = SimpleLruGetBankLock(CommitTsCtl, pageno);
+    int     slotno;
+
+    LWLockAcquire(lock, LW_EXCLUSIVE);
+    slotno = ZeroCommitTsPage(pageno, false);
+    SimpleLruWritePage(CommitTsCtl, slotno);
+    Assert(!CommitTsCtl->shared->page_dirty[slotno]);
+    LWLockRelease(lock);
+  }
+
+  /* Change the activation status in shared memory. */
+  LWLockAcquire(CommitTsLock, LW_EXCLUSIVE);
+  commitTsShared->commitTsActive = true;
+  LWLockRelease(CommitTsLock);
 }
 
 /*
@@ -784,40 +781,40 @@ ActivateCommitTs(void)
 static void
 DeactivateCommitTs(void)
 {
-	/*
-	 * Cleanup the status in the shared memory.
-	 *
-	 * We reset everything in the commitTsShared record to prevent user from
-	 * getting confusing data about last committed transaction on the standby
-	 * when the module was activated repeatedly on the primary.
-	 */
-	LWLockAcquire(CommitTsLock, LW_EXCLUSIVE);
+  /*
+   * Cleanup the status in the shared memory.
+   *
+   * We reset everything in the commitTsShared record to prevent user from
+   * getting confusing data about last committed transaction on the standby
+   * when the module was activated repeatedly on the primary.
+   */
+  LWLockAcquire(CommitTsLock, LW_EXCLUSIVE);
 
-	commitTsShared->commitTsActive = false;
-	commitTsShared->xidLastCommit = InvalidTransactionId;
-	TIMESTAMP_NOBEGIN(commitTsShared->dataLastCommit.time);
-	commitTsShared->dataLastCommit.nodeid = InvalidRepOriginId;
+  commitTsShared->commitTsActive = false;
+  commitTsShared->xidLastCommit = InvalidTransactionId;
+  TIMESTAMP_NOBEGIN(commitTsShared->dataLastCommit.time);
+  commitTsShared->dataLastCommit.nodeid = InvalidRepOriginId;
 
-	TransamVariables->oldestCommitTsXid = InvalidTransactionId;
-	TransamVariables->newestCommitTsXid = InvalidTransactionId;
+  TransamVariables->oldestCommitTsXid = InvalidTransactionId;
+  TransamVariables->newestCommitTsXid = InvalidTransactionId;
 
-	/*
-	 * Remove *all* files.  This is necessary so that there are no leftover
-	 * files; in the case where this feature is later enabled after running
-	 * with it disabled for some time there may be a gap in the file sequence.
-	 * (We can probably tolerate out-of-sequence files, as they are going to
-	 * be overwritten anyway when we wrap around, but it seems better to be
-	 * tidy.)
-	 *
-	 * Note that we do this with CommitTsLock acquired in exclusive mode. This
-	 * is very heavy-handed, but since this routine can only be called in the
-	 * replica and should happen very rarely, we don't worry too much about
-	 * it.  Note also that no process should be consulting this SLRU if we
-	 * have just deactivated it.
-	 */
-	(void) SlruScanDirectory(CommitTsCtl, SlruScanDirCbDeleteAll, NULL);
+  /*
+   * Remove *all* files.  This is necessary so that there are no leftover
+   * files; in the case where this feature is later enabled after running
+   * with it disabled for some time there may be a gap in the file sequence.
+   * (We can probably tolerate out-of-sequence files, as they are going to
+   * be overwritten anyway when we wrap around, but it seems better to be
+   * tidy.)
+   *
+   * Note that we do this with CommitTsLock acquired in exclusive mode. This
+   * is very heavy-handed, but since this routine can only be called in the
+   * replica and should happen very rarely, we don't worry too much about
+   * it.  Note also that no process should be consulting this SLRU if we
+   * have just deactivated it.
+   */
+  (void) SlruScanDirectory(CommitTsCtl, SlruScanDirCbDeleteAll, NULL);
 
-	LWLockRelease(CommitTsLock);
+  LWLockRelease(CommitTsLock);
 }
 
 /*
@@ -826,12 +823,12 @@ DeactivateCommitTs(void)
 void
 CheckPointCommitTs(void)
 {
-	/*
-	 * Write dirty CommitTs pages to disk.  This may result in sync requests
-	 * queued for later handling by ProcessSyncRequests(), as part of the
-	 * checkpoint.
-	 */
-	SimpleLruWriteAll(CommitTsCtl, true);
+  /*
+   * Write dirty CommitTs pages to disk.  This may result in sync requests
+   * queued for later handling by ProcessSyncRequests(), as part of the
+   * checkpoint.
+   */
+  SimpleLruWriteAll(CommitTsCtl, true);
 }
 
 /*
@@ -848,36 +845,37 @@ CheckPointCommitTs(void)
 void
 ExtendCommitTs(TransactionId newestXact)
 {
-	int64		pageno;
-	LWLock	   *lock;
+  int64   pageno;
+  LWLock     *lock;
 
-	/*
-	 * Nothing to do if module not enabled.  Note we do an unlocked read of
-	 * the flag here, which is okay because this routine is only called from
-	 * GetNewTransactionId, which is never called in a standby.
-	 */
-	Assert(!InRecovery);
-	if (!commitTsShared->commitTsActive)
-		return;
+  /*
+   * Nothing to do if module not enabled.  Note we do an unlocked read of
+   * the flag here, which is okay because this routine is only called from
+   * GetNewTransactionId, which is never called in a standby.
+   */
+  Assert(!InRecovery);
 
-	/*
-	 * No work except at first XID of a page.  But beware: just after
-	 * wraparound, the first XID of page zero is FirstNormalTransactionId.
-	 */
-	if (TransactionIdToCTsEntry(newestXact) != 0 &&
-		!TransactionIdEquals(newestXact, FirstNormalTransactionId))
-		return;
+  if (!commitTsShared->commitTsActive)
+    return;
 
-	pageno = TransactionIdToCTsPage(newestXact);
+  /*
+   * No work except at first XID of a page.  But beware: just after
+   * wraparound, the first XID of page zero is FirstNormalTransactionId.
+   */
+  if (TransactionIdToCTsEntry(newestXact) != 0 &&
+      !TransactionIdEquals(newestXact, FirstNormalTransactionId))
+    return;
 
-	lock = SimpleLruGetBankLock(CommitTsCtl, pageno);
+  pageno = TransactionIdToCTsPage(newestXact);
 
-	LWLockAcquire(lock, LW_EXCLUSIVE);
+  lock = SimpleLruGetBankLock(CommitTsCtl, pageno);
 
-	/* Zero the page and make an XLOG entry about it */
-	ZeroCommitTsPage(pageno, !InRecovery);
+  LWLockAcquire(lock, LW_EXCLUSIVE);
 
-	LWLockRelease(lock);
+  /* Zero the page and make an XLOG entry about it */
+  ZeroCommitTsPage(pageno, !InRecovery);
+
+  LWLockRelease(lock);
 }
 
 /*
@@ -889,24 +887,24 @@ ExtendCommitTs(TransactionId newestXact)
 void
 TruncateCommitTs(TransactionId oldestXact)
 {
-	int64		cutoffPage;
+  int64   cutoffPage;
 
-	/*
-	 * The cutoff point is the start of the segment containing oldestXact. We
-	 * pass the *page* containing oldestXact to SimpleLruTruncate.
-	 */
-	cutoffPage = TransactionIdToCTsPage(oldestXact);
+  /*
+   * The cutoff point is the start of the segment containing oldestXact. We
+   * pass the *page* containing oldestXact to SimpleLruTruncate.
+   */
+  cutoffPage = TransactionIdToCTsPage(oldestXact);
 
-	/* Check to see if there's any files that could be removed */
-	if (!SlruScanDirectory(CommitTsCtl, SlruScanDirCbReportPresence,
-						   &cutoffPage))
-		return;					/* nothing to remove */
+  /* Check to see if there's any files that could be removed */
+  if (!SlruScanDirectory(CommitTsCtl, SlruScanDirCbReportPresence,
+                         &cutoffPage))
+    return;         /* nothing to remove */
 
-	/* Write XLOG record */
-	WriteTruncateXlogRec(cutoffPage, oldestXact);
+  /* Write XLOG record */
+  WriteTruncateXlogRec(cutoffPage, oldestXact);
 
-	/* Now we can remove the old CommitTs segment(s) */
-	SimpleLruTruncate(CommitTsCtl, cutoffPage);
+  /* Now we can remove the old CommitTs segment(s) */
+  SimpleLruTruncate(CommitTsCtl, cutoffPage);
 }
 
 /*
@@ -915,25 +913,25 @@ TruncateCommitTs(TransactionId oldestXact)
 void
 SetCommitTsLimit(TransactionId oldestXact, TransactionId newestXact)
 {
-	/*
-	 * Be careful not to overwrite values that are either further into the
-	 * "future" or signal a disabled committs.
-	 */
-	LWLockAcquire(CommitTsLock, LW_EXCLUSIVE);
-	if (TransamVariables->oldestCommitTsXid != InvalidTransactionId)
-	{
-		if (TransactionIdPrecedes(TransamVariables->oldestCommitTsXid, oldestXact))
-			TransamVariables->oldestCommitTsXid = oldestXact;
-		if (TransactionIdPrecedes(newestXact, TransamVariables->newestCommitTsXid))
-			TransamVariables->newestCommitTsXid = newestXact;
-	}
-	else
-	{
-		Assert(TransamVariables->newestCommitTsXid == InvalidTransactionId);
-		TransamVariables->oldestCommitTsXid = oldestXact;
-		TransamVariables->newestCommitTsXid = newestXact;
-	}
-	LWLockRelease(CommitTsLock);
+  /*
+   * Be careful not to overwrite values that are either further into the
+   * "future" or signal a disabled committs.
+   */
+  LWLockAcquire(CommitTsLock, LW_EXCLUSIVE);
+
+  if (TransamVariables->oldestCommitTsXid != InvalidTransactionId) {
+    if (TransactionIdPrecedes(TransamVariables->oldestCommitTsXid, oldestXact))
+      TransamVariables->oldestCommitTsXid = oldestXact;
+
+    if (TransactionIdPrecedes(newestXact, TransamVariables->newestCommitTsXid))
+      TransamVariables->newestCommitTsXid = newestXact;
+  } else {
+    Assert(TransamVariables->newestCommitTsXid == InvalidTransactionId);
+    TransamVariables->oldestCommitTsXid = oldestXact;
+    TransamVariables->newestCommitTsXid = newestXact;
+  }
+
+  LWLockRelease(CommitTsLock);
 }
 
 /*
@@ -942,11 +940,13 @@ SetCommitTsLimit(TransactionId oldestXact, TransactionId newestXact)
 void
 AdvanceOldestCommitTsXid(TransactionId oldestXact)
 {
-	LWLockAcquire(CommitTsLock, LW_EXCLUSIVE);
-	if (TransamVariables->oldestCommitTsXid != InvalidTransactionId &&
-		TransactionIdPrecedes(TransamVariables->oldestCommitTsXid, oldestXact))
-		TransamVariables->oldestCommitTsXid = oldestXact;
-	LWLockRelease(CommitTsLock);
+  LWLockAcquire(CommitTsLock, LW_EXCLUSIVE);
+
+  if (TransamVariables->oldestCommitTsXid != InvalidTransactionId &&
+      TransactionIdPrecedes(TransamVariables->oldestCommitTsXid, oldestXact))
+    TransamVariables->oldestCommitTsXid = oldestXact;
+
+  LWLockRelease(CommitTsLock);
 }
 
 
@@ -976,16 +976,16 @@ AdvanceOldestCommitTsXid(TransactionId oldestXact)
 static bool
 CommitTsPagePrecedes(int64 page1, int64 page2)
 {
-	TransactionId xid1;
-	TransactionId xid2;
+  TransactionId xid1;
+  TransactionId xid2;
 
-	xid1 = ((TransactionId) page1) * COMMIT_TS_XACTS_PER_PAGE;
-	xid1 += FirstNormalTransactionId + 1;
-	xid2 = ((TransactionId) page2) * COMMIT_TS_XACTS_PER_PAGE;
-	xid2 += FirstNormalTransactionId + 1;
+  xid1 = ((TransactionId) page1) * COMMIT_TS_XACTS_PER_PAGE;
+  xid1 += FirstNormalTransactionId + 1;
+  xid2 = ((TransactionId) page2) * COMMIT_TS_XACTS_PER_PAGE;
+  xid2 += FirstNormalTransactionId + 1;
 
-	return (TransactionIdPrecedes(xid1, xid2) &&
-			TransactionIdPrecedes(xid1, xid2 + COMMIT_TS_XACTS_PER_PAGE - 1));
+  return (TransactionIdPrecedes(xid1, xid2) &&
+          TransactionIdPrecedes(xid1, xid2 + COMMIT_TS_XACTS_PER_PAGE - 1));
 }
 
 
@@ -995,9 +995,9 @@ CommitTsPagePrecedes(int64 page1, int64 page2)
 static void
 WriteZeroPageXlogRec(int64 pageno)
 {
-	XLogBeginInsert();
-	XLogRegisterData(&pageno, sizeof(pageno));
-	(void) XLogInsert(RM_COMMIT_TS_ID, COMMIT_TS_ZEROPAGE);
+  XLogBeginInsert();
+  XLogRegisterData(&pageno, sizeof(pageno));
+  (void) XLogInsert(RM_COMMIT_TS_ID, COMMIT_TS_ZEROPAGE);
 }
 
 /*
@@ -1006,14 +1006,14 @@ WriteZeroPageXlogRec(int64 pageno)
 static void
 WriteTruncateXlogRec(int64 pageno, TransactionId oldestXid)
 {
-	xl_commit_ts_truncate xlrec;
+  xl_commit_ts_truncate xlrec;
 
-	xlrec.pageno = pageno;
-	xlrec.oldestXid = oldestXid;
+  xlrec.pageno = pageno;
+  xlrec.oldestXid = oldestXid;
 
-	XLogBeginInsert();
-	XLogRegisterData(&xlrec, SizeOfCommitTsTruncate);
-	(void) XLogInsert(RM_COMMIT_TS_ID, COMMIT_TS_TRUNCATE);
+  XLogBeginInsert();
+  XLogRegisterData(&xlrec, SizeOfCommitTsTruncate);
+  (void) XLogInsert(RM_COMMIT_TS_ID, COMMIT_TS_TRUNCATE);
 }
 
 /*
@@ -1022,45 +1022,41 @@ WriteTruncateXlogRec(int64 pageno, TransactionId oldestXid)
 void
 commit_ts_redo(XLogReaderState *record)
 {
-	uint8		info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
+  uint8   info = XLogRecGetInfo(record) & ~XLR_INFO_MASK;
 
-	/* Backup blocks are not used in commit_ts records */
-	Assert(!XLogRecHasAnyBlockRefs(record));
+  /* Backup blocks are not used in commit_ts records */
+  Assert(!XLogRecHasAnyBlockRefs(record));
 
-	if (info == COMMIT_TS_ZEROPAGE)
-	{
-		int64		pageno;
-		int			slotno;
-		LWLock	   *lock;
+  if (info == COMMIT_TS_ZEROPAGE) {
+    int64   pageno;
+    int     slotno;
+    LWLock     *lock;
 
-		memcpy(&pageno, XLogRecGetData(record), sizeof(pageno));
+    memcpy(&pageno, XLogRecGetData(record), sizeof(pageno));
 
-		lock = SimpleLruGetBankLock(CommitTsCtl, pageno);
-		LWLockAcquire(lock, LW_EXCLUSIVE);
+    lock = SimpleLruGetBankLock(CommitTsCtl, pageno);
+    LWLockAcquire(lock, LW_EXCLUSIVE);
 
-		slotno = ZeroCommitTsPage(pageno, false);
-		SimpleLruWritePage(CommitTsCtl, slotno);
-		Assert(!CommitTsCtl->shared->page_dirty[slotno]);
+    slotno = ZeroCommitTsPage(pageno, false);
+    SimpleLruWritePage(CommitTsCtl, slotno);
+    Assert(!CommitTsCtl->shared->page_dirty[slotno]);
 
-		LWLockRelease(lock);
-	}
-	else if (info == COMMIT_TS_TRUNCATE)
-	{
-		xl_commit_ts_truncate *trunc = (xl_commit_ts_truncate *) XLogRecGetData(record);
+    LWLockRelease(lock);
+  } else if (info == COMMIT_TS_TRUNCATE) {
+    xl_commit_ts_truncate *trunc = (xl_commit_ts_truncate *) XLogRecGetData(record);
 
-		AdvanceOldestCommitTsXid(trunc->oldestXid);
+    AdvanceOldestCommitTsXid(trunc->oldestXid);
 
-		/*
-		 * During XLOG replay, latest_page_number isn't set up yet; insert a
-		 * suitable value to bypass the sanity test in SimpleLruTruncate.
-		 */
-		pg_atomic_write_u64(&CommitTsCtl->shared->latest_page_number,
-							trunc->pageno);
+    /*
+     * During XLOG replay, latest_page_number isn't set up yet; insert a
+     * suitable value to bypass the sanity test in SimpleLruTruncate.
+     */
+    pg_atomic_write_u64(&CommitTsCtl->shared->latest_page_number,
+                        trunc->pageno);
 
-		SimpleLruTruncate(CommitTsCtl, trunc->pageno);
-	}
-	else
-		elog(PANIC, "commit_ts_redo: unknown op code %u", info);
+    SimpleLruTruncate(CommitTsCtl, trunc->pageno);
+  } else
+    elog(PANIC, "commit_ts_redo: unknown op code %u", info);
 }
 
 /*
@@ -1069,5 +1065,5 @@ commit_ts_redo(XLogReaderState *record)
 int
 committssyncfiletag(const FileTag *ftag, char *path)
 {
-	return SlruSyncFileTag(CommitTsCtl, ftag, path);
+  return SlruSyncFileTag(CommitTsCtl, ftag, path);
 }

@@ -1,7 +1,7 @@
 /*
  * contrib/pgrowlocks/pgrowlocks.c
  *
- * Copyright (c) 2005-2006	Tatsuo Ishii
+ * Copyright (c) 2005-2006  Tatsuo Ishii
  *
  * Permission to use, copy, modify, and distribute this software and
  * its documentation for any purpose, without fee, and without a
@@ -43,8 +43,8 @@
 #include "utils/varlena.h"
 
 PG_MODULE_MAGIC_EXT(
-					.name = "pgrowlocks",
-					.version = PG_VERSION
+  .name = "pgrowlocks",
+  .version = PG_VERSION
 );
 
 PG_FUNCTION_INFO_V1(pgrowlocks);
@@ -57,223 +57,217 @@ PG_FUNCTION_INFO_V1(pgrowlocks);
 
 #define NCHARS 32
 
-#define		Atnum_tid		0
-#define		Atnum_xmax		1
-#define		Atnum_ismulti	2
-#define		Atnum_xids		3
-#define		Atnum_modes		4
-#define		Atnum_pids		5
+#define   Atnum_tid   0
+#define   Atnum_xmax    1
+#define   Atnum_ismulti 2
+#define   Atnum_xids    3
+#define   Atnum_modes   4
+#define   Atnum_pids    5
 
 Datum
 pgrowlocks(PG_FUNCTION_ARGS)
 {
-	text	   *relname = PG_GETARG_TEXT_PP(0);
-	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
-	AttInMetadata *attinmeta;
-	Relation	rel;
-	RangeVar   *relrv;
-	TableScanDesc scan;
-	HeapScanDesc hscan;
-	HeapTuple	tuple;
-	AclResult	aclresult;
-	char	  **values;
+  text     *relname = PG_GETARG_TEXT_PP(0);
+  ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+  AttInMetadata *attinmeta;
+  Relation  rel;
+  RangeVar   *relrv;
+  TableScanDesc scan;
+  HeapScanDesc hscan;
+  HeapTuple tuple;
+  AclResult aclresult;
+  char    **values;
 
-	InitMaterializedSRF(fcinfo, 0);
+  InitMaterializedSRF(fcinfo, 0);
 
-	/* Access the table */
-	relrv = makeRangeVarFromNameList(textToQualifiedNameList(relname));
-	rel = relation_openrv(relrv, AccessShareLock);
+  /* Access the table */
+  relrv = makeRangeVarFromNameList(textToQualifiedNameList(relname));
+  rel = relation_openrv(relrv, AccessShareLock);
 
-	if (rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
-		ereport(ERROR,
-				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-				 errmsg("\"%s\" is a partitioned table",
-						RelationGetRelationName(rel)),
-				 errdetail("Partitioned tables do not contain rows.")));
-	else if (rel->rd_rel->relkind != RELKIND_RELATION)
-		ereport(ERROR,
-				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-				 errmsg("\"%s\" is not a table",
-						RelationGetRelationName(rel))));
-	else if (rel->rd_rel->relam != HEAP_TABLE_AM_OID)
-		ereport(ERROR,
-				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-				 errmsg("only heap AM is supported")));
+  if (rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
+    ereport(ERROR,
+            (errcode(ERRCODE_WRONG_OBJECT_TYPE),
+             errmsg("\"%s\" is a partitioned table",
+                    RelationGetRelationName(rel)),
+             errdetail("Partitioned tables do not contain rows.")));
+  else if (rel->rd_rel->relkind != RELKIND_RELATION)
+    ereport(ERROR,
+            (errcode(ERRCODE_WRONG_OBJECT_TYPE),
+             errmsg("\"%s\" is not a table",
+                    RelationGetRelationName(rel))));
+  else if (rel->rd_rel->relam != HEAP_TABLE_AM_OID)
+    ereport(ERROR,
+            (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+             errmsg("only heap AM is supported")));
 
-	/*
-	 * check permissions: must have SELECT on table or be in
-	 * pg_stat_scan_tables
-	 */
-	aclresult = pg_class_aclcheck(RelationGetRelid(rel), GetUserId(),
-								  ACL_SELECT);
-	if (aclresult != ACLCHECK_OK)
-		aclresult = has_privs_of_role(GetUserId(), ROLE_PG_STAT_SCAN_TABLES) ? ACLCHECK_OK : ACLCHECK_NO_PRIV;
+  /*
+   * check permissions: must have SELECT on table or be in
+   * pg_stat_scan_tables
+   */
+  aclresult = pg_class_aclcheck(RelationGetRelid(rel), GetUserId(),
+                                ACL_SELECT);
 
-	if (aclresult != ACLCHECK_OK)
-		aclcheck_error(aclresult, get_relkind_objtype(rel->rd_rel->relkind),
-					   RelationGetRelationName(rel));
+  if (aclresult != ACLCHECK_OK)
+    aclresult = has_privs_of_role(GetUserId(), ROLE_PG_STAT_SCAN_TABLES) ? ACLCHECK_OK : ACLCHECK_NO_PRIV;
 
-	/* Scan the relation */
-	scan = table_beginscan(rel, GetActiveSnapshot(), 0, NULL);
-	hscan = (HeapScanDesc) scan;
+  if (aclresult != ACLCHECK_OK)
+    aclcheck_error(aclresult, get_relkind_objtype(rel->rd_rel->relkind),
+                   RelationGetRelationName(rel));
 
-	attinmeta = TupleDescGetAttInMetadata(rsinfo->setDesc);
+  /* Scan the relation */
+  scan = table_beginscan(rel, GetActiveSnapshot(), 0, NULL);
+  hscan = (HeapScanDesc) scan;
 
-	values = (char **) palloc(rsinfo->setDesc->natts * sizeof(char *));
+  attinmeta = TupleDescGetAttInMetadata(rsinfo->setDesc);
 
-	while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL)
-	{
-		TM_Result	htsu;
-		TransactionId xmax;
-		uint16		infomask;
+  values = (char **) palloc(rsinfo->setDesc->natts * sizeof(char *));
 
-		/* must hold a buffer lock to call HeapTupleSatisfiesUpdate */
-		LockBuffer(hscan->rs_cbuf, BUFFER_LOCK_SHARE);
+  while ((tuple = heap_getnext(scan, ForwardScanDirection)) != NULL) {
+    TM_Result htsu;
+    TransactionId xmax;
+    uint16    infomask;
 
-		htsu = HeapTupleSatisfiesUpdate(tuple,
-										GetCurrentCommandId(false),
-										hscan->rs_cbuf);
-		xmax = HeapTupleHeaderGetRawXmax(tuple->t_data);
-		infomask = tuple->t_data->t_infomask;
+    /* must hold a buffer lock to call HeapTupleSatisfiesUpdate */
+    LockBuffer(hscan->rs_cbuf, BUFFER_LOCK_SHARE);
 
-		/*
-		 * A tuple is locked if HTSU returns BeingModified.
-		 */
-		if (htsu == TM_BeingModified)
-		{
-			values[Atnum_tid] = (char *) DirectFunctionCall1(tidout,
-															 PointerGetDatum(&tuple->t_self));
+    htsu = HeapTupleSatisfiesUpdate(tuple,
+                                    GetCurrentCommandId(false),
+                                    hscan->rs_cbuf);
+    xmax = HeapTupleHeaderGetRawXmax(tuple->t_data);
+    infomask = tuple->t_data->t_infomask;
 
-			values[Atnum_xmax] = palloc(NCHARS * sizeof(char));
-			snprintf(values[Atnum_xmax], NCHARS, "%u", xmax);
-			if (infomask & HEAP_XMAX_IS_MULTI)
-			{
-				MultiXactMember *members;
-				int			nmembers;
-				bool		first = true;
-				bool		allow_old;
+    /*
+     * A tuple is locked if HTSU returns BeingModified.
+     */
+    if (htsu == TM_BeingModified) {
+      values[Atnum_tid] = (char *) DirectFunctionCall1(tidout,
+                          PointerGetDatum(&tuple->t_self));
 
-				values[Atnum_ismulti] = pstrdup("true");
+      values[Atnum_xmax] = palloc(NCHARS * sizeof(char));
+      snprintf(values[Atnum_xmax], NCHARS, "%u", xmax);
 
-				allow_old = HEAP_LOCKED_UPGRADED(infomask);
-				nmembers = GetMultiXactIdMembers(xmax, &members, allow_old,
-												 false);
-				if (nmembers == -1)
-				{
-					values[Atnum_xids] = "{0}";
-					values[Atnum_modes] = "{transient upgrade status}";
-					values[Atnum_pids] = "{0}";
-				}
-				else
-				{
-					int			j;
+      if (infomask & HEAP_XMAX_IS_MULTI) {
+        MultiXactMember *members;
+        int     nmembers;
+        bool    first = true;
+        bool    allow_old;
 
-					values[Atnum_xids] = palloc(NCHARS * nmembers);
-					values[Atnum_modes] = palloc(NCHARS * nmembers);
-					values[Atnum_pids] = palloc(NCHARS * nmembers);
+        values[Atnum_ismulti] = pstrdup("true");
 
-					strcpy(values[Atnum_xids], "{");
-					strcpy(values[Atnum_modes], "{");
-					strcpy(values[Atnum_pids], "{");
+        allow_old = HEAP_LOCKED_UPGRADED(infomask);
+        nmembers = GetMultiXactIdMembers(xmax, &members, allow_old,
+                                         false);
 
-					for (j = 0; j < nmembers; j++)
-					{
-						char		buf[NCHARS];
+        if (nmembers == -1) {
+          values[Atnum_xids] = "{0}";
+          values[Atnum_modes] = "{transient upgrade status}";
+          values[Atnum_pids] = "{0}";
+        } else {
+          int     j;
 
-						if (!first)
-						{
-							strcat(values[Atnum_xids], ",");
-							strcat(values[Atnum_modes], ",");
-							strcat(values[Atnum_pids], ",");
-						}
-						snprintf(buf, NCHARS, "%u", members[j].xid);
-						strcat(values[Atnum_xids], buf);
-						switch (members[j].status)
-						{
-							case MultiXactStatusUpdate:
-								snprintf(buf, NCHARS, "Update");
-								break;
-							case MultiXactStatusNoKeyUpdate:
-								snprintf(buf, NCHARS, "No Key Update");
-								break;
-							case MultiXactStatusForUpdate:
-								snprintf(buf, NCHARS, "For Update");
-								break;
-							case MultiXactStatusForNoKeyUpdate:
-								snprintf(buf, NCHARS, "For No Key Update");
-								break;
-							case MultiXactStatusForShare:
-								snprintf(buf, NCHARS, "For Share");
-								break;
-							case MultiXactStatusForKeyShare:
-								snprintf(buf, NCHARS, "For Key Share");
-								break;
-						}
-						strcat(values[Atnum_modes], buf);
-						snprintf(buf, NCHARS, "%d",
-								 BackendXidGetPid(members[j].xid));
-						strcat(values[Atnum_pids], buf);
+          values[Atnum_xids] = palloc(NCHARS * nmembers);
+          values[Atnum_modes] = palloc(NCHARS * nmembers);
+          values[Atnum_pids] = palloc(NCHARS * nmembers);
 
-						first = false;
-					}
+          strcpy(values[Atnum_xids], "{");
+          strcpy(values[Atnum_modes], "{");
+          strcpy(values[Atnum_pids], "{");
 
-					strcat(values[Atnum_xids], "}");
-					strcat(values[Atnum_modes], "}");
-					strcat(values[Atnum_pids], "}");
-				}
-			}
-			else
-			{
-				values[Atnum_ismulti] = pstrdup("false");
+          for (j = 0; j < nmembers; j++) {
+            char    buf[NCHARS];
 
-				values[Atnum_xids] = palloc(NCHARS * sizeof(char));
-				snprintf(values[Atnum_xids], NCHARS, "{%u}", xmax);
+            if (!first) {
+              strcat(values[Atnum_xids], ",");
+              strcat(values[Atnum_modes], ",");
+              strcat(values[Atnum_pids], ",");
+            }
 
-				values[Atnum_modes] = palloc(NCHARS);
-				if (infomask & HEAP_XMAX_LOCK_ONLY)
-				{
-					if (HEAP_XMAX_IS_SHR_LOCKED(infomask))
-						snprintf(values[Atnum_modes], NCHARS, "{For Share}");
-					else if (HEAP_XMAX_IS_KEYSHR_LOCKED(infomask))
-						snprintf(values[Atnum_modes], NCHARS, "{For Key Share}");
-					else if (HEAP_XMAX_IS_EXCL_LOCKED(infomask))
-					{
-						if (tuple->t_data->t_infomask2 & HEAP_KEYS_UPDATED)
-							snprintf(values[Atnum_modes], NCHARS, "{For Update}");
-						else
-							snprintf(values[Atnum_modes], NCHARS, "{For No Key Update}");
-					}
-					else
-						/* neither keyshare nor exclusive bit it set */
-						snprintf(values[Atnum_modes], NCHARS,
-								 "{transient upgrade status}");
-				}
-				else
-				{
-					if (tuple->t_data->t_infomask2 & HEAP_KEYS_UPDATED)
-						snprintf(values[Atnum_modes], NCHARS, "{Update}");
-					else
-						snprintf(values[Atnum_modes], NCHARS, "{No Key Update}");
-				}
+            snprintf(buf, NCHARS, "%u", members[j].xid);
+            strcat(values[Atnum_xids], buf);
 
-				values[Atnum_pids] = palloc(NCHARS * sizeof(char));
-				snprintf(values[Atnum_pids], NCHARS, "{%d}",
-						 BackendXidGetPid(xmax));
-			}
+            switch (members[j].status) {
+              case MultiXactStatusUpdate:
+                snprintf(buf, NCHARS, "Update");
+                break;
 
-			LockBuffer(hscan->rs_cbuf, BUFFER_LOCK_UNLOCK);
+              case MultiXactStatusNoKeyUpdate:
+                snprintf(buf, NCHARS, "No Key Update");
+                break;
 
-			/* build a tuple */
-			tuple = BuildTupleFromCStrings(attinmeta, values);
-			tuplestore_puttuple(rsinfo->setResult, tuple);
-		}
-		else
-		{
-			LockBuffer(hscan->rs_cbuf, BUFFER_LOCK_UNLOCK);
-		}
-	}
+              case MultiXactStatusForUpdate:
+                snprintf(buf, NCHARS, "For Update");
+                break;
 
-	table_endscan(scan);
-	table_close(rel, AccessShareLock);
-	return (Datum) 0;
+              case MultiXactStatusForNoKeyUpdate:
+                snprintf(buf, NCHARS, "For No Key Update");
+                break;
+
+              case MultiXactStatusForShare:
+                snprintf(buf, NCHARS, "For Share");
+                break;
+
+              case MultiXactStatusForKeyShare:
+                snprintf(buf, NCHARS, "For Key Share");
+                break;
+            }
+
+            strcat(values[Atnum_modes], buf);
+            snprintf(buf, NCHARS, "%d",
+                     BackendXidGetPid(members[j].xid));
+            strcat(values[Atnum_pids], buf);
+
+            first = false;
+          }
+
+          strcat(values[Atnum_xids], "}");
+          strcat(values[Atnum_modes], "}");
+          strcat(values[Atnum_pids], "}");
+        }
+      } else {
+        values[Atnum_ismulti] = pstrdup("false");
+
+        values[Atnum_xids] = palloc(NCHARS * sizeof(char));
+        snprintf(values[Atnum_xids], NCHARS, "{%u}", xmax);
+
+        values[Atnum_modes] = palloc(NCHARS);
+
+        if (infomask & HEAP_XMAX_LOCK_ONLY) {
+          if (HEAP_XMAX_IS_SHR_LOCKED(infomask))
+            snprintf(values[Atnum_modes], NCHARS, "{For Share}");
+          else if (HEAP_XMAX_IS_KEYSHR_LOCKED(infomask))
+            snprintf(values[Atnum_modes], NCHARS, "{For Key Share}");
+          else if (HEAP_XMAX_IS_EXCL_LOCKED(infomask)) {
+            if (tuple->t_data->t_infomask2 & HEAP_KEYS_UPDATED)
+              snprintf(values[Atnum_modes], NCHARS, "{For Update}");
+            else
+              snprintf(values[Atnum_modes], NCHARS, "{For No Key Update}");
+          } else
+            /* neither keyshare nor exclusive bit it set */
+            snprintf(values[Atnum_modes], NCHARS,
+                     "{transient upgrade status}");
+        } else {
+          if (tuple->t_data->t_infomask2 & HEAP_KEYS_UPDATED)
+            snprintf(values[Atnum_modes], NCHARS, "{Update}");
+          else
+            snprintf(values[Atnum_modes], NCHARS, "{No Key Update}");
+        }
+
+        values[Atnum_pids] = palloc(NCHARS * sizeof(char));
+        snprintf(values[Atnum_pids], NCHARS, "{%d}",
+                 BackendXidGetPid(xmax));
+      }
+
+      LockBuffer(hscan->rs_cbuf, BUFFER_LOCK_UNLOCK);
+
+      /* build a tuple */
+      tuple = BuildTupleFromCStrings(attinmeta, values);
+      tuplestore_puttuple(rsinfo->setResult, tuple);
+    } else {
+      LockBuffer(hscan->rs_cbuf, BUFFER_LOCK_UNLOCK);
+    }
+  }
+
+  table_endscan(scan);
+  table_close(rel, AccessShareLock);
+  return (Datum) 0;
 }

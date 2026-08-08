@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * pageinspect.h
- *	  Common functions for pageinspect.
+ *    Common functions for pageinspect.
  *
  * Copyright (c) 2017-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  contrib/pageinspect/pageinspect.h
+ *    contrib/pageinspect/pageinspect.h
  *
  *-------------------------------------------------------------------------
  */
@@ -20,11 +20,11 @@
  */
 enum pageinspect_version
 {
-	PAGEINSPECT_V1_8,
-	PAGEINSPECT_V1_9,
+  PAGEINSPECT_V1_8,
+  PAGEINSPECT_V1_9,
 };
 
 /* in rawpage.c */
 extern Page get_page_from_raw(bytea *raw_page);
 
-#endif							/* _PAGEINSPECT_H_ */
+#endif              /* _PAGEINSPECT_H_ */

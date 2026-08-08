@@ -1,11 +1,11 @@
 /*
  * brinfuncs.c
- *		Functions to investigate BRIN indexes
+ *    Functions to investigate BRIN indexes
  *
  * Copyright (c) 2014-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *		contrib/pageinspect/brinfuncs.c
+ *    contrib/pageinspect/brinfuncs.c
  */
 #include "postgres.h"
 
@@ -30,59 +30,60 @@ PG_FUNCTION_INFO_V1(brin_revmap_data);
 
 #define IS_BRIN(r) ((r)->rd_rel->relam == BRIN_AM_OID)
 
-typedef struct brin_column_state
-{
-	int			nstored;
-	FmgrInfo	outputFn[FLEXIBLE_ARRAY_MEMBER];
+typedef struct brin_column_state {
+  int     nstored;
+  FmgrInfo  outputFn[FLEXIBLE_ARRAY_MEMBER];
 } brin_column_state;
 
 
 static Page verify_brin_page(bytea *raw_page, uint16 type,
-							 const char *strtype);
+                             const char *strtype);
 
 Datum
 brin_page_type(PG_FUNCTION_ARGS)
 {
-	bytea	   *raw_page = PG_GETARG_BYTEA_P(0);
-	Page		page;
-	char	   *type;
+  bytea    *raw_page = PG_GETARG_BYTEA_P(0);
+  Page    page;
+  char     *type;
 
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to use raw page functions")));
+  if (!superuser())
+    ereport(ERROR,
+            (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+             errmsg("must be superuser to use raw page functions")));
 
-	page = get_page_from_raw(raw_page);
+  page = get_page_from_raw(raw_page);
 
-	if (PageIsNew(page))
-		PG_RETURN_NULL();
+  if (PageIsNew(page))
+    PG_RETURN_NULL();
 
-	/* verify the special space has the expected size */
-	if (PageGetSpecialSize(page) != MAXALIGN(sizeof(BrinSpecialSpace)))
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("input page is not a valid %s page", "BRIN"),
-				 errdetail("Expected special size %d, got %d.",
-						   (int) MAXALIGN(sizeof(BrinSpecialSpace)),
-						   (int) PageGetSpecialSize(page))));
+  /* verify the special space has the expected size */
+  if (PageGetSpecialSize(page) != MAXALIGN(sizeof(BrinSpecialSpace)))
+    ereport(ERROR,
+            (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+             errmsg("input page is not a valid %s page", "BRIN"),
+             errdetail("Expected special size %d, got %d.",
+                       (int) MAXALIGN(sizeof(BrinSpecialSpace)),
+                       (int) PageGetSpecialSize(page))));
 
-	switch (BrinPageType(page))
-	{
-		case BRIN_PAGETYPE_META:
-			type = "meta";
-			break;
-		case BRIN_PAGETYPE_REVMAP:
-			type = "revmap";
-			break;
-		case BRIN_PAGETYPE_REGULAR:
-			type = "regular";
-			break;
-		default:
-			type = psprintf("unknown (%02x)", BrinPageType(page));
-			break;
-	}
+  switch (BrinPageType(page)) {
+    case BRIN_PAGETYPE_META:
+      type = "meta";
+      break;
 
-	PG_RETURN_TEXT_P(cstring_to_text(type));
+    case BRIN_PAGETYPE_REVMAP:
+      type = "revmap";
+      break;
+
+    case BRIN_PAGETYPE_REGULAR:
+      type = "regular";
+      break;
+
+    default:
+      type = psprintf("unknown (%02x)", BrinPageType(page));
+      break;
+  }
+
+  PG_RETURN_TEXT_P(cstring_to_text(type));
 }
 
 /*
@@ -92,33 +93,33 @@ brin_page_type(PG_FUNCTION_ARGS)
 static Page
 verify_brin_page(bytea *raw_page, uint16 type, const char *strtype)
 {
-	Page		page = get_page_from_raw(raw_page);
+  Page    page = get_page_from_raw(raw_page);
 
-	if (PageIsNew(page))
-		return page;
+  if (PageIsNew(page))
+    return page;
 
-	/* verify the special space has the expected size */
-	if (PageGetSpecialSize(page) != MAXALIGN(sizeof(BrinSpecialSpace)))
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("input page is not a valid %s page", "BRIN"),
-				 errdetail("Expected special size %d, got %d.",
-						   (int) MAXALIGN(sizeof(BrinSpecialSpace)),
-						   (int) PageGetSpecialSize(page))));
+  /* verify the special space has the expected size */
+  if (PageGetSpecialSize(page) != MAXALIGN(sizeof(BrinSpecialSpace)))
+    ereport(ERROR,
+            (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+             errmsg("input page is not a valid %s page", "BRIN"),
+             errdetail("Expected special size %d, got %d.",
+                       (int) MAXALIGN(sizeof(BrinSpecialSpace)),
+                       (int) PageGetSpecialSize(page))));
 
-	/* verify the special space says this page is what we want */
-	if (BrinPageType(page) != type)
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("page is not a BRIN page of type \"%s\"", strtype),
-				 errdetail("Expected special type %08x, got %08x.",
-						   type, BrinPageType(page))));
+  /* verify the special space says this page is what we want */
+  if (BrinPageType(page) != type)
+    ereport(ERROR,
+            (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+             errmsg("page is not a BRIN page of type \"%s\"", strtype),
+             errdetail("Expected special type %08x, got %08x.",
+                       type, BrinPageType(page))));
 
-	return page;
+  return page;
 }
 
 /* Number of output arguments (columns) for brin_page_items() */
-#define BRIN_PAGE_ITEMS_V1_12	8
+#define BRIN_PAGE_ITEMS_V1_12 8
 
 /*
  * Extract all item values from a BRIN index page
@@ -128,253 +129,249 @@ verify_brin_page(bytea *raw_page, uint16 type, const char *strtype)
 Datum
 brin_page_items(PG_FUNCTION_ARGS)
 {
-	bytea	   *raw_page = PG_GETARG_BYTEA_P(0);
-	Oid			indexRelid = PG_GETARG_OID(1);
-	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
-	Relation	indexRel;
-	brin_column_state **columns;
-	BrinDesc   *bdesc;
-	BrinMemTuple *dtup;
-	Page		page;
-	OffsetNumber offset;
-	AttrNumber	attno;
-	bool		unusedItem;
+  bytea    *raw_page = PG_GETARG_BYTEA_P(0);
+  Oid     indexRelid = PG_GETARG_OID(1);
+  ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+  Relation  indexRel;
+  brin_column_state **columns;
+  BrinDesc   *bdesc;
+  BrinMemTuple *dtup;
+  Page    page;
+  OffsetNumber offset;
+  AttrNumber  attno;
+  bool    unusedItem;
 
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to use raw page functions")));
+  if (!superuser())
+    ereport(ERROR,
+            (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+             errmsg("must be superuser to use raw page functions")));
 
-	InitMaterializedSRF(fcinfo, 0);
+  InitMaterializedSRF(fcinfo, 0);
 
-	/*
-	 * Version 1.12 added a new output column for the empty range flag. But as
-	 * it was added in the middle, it may cause crashes with function
-	 * definitions from older versions of the extension.
-	 *
-	 * There is no way to reliably avoid the problems created by the old
-	 * function definition at this point, so insist that the user update the
-	 * extension.
-	 */
-	if (rsinfo->setDesc->natts < BRIN_PAGE_ITEMS_V1_12)
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
-				 errmsg("function has wrong number of declared columns"),
-				 errhint("To resolve the problem, update the \"pageinspect\" extension to the latest version.")));
+  /*
+   * Version 1.12 added a new output column for the empty range flag. But as
+   * it was added in the middle, it may cause crashes with function
+   * definitions from older versions of the extension.
+   *
+   * There is no way to reliably avoid the problems created by the old
+   * function definition at this point, so insist that the user update the
+   * extension.
+   */
+  if (rsinfo->setDesc->natts < BRIN_PAGE_ITEMS_V1_12)
+    ereport(ERROR,
+            (errcode(ERRCODE_INVALID_FUNCTION_DEFINITION),
+             errmsg("function has wrong number of declared columns"),
+             errhint("To resolve the problem, update the \"pageinspect\" extension to the latest version.")));
 
-	indexRel = index_open(indexRelid, AccessShareLock);
+  indexRel = index_open(indexRelid, AccessShareLock);
 
-	if (!IS_BRIN(indexRel))
-		ereport(ERROR,
-				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
-				 errmsg("\"%s\" is not a %s index",
-						RelationGetRelationName(indexRel), "BRIN")));
+  if (!IS_BRIN(indexRel))
+    ereport(ERROR,
+            (errcode(ERRCODE_WRONG_OBJECT_TYPE),
+             errmsg("\"%s\" is not a %s index",
+                    RelationGetRelationName(indexRel), "BRIN")));
 
-	bdesc = brin_build_desc(indexRel);
+  bdesc = brin_build_desc(indexRel);
 
-	/* minimally verify the page we got */
-	page = verify_brin_page(raw_page, BRIN_PAGETYPE_REGULAR, "regular");
+  /* minimally verify the page we got */
+  page = verify_brin_page(raw_page, BRIN_PAGETYPE_REGULAR, "regular");
 
-	if (PageIsNew(page))
-	{
-		brin_free_desc(bdesc);
-		index_close(indexRel, AccessShareLock);
-		PG_RETURN_NULL();
-	}
+  if (PageIsNew(page)) {
+    brin_free_desc(bdesc);
+    index_close(indexRel, AccessShareLock);
+    PG_RETURN_NULL();
+  }
 
-	/*
-	 * Initialize output functions for all indexed datatypes; simplifies
-	 * calling them later.
-	 */
-	columns = palloc(sizeof(brin_column_state *) * RelationGetDescr(indexRel)->natts);
-	for (attno = 1; attno <= bdesc->bd_tupdesc->natts; attno++)
-	{
-		Oid			output;
-		bool		isVarlena;
-		BrinOpcInfo *opcinfo;
-		int			i;
-		brin_column_state *column;
+  /*
+   * Initialize output functions for all indexed datatypes; simplifies
+   * calling them later.
+   */
+  columns = palloc(sizeof(brin_column_state *) * RelationGetDescr(indexRel)->natts);
 
-		opcinfo = bdesc->bd_info[attno - 1];
-		column = palloc(offsetof(brin_column_state, outputFn) +
-						sizeof(FmgrInfo) * opcinfo->oi_nstored);
+  for (attno = 1; attno <= bdesc->bd_tupdesc->natts; attno++) {
+    Oid     output;
+    bool    isVarlena;
+    BrinOpcInfo *opcinfo;
+    int     i;
+    brin_column_state *column;
 
-		column->nstored = opcinfo->oi_nstored;
-		for (i = 0; i < opcinfo->oi_nstored; i++)
-		{
-			getTypeOutputInfo(opcinfo->oi_typcache[i]->type_id, &output, &isVarlena);
-			fmgr_info(output, &column->outputFn[i]);
-		}
+    opcinfo = bdesc->bd_info[attno - 1];
+    column = palloc(offsetof(brin_column_state, outputFn) +
+                    sizeof(FmgrInfo) * opcinfo->oi_nstored);
 
-		columns[attno - 1] = column;
-	}
+    column->nstored = opcinfo->oi_nstored;
 
-	offset = FirstOffsetNumber;
-	unusedItem = false;
-	dtup = NULL;
-	for (;;)
-	{
-		Datum		values[8];
-		bool		nulls[8] = {0};
+    for (i = 0; i < opcinfo->oi_nstored; i++) {
+      getTypeOutputInfo(opcinfo->oi_typcache[i]->type_id, &output, &isVarlena);
+      fmgr_info(output, &column->outputFn[i]);
+    }
 
-		/*
-		 * This loop is called once for every attribute of every tuple in the
-		 * page.  At the start of a tuple, we get a NULL dtup; that's our
-		 * signal for obtaining and decoding the next one.  If that's not the
-		 * case, we output the next attribute.
-		 */
-		if (dtup == NULL)
-		{
-			ItemId		itemId;
+    columns[attno - 1] = column;
+  }
 
-			/* verify item status: if there's no data, we can't decode */
-			itemId = PageGetItemId(page, offset);
-			if (ItemIdIsUsed(itemId))
-			{
-				dtup = brin_deform_tuple(bdesc,
-										 (BrinTuple *) PageGetItem(page, itemId),
-										 NULL);
-				attno = 1;
-				unusedItem = false;
-			}
-			else
-				unusedItem = true;
-		}
-		else
-			attno++;
+  offset = FirstOffsetNumber;
+  unusedItem = false;
+  dtup = NULL;
 
-		if (unusedItem)
-		{
-			values[0] = UInt16GetDatum(offset);
-			nulls[1] = true;
-			nulls[2] = true;
-			nulls[3] = true;
-			nulls[4] = true;
-			nulls[5] = true;
-			nulls[6] = true;
-			nulls[7] = true;
-		}
-		else
-		{
-			int			att = attno - 1;
+  for (;;) {
+    Datum   values[8];
+    bool    nulls[8] = {0};
 
-			values[0] = UInt16GetDatum(offset);
-			switch (TupleDescAttr(rsinfo->setDesc, 1)->atttypid)
-			{
-				case INT8OID:
-					values[1] = Int64GetDatum((int64) dtup->bt_blkno);
-					break;
-				case INT4OID:
-					/* support for old extension version */
-					values[1] = UInt32GetDatum(dtup->bt_blkno);
-					break;
-				default:
-					elog(ERROR, "incorrect output types");
-			}
-			values[2] = UInt16GetDatum(attno);
-			values[3] = BoolGetDatum(dtup->bt_columns[att].bv_allnulls);
-			values[4] = BoolGetDatum(dtup->bt_columns[att].bv_hasnulls);
-			values[5] = BoolGetDatum(dtup->bt_placeholder);
-			values[6] = BoolGetDatum(dtup->bt_empty_range);
-			if (!dtup->bt_columns[att].bv_allnulls)
-			{
-				BrinValues *bvalues = &dtup->bt_columns[att];
-				StringInfoData s;
-				bool		first;
-				int			i;
+    /*
+     * This loop is called once for every attribute of every tuple in the
+     * page.  At the start of a tuple, we get a NULL dtup; that's our
+     * signal for obtaining and decoding the next one.  If that's not the
+     * case, we output the next attribute.
+     */
+    if (dtup == NULL) {
+      ItemId    itemId;
 
-				initStringInfo(&s);
-				appendStringInfoChar(&s, '{');
+      /* verify item status: if there's no data, we can't decode */
+      itemId = PageGetItemId(page, offset);
 
-				first = true;
-				for (i = 0; i < columns[att]->nstored; i++)
-				{
-					char	   *val;
+      if (ItemIdIsUsed(itemId)) {
+        dtup = brin_deform_tuple(bdesc,
+                                 (BrinTuple *) PageGetItem(page, itemId),
+                                 NULL);
+        attno = 1;
+        unusedItem = false;
+      } else
+        unusedItem = true;
+    } else
+      attno++;
 
-					if (!first)
-						appendStringInfoString(&s, " .. ");
-					first = false;
-					val = OutputFunctionCall(&columns[att]->outputFn[i],
-											 bvalues->bv_values[i]);
-					appendStringInfoString(&s, val);
-					pfree(val);
-				}
-				appendStringInfoChar(&s, '}');
+    if (unusedItem) {
+      values[0] = UInt16GetDatum(offset);
+      nulls[1] = true;
+      nulls[2] = true;
+      nulls[3] = true;
+      nulls[4] = true;
+      nulls[5] = true;
+      nulls[6] = true;
+      nulls[7] = true;
+    } else {
+      int     att = attno - 1;
 
-				values[7] = CStringGetTextDatum(s.data);
-				pfree(s.data);
-			}
-			else
-			{
-				nulls[7] = true;
-			}
-		}
+      values[0] = UInt16GetDatum(offset);
 
-		tuplestore_putvalues(rsinfo->setResult, rsinfo->setDesc, values, nulls);
+      switch (TupleDescAttr(rsinfo->setDesc, 1)->atttypid) {
+        case INT8OID:
+          values[1] = Int64GetDatum((int64) dtup->bt_blkno);
+          break;
 
-		/*
-		 * If the item was unused, jump straight to the next one; otherwise,
-		 * the only cleanup needed here is to set our signal to go to the next
-		 * tuple in the following iteration, by freeing the current one.
-		 */
-		if (unusedItem)
-			offset = OffsetNumberNext(offset);
-		else if (attno >= bdesc->bd_tupdesc->natts)
-		{
-			pfree(dtup);
-			dtup = NULL;
-			offset = OffsetNumberNext(offset);
-		}
+        case INT4OID:
+          /* support for old extension version */
+          values[1] = UInt32GetDatum(dtup->bt_blkno);
+          break;
 
-		/*
-		 * If we're beyond the end of the page, we're done.
-		 */
-		if (offset > PageGetMaxOffsetNumber(page))
-			break;
-	}
+        default:
+          elog(ERROR, "incorrect output types");
+      }
 
-	brin_free_desc(bdesc);
-	index_close(indexRel, AccessShareLock);
+      values[2] = UInt16GetDatum(attno);
+      values[3] = BoolGetDatum(dtup->bt_columns[att].bv_allnulls);
+      values[4] = BoolGetDatum(dtup->bt_columns[att].bv_hasnulls);
+      values[5] = BoolGetDatum(dtup->bt_placeholder);
+      values[6] = BoolGetDatum(dtup->bt_empty_range);
 
-	return (Datum) 0;
+      if (!dtup->bt_columns[att].bv_allnulls) {
+        BrinValues *bvalues = &dtup->bt_columns[att];
+        StringInfoData s;
+        bool    first;
+        int     i;
+
+        initStringInfo(&s);
+        appendStringInfoChar(&s, '{');
+
+        first = true;
+
+        for (i = 0; i < columns[att]->nstored; i++) {
+          char     *val;
+
+          if (!first)
+            appendStringInfoString(&s, " .. ");
+
+          first = false;
+          val = OutputFunctionCall(&columns[att]->outputFn[i],
+                                   bvalues->bv_values[i]);
+          appendStringInfoString(&s, val);
+          pfree(val);
+        }
+
+        appendStringInfoChar(&s, '}');
+
+        values[7] = CStringGetTextDatum(s.data);
+        pfree(s.data);
+      } else {
+        nulls[7] = true;
+      }
+    }
+
+    tuplestore_putvalues(rsinfo->setResult, rsinfo->setDesc, values, nulls);
+
+    /*
+     * If the item was unused, jump straight to the next one; otherwise,
+     * the only cleanup needed here is to set our signal to go to the next
+     * tuple in the following iteration, by freeing the current one.
+     */
+    if (unusedItem)
+      offset = OffsetNumberNext(offset);
+    else if (attno >= bdesc->bd_tupdesc->natts) {
+      pfree(dtup);
+      dtup = NULL;
+      offset = OffsetNumberNext(offset);
+    }
+
+    /*
+     * If we're beyond the end of the page, we're done.
+     */
+    if (offset > PageGetMaxOffsetNumber(page))
+      break;
+  }
+
+  brin_free_desc(bdesc);
+  index_close(indexRel, AccessShareLock);
+
+  return (Datum) 0;
 }
 
 Datum
 brin_metapage_info(PG_FUNCTION_ARGS)
 {
-	bytea	   *raw_page = PG_GETARG_BYTEA_P(0);
-	Page		page;
-	BrinMetaPageData *meta;
-	TupleDesc	tupdesc;
-	Datum		values[4];
-	bool		nulls[4] = {0};
-	HeapTuple	htup;
+  bytea    *raw_page = PG_GETARG_BYTEA_P(0);
+  Page    page;
+  BrinMetaPageData *meta;
+  TupleDesc tupdesc;
+  Datum   values[4];
+  bool    nulls[4] = {0};
+  HeapTuple htup;
 
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to use raw page functions")));
+  if (!superuser())
+    ereport(ERROR,
+            (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+             errmsg("must be superuser to use raw page functions")));
 
-	page = verify_brin_page(raw_page, BRIN_PAGETYPE_META, "metapage");
+  page = verify_brin_page(raw_page, BRIN_PAGETYPE_META, "metapage");
 
-	if (PageIsNew(page))
-		PG_RETURN_NULL();
+  if (PageIsNew(page))
+    PG_RETURN_NULL();
 
-	/* Build a tuple descriptor for our result type */
-	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
-		elog(ERROR, "return type must be a row type");
-	tupdesc = BlessTupleDesc(tupdesc);
+  /* Build a tuple descriptor for our result type */
+  if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+    elog(ERROR, "return type must be a row type");
 
-	/* Extract values from the metapage */
-	meta = (BrinMetaPageData *) PageGetContents(page);
-	values[0] = CStringGetTextDatum(psprintf("0x%08X", meta->brinMagic));
-	values[1] = Int32GetDatum(meta->brinVersion);
-	values[2] = Int32GetDatum(meta->pagesPerRange);
-	values[3] = Int64GetDatum(meta->lastRevmapPage);
+  tupdesc = BlessTupleDesc(tupdesc);
 
-	htup = heap_form_tuple(tupdesc, values, nulls);
+  /* Extract values from the metapage */
+  meta = (BrinMetaPageData *) PageGetContents(page);
+  values[0] = CStringGetTextDatum(psprintf("0x%08X", meta->brinMagic));
+  values[1] = Int32GetDatum(meta->brinVersion);
+  values[2] = Int32GetDatum(meta->pagesPerRange);
+  values[3] = Int64GetDatum(meta->lastRevmapPage);
 
-	PG_RETURN_DATUM(HeapTupleGetDatum(htup));
+  htup = heap_form_tuple(tupdesc, values, nulls);
+
+  PG_RETURN_DATUM(HeapTupleGetDatum(htup));
 }
 
 /*
@@ -383,53 +380,50 @@ brin_metapage_info(PG_FUNCTION_ARGS)
 Datum
 brin_revmap_data(PG_FUNCTION_ARGS)
 {
-	struct
-	{
-		ItemPointerData *tids;
-		int			idx;
-	}		   *state;
-	FuncCallContext *fctx;
+  struct {
+    ItemPointerData *tids;
+    int     idx;
+  }      *state;
+  FuncCallContext *fctx;
 
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to use raw page functions")));
+  if (!superuser())
+    ereport(ERROR,
+            (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+             errmsg("must be superuser to use raw page functions")));
 
-	if (SRF_IS_FIRSTCALL())
-	{
-		bytea	   *raw_page = PG_GETARG_BYTEA_P(0);
-		MemoryContext mctx;
-		Page		page;
+  if (SRF_IS_FIRSTCALL()) {
+    bytea    *raw_page = PG_GETARG_BYTEA_P(0);
+    MemoryContext mctx;
+    Page    page;
 
-		/* create a function context for cross-call persistence */
-		fctx = SRF_FIRSTCALL_INIT();
+    /* create a function context for cross-call persistence */
+    fctx = SRF_FIRSTCALL_INIT();
 
-		/* switch to memory context appropriate for multiple function calls */
-		mctx = MemoryContextSwitchTo(fctx->multi_call_memory_ctx);
+    /* switch to memory context appropriate for multiple function calls */
+    mctx = MemoryContextSwitchTo(fctx->multi_call_memory_ctx);
 
-		/* minimally verify the page we got */
-		page = verify_brin_page(raw_page, BRIN_PAGETYPE_REVMAP, "revmap");
+    /* minimally verify the page we got */
+    page = verify_brin_page(raw_page, BRIN_PAGETYPE_REVMAP, "revmap");
 
-		if (PageIsNew(page))
-		{
-			MemoryContextSwitchTo(mctx);
-			PG_RETURN_NULL();
-		}
+    if (PageIsNew(page)) {
+      MemoryContextSwitchTo(mctx);
+      PG_RETURN_NULL();
+    }
 
-		state = palloc(sizeof(*state));
-		state->tids = ((RevmapContents *) PageGetContents(page))->rm_tids;
-		state->idx = 0;
+    state = palloc(sizeof(*state));
+    state->tids = ((RevmapContents *) PageGetContents(page))->rm_tids;
+    state->idx = 0;
 
-		fctx->user_fctx = state;
+    fctx->user_fctx = state;
 
-		MemoryContextSwitchTo(mctx);
-	}
+    MemoryContextSwitchTo(mctx);
+  }
 
-	fctx = SRF_PERCALL_SETUP();
-	state = fctx->user_fctx;
+  fctx = SRF_PERCALL_SETUP();
+  state = fctx->user_fctx;
 
-	if (state->idx < REVMAP_PAGE_MAXITEMS)
-		SRF_RETURN_NEXT(fctx, PointerGetDatum(&state->tids[state->idx++]));
+  if (state->idx < REVMAP_PAGE_MAXITEMS)
+    SRF_RETURN_NEXT(fctx, PointerGetDatum(&state->tids[state->idx++]));
 
-	SRF_RETURN_DONE(fctx);
+  SRF_RETURN_DONE(fctx);
 }

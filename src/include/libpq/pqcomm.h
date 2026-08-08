@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pqcomm.h
- *		Definitions common to frontends and backends.
+ *    Definitions common to frontends and backends.
  *
  * NOTE: for historical reasons, this does not correspond to pqcomm.c.
  * pqcomm.c's routines are declared in libpq.h.
@@ -29,23 +29,23 @@
 
 typedef struct
 {
-	struct sockaddr_storage addr;
-	socklen_t	salen;
+  struct sockaddr_storage addr;
+  socklen_t salen;
 } SockAddr;
 
 typedef struct
 {
-	int			family;
-	SockAddr	addr;
+  int     family;
+  SockAddr  addr;
 } AddrInfo;
 
 /* Configure the UNIX socket location for the well known port. */
 
 #define UNIXSOCK_PATH(path, port, sockdir) \
-	   (AssertMacro(sockdir), \
-		AssertMacro(*(sockdir) != '\0'), \
-		snprintf(path, sizeof(path), "%s/.s.PGSQL.%d", \
-				 (sockdir), (port)))
+     (AssertMacro(sockdir), \
+    AssertMacro(*(sockdir) != '\0'), \
+    snprintf(path, sizeof(path), "%s/.s.PGSQL.%d", \
+         (sockdir), (port)))
 
 /*
  * The maximum workable length of a socket path is what will fit into
@@ -66,7 +66,7 @@ typedef struct
 static inline bool
 is_unixsock_path(const char *path)
 {
-	return is_absolute_path(path) || path[0] == '@';
+  return is_absolute_path(path) || path[0] == '@';
 }
 
 /*
@@ -84,17 +84,17 @@ is_unixsock_path(const char *path)
  * version.
  */
 
-#define PG_PROTOCOL_MAJOR(v)	((v) >> 16)
-#define PG_PROTOCOL_MINOR(v)	((v) & 0x0000ffff)
-#define PG_PROTOCOL_FULL(v)	(PG_PROTOCOL_MAJOR(v) * 10000 + PG_PROTOCOL_MINOR(v))
-#define PG_PROTOCOL(m,n)	(((m) << 16) | (n))
+#define PG_PROTOCOL_MAJOR(v)  ((v) >> 16)
+#define PG_PROTOCOL_MINOR(v)  ((v) & 0x0000ffff)
+#define PG_PROTOCOL_FULL(v) (PG_PROTOCOL_MAJOR(v) * 10000 + PG_PROTOCOL_MINOR(v))
+#define PG_PROTOCOL(m,n)  (((m) << 16) | (n))
 
 /*
  * The earliest and latest frontend/backend protocol version supported.
  */
 
-#define PG_PROTOCOL_EARLIEST	PG_PROTOCOL(3,0)
-#define PG_PROTOCOL_LATEST		PG_PROTOCOL(3,2)
+#define PG_PROTOCOL_EARLIEST  PG_PROTOCOL(3,0)
+#define PG_PROTOCOL_LATEST    PG_PROTOCOL(3,2)
 
 typedef uint32 ProtocolVersion; /* FE/BE protocol version number */
 
@@ -138,11 +138,11 @@ typedef uint32 AuthRequest;
 
 typedef struct CancelRequestPacket
 {
-	/* Note that each field is stored in network byte order! */
-	MsgType		cancelRequestCode;	/* code to identify a cancel request */
-	uint32		backendPID;		/* PID of client's backend */
-	uint8		cancelAuthCode[FLEXIBLE_ARRAY_MEMBER];	/* secret key to
-														 * authorize cancel */
+  /* Note that each field is stored in network byte order! */
+  MsgType   cancelRequestCode;  /* code to identify a cancel request */
+  uint32    backendPID;   /* PID of client's backend */
+  uint8   cancelAuthCode[FLEXIBLE_ARRAY_MEMBER];  /* secret key to
+                             * authorize cancel */
 } CancelRequestPacket;
 
 /* Application-Layer Protocol Negotiation is required for direct connections
@@ -172,4 +172,4 @@ typedef struct CancelRequestPacket
 #define NEGOTIATE_SSL_CODE PG_PROTOCOL(1234,5679)
 #define NEGOTIATE_GSS_CODE PG_PROTOCOL(1234,5680)
 
-#endif							/* PQCOMM_H */
+#endif              /* PQCOMM_H */

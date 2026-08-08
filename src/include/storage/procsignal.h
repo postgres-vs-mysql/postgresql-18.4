@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * procsignal.h
- *	  Routines for interprocess signaling
+ *    Routines for interprocess signaling
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -29,33 +29,33 @@
  */
 typedef enum
 {
-	PROCSIG_CATCHUP_INTERRUPT,	/* sinval catchup interrupt */
-	PROCSIG_NOTIFY_INTERRUPT,	/* listen/notify interrupt */
-	PROCSIG_PARALLEL_MESSAGE,	/* message from cooperating parallel backend */
-	PROCSIG_WALSND_INIT_STOPPING,	/* ask walsenders to prepare for shutdown  */
-	PROCSIG_BARRIER,			/* global barrier interrupt  */
-	PROCSIG_LOG_MEMORY_CONTEXT, /* ask backend to log the memory contexts */
-	PROCSIG_PARALLEL_APPLY_MESSAGE, /* Message from parallel apply workers */
+  PROCSIG_CATCHUP_INTERRUPT,  /* sinval catchup interrupt */
+  PROCSIG_NOTIFY_INTERRUPT, /* listen/notify interrupt */
+  PROCSIG_PARALLEL_MESSAGE, /* message from cooperating parallel backend */
+  PROCSIG_WALSND_INIT_STOPPING, /* ask walsenders to prepare for shutdown  */
+  PROCSIG_BARRIER,      /* global barrier interrupt  */
+  PROCSIG_LOG_MEMORY_CONTEXT, /* ask backend to log the memory contexts */
+  PROCSIG_PARALLEL_APPLY_MESSAGE, /* Message from parallel apply workers */
 
-	/* Recovery conflict reasons */
-	PROCSIG_RECOVERY_CONFLICT_FIRST,
-	PROCSIG_RECOVERY_CONFLICT_DATABASE = PROCSIG_RECOVERY_CONFLICT_FIRST,
-	PROCSIG_RECOVERY_CONFLICT_TABLESPACE,
-	PROCSIG_RECOVERY_CONFLICT_LOCK,
-	PROCSIG_RECOVERY_CONFLICT_SNAPSHOT,
-	PROCSIG_RECOVERY_CONFLICT_LOGICALSLOT,
-	PROCSIG_RECOVERY_CONFLICT_BUFFERPIN,
-	PROCSIG_RECOVERY_CONFLICT_STARTUP_DEADLOCK,
-	PROCSIG_RECOVERY_CONFLICT_LAST = PROCSIG_RECOVERY_CONFLICT_STARTUP_DEADLOCK,
+  /* Recovery conflict reasons */
+  PROCSIG_RECOVERY_CONFLICT_FIRST,
+  PROCSIG_RECOVERY_CONFLICT_DATABASE = PROCSIG_RECOVERY_CONFLICT_FIRST,
+  PROCSIG_RECOVERY_CONFLICT_TABLESPACE,
+  PROCSIG_RECOVERY_CONFLICT_LOCK,
+  PROCSIG_RECOVERY_CONFLICT_SNAPSHOT,
+  PROCSIG_RECOVERY_CONFLICT_LOGICALSLOT,
+  PROCSIG_RECOVERY_CONFLICT_BUFFERPIN,
+  PROCSIG_RECOVERY_CONFLICT_STARTUP_DEADLOCK,
+  PROCSIG_RECOVERY_CONFLICT_LAST = PROCSIG_RECOVERY_CONFLICT_STARTUP_DEADLOCK,
 
-	PROCSIG_SLOTSYNC_MESSAGE,	/* ask slot synchronization to stop */
+  PROCSIG_SLOTSYNC_MESSAGE, /* ask slot synchronization to stop */
 } ProcSignalReason;
 
 #define NUM_PROCSIGNALS (PROCSIG_SLOTSYNC_MESSAGE + 1)
 
 typedef enum
 {
-	PROCSIGNAL_BARRIER_SMGRRELEASE, /* ask smgr to close files */
+  PROCSIGNAL_BARRIER_SMGRRELEASE, /* ask smgr to close files */
 } ProcSignalBarrierType;
 
 /*
@@ -75,8 +75,8 @@ extern Size ProcSignalShmemSize(void);
 extern void ProcSignalShmemInit(void);
 
 extern void ProcSignalInit(const uint8 *cancel_key, int cancel_key_len);
-extern int	SendProcSignal(pid_t pid, ProcSignalReason reason,
-						   ProcNumber procNumber);
+extern int  SendProcSignal(pid_t pid, ProcSignalReason reason,
+                           ProcNumber procNumber);
 extern void SendCancelRequest(int backendPID, const uint8 *cancel_key, int cancel_key_len);
 
 extern uint64 EmitProcSignalBarrier(ProcSignalBarrierType type);
@@ -92,4 +92,4 @@ typedef struct ProcSignalHeader ProcSignalHeader;
 extern PGDLLIMPORT ProcSignalHeader *ProcSignal;
 #endif
 
-#endif							/* PROCSIGNAL_H */
+#endif              /* PROCSIGNAL_H */

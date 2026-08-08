@@ -50,4 +50,4 @@
 #include <Python.h>
 #endif
 
-#endif							/* PLPYTHON_SYSTEM_H */
+#endif              /* PLPYTHON_SYSTEM_H */

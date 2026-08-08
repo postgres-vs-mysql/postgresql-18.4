@@ -35,16 +35,15 @@ static const symbol s_0_5[2] = { 0xD7, 0x9F };
 static const symbol s_0_6[2] = { 0xD7, 0xA3 };
 static const symbol s_0_7[2] = { 0xD7, 0xA5 };
 
-static const struct among a_0[8] =
-{
-{ 4, s_0_0, -1, 1, 0},
-{ 4, s_0_1, -1, 2, 0},
-{ 4, s_0_2, -1, 3, 0},
-{ 2, s_0_3, -1, 4, 0},
-{ 2, s_0_4, -1, 5, 0},
-{ 2, s_0_5, -1, 6, 0},
-{ 2, s_0_6, -1, 7, 0},
-{ 2, s_0_7, -1, 8, 0}
+static const struct among a_0[8] = {
+  { 4, s_0_0, -1, 1, 0},
+  { 4, s_0_1, -1, 2, 0},
+  { 4, s_0_2, -1, 3, 0},
+  { 2, s_0_3, -1, 4, 0},
+  { 2, s_0_4, -1, 5, 0},
+  { 2, s_0_5, -1, 6, 0},
+  { 2, s_0_6, -1, 7, 0},
+  { 2, s_0_7, -1, 8, 0}
 };
 
 static const symbol s_1_0[10] = { 0xD7, 0x90, 0xD7, 0x93, 0xD7, 0x95, 0xD7, 0xA8, 0xD7, 0x9B };
@@ -88,48 +87,47 @@ static const symbol s_1_37[10] = { 0xD7, 0xA6, 0xD7, 0x95, 0xD7, 0xA0, 0xD7, 0xB
 static const symbol s_1_38[10] = { 0xD7, 0xA6, 0xD7, 0x95, 0xD7, 0xA8, 0xD7, 0x99, 0xD7, 0xA7 };
 static const symbol s_1_39[4] = { 0xD7, 0xA6, 0xD7, 0xA2 };
 
-static const struct among a_1[40] =
-{
-{ 10, s_1_0, -1, 1, 0},
-{ 8, s_1_1, -1, 1, 0},
-{ 8, s_1_2, -1, 1, 0},
-{ 8, s_1_3, -1, 1, 0},
-{ 6, s_1_4, -1, 1, 0},
-{ 12, s_1_5, -1, 1, 0},
-{ 10, s_1_6, -1, 1, 0},
-{ 4, s_1_7, -1, 1, 0},
-{ 6, s_1_8, 7, 1, 0},
-{ 14, s_1_9, 8, 1, 0},
-{ 12, s_1_10, 7, 1, 0},
-{ 4, s_1_11, -1, 1, 0},
-{ 8, s_1_12, 11, 1, 0},
-{ 10, s_1_13, -1, 1, 0},
-{ 8, s_1_14, -1, 1, 0},
-{ 8, s_1_15, -1, 1, 0},
-{ 14, s_1_16, -1, 1, 0},
-{ 12, s_1_17, -1, 1, 0},
-{ 8, s_1_18, -1, 1, 0},
-{ 8, s_1_19, -1, 1, 0},
-{ 8, s_1_20, -1, 1, 0},
-{ 8, s_1_21, -1, 1, 0},
-{ 6, s_1_22, -1, 1, 0},
-{ 6, s_1_23, -1, 1, 0},
-{ 6, s_1_24, -1, 1, 0},
-{ 4, s_1_25, -1, 1, 0},
-{ 4, s_1_26, -1, 1, 0},
-{ 8, s_1_27, -1, 1, 0},
-{ 6, s_1_28, -1, 1, 0},
-{ 6, s_1_29, -1, 1, 0},
-{ 6, s_1_30, -1, 1, 0},
-{ 6, s_1_31, -1, 1, 0},
-{ 10, s_1_32, 31, 1, 0},
-{ 10, s_1_33, 31, 1, 0},
-{ 16, s_1_34, -1, 1, 0},
-{ 4, s_1_35, -1, 1, 0},
-{ 14, s_1_36, 35, 1, 0},
-{ 10, s_1_37, 35, 1, 0},
-{ 10, s_1_38, 35, 1, 0},
-{ 4, s_1_39, -1, 1, 0}
+static const struct among a_1[40] = {
+  { 10, s_1_0, -1, 1, 0},
+  { 8, s_1_1, -1, 1, 0},
+  { 8, s_1_2, -1, 1, 0},
+  { 8, s_1_3, -1, 1, 0},
+  { 6, s_1_4, -1, 1, 0},
+  { 12, s_1_5, -1, 1, 0},
+  { 10, s_1_6, -1, 1, 0},
+  { 4, s_1_7, -1, 1, 0},
+  { 6, s_1_8, 7, 1, 0},
+  { 14, s_1_9, 8, 1, 0},
+  { 12, s_1_10, 7, 1, 0},
+  { 4, s_1_11, -1, 1, 0},
+  { 8, s_1_12, 11, 1, 0},
+  { 10, s_1_13, -1, 1, 0},
+  { 8, s_1_14, -1, 1, 0},
+  { 8, s_1_15, -1, 1, 0},
+  { 14, s_1_16, -1, 1, 0},
+  { 12, s_1_17, -1, 1, 0},
+  { 8, s_1_18, -1, 1, 0},
+  { 8, s_1_19, -1, 1, 0},
+  { 8, s_1_20, -1, 1, 0},
+  { 8, s_1_21, -1, 1, 0},
+  { 6, s_1_22, -1, 1, 0},
+  { 6, s_1_23, -1, 1, 0},
+  { 6, s_1_24, -1, 1, 0},
+  { 4, s_1_25, -1, 1, 0},
+  { 4, s_1_26, -1, 1, 0},
+  { 8, s_1_27, -1, 1, 0},
+  { 6, s_1_28, -1, 1, 0},
+  { 6, s_1_29, -1, 1, 0},
+  { 6, s_1_30, -1, 1, 0},
+  { 6, s_1_31, -1, 1, 0},
+  { 10, s_1_32, 31, 1, 0},
+  { 10, s_1_33, 31, 1, 0},
+  { 16, s_1_34, -1, 1, 0},
+  { 4, s_1_35, -1, 1, 0},
+  { 14, s_1_36, 35, 1, 0},
+  { 10, s_1_37, 35, 1, 0},
+  { 10, s_1_38, 35, 1, 0},
+  { 4, s_1_39, -1, 1, 0}
 };
 
 static const symbol s_2_0[6] = { 0xD7, 0x93, 0xD7, 0x96, 0xD7, 0xA9 };
@@ -137,12 +135,11 @@ static const symbol s_2_1[6] = { 0xD7, 0xA9, 0xD7, 0x98, 0xD7, 0xA8 };
 static const symbol s_2_2[6] = { 0xD7, 0xA9, 0xD7, 0x98, 0xD7, 0xA9 };
 static const symbol s_2_3[6] = { 0xD7, 0xA9, 0xD7, 0xA4, 0xD7, 0xA8 };
 
-static const struct among a_2[4] =
-{
-{ 6, s_2_0, -1, -1, 0},
-{ 6, s_2_1, -1, -1, 0},
-{ 6, s_2_2, -1, -1, 0},
-{ 6, s_2_3, -1, -1, 0}
+static const struct among a_2[4] = {
+  { 6, s_2_0, -1, -1, 0},
+  { 6, s_2_1, -1, -1, 0},
+  { 6, s_2_2, -1, -1, 0},
+  { 6, s_2_3, -1, -1, 0}
 };
 
 static const symbol s_3_0[8] = { 0xD7, 0xA7, 0xD7, 0x9C, 0xD7, 0x99, 0xD7, 0x91 };
@@ -172,34 +169,33 @@ static const symbol s_3_23[12] = { 0xD7, 0xA4, 0xD7, 0x90, 0xD7, 0xA8, 0xD7, 0x9
 static const symbol s_3_24[8] = { 0xD7, 0xA9, 0xD7, 0xB0, 0xD7, 0xB1, 0xD7, 0xA8 };
 static const symbol s_3_25[8] = { 0xD7, 0xB0, 0xD7, 0x95, 0xD7, 0x98, 0xD7, 0xA9 };
 
-static const struct among a_3[26] =
-{
-{ 8, s_3_0, -1, 9, 0},
-{ 6, s_3_1, -1, 10, 0},
-{ 8, s_3_2, 1, 7, 0},
-{ 8, s_3_3, 1, 15, 0},
-{ 6, s_3_4, -1, 23, 0},
-{ 8, s_3_5, -1, 12, 0},
-{ 8, s_3_6, -1, 1, 0},
-{ 8, s_3_7, -1, 18, 0},
-{ 10, s_3_8, -1, 21, 0},
-{ 10, s_3_9, -1, 20, 0},
-{ 6, s_3_10, -1, 22, 0},
-{ 8, s_3_11, -1, 16, 0},
-{ 6, s_3_12, -1, 6, 0},
-{ 6, s_3_13, -1, 4, 0},
-{ 6, s_3_14, -1, 8, 0},
-{ 6, s_3_15, -1, 3, 0},
-{ 8, s_3_16, -1, 14, 0},
-{ 6, s_3_17, -1, 2, 0},
-{ 8, s_3_18, -1, 25, 0},
-{ 6, s_3_19, -1, 5, 0},
-{ 8, s_3_20, -1, 13, 0},
-{ 6, s_3_21, -1, 11, 0},
-{ 10, s_3_22, -1, 19, 0},
-{ 12, s_3_23, -1, 24, 0},
-{ 8, s_3_24, -1, 26, 0},
-{ 8, s_3_25, -1, 17, 0}
+static const struct among a_3[26] = {
+  { 8, s_3_0, -1, 9, 0},
+  { 6, s_3_1, -1, 10, 0},
+  { 8, s_3_2, 1, 7, 0},
+  { 8, s_3_3, 1, 15, 0},
+  { 6, s_3_4, -1, 23, 0},
+  { 8, s_3_5, -1, 12, 0},
+  { 8, s_3_6, -1, 1, 0},
+  { 8, s_3_7, -1, 18, 0},
+  { 10, s_3_8, -1, 21, 0},
+  { 10, s_3_9, -1, 20, 0},
+  { 6, s_3_10, -1, 22, 0},
+  { 8, s_3_11, -1, 16, 0},
+  { 6, s_3_12, -1, 6, 0},
+  { 6, s_3_13, -1, 4, 0},
+  { 6, s_3_14, -1, 8, 0},
+  { 6, s_3_15, -1, 3, 0},
+  { 8, s_3_16, -1, 14, 0},
+  { 6, s_3_17, -1, 2, 0},
+  { 8, s_3_18, -1, 25, 0},
+  { 6, s_3_19, -1, 5, 0},
+  { 8, s_3_20, -1, 13, 0},
+  { 6, s_3_21, -1, 11, 0},
+  { 10, s_3_22, -1, 19, 0},
+  { 12, s_3_23, -1, 24, 0},
+  { 8, s_3_24, -1, 26, 0},
+  { 8, s_3_25, -1, 17, 0}
 };
 
 static const symbol s_4_0[6] = { 0xD7, 0x95, 0xD7, 0xA0, 0xD7, 0x92 };
@@ -282,87 +278,86 @@ static const symbol s_4_76[8] = { 0xD7, 0xA2, 0xD7, 0xA0, 0xD7, 0xA2, 0xD7, 0xA8
 static const symbol s_4_77[10] = { 0xD7, 0x98, 0xD7, 0xA2, 0xD7, 0xA0, 0xD7, 0xA2, 0xD7, 0xA8 };
 static const symbol s_4_78[4] = { 0xD7, 0x95, 0xD7, 0xAA };
 
-static const struct among a_4[79] =
-{
-{ 6, s_4_0, -1, 1, 0},
-{ 6, s_4_1, -1, 1, 0},
-{ 2, s_4_2, -1, 1, 0},
-{ 10, s_4_3, 2, 31, 0},
-{ 4, s_4_4, 2, 1, 0},
-{ 6, s_4_5, 4, 33, 0},
-{ 4, s_4_6, 2, 1, 0},
-{ 8, s_4_7, 2, 1, 0},
-{ 6, s_4_8, 2, 1, 0},
-{ 6, s_4_9, 2, 1, 0},
-{ 8, s_4_10, 9, 1, 0},
-{ 6, s_4_11, -1, 1, 0},
-{ 8, s_4_12, 11, 1, 0},
-{ 6, s_4_13, -1, 1, 0},
-{ 4, s_4_14, -1, 1, 0},
-{ 4, s_4_15, -1, 1, 0},
-{ 8, s_4_16, 15, 3, 0},
-{ 10, s_4_17, 16, 4, 0},
-{ 2, s_4_18, -1, 1, 0},
-{ 10, s_4_19, 18, 14, 0},
-{ 8, s_4_20, 18, 15, 0},
-{ 10, s_4_21, 20, 12, 0},
-{ 10, s_4_22, 20, 7, 0},
-{ 8, s_4_23, 18, 27, 0},
-{ 10, s_4_24, 18, 17, 0},
-{ 10, s_4_25, 18, 22, 0},
-{ 12, s_4_26, 18, 25, 0},
-{ 12, s_4_27, 18, 24, 0},
-{ 8, s_4_28, 18, 26, 0},
-{ 10, s_4_29, 18, 20, 0},
-{ 8, s_4_30, 18, 11, 0},
-{ 4, s_4_31, 18, 4, 0},
-{ 10, s_4_32, 31, 9, 0},
-{ 10, s_4_33, 31, 13, 0},
-{ 10, s_4_34, 31, 8, 0},
-{ 10, s_4_35, 31, 19, 0},
-{ 6, s_4_36, 31, 1, 0},
-{ 8, s_4_37, 36, 1, 0},
-{ 6, s_4_38, 31, 1, 0},
-{ 10, s_4_39, 18, 10, 0},
-{ 10, s_4_40, 18, 18, 0},
-{ 10, s_4_41, 18, 16, 0},
-{ 4, s_4_42, 18, 1, 0},
-{ 12, s_4_43, 42, 5, 0},
-{ 8, s_4_44, 42, 1, 0},
-{ 10, s_4_45, 42, 6, 0},
-{ 10, s_4_46, 42, 1, 0},
-{ 12, s_4_47, 42, 29, 0},
-{ 12, s_4_48, 18, 23, 0},
-{ 14, s_4_49, 18, 28, 0},
-{ 10, s_4_50, 18, 30, 0},
-{ 10, s_4_51, 18, 21, 0},
-{ 6, s_4_52, 18, 5, 0},
-{ 2, s_4_53, -1, 1, 0},
-{ 4, s_4_54, 53, 4, 0},
-{ 6, s_4_55, 54, 1, 0},
-{ 4, s_4_56, 53, 1, 0},
-{ 6, s_4_57, 56, 4, 0},
-{ 6, s_4_58, 56, 3, 0},
-{ 4, s_4_59, 53, 1, 0},
-{ 6, s_4_60, 59, 2, 0},
-{ 8, s_4_61, 59, 1, 0},
-{ 6, s_4_62, 53, 1, 0},
-{ 10, s_4_63, 62, 1, 0},
-{ 2, s_4_64, -1, 1, 0},
-{ 4, s_4_65, 64, 4, 0},
-{ 6, s_4_66, 65, 1, 0},
-{ 6, s_4_67, 65, 1, 0},
-{ 4, s_4_68, 64, -1, 0},
-{ 6, s_4_69, 64, 1, 0},
-{ 6, s_4_70, 64, 3, 0},
-{ 8, s_4_71, 70, 4, 0},
-{ 4, s_4_72, -1, 1, 0},
-{ 6, s_4_73, 72, 4, 0},
-{ 8, s_4_74, 73, 1, 0},
-{ 8, s_4_75, 73, 1, 0},
-{ 8, s_4_76, 72, 3, 0},
-{ 10, s_4_77, 76, 4, 0},
-{ 4, s_4_78, -1, 32, 0}
+static const struct among a_4[79] = {
+  { 6, s_4_0, -1, 1, 0},
+  { 6, s_4_1, -1, 1, 0},
+  { 2, s_4_2, -1, 1, 0},
+  { 10, s_4_3, 2, 31, 0},
+  { 4, s_4_4, 2, 1, 0},
+  { 6, s_4_5, 4, 33, 0},
+  { 4, s_4_6, 2, 1, 0},
+  { 8, s_4_7, 2, 1, 0},
+  { 6, s_4_8, 2, 1, 0},
+  { 6, s_4_9, 2, 1, 0},
+  { 8, s_4_10, 9, 1, 0},
+  { 6, s_4_11, -1, 1, 0},
+  { 8, s_4_12, 11, 1, 0},
+  { 6, s_4_13, -1, 1, 0},
+  { 4, s_4_14, -1, 1, 0},
+  { 4, s_4_15, -1, 1, 0},
+  { 8, s_4_16, 15, 3, 0},
+  { 10, s_4_17, 16, 4, 0},
+  { 2, s_4_18, -1, 1, 0},
+  { 10, s_4_19, 18, 14, 0},
+  { 8, s_4_20, 18, 15, 0},
+  { 10, s_4_21, 20, 12, 0},
+  { 10, s_4_22, 20, 7, 0},
+  { 8, s_4_23, 18, 27, 0},
+  { 10, s_4_24, 18, 17, 0},
+  { 10, s_4_25, 18, 22, 0},
+  { 12, s_4_26, 18, 25, 0},
+  { 12, s_4_27, 18, 24, 0},
+  { 8, s_4_28, 18, 26, 0},
+  { 10, s_4_29, 18, 20, 0},
+  { 8, s_4_30, 18, 11, 0},
+  { 4, s_4_31, 18, 4, 0},
+  { 10, s_4_32, 31, 9, 0},
+  { 10, s_4_33, 31, 13, 0},
+  { 10, s_4_34, 31, 8, 0},
+  { 10, s_4_35, 31, 19, 0},
+  { 6, s_4_36, 31, 1, 0},
+  { 8, s_4_37, 36, 1, 0},
+  { 6, s_4_38, 31, 1, 0},
+  { 10, s_4_39, 18, 10, 0},
+  { 10, s_4_40, 18, 18, 0},
+  { 10, s_4_41, 18, 16, 0},
+  { 4, s_4_42, 18, 1, 0},
+  { 12, s_4_43, 42, 5, 0},
+  { 8, s_4_44, 42, 1, 0},
+  { 10, s_4_45, 42, 6, 0},
+  { 10, s_4_46, 42, 1, 0},
+  { 12, s_4_47, 42, 29, 0},
+  { 12, s_4_48, 18, 23, 0},
+  { 14, s_4_49, 18, 28, 0},
+  { 10, s_4_50, 18, 30, 0},
+  { 10, s_4_51, 18, 21, 0},
+  { 6, s_4_52, 18, 5, 0},
+  { 2, s_4_53, -1, 1, 0},
+  { 4, s_4_54, 53, 4, 0},
+  { 6, s_4_55, 54, 1, 0},
+  { 4, s_4_56, 53, 1, 0},
+  { 6, s_4_57, 56, 4, 0},
+  { 6, s_4_58, 56, 3, 0},
+  { 4, s_4_59, 53, 1, 0},
+  { 6, s_4_60, 59, 2, 0},
+  { 8, s_4_61, 59, 1, 0},
+  { 6, s_4_62, 53, 1, 0},
+  { 10, s_4_63, 62, 1, 0},
+  { 2, s_4_64, -1, 1, 0},
+  { 4, s_4_65, 64, 4, 0},
+  { 6, s_4_66, 65, 1, 0},
+  { 6, s_4_67, 65, 1, 0},
+  { 4, s_4_68, 64, -1, 0},
+  { 6, s_4_69, 64, 1, 0},
+  { 6, s_4_70, 64, 3, 0},
+  { 8, s_4_71, 70, 4, 0},
+  { 4, s_4_72, -1, 1, 0},
+  { 6, s_4_73, 72, 4, 0},
+  { 8, s_4_74, 73, 1, 0},
+  { 8, s_4_75, 73, 1, 0},
+  { 8, s_4_76, 72, 3, 0},
+  { 10, s_4_77, 76, 4, 0},
+  { 4, s_4_78, -1, 32, 0}
 };
 
 static const symbol s_5_0[6] = { 0xD7, 0x95, 0xD7, 0xA0, 0xD7, 0x92 };
@@ -372,14 +367,13 @@ static const symbol s_5_3[6] = { 0xD7, 0xA7, 0xD7, 0xB2, 0xD7, 0x98 };
 static const symbol s_5_4[8] = { 0xD7, 0x99, 0xD7, 0xA7, 0xD7, 0xB2, 0xD7, 0x98 };
 static const symbol s_5_5[2] = { 0xD7, 0x9C };
 
-static const struct among a_5[6] =
-{
-{ 6, s_5_0, -1, 1, 0},
-{ 8, s_5_1, -1, 1, 0},
-{ 6, s_5_2, -1, 1, 0},
-{ 6, s_5_3, -1, 1, 0},
-{ 8, s_5_4, 3, 1, 0},
-{ 2, s_5_5, -1, 2, 0}
+static const struct among a_5[6] = {
+  { 6, s_5_0, -1, 1, 0},
+  { 8, s_5_1, -1, 1, 0},
+  { 6, s_5_2, -1, 1, 0},
+  { 6, s_5_3, -1, 1, 0},
+  { 8, s_5_4, 3, 1, 0},
+  { 2, s_5_5, -1, 2, 0}
 };
 
 static const symbol s_6_0[4] = { 0xD7, 0x99, 0xD7, 0x92 };
@@ -392,17 +386,16 @@ static const symbol s_6_6[8] = { 0xD7, 0x92, 0xD7, 0x9C, 0xD7, 0x99, 0xD7, 0xA7 
 static const symbol s_6_7[6] = { 0xD7, 0xA0, 0xD7, 0x99, 0xD7, 0xA7 };
 static const symbol s_6_8[4] = { 0xD7, 0x99, 0xD7, 0xA9 };
 
-static const struct among a_6[9] =
-{
-{ 4, s_6_0, -1, 1, 0},
-{ 4, s_6_1, -1, 1, 0},
-{ 6, s_6_2, 1, 1, 0},
-{ 8, s_6_3, 2, 1, 0},
-{ 10, s_6_4, 3, 1, 0},
-{ 8, s_6_5, 1, -1, 0},
-{ 8, s_6_6, 1, -1, 0},
-{ 6, s_6_7, 1, 1, 0},
-{ 4, s_6_8, -1, 1, 0}
+static const struct among a_6[9] = {
+  { 4, s_6_0, -1, 1, 0},
+  { 4, s_6_1, -1, 1, 0},
+  { 6, s_6_2, 1, 1, 0},
+  { 8, s_6_3, 2, 1, 0},
+  { 10, s_6_4, 3, 1, 0},
+  { 8, s_6_5, 1, -1, 0},
+  { 8, s_6_6, 1, -1, 0},
+  { 6, s_6_7, 1, 1, 0},
+  { 4, s_6_8, -1, 1, 0}
 };
 
 static const unsigned char g_niked[] = { 255, 155, 6 };
@@ -499,738 +492,1111 @@ static const symbol s_84[] = { 0xD7, 0x99, 0xD7, 0xA1 };
 static const symbol s_85[] = { 'G', 'E' };
 static const symbol s_86[] = { 'T', 'S', 'U' };
 
-static int r_prelude(struct SN_env * z) {
-    int among_var;
-    {   int c1 = z->c;
-        while(1) {
-            int c2 = z->c;
-            while(1) {
-                int c3 = z->c;
-                z->bra = z->c;
-                among_var = find_among(z, a_0, 8);
-                if (!among_var) goto lab2;
-                z->ket = z->c;
-                switch (among_var) {
-                    case 1:
-                        {   int c4 = z->c;
-                            if (!(eq_s(z, 2, s_0))) goto lab3;
-                            goto lab2;
-                        lab3:
-                            z->c = c4;
-                        }
-                        {   int ret = slice_from_s(z, 2, s_1);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 2:
-                        {   int c5 = z->c;
-                            if (!(eq_s(z, 2, s_2))) goto lab4;
-                            goto lab2;
-                        lab4:
-                            z->c = c5;
-                        }
-                        {   int ret = slice_from_s(z, 2, s_3);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 3:
-                        {   int c6 = z->c;
-                            if (!(eq_s(z, 2, s_4))) goto lab5;
-                            goto lab2;
-                        lab5:
-                            z->c = c6;
-                        }
-                        {   int ret = slice_from_s(z, 2, s_5);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 4:
-                        {   int ret = slice_from_s(z, 2, s_6);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 5:
-                        {   int ret = slice_from_s(z, 2, s_7);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 6:
-                        {   int ret = slice_from_s(z, 2, s_8);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 7:
-                        {   int ret = slice_from_s(z, 2, s_9);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 8:
-                        {   int ret = slice_from_s(z, 2, s_10);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                }
-                z->c = c3;
-                break;
-            lab2:
-                z->c = c3;
-                {   int ret = skip_utf8(z->p, z->c, z->l, 1);
-                    if (ret < 0) goto lab1;
-                    z->c = ret;
-                }
-            }
-            continue;
-        lab1:
-            z->c = c2;
-            break;
-        }
-        z->c = c1;
-    }
-    {   int c7 = z->c;
-        while(1) {
-            int c8 = z->c;
-            while(1) {
-                int c9 = z->c;
-                z->bra = z->c;
-                if (in_grouping_U(z, g_niked, 1456, 1474, 0)) goto lab8;
-                z->ket = z->c;
-                {   int ret = slice_del(z);
-                    if (ret < 0) return ret;
-                }
-                z->c = c9;
-                break;
-            lab8:
-                z->c = c9;
-                {   int ret = skip_utf8(z->p, z->c, z->l, 1);
-                    if (ret < 0) goto lab7;
-                    z->c = ret;
-                }
-            }
-            continue;
-        lab7:
-            z->c = c8;
-            break;
-        }
-        z->c = c7;
-    }
-    return 1;
-}
+static int r_prelude(struct SN_env * z)
+{
+  int among_var;
+  {
+    int c1 = z->c;
 
-static int r_mark_regions(struct SN_env * z) {
-    z->I[1] = z->l;
-    {   int c1 = z->c;
-        z->bra = z->c;
-        if (!(eq_s(z, 4, s_11))) { z->c = c1; goto lab0; }
-        z->ket = z->c;
-        {   int c2 = z->c;
-            {   int c3 = z->c;
-                if (!(eq_s(z, 4, s_12))) goto lab3;
-                goto lab2;
-            lab3:
-                z->c = c3;
-                if (!(eq_s(z, 4, s_13))) goto lab4;
-                goto lab2;
-            lab4:
-                z->c = c3;
-                if (z->c < z->l) goto lab1;
-            }
-        lab2:
-            { z->c = c1; goto lab0; }
-        lab1:
-            z->c = c2;
-        }
-        {   int ret = slice_from_s(z, 2, s_14);
-            if (ret < 0) return ret;
-        }
-    lab0:
-        ;
-    }
-    {   int c4 = z->c;
-        if (!find_among(z, a_1, 40)) { z->c = c4; goto lab5; }
-        {   int c5 = z->c;
-            {   int c_test6 = z->c;
-                {   int c7 = z->c;
-                    if (!(eq_s(z, 8, s_15))) goto lab9;
-                    goto lab8;
-                lab9:
-                    z->c = c7;
-                    if (!(eq_s(z, 8, s_16))) goto lab10;
-                    goto lab8;
-                lab10:
-                    z->c = c7;
-                    if (!(eq_s(z, 8, s_17))) goto lab7;
-                }
-            lab8:
-                if (z->c < z->l) goto lab7;
-                z->c = c_test6;
-            }
-            goto lab6;
-        lab7:
-            z->c = c5;
-            {   int c_test8 = z->c;
-                if (!(eq_s(z, 8, s_18))) goto lab11;
-                z->c = c_test8;
-            }
-            goto lab6;
-        lab11:
-            z->c = c5;
-            z->bra = z->c;
-            if (!(eq_s(z, 4, s_19))) goto lab12;
-            z->ket = z->c;
-            {   int ret = slice_from_s(z, 2, s_20);
-                if (ret < 0) return ret;
-            }
-            goto lab6;
-        lab12:
-            z->c = c5;
-            z->bra = z->c;
-            if (!(eq_s(z, 4, s_21))) { z->c = c4; goto lab5; }
-            z->ket = z->c;
-            {   int ret = slice_from_s(z, 3, s_22);
-                if (ret < 0) return ret;
-            }
-        }
-    lab6:
-    lab5:
-        ;
-    }
-    {   int c_test9 = z->c;
-        {   int ret = skip_utf8(z->p, z->c, z->l, 3);
-            if (ret < 0) return 0;
-            z->c = ret;
-        }
-        z->I[0] = z->c;
-        z->c = c_test9;
-    }
-    {   int c10 = z->c;
-        if (z->c + 5 >= z->l || (z->p[z->c + 5] != 169 && z->p[z->c + 5] != 168)) { z->c = c10; goto lab13; }
-        if (!find_among(z, a_2, 4)) { z->c = c10; goto lab13; }
-    lab13:
-        ;
-    }
-    {   int c11 = z->c;
-        if (in_grouping_U(z, g_consonant, 1489, 1520, 0)) goto lab14;
-        if (in_grouping_U(z, g_consonant, 1489, 1520, 0)) goto lab14;
-        if (in_grouping_U(z, g_consonant, 1489, 1520, 0)) goto lab14;
-        z->I[1] = z->c;
-        return 0;
-    lab14:
-        z->c = c11;
-    }
-
-    if (out_grouping_U(z, g_vowel, 1488, 1522, 1) < 0) return 0;
     while(1) {
-        if (in_grouping_U(z, g_vowel, 1488, 1522, 0)) goto lab15;
-        continue;
-    lab15:
-        break;
-    }
-    z->I[1] = z->c;
+      int c2 = z->c;
 
-    if (z->I[1] >= z->I[0]) goto lab16;
-    z->I[1] = z->I[0];
-lab16:
-    return 1;
-}
-
-static int r_R1(struct SN_env * z) {
-    return z->I[1] <= z->c;
-}
-
-static int r_R1plus3(struct SN_env * z) {
-    return z->I[1] <= (z->c + 6);
-}
-
-static int r_standard_suffix(struct SN_env * z) {
-    int among_var;
-    {   int m1 = z->l - z->c; (void)m1;
-        z->ket = z->c;
-        among_var = find_among_b(z, a_4, 79);
-        if (!among_var) goto lab0;
+      while(1) {
+        int c3 = z->c;
         z->bra = z->c;
-        switch (among_var) {
-            case 1:
-                {   int ret = r_R1(z);
-                    if (ret == 0) goto lab0;
-                    if (ret < 0) return ret;
-                }
-                {   int ret = slice_del(z);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 2:
-                {   int ret = r_R1(z);
-                    if (ret == 0) goto lab0;
-                    if (ret < 0) return ret;
-                }
-                {   int ret = slice_from_s(z, 4, s_23);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 3:
-                {   int ret = r_R1(z);
-                    if (ret == 0) goto lab0;
-                    if (ret < 0) return ret;
-                }
-                {   int ret = slice_del(z);
-                    if (ret < 0) return ret;
-                }
-                z->ket = z->c;
-                among_var = find_among_b(z, a_3, 26);
-                if (!among_var) goto lab0;
-                z->bra = z->c;
-                switch (among_var) {
-                    case 1:
-                        {   int ret = slice_from_s(z, 4, s_24);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 2:
-                        {   int ret = slice_from_s(z, 6, s_25);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 3:
-                        {   int ret = slice_from_s(z, 6, s_26);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 4:
-                        {   int ret = slice_from_s(z, 6, s_27);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 5:
-                        {   int ret = slice_from_s(z, 6, s_28);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 6:
-                        {   int ret = slice_from_s(z, 6, s_29);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 7:
-                        {   int ret = slice_from_s(z, 8, s_30);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 8:
-                        {   int ret = slice_from_s(z, 6, s_31);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 9:
-                        {   int ret = slice_from_s(z, 8, s_32);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 10:
-                        {   int ret = slice_from_s(z, 6, s_33);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 11:
-                        {   int ret = slice_from_s(z, 6, s_34);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 12:
-                        {   int ret = slice_from_s(z, 8, s_35);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 13:
-                        {   int ret = slice_from_s(z, 8, s_36);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 14:
-                        {   int ret = slice_from_s(z, 8, s_37);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 15:
-                        {   int ret = slice_from_s(z, 8, s_38);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 16:
-                        {   int ret = slice_from_s(z, 8, s_39);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 17:
-                        {   int ret = slice_from_s(z, 8, s_40);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 18:
-                        {   int ret = slice_from_s(z, 8, s_41);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 19:
-                        {   int ret = slice_from_s(z, 10, s_42);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 20:
-                        {   int ret = slice_from_s(z, 10, s_43);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 21:
-                        {   int ret = slice_from_s(z, 10, s_44);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 22:
-                        {   int ret = slice_from_s(z, 6, s_45);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 23:
-                        {   int ret = slice_from_s(z, 6, s_46);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 24:
-                        {   int ret = slice_from_s(z, 12, s_47);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 25:
-                        {   int ret = slice_from_s(z, 6, s_48);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                    case 26:
-                        {   int ret = slice_from_s(z, 8, s_49);
-                            if (ret < 0) return ret;
-                        }
-                        break;
-                }
-                break;
-            case 4:
-                {   int m2 = z->l - z->c; (void)m2;
-                    {   int ret = r_R1(z);
-                        if (ret == 0) goto lab2;
-                        if (ret < 0) return ret;
-                    }
-                    {   int ret = slice_del(z);
-                        if (ret < 0) return ret;
-                    }
-                    goto lab1;
-                lab2:
-                    z->c = z->l - m2;
-                    {   int ret = slice_from_s(z, 2, s_50);
-                        if (ret < 0) return ret;
-                    }
-                }
-            lab1:
-                z->ket = z->c;
-                if (!(eq_s_b(z, 8, s_51))) goto lab0;
-                {   int m3 = z->l - z->c; (void)m3;
-                    if (!(eq_s_b(z, 4, s_52))) { z->c = z->l - m3; goto lab3; }
-                lab3:
-                    ;
-                }
-                z->bra = z->c;
-                {   int ret = slice_from_s(z, 10, s_53);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 5:
-                {   int ret = slice_from_s(z, 4, s_54);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 6:
-                {   int ret = slice_from_s(z, 6, s_55);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 7:
-                {   int ret = slice_from_s(z, 8, s_56);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 8:
-                {   int ret = slice_from_s(z, 6, s_57);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 9:
-                {   int ret = slice_from_s(z, 6, s_58);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 10:
-                {   int ret = slice_from_s(z, 6, s_59);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 11:
-                {   int ret = slice_from_s(z, 6, s_60);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 12:
-                {   int ret = slice_from_s(z, 8, s_61);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 13:
-                {   int ret = slice_from_s(z, 6, s_62);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 14:
-                {   int ret = slice_from_s(z, 8, s_63);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 15:
-                {   int ret = slice_from_s(z, 6, s_64);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 16:
-                {   int ret = slice_from_s(z, 6, s_65);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 17:
-                {   int ret = slice_from_s(z, 8, s_66);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 18:
-                {   int ret = slice_from_s(z, 8, s_67);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 19:
-                {   int ret = slice_from_s(z, 8, s_68);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 20:
-                {   int ret = slice_from_s(z, 8, s_69);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 21:
-                {   int ret = slice_from_s(z, 8, s_70);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 22:
-                {   int ret = slice_from_s(z, 8, s_71);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 23:
-                {   int ret = slice_from_s(z, 10, s_72);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 24:
-                {   int ret = slice_from_s(z, 10, s_73);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 25:
-                {   int ret = slice_from_s(z, 10, s_74);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 26:
-                {   int ret = slice_from_s(z, 6, s_75);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 27:
-                {   int ret = slice_from_s(z, 6, s_76);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 28:
-                {   int ret = slice_from_s(z, 12, s_77);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 29:
-                {   int ret = slice_from_s(z, 6, s_78);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 30:
-                {   int ret = slice_from_s(z, 8, s_79);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 31:
-                {   int ret = slice_from_s(z, 10, s_80);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 32:
-                {   int ret = r_R1(z);
-                    if (ret == 0) goto lab0;
-                    if (ret < 0) return ret;
-                }
-                {   int ret = slice_from_s(z, 2, s_81);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 33:
-                {   int m4 = z->l - z->c; (void)m4;
-                    {   int m5 = z->l - z->c; (void)m5;
-                        if (!(eq_s_b(z, 2, s_82))) goto lab7;
-                        goto lab6;
-                    lab7:
-                        z->c = z->l - m5;
-                        if (!(eq_s_b(z, 2, s_83))) goto lab5;
-                    }
-                lab6:
-                    {   int m6 = z->l - z->c; (void)m6;
-                        {   int ret = r_R1plus3(z);
-                            if (ret == 0) { z->c = z->l - m6; goto lab8; }
-                            if (ret < 0) return ret;
-                        }
-                        {   int ret = slice_from_s(z, 4, s_84);
-                            if (ret < 0) return ret;
-                        }
-                    lab8:
-                        ;
-                    }
-                    goto lab4;
-                lab5:
-                    z->c = z->l - m4;
-                    {   int ret = r_R1(z);
-                        if (ret == 0) goto lab0;
-                        if (ret < 0) return ret;
-                    }
-                    {   int ret = slice_del(z);
-                        if (ret < 0) return ret;
-                    }
-                }
-            lab4:
-                break;
-        }
-    lab0:
-        z->c = z->l - m1;
-    }
-    {   int m7 = z->l - z->c; (void)m7;
-        z->ket = z->c;
-        if (z->c - 1 <= z->lb || z->p[z->c - 1] >> 5 != 4 || !((285474816 >> (z->p[z->c - 1] & 0x1f)) & 1)) goto lab9;
-        among_var = find_among_b(z, a_5, 6);
-        if (!among_var) goto lab9;
-        z->bra = z->c;
-        switch (among_var) {
-            case 1:
-                {   int ret = r_R1(z);
-                    if (ret == 0) goto lab9;
-                    if (ret < 0) return ret;
-                }
-                {   int ret = slice_del(z);
-                    if (ret < 0) return ret;
-                }
-                break;
-            case 2:
-                {   int ret = r_R1(z);
-                    if (ret == 0) goto lab9;
-                    if (ret < 0) return ret;
-                }
-                if (in_grouping_b_U(z, g_consonant, 1489, 1520, 0)) goto lab9;
-                {   int ret = slice_del(z);
-                    if (ret < 0) return ret;
-                }
-                break;
-        }
-    lab9:
-        z->c = z->l - m7;
-    }
-    {   int m8 = z->l - z->c; (void)m8;
-        z->ket = z->c;
-        among_var = find_among_b(z, a_6, 9);
-        if (!among_var) goto lab10;
-        z->bra = z->c;
-        switch (among_var) {
-            case 1:
-                {   int ret = r_R1(z);
-                    if (ret == 0) goto lab10;
-                    if (ret < 0) return ret;
-                }
-                {   int ret = slice_del(z);
-                    if (ret < 0) return ret;
-                }
-                break;
-        }
-    lab10:
-        z->c = z->l - m8;
-    }
-    {   int m9 = z->l - z->c; (void)m9;
-        while(1) {
-            int m10 = z->l - z->c; (void)m10;
-            while(1) {
-                int m11 = z->l - z->c; (void)m11;
-                z->ket = z->c;
-                {   int m12 = z->l - z->c; (void)m12;
-                    if (!(eq_s_b(z, 2, s_85))) goto lab15;
-                    goto lab14;
-                lab15:
-                    z->c = z->l - m12;
-                    if (!(eq_s_b(z, 3, s_86))) goto lab13;
-                }
-            lab14:
-                z->bra = z->c;
-                {   int ret = slice_del(z);
-                    if (ret < 0) return ret;
-                }
-                z->c = z->l - m11;
-                break;
-            lab13:
-                z->c = z->l - m11;
-                {   int ret = skip_b_utf8(z->p, z->c, z->lb, 1);
-                    if (ret < 0) goto lab12;
-                    z->c = ret;
-                }
-            }
-            continue;
-        lab12:
-            z->c = z->l - m10;
-            break;
-        }
-        z->c = z->l - m9;
-    }
-    return 1;
-}
+        among_var = find_among(z, a_0, 8);
 
-extern int yiddish_UTF_8_stem(struct SN_env * z) {
+        if (!among_var) goto lab2;
 
-    {   int ret = r_prelude(z);
-        if (ret < 0) return ret;
-    }
-    {   int c1 = z->c;
-        {   int ret = r_mark_regions(z);
+        z->ket = z->c;
+
+        switch (among_var) {
+          case 1: {
+            int c4 = z->c;
+
+            if (!(eq_s(z, 2, s_0))) goto lab3;
+
+            goto lab2;
+lab3:
+            z->c = c4;
+          }
+
+          {
+            int ret = slice_from_s(z, 2, s_1);
+
             if (ret < 0) return ret;
+          }
+          break;
+
+          case 2: {
+            int c5 = z->c;
+
+            if (!(eq_s(z, 2, s_2))) goto lab4;
+
+            goto lab2;
+lab4:
+            z->c = c5;
+          }
+
+          {
+            int ret = slice_from_s(z, 2, s_3);
+
+            if (ret < 0) return ret;
+          }
+          break;
+
+          case 3: {
+            int c6 = z->c;
+
+            if (!(eq_s(z, 2, s_4))) goto lab5;
+
+            goto lab2;
+lab5:
+            z->c = c6;
+          }
+
+          {
+            int ret = slice_from_s(z, 2, s_5);
+
+            if (ret < 0) return ret;
+          }
+          break;
+
+          case 4: {
+            int ret = slice_from_s(z, 2, s_6);
+
+            if (ret < 0) return ret;
+          }
+          break;
+
+          case 5: {
+            int ret = slice_from_s(z, 2, s_7);
+
+            if (ret < 0) return ret;
+          }
+          break;
+
+          case 6: {
+            int ret = slice_from_s(z, 2, s_8);
+
+            if (ret < 0) return ret;
+          }
+          break;
+
+          case 7: {
+            int ret = slice_from_s(z, 2, s_9);
+
+            if (ret < 0) return ret;
+          }
+          break;
+
+          case 8: {
+            int ret = slice_from_s(z, 2, s_10);
+
+            if (ret < 0) return ret;
+          }
+          break;
         }
-        z->c = c1;
-    }
-    z->lb = z->c; z->c = z->l;
 
+        z->c = c3;
+        break;
+lab2:
+        z->c = c3;
+        {
+          int ret = skip_utf8(z->p, z->c, z->l, 1);
 
-    {   int ret = r_standard_suffix(z);
-        if (ret < 0) return ret;
+          if (ret < 0) goto lab1;
+
+          z->c = ret;
+        }
+      }
+
+      continue;
+lab1:
+      z->c = c2;
+      break;
     }
-    z->c = z->lb;
-    return 1;
+
+    z->c = c1;
+  }
+  {
+    int c7 = z->c;
+
+    while(1) {
+      int c8 = z->c;
+
+      while(1) {
+        int c9 = z->c;
+        z->bra = z->c;
+
+        if (in_grouping_U(z, g_niked, 1456, 1474, 0)) goto lab8;
+
+        z->ket = z->c;
+        {
+          int ret = slice_del(z);
+
+          if (ret < 0) return ret;
+        }
+        z->c = c9;
+        break;
+lab8:
+        z->c = c9;
+        {
+          int ret = skip_utf8(z->p, z->c, z->l, 1);
+
+          if (ret < 0) goto lab7;
+
+          z->c = ret;
+        }
+      }
+
+      continue;
+lab7:
+      z->c = c8;
+      break;
+    }
+
+    z->c = c7;
+  }
+  return 1;
 }
 
-extern struct SN_env * yiddish_UTF_8_create_env(void) { return SN_create_env(0, 2); }
+static int r_mark_regions(struct SN_env * z)
+{
+  z->I[1] = z->l;
+  {
+    int c1 = z->c;
+    z->bra = z->c;
 
-extern void yiddish_UTF_8_close_env(struct SN_env * z) { SN_close_env(z, 0); }
+    if (!(eq_s(z, 4, s_11))) {
+      z->c = c1;
+      goto lab0;
+    }
+
+    z->ket = z->c;
+    {
+      int c2 = z->c;
+      {
+        int c3 = z->c;
+
+        if (!(eq_s(z, 4, s_12))) goto lab3;
+
+        goto lab2;
+lab3:
+        z->c = c3;
+
+        if (!(eq_s(z, 4, s_13))) goto lab4;
+
+        goto lab2;
+lab4:
+        z->c = c3;
+
+        if (z->c < z->l) goto lab1;
+      }
+lab2: {
+        z->c = c1;
+        goto lab0;
+      }
+lab1:
+      z->c = c2;
+    }
+    {
+      int ret = slice_from_s(z, 2, s_14);
+
+      if (ret < 0) return ret;
+    }
+lab0:
+    ;
+  }
+  {
+    int c4 = z->c;
+
+    if (!find_among(z, a_1, 40)) {
+      z->c = c4;
+      goto lab5;
+    }
+
+    {
+      int c5 = z->c;
+      {
+        int c_test6 = z->c;
+        {
+          int c7 = z->c;
+
+          if (!(eq_s(z, 8, s_15))) goto lab9;
+
+          goto lab8;
+lab9:
+          z->c = c7;
+
+          if (!(eq_s(z, 8, s_16))) goto lab10;
+
+          goto lab8;
+lab10:
+          z->c = c7;
+
+          if (!(eq_s(z, 8, s_17))) goto lab7;
+        }
+lab8:
+
+        if (z->c < z->l) goto lab7;
+
+        z->c = c_test6;
+      }
+      goto lab6;
+lab7:
+      z->c = c5;
+      {
+        int c_test8 = z->c;
+
+        if (!(eq_s(z, 8, s_18))) goto lab11;
+
+        z->c = c_test8;
+      }
+      goto lab6;
+lab11:
+      z->c = c5;
+      z->bra = z->c;
+
+      if (!(eq_s(z, 4, s_19))) goto lab12;
+
+      z->ket = z->c;
+      {
+        int ret = slice_from_s(z, 2, s_20);
+
+        if (ret < 0) return ret;
+      }
+      goto lab6;
+lab12:
+      z->c = c5;
+      z->bra = z->c;
+
+      if (!(eq_s(z, 4, s_21))) {
+        z->c = c4;
+        goto lab5;
+      }
+
+      z->ket = z->c;
+      {
+        int ret = slice_from_s(z, 3, s_22);
+
+        if (ret < 0) return ret;
+      }
+    }
+
+lab6:
+lab5:
+    ;
+  }
+  {
+    int c_test9 = z->c;
+    {
+      int ret = skip_utf8(z->p, z->c, z->l, 3);
+
+      if (ret < 0) return 0;
+
+      z->c = ret;
+    }
+    z->I[0] = z->c;
+    z->c = c_test9;
+  }
+  {
+    int c10 = z->c;
+
+    if (z->c + 5 >= z->l || (z->p[z->c + 5] != 169 && z->p[z->c + 5] != 168)) {
+      z->c = c10;
+      goto lab13;
+    }
+
+    if (!find_among(z, a_2, 4)) {
+      z->c = c10;
+      goto lab13;
+    }
+
+lab13:
+    ;
+  }
+  {
+    int c11 = z->c;
+
+    if (in_grouping_U(z, g_consonant, 1489, 1520, 0)) goto lab14;
+
+    if (in_grouping_U(z, g_consonant, 1489, 1520, 0)) goto lab14;
+
+    if (in_grouping_U(z, g_consonant, 1489, 1520, 0)) goto lab14;
+
+    z->I[1] = z->c;
+    return 0;
+lab14:
+    z->c = c11;
+  }
+
+  if (out_grouping_U(z, g_vowel, 1488, 1522, 1) < 0) return 0;
+
+  while(1) {
+    if (in_grouping_U(z, g_vowel, 1488, 1522, 0)) goto lab15;
+
+    continue;
+lab15:
+    break;
+  }
+
+  z->I[1] = z->c;
+
+  if (z->I[1] >= z->I[0]) goto lab16;
+
+  z->I[1] = z->I[0];
+lab16:
+  return 1;
+}
+
+static int r_R1(struct SN_env * z)
+{
+  return z->I[1] <= z->c;
+}
+
+static int r_R1plus3(struct SN_env * z)
+{
+  return z->I[1] <= (z->c + 6);
+}
+
+static int r_standard_suffix(struct SN_env * z)
+{
+  int among_var;
+  {
+    int m1 = z->l - z->c;
+    (void)m1;
+    z->ket = z->c;
+    among_var = find_among_b(z, a_4, 79);
+
+    if (!among_var) goto lab0;
+
+    z->bra = z->c;
+
+    switch (among_var) {
+      case 1: {
+        int ret = r_R1(z);
+
+        if (ret == 0) goto lab0;
+
+        if (ret < 0) return ret;
+      }
+
+      {
+        int ret = slice_del(z);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 2: {
+        int ret = r_R1(z);
+
+        if (ret == 0) goto lab0;
+
+        if (ret < 0) return ret;
+      }
+
+      {
+        int ret = slice_from_s(z, 4, s_23);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 3: {
+        int ret = r_R1(z);
+
+        if (ret == 0) goto lab0;
+
+        if (ret < 0) return ret;
+      }
+
+      {
+        int ret = slice_del(z);
+
+        if (ret < 0) return ret;
+      }
+
+      z->ket = z->c;
+      among_var = find_among_b(z, a_3, 26);
+
+      if (!among_var) goto lab0;
+
+      z->bra = z->c;
+
+      switch (among_var) {
+        case 1: {
+          int ret = slice_from_s(z, 4, s_24);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 2: {
+          int ret = slice_from_s(z, 6, s_25);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 3: {
+          int ret = slice_from_s(z, 6, s_26);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 4: {
+          int ret = slice_from_s(z, 6, s_27);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 5: {
+          int ret = slice_from_s(z, 6, s_28);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 6: {
+          int ret = slice_from_s(z, 6, s_29);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 7: {
+          int ret = slice_from_s(z, 8, s_30);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 8: {
+          int ret = slice_from_s(z, 6, s_31);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 9: {
+          int ret = slice_from_s(z, 8, s_32);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 10: {
+          int ret = slice_from_s(z, 6, s_33);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 11: {
+          int ret = slice_from_s(z, 6, s_34);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 12: {
+          int ret = slice_from_s(z, 8, s_35);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 13: {
+          int ret = slice_from_s(z, 8, s_36);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 14: {
+          int ret = slice_from_s(z, 8, s_37);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 15: {
+          int ret = slice_from_s(z, 8, s_38);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 16: {
+          int ret = slice_from_s(z, 8, s_39);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 17: {
+          int ret = slice_from_s(z, 8, s_40);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 18: {
+          int ret = slice_from_s(z, 8, s_41);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 19: {
+          int ret = slice_from_s(z, 10, s_42);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 20: {
+          int ret = slice_from_s(z, 10, s_43);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 21: {
+          int ret = slice_from_s(z, 10, s_44);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 22: {
+          int ret = slice_from_s(z, 6, s_45);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 23: {
+          int ret = slice_from_s(z, 6, s_46);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 24: {
+          int ret = slice_from_s(z, 12, s_47);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 25: {
+          int ret = slice_from_s(z, 6, s_48);
+
+          if (ret < 0) return ret;
+        }
+        break;
+
+        case 26: {
+          int ret = slice_from_s(z, 8, s_49);
+
+          if (ret < 0) return ret;
+        }
+        break;
+      }
+
+      break;
+
+      case 4: {
+        int m2 = z->l - z->c;
+        (void)m2;
+        {
+          int ret = r_R1(z);
+
+          if (ret == 0) goto lab2;
+
+          if (ret < 0) return ret;
+        }
+        {
+          int ret = slice_del(z);
+
+          if (ret < 0) return ret;
+        }
+        goto lab1;
+lab2:
+        z->c = z->l - m2;
+        {
+          int ret = slice_from_s(z, 2, s_50);
+
+          if (ret < 0) return ret;
+        }
+      }
+
+lab1:
+      z->ket = z->c;
+
+      if (!(eq_s_b(z, 8, s_51))) goto lab0;
+
+      {
+        int m3 = z->l - z->c;
+        (void)m3;
+
+        if (!(eq_s_b(z, 4, s_52))) {
+          z->c = z->l - m3;
+          goto lab3;
+        }
+
+lab3:
+        ;
+      }
+      z->bra = z->c;
+      {
+        int ret = slice_from_s(z, 10, s_53);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 5: {
+        int ret = slice_from_s(z, 4, s_54);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 6: {
+        int ret = slice_from_s(z, 6, s_55);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 7: {
+        int ret = slice_from_s(z, 8, s_56);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 8: {
+        int ret = slice_from_s(z, 6, s_57);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 9: {
+        int ret = slice_from_s(z, 6, s_58);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 10: {
+        int ret = slice_from_s(z, 6, s_59);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 11: {
+        int ret = slice_from_s(z, 6, s_60);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 12: {
+        int ret = slice_from_s(z, 8, s_61);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 13: {
+        int ret = slice_from_s(z, 6, s_62);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 14: {
+        int ret = slice_from_s(z, 8, s_63);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 15: {
+        int ret = slice_from_s(z, 6, s_64);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 16: {
+        int ret = slice_from_s(z, 6, s_65);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 17: {
+        int ret = slice_from_s(z, 8, s_66);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 18: {
+        int ret = slice_from_s(z, 8, s_67);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 19: {
+        int ret = slice_from_s(z, 8, s_68);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 20: {
+        int ret = slice_from_s(z, 8, s_69);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 21: {
+        int ret = slice_from_s(z, 8, s_70);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 22: {
+        int ret = slice_from_s(z, 8, s_71);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 23: {
+        int ret = slice_from_s(z, 10, s_72);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 24: {
+        int ret = slice_from_s(z, 10, s_73);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 25: {
+        int ret = slice_from_s(z, 10, s_74);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 26: {
+        int ret = slice_from_s(z, 6, s_75);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 27: {
+        int ret = slice_from_s(z, 6, s_76);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 28: {
+        int ret = slice_from_s(z, 12, s_77);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 29: {
+        int ret = slice_from_s(z, 6, s_78);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 30: {
+        int ret = slice_from_s(z, 8, s_79);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 31: {
+        int ret = slice_from_s(z, 10, s_80);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 32: {
+        int ret = r_R1(z);
+
+        if (ret == 0) goto lab0;
+
+        if (ret < 0) return ret;
+      }
+
+      {
+        int ret = slice_from_s(z, 2, s_81);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 33: {
+        int m4 = z->l - z->c;
+        (void)m4;
+        {
+          int m5 = z->l - z->c;
+          (void)m5;
+
+          if (!(eq_s_b(z, 2, s_82))) goto lab7;
+
+          goto lab6;
+lab7:
+          z->c = z->l - m5;
+
+          if (!(eq_s_b(z, 2, s_83))) goto lab5;
+        }
+lab6: {
+          int m6 = z->l - z->c;
+          (void)m6;
+          {
+            int ret = r_R1plus3(z);
+
+            if (ret == 0) {
+              z->c = z->l - m6;
+              goto lab8;
+            }
+
+            if (ret < 0) return ret;
+          }
+          {
+            int ret = slice_from_s(z, 4, s_84);
+
+            if (ret < 0) return ret;
+          }
+lab8:
+          ;
+        }
+        goto lab4;
+lab5:
+        z->c = z->l - m4;
+        {
+          int ret = r_R1(z);
+
+          if (ret == 0) goto lab0;
+
+          if (ret < 0) return ret;
+        }
+        {
+          int ret = slice_del(z);
+
+          if (ret < 0) return ret;
+        }
+      }
+
+lab4:
+      break;
+    }
+
+lab0:
+    z->c = z->l - m1;
+  }
+  {
+    int m7 = z->l - z->c;
+    (void)m7;
+    z->ket = z->c;
+
+    if (z->c - 1 <= z->lb || z->p[z->c - 1] >> 5 != 4 || !((285474816 >> (z->p[z->c - 1] & 0x1f)) & 1)) goto lab9;
+
+    among_var = find_among_b(z, a_5, 6);
+
+    if (!among_var) goto lab9;
+
+    z->bra = z->c;
+
+    switch (among_var) {
+      case 1: {
+        int ret = r_R1(z);
+
+        if (ret == 0) goto lab9;
+
+        if (ret < 0) return ret;
+      }
+
+      {
+        int ret = slice_del(z);
+
+        if (ret < 0) return ret;
+      }
+      break;
+
+      case 2: {
+        int ret = r_R1(z);
+
+        if (ret == 0) goto lab9;
+
+        if (ret < 0) return ret;
+      }
+
+      if (in_grouping_b_U(z, g_consonant, 1489, 1520, 0)) goto lab9;
+
+      {
+        int ret = slice_del(z);
+
+        if (ret < 0) return ret;
+      }
+      break;
+    }
+
+lab9:
+    z->c = z->l - m7;
+  }
+  {
+    int m8 = z->l - z->c;
+    (void)m8;
+    z->ket = z->c;
+    among_var = find_among_b(z, a_6, 9);
+
+    if (!among_var) goto lab10;
+
+    z->bra = z->c;
+
+    switch (among_var) {
+      case 1: {
+        int ret = r_R1(z);
+
+        if (ret == 0) goto lab10;
+
+        if (ret < 0) return ret;
+      }
+
+      {
+        int ret = slice_del(z);
+
+        if (ret < 0) return ret;
+      }
+      break;
+    }
+
+lab10:
+    z->c = z->l - m8;
+  }
+  {
+    int m9 = z->l - z->c;
+    (void)m9;
+
+    while(1) {
+      int m10 = z->l - z->c;
+      (void)m10;
+
+      while(1) {
+        int m11 = z->l - z->c;
+        (void)m11;
+        z->ket = z->c;
+        {
+          int m12 = z->l - z->c;
+          (void)m12;
+
+          if (!(eq_s_b(z, 2, s_85))) goto lab15;
+
+          goto lab14;
+lab15:
+          z->c = z->l - m12;
+
+          if (!(eq_s_b(z, 3, s_86))) goto lab13;
+        }
+lab14:
+        z->bra = z->c;
+        {
+          int ret = slice_del(z);
+
+          if (ret < 0) return ret;
+        }
+        z->c = z->l - m11;
+        break;
+lab13:
+        z->c = z->l - m11;
+        {
+          int ret = skip_b_utf8(z->p, z->c, z->lb, 1);
+
+          if (ret < 0) goto lab12;
+
+          z->c = ret;
+        }
+      }
+
+      continue;
+lab12:
+      z->c = z->l - m10;
+      break;
+    }
+
+    z->c = z->l - m9;
+  }
+  return 1;
+}
+
+extern int yiddish_UTF_8_stem(struct SN_env * z)
+{
+
+  {
+    int ret = r_prelude(z);
+
+    if (ret < 0) return ret;
+  }
+  {
+    int c1 = z->c;
+    {
+      int ret = r_mark_regions(z);
+
+      if (ret < 0) return ret;
+    }
+    z->c = c1;
+  }
+  z->lb = z->c;
+  z->c = z->l;
+
+
+  {
+    int ret = r_standard_suffix(z);
+
+    if (ret < 0) return ret;
+  }
+  z->c = z->lb;
+  return 1;
+}
+
+extern struct SN_env * yiddish_UTF_8_create_env(void)
+{
+  return SN_create_env(0, 2);
+}
+
+extern void yiddish_UTF_8_close_env(struct SN_env * z)
+{
+  SN_close_env(z, 0);
+}
 

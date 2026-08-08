@@ -1,11 +1,11 @@
 /*-------------------------------------------------------------------------
  *
  * libpq-be.h
- *	  This file contains definitions for structures and externs used
- *	  by the postmaster during client authentication.
+ *    This file contains definitions for structures and externs used
+ *    by the postmaster during client authentication.
  *
- *	  Note that this is backend-internal and is NOT exported to clients.
- *	  Structs that need to be client-visible are in pqcomm.h.
+ *    Note that this is backend-internal and is NOT exported to clients.
+ *    Structs that need to be client-visible are in pqcomm.h.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -43,11 +43,11 @@
  */
 typedef struct
 {
-	void	   *value;
-	int			length;
+  void     *value;
+  int     length;
 } gss_buffer_desc;
 #endif
-#endif							/* ENABLE_SSPI */
+#endif              /* ENABLE_SSPI */
 
 #include "datatype/timestamp.h"
 #include "libpq/hba.h"
@@ -60,16 +60,16 @@ typedef struct
 #if defined(ENABLE_GSS) | defined(ENABLE_SSPI)
 typedef struct
 {
-	gss_buffer_desc outbuf;		/* GSSAPI output token buffer */
+  gss_buffer_desc outbuf;   /* GSSAPI output token buffer */
 #ifdef ENABLE_GSS
-	gss_cred_id_t cred;			/* GSSAPI connection cred's */
-	gss_ctx_id_t ctx;			/* GSSAPI connection context */
-	gss_name_t	name;			/* GSSAPI client name */
-	char	   *princ;			/* GSSAPI Principal used for auth, NULL if
-								 * GSSAPI auth was not used */
-	bool		auth;			/* GSSAPI Authentication used */
-	bool		enc;			/* GSSAPI encryption in use */
-	bool		delegated_creds;	/* GSSAPI Delegated credentials */
+  gss_cred_id_t cred;     /* GSSAPI connection cred's */
+  gss_ctx_id_t ctx;     /* GSSAPI connection context */
+  gss_name_t  name;     /* GSSAPI client name */
+  char     *princ;      /* GSSAPI Principal used for auth, NULL if
+                 * GSSAPI auth was not used */
+  bool    auth;     /* GSSAPI Authentication used */
+  bool    enc;      /* GSSAPI encryption in use */
+  bool    delegated_creds;  /* GSSAPI Delegated credentials */
 #endif
 } pg_gssinfo;
 #endif
@@ -85,24 +85,24 @@ typedef struct
  */
 typedef struct ClientConnectionInfo
 {
-	/*
-	 * Authenticated identity.  The meaning of this identifier is dependent on
-	 * auth_method; it is the identity (if any) that the user presented during
-	 * the authentication cycle, before they were assigned a database role.
-	 * (It is effectively the "SYSTEM-USERNAME" of a pg_ident usermap --
-	 * though the exact string in use may be different, depending on pg_hba
-	 * options.)
-	 *
-	 * authn_id is NULL if the user has not actually been authenticated, for
-	 * example if the "trust" auth method is in use.
-	 */
-	const char *authn_id;
+  /*
+   * Authenticated identity.  The meaning of this identifier is dependent on
+   * auth_method; it is the identity (if any) that the user presented during
+   * the authentication cycle, before they were assigned a database role.
+   * (It is effectively the "SYSTEM-USERNAME" of a pg_ident usermap --
+   * though the exact string in use may be different, depending on pg_hba
+   * options.)
+   *
+   * authn_id is NULL if the user has not actually been authenticated, for
+   * example if the "trust" auth method is in use.
+   */
+  const char *authn_id;
 
-	/*
-	 * The HBA method that determined the above authn_id.  This only has
-	 * meaning if authn_id is not NULL; otherwise it's undefined.
-	 */
-	UserAuth	auth_method;
+  /*
+   * The HBA method that determined the above authn_id.  This only has
+   * meaning if authn_id is not NULL; otherwise it's undefined.
+   */
+  UserAuth  auth_method;
 } ClientConnectionInfo;
 
 /*
@@ -113,10 +113,10 @@ typedef struct ClientConnectionInfo
  * remote_hostname is set if we did a successful reverse lookup of the
  * client's IP address during connection setup.
  * remote_hostname_resolv tracks the state of hostname verification:
- *	+1 = remote_hostname is known to resolve to client's IP address
- *	-1 = remote_hostname is known NOT to resolve to client's IP address
- *	 0 = we have not done the forward DNS lookup yet
- *	-2 = there was an error in name resolution
+ *  +1 = remote_hostname is known to resolve to client's IP address
+ *  -1 = remote_hostname is known NOT to resolve to client's IP address
+ *   0 = we have not done the forward DNS lookup yet
+ *  -2 = there was an error in name resolution
  * If reverse lookup of the client IP address fails, remote_hostname will be
  * left NULL while remote_hostname_resolv is set to -2.  If reverse lookup
  * succeeds but forward lookup fails, remote_hostname_resolv is also set to -2
@@ -127,117 +127,117 @@ typedef struct ClientConnectionInfo
 
 typedef struct Port
 {
-	pgsocket	sock;			/* File descriptor */
-	bool		noblock;		/* is the socket in non-blocking mode? */
-	ProtocolVersion proto;		/* FE/BE protocol version */
-	SockAddr	laddr;			/* local addr (postmaster) */
-	SockAddr	raddr;			/* remote addr (client) */
-	char	   *remote_host;	/* name (or ip addr) of remote host */
-	char	   *remote_hostname;	/* name (not ip addr) of remote host, if
-									 * available */
-	int			remote_hostname_resolv; /* see above */
-	int			remote_hostname_errcode;	/* see above */
-	char	   *remote_port;	/* text rep of remote port */
+  pgsocket  sock;     /* File descriptor */
+  bool    noblock;    /* is the socket in non-blocking mode? */
+  ProtocolVersion proto;    /* FE/BE protocol version */
+  SockAddr  laddr;      /* local addr (postmaster) */
+  SockAddr  raddr;      /* remote addr (client) */
+  char     *remote_host;  /* name (or ip addr) of remote host */
+  char     *remote_hostname;  /* name (not ip addr) of remote host, if
+                   * available */
+  int     remote_hostname_resolv; /* see above */
+  int     remote_hostname_errcode;  /* see above */
+  char     *remote_port;  /* text rep of remote port */
 
-	/* local_host is filled only if needed (see log_status_format) */
-	char		local_host[64]; /* ip addr of local socket for client conn */
+  /* local_host is filled only if needed (see log_status_format) */
+  char    local_host[64]; /* ip addr of local socket for client conn */
 
-	/*
-	 * Information that needs to be saved from the startup packet and passed
-	 * into backend execution.  "char *" fields are NULL if not set.
-	 * guc_options points to a List of alternating option names and values.
-	 */
-	char	   *database_name;
-	char	   *user_name;
-	char	   *cmdline_options;
-	List	   *guc_options;
+  /*
+   * Information that needs to be saved from the startup packet and passed
+   * into backend execution.  "char *" fields are NULL if not set.
+   * guc_options points to a List of alternating option names and values.
+   */
+  char     *database_name;
+  char     *user_name;
+  char     *cmdline_options;
+  List     *guc_options;
 
-	/*
-	 * The startup packet application name, only used here for the "connection
-	 * authorized" log message. We shouldn't use this post-startup, instead
-	 * the GUC should be used as application can change it afterward.
-	 */
-	char	   *application_name;
+  /*
+   * The startup packet application name, only used here for the "connection
+   * authorized" log message. We shouldn't use this post-startup, instead
+   * the GUC should be used as application can change it afterward.
+   */
+  char     *application_name;
 
-	/*
-	 * Information that needs to be held during the authentication cycle.
-	 */
-	HbaLine    *hba;
+  /*
+   * Information that needs to be held during the authentication cycle.
+   */
+  HbaLine    *hba;
 
-	/*
-	 * TCP keepalive and user timeout settings.
-	 *
-	 * default values are 0 if AF_UNIX or not yet known; current values are 0
-	 * if AF_UNIX or using the default. Also, -1 in a default value means we
-	 * were unable to find out the default (getsockopt failed).
-	 */
-	int			default_keepalives_idle;
-	int			default_keepalives_interval;
-	int			default_keepalives_count;
-	int			default_tcp_user_timeout;
-	int			keepalives_idle;
-	int			keepalives_interval;
-	int			keepalives_count;
-	int			tcp_user_timeout;
+  /*
+   * TCP keepalive and user timeout settings.
+   *
+   * default values are 0 if AF_UNIX or not yet known; current values are 0
+   * if AF_UNIX or using the default. Also, -1 in a default value means we
+   * were unable to find out the default (getsockopt failed).
+   */
+  int     default_keepalives_idle;
+  int     default_keepalives_interval;
+  int     default_keepalives_count;
+  int     default_tcp_user_timeout;
+  int     keepalives_idle;
+  int     keepalives_interval;
+  int     keepalives_count;
+  int     tcp_user_timeout;
 
-	/*
-	 * SCRAM structures.
-	 */
-	uint8		scram_ClientKey[SCRAM_MAX_KEY_LEN];
-	uint8		scram_ServerKey[SCRAM_MAX_KEY_LEN];
-	bool		has_scram_keys; /* true if the above two are valid */
+  /*
+   * SCRAM structures.
+   */
+  uint8   scram_ClientKey[SCRAM_MAX_KEY_LEN];
+  uint8   scram_ServerKey[SCRAM_MAX_KEY_LEN];
+  bool    has_scram_keys; /* true if the above two are valid */
 
-	/*
-	 * GSSAPI structures.
-	 */
+  /*
+   * GSSAPI structures.
+   */
 #if defined(ENABLE_GSS) || defined(ENABLE_SSPI)
 
-	/*
-	 * If GSSAPI is supported and used on this connection, store GSSAPI
-	 * information.  Even when GSSAPI is not compiled in, store a NULL pointer
-	 * to keep struct offsets the same (for extension ABI compatibility).
-	 */
-	pg_gssinfo *gss;
+  /*
+   * If GSSAPI is supported and used on this connection, store GSSAPI
+   * information.  Even when GSSAPI is not compiled in, store a NULL pointer
+   * to keep struct offsets the same (for extension ABI compatibility).
+   */
+  pg_gssinfo *gss;
 #else
-	void	   *gss;
+  void     *gss;
 #endif
 
-	/*
-	 * SSL structures.
-	 */
-	bool		ssl_in_use;
-	char	   *peer_cn;
-	char	   *peer_dn;
-	bool		peer_cert_valid;
-	bool		alpn_used;
-	bool		last_read_was_eof;
+  /*
+   * SSL structures.
+   */
+  bool    ssl_in_use;
+  char     *peer_cn;
+  char     *peer_dn;
+  bool    peer_cert_valid;
+  bool    alpn_used;
+  bool    last_read_was_eof;
 
-	/*
-	 * OpenSSL structures.  As with GSSAPI above, to keep struct offsets
-	 * constant, NULL pointers are stored when SSL support is not enabled.
-	 * (Although extensions should have no business accessing the raw_buf
-	 * fields anyway.)
-	 */
+  /*
+   * OpenSSL structures.  As with GSSAPI above, to keep struct offsets
+   * constant, NULL pointers are stored when SSL support is not enabled.
+   * (Although extensions should have no business accessing the raw_buf
+   * fields anyway.)
+   */
 #ifdef USE_OPENSSL
-	SSL		   *ssl;
-	X509	   *peer;
+  SSL      *ssl;
+  X509     *peer;
 #else
-	void	   *ssl;
-	void	   *peer;
+  void     *ssl;
+  void     *peer;
 #endif
 
-	/*
-	 * This is a bit of a hack. raw_buf is data that was previously read and
-	 * buffered in a higher layer but then "unread" and needs to be read again
-	 * while establishing an SSL connection via the SSL library layer.
-	 *
-	 * There's no API to "unread", the upper layer just places the data in the
-	 * Port structure in raw_buf and sets raw_buf_remaining to the amount of
-	 * bytes unread and raw_buf_consumed to 0.
-	 */
-	char	   *raw_buf;
-	ssize_t		raw_buf_consumed,
-				raw_buf_remaining;
+  /*
+   * This is a bit of a hack. raw_buf is data that was previously read and
+   * buffered in a higher layer but then "unread" and needs to be read again
+   * while establishing an SSL connection via the SSL library layer.
+   *
+   * There's no API to "unread", the upper layer just places the data in the
+   * Port structure in raw_buf and sets raw_buf_remaining to the amount of
+   * bytes unread and raw_buf_consumed to 0.
+   */
+  char     *raw_buf;
+  ssize_t   raw_buf_consumed,
+            raw_buf_remaining;
 } Port;
 
 /*
@@ -247,20 +247,20 @@ typedef struct Port
  */
 typedef struct ClientSocket
 {
-	pgsocket	sock;			/* File descriptor */
-	SockAddr	raddr;			/* remote addr (client) */
+  pgsocket  sock;     /* File descriptor */
+  SockAddr  raddr;      /* remote addr (client) */
 } ClientSocket;
 
 #ifdef USE_SSL
 /*
- *	Hardcoded DH parameters, used in ephemeral DH keying.  (See also
- *	README.SSL for more details on EDH.)
+ *  Hardcoded DH parameters, used in ephemeral DH keying.  (See also
+ *  README.SSL for more details on EDH.)
  *
- *	This is the 2048-bit DH parameter from RFC 3526.  The generation of the
- *	prime is specified in RFC 2412 Appendix E, which also discusses the
- *	design choice of the generator.  Note that when loaded with OpenSSL
- *	this causes DH_check() to fail on DH_NOT_SUITABLE_GENERATOR, where
- *	leaking a bit is preferred.
+ *  This is the 2048-bit DH parameter from RFC 3526.  The generation of the
+ *  prime is specified in RFC 2412 Appendix E, which also discusses the
+ *  design choice of the generator.  Note that when loaded with OpenSSL
+ *  this causes DH_check() to fail on DH_NOT_SUITABLE_GENERATOR, where
+ *  leaking a bit is preferred.
  */
 #define FILE_DH2048 \
 "-----BEGIN DH PARAMETERS-----\n\
@@ -284,7 +284,7 @@ fDKQXkYuNs474553LBgOhgObJ4Oi7Aeij7XFXfBvTFLJ3ivL9pVYFxg5lUl86pVq\n\
  * Otherwise, log errors at LOG level and return -1 to indicate trouble,
  * preserving the old SSL state if any.  Returns 0 if OK.
  */
-extern int	be_tls_init(bool isServerStart);
+extern int  be_tls_init(bool isServerStart);
 
 /*
  * Destroy global SSL context, if any.
@@ -294,7 +294,7 @@ extern void be_tls_destroy(void);
 /*
  * Attempt to negotiate SSL connection.
  */
-extern int	be_tls_open_server(Port *port);
+extern int  be_tls_open_server(Port *port);
 
 /*
  * Close SSL connection.
@@ -314,7 +314,7 @@ extern ssize_t be_tls_write(Port *port, const void *ptr, size_t len, int *waitfo
 /*
  * Return information about the SSL connection.
  */
-extern int	be_tls_get_cipher_bits(Port *port);
+extern int  be_tls_get_cipher_bits(Port *port);
 extern const char *be_tls_get_version(Port *port);
 extern const char *be_tls_get_cipher(Port *port);
 extern void be_tls_get_peer_subject_name(Port *port, char *ptr, size_t len);
@@ -336,7 +336,7 @@ typedef void (*openssl_tls_init_hook_typ) (SSL_CTX *context, bool isServerStart)
 extern PGDLLIMPORT openssl_tls_init_hook_typ openssl_tls_init_hook;
 #endif
 
-#endif							/* USE_SSL */
+#endif              /* USE_SSL */
 
 #ifdef ENABLE_GSS
 /*
@@ -350,21 +350,21 @@ extern bool be_gssapi_get_delegation(Port *port);
 /* Read and write to a GSSAPI-encrypted connection. */
 extern ssize_t be_gssapi_read(Port *port, void *ptr, size_t len);
 extern ssize_t be_gssapi_write(Port *port, const void *ptr, size_t len);
-#endif							/* ENABLE_GSS */
+#endif              /* ENABLE_GSS */
 
 extern PGDLLIMPORT ProtocolVersion FrontendProtocol;
 extern PGDLLIMPORT ClientConnectionInfo MyClientConnectionInfo;
 
 /* TCP keepalives configuration. These are no-ops on an AF_UNIX socket. */
 
-extern int	pq_getkeepalivesidle(Port *port);
-extern int	pq_getkeepalivesinterval(Port *port);
-extern int	pq_getkeepalivescount(Port *port);
-extern int	pq_gettcpusertimeout(Port *port);
+extern int  pq_getkeepalivesidle(Port *port);
+extern int  pq_getkeepalivesinterval(Port *port);
+extern int  pq_getkeepalivescount(Port *port);
+extern int  pq_gettcpusertimeout(Port *port);
 
-extern int	pq_setkeepalivesidle(int idle, Port *port);
-extern int	pq_setkeepalivesinterval(int interval, Port *port);
-extern int	pq_setkeepalivescount(int count, Port *port);
-extern int	pq_settcpusertimeout(int timeout, Port *port);
+extern int  pq_setkeepalivesidle(int idle, Port *port);
+extern int  pq_setkeepalivesinterval(int interval, Port *port);
+extern int  pq_setkeepalivescount(int count, Port *port);
+extern int  pq_settcpusertimeout(int timeout, Port *port);
 
-#endif							/* LIBPQ_BE_H */
+#endif              /* LIBPQ_BE_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * bufpage.h
- *	  Standard POSTGRES buffer page definitions.
+ *    Standard POSTGRES buffer page definitions.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -32,17 +32,17 @@ extern PGDLLIMPORT bool ignore_checksum_failure;
  * +----------------+---------------------------------+
  * | PageHeaderData | linp1 linp2 linp3 ...           |
  * +-----------+----+---------------------------------+
- * | ... linpN |									  |
+ * | ... linpN |                    |
  * +-----------+--------------------------------------+
- * |		   ^ pd_lower							  |
- * |												  |
- * |			 v pd_upper							  |
+ * |       ^ pd_lower               |
+ * |                          |
+ * |       v pd_upper               |
  * +-------------+------------------------------------+
- * |			 | tupleN ...                         |
+ * |       | tupleN ...                         |
  * +-------------+------------------+-----------------+
- * |	   ... tuple3 tuple2 tuple1 | "special space" |
+ * |     ... tuple3 tuple2 tuple1 | "special space" |
  * +--------------------------------+-----------------+
- *									^ pd_special
+ *                  ^ pd_special
  *
  * a page is full when nothing can be added between pd_lower and
  * pd_upper.
@@ -97,32 +97,32 @@ typedef uint16 LocationIndex;
  */
 typedef struct
 {
-	uint32		xlogid;			/* high bits */
-	uint32		xrecoff;		/* low bits */
+  uint32    xlogid;     /* high bits */
+  uint32    xrecoff;    /* low bits */
 } PageXLogRecPtr;
 
 static inline XLogRecPtr
 PageXLogRecPtrGet(PageXLogRecPtr val)
 {
-	return (uint64) val.xlogid << 32 | val.xrecoff;
+  return (uint64) val.xlogid << 32 | val.xrecoff;
 }
 
 #define PageXLogRecPtrSet(ptr, lsn) \
-	((ptr).xlogid = (uint32) ((lsn) >> 32), (ptr).xrecoff = (uint32) (lsn))
+  ((ptr).xlogid = (uint32) ((lsn) >> 32), (ptr).xrecoff = (uint32) (lsn))
 
 /*
  * disk page organization
  *
  * space management information generic to any page
  *
- *		pd_lsn		- identifies xlog record for last change to this page.
- *		pd_checksum - page checksum, if set.
- *		pd_flags	- flag bits.
- *		pd_lower	- offset to start of free space.
- *		pd_upper	- offset to end of free space.
- *		pd_special	- offset to start of special space.
- *		pd_pagesize_version - size in bytes and page layout version number.
- *		pd_prune_xid - oldest XID among potentially prunable tuples on page.
+ *    pd_lsn    - identifies xlog record for last change to this page.
+ *    pd_checksum - page checksum, if set.
+ *    pd_flags  - flag bits.
+ *    pd_lower  - offset to start of free space.
+ *    pd_upper  - offset to end of free space.
+ *    pd_special  - offset to start of special space.
+ *    pd_pagesize_version - size in bytes and page layout version number.
+ *    pd_prune_xid - oldest XID among potentially prunable tuples on page.
  *
  * The LSN is used by the buffer manager to enforce the basic rule of WAL:
  * "thou shalt write xlog before data".  A dirty buffer cannot be dumped
@@ -158,17 +158,17 @@ PageXLogRecPtrGet(PageXLogRecPtr val)
 
 typedef struct PageHeaderData
 {
-	/* XXX LSN is member of *any* block, not only page-organized ones */
-	PageXLogRecPtr pd_lsn;		/* LSN: next byte after last byte of xlog
-								 * record for last change to this page */
-	uint16		pd_checksum;	/* checksum */
-	uint16		pd_flags;		/* flag bits, see below */
-	LocationIndex pd_lower;		/* offset to start of free space */
-	LocationIndex pd_upper;		/* offset to end of free space */
-	LocationIndex pd_special;	/* offset to start of special space */
-	uint16		pd_pagesize_version;
-	TransactionId pd_prune_xid; /* oldest prunable XID, or zero if none */
-	ItemIdData	pd_linp[FLEXIBLE_ARRAY_MEMBER]; /* line pointer array */
+  /* XXX LSN is member of *any* block, not only page-organized ones */
+  PageXLogRecPtr pd_lsn;    /* LSN: next byte after last byte of xlog
+                 * record for last change to this page */
+  uint16    pd_checksum;  /* checksum */
+  uint16    pd_flags;   /* flag bits, see below */
+  LocationIndex pd_lower;   /* offset to start of free space */
+  LocationIndex pd_upper;   /* offset to end of free space */
+  LocationIndex pd_special; /* offset to start of special space */
+  uint16    pd_pagesize_version;
+  TransactionId pd_prune_xid; /* oldest prunable XID, or zero if none */
+  ItemIdData  pd_linp[FLEXIBLE_ARRAY_MEMBER]; /* line pointer array */
 } PageHeaderData;
 
 typedef PageHeaderData *PageHeader;
@@ -185,12 +185,12 @@ typedef PageHeaderData *PageHeader;
  * page for its new tuple version; this suggests that a prune is needed.
  * Again, this is just a hint.
  */
-#define PD_HAS_FREE_LINES	0x0001	/* are there any unused line pointers? */
-#define PD_PAGE_FULL		0x0002	/* not enough free space for new tuple? */
-#define PD_ALL_VISIBLE		0x0004	/* all tuples on page are visible to
-									 * everyone */
+#define PD_HAS_FREE_LINES 0x0001  /* are there any unused line pointers? */
+#define PD_PAGE_FULL    0x0002  /* not enough free space for new tuple? */
+#define PD_ALL_VISIBLE    0x0004  /* all tuples on page are visible to
+                   * everyone */
 
-#define PD_VALID_FLAG_BITS	0x0007	/* OR of all valid pd_flags bits */
+#define PD_VALID_FLAG_BITS  0x0007  /* OR of all valid pd_flags bits */
 
 /*
  * Page layout version number 0 is for pre-7.3 Postgres releases.
@@ -198,17 +198,17 @@ typedef PageHeaderData *PageHeader;
  * Release 8.0 uses 2; it changed the HeapTupleHeader layout again.
  * Release 8.1 uses 3; it redefined HeapTupleHeader infomask bits.
  * Release 8.3 uses 4; it changed the HeapTupleHeader layout again, and
- *		added the pd_flags field (by stealing some bits from pd_tli),
- *		as well as adding the pd_prune_xid field (which enlarges the header).
+ *    added the pd_flags field (by stealing some bits from pd_tli),
+ *    as well as adding the pd_prune_xid field (which enlarges the header).
  *
  * As of Release 9.3, the checksum version must also be considered when
  * handling pages.
  */
-#define PG_PAGE_LAYOUT_VERSION		4
-#define PG_DATA_CHECKSUM_VERSION	1
+#define PG_PAGE_LAYOUT_VERSION    4
+#define PG_DATA_CHECKSUM_VERSION  1
 
 /* ----------------------------------------------------------------
- *						page support functions
+ *            page support functions
  * ----------------------------------------------------------------
  */
 
@@ -219,37 +219,37 @@ typedef PageHeaderData *PageHeader;
 
 /*
  * PageIsEmpty
- *		returns true iff no itemid has been allocated on the page
+ *    returns true iff no itemid has been allocated on the page
  */
 static inline bool
 PageIsEmpty(const PageData *page)
 {
-	return ((const PageHeaderData *) page)->pd_lower <= SizeOfPageHeaderData;
+  return ((const PageHeaderData *) page)->pd_lower <= SizeOfPageHeaderData;
 }
 
 /*
  * PageIsNew
- *		returns true iff page has not been initialized (by PageInit)
+ *    returns true iff page has not been initialized (by PageInit)
  */
 static inline bool
 PageIsNew(const PageData *page)
 {
-	return ((const PageHeaderData *) page)->pd_upper == 0;
+  return ((const PageHeaderData *) page)->pd_upper == 0;
 }
 
 /*
  * PageGetItemId
- *		Returns an item identifier of a page.
+ *    Returns an item identifier of a page.
  */
 static inline ItemId
 PageGetItemId(Page page, OffsetNumber offsetNumber)
 {
-	return &((PageHeader) page)->pd_linp[offsetNumber - 1];
+  return &((PageHeader) page)->pd_linp[offsetNumber - 1];
 }
 
 /*
  * PageGetContents
- *		To be used in cases where the page does not contain line pointers.
+ *    To be used in cases where the page does not contain line pointers.
  *
  * Note: prior to 8.3 this was not guaranteed to yield a MAXALIGN'd result.
  * Now it is.  Beware of old code that might think the offset to the contents
@@ -258,17 +258,17 @@ PageGetItemId(Page page, OffsetNumber offsetNumber)
 static inline char *
 PageGetContents(Page page)
 {
-	return (char *) page + MAXALIGN(SizeOfPageHeaderData);
+  return (char *) page + MAXALIGN(SizeOfPageHeaderData);
 }
 
 /* ----------------
- *		functions to access page size info
+ *    functions to access page size info
  * ----------------
  */
 
 /*
  * PageGetPageSize
- *		Returns the page size of a page.
+ *    Returns the page size of a page.
  *
  * this can only be called on a formatted page (unlike
  * BufferGetPageSize, which can be called on an unformatted page).
@@ -277,22 +277,22 @@ PageGetContents(Page page)
 static inline Size
 PageGetPageSize(const PageData *page)
 {
-	return (Size) (((const PageHeaderData *) page)->pd_pagesize_version & (uint16) 0xFF00);
+  return (Size) (((const PageHeaderData *) page)->pd_pagesize_version & (uint16) 0xFF00);
 }
 
 /*
  * PageGetPageLayoutVersion
- *		Returns the page layout version of a page.
+ *    Returns the page layout version of a page.
  */
 static inline uint8
 PageGetPageLayoutVersion(const PageData *page)
 {
-	return (((const PageHeaderData *) page)->pd_pagesize_version & 0x00FF);
+  return (((const PageHeaderData *) page)->pd_pagesize_version & 0x00FF);
 }
 
 /*
  * PageSetPageSizeAndVersion
- *		Sets the page size and page layout version number of a page.
+ *    Sets the page size and page layout version number of a page.
  *
  * We could support setting these two values separately, but there's
  * no real need for it at the moment.
@@ -300,24 +300,24 @@ PageGetPageLayoutVersion(const PageData *page)
 static inline void
 PageSetPageSizeAndVersion(Page page, Size size, uint8 version)
 {
-	Assert((size & 0xFF00) == size);
-	Assert((version & 0x00FF) == version);
+  Assert((size & 0xFF00) == size);
+  Assert((version & 0x00FF) == version);
 
-	((PageHeader) page)->pd_pagesize_version = size | version;
+  ((PageHeader) page)->pd_pagesize_version = size | version;
 }
 
 /* ----------------
- *		page special data functions
+ *    page special data functions
  * ----------------
  */
 /*
  * PageGetSpecialSize
- *		Returns size of special space on a page.
+ *    Returns size of special space on a page.
  */
 static inline uint16
 PageGetSpecialSize(const PageData *page)
 {
-	return (PageGetPageSize(page) - ((const PageHeaderData *) page)->pd_special);
+  return (PageGetPageSize(page) - ((const PageHeaderData *) page)->pd_special);
 }
 
 /*
@@ -328,56 +328,56 @@ PageGetSpecialSize(const PageData *page)
 static inline void
 PageValidateSpecialPointer(const PageData *page)
 {
-	Assert(page);
-	Assert(((const PageHeaderData *) page)->pd_special <= BLCKSZ);
-	Assert(((const PageHeaderData *) page)->pd_special >= SizeOfPageHeaderData);
+  Assert(page);
+  Assert(((const PageHeaderData *) page)->pd_special <= BLCKSZ);
+  Assert(((const PageHeaderData *) page)->pd_special >= SizeOfPageHeaderData);
 }
 
 /*
  * PageGetSpecialPointer
- *		Returns pointer to special space on a page.
+ *    Returns pointer to special space on a page.
  */
 #define PageGetSpecialPointer(page) \
 ( \
-	PageValidateSpecialPointer(page), \
-	((page) + ((PageHeader) (page))->pd_special) \
+  PageValidateSpecialPointer(page), \
+  ((page) + ((PageHeader) (page))->pd_special) \
 )
 
 /*
  * PageGetItem
- *		Retrieves an item on the given page.
+ *    Retrieves an item on the given page.
  *
  * Note:
- *		This does not change the status of any of the resources passed.
- *		The semantics may change in the future.
+ *    This does not change the status of any of the resources passed.
+ *    The semantics may change in the future.
  */
 static inline Item
 PageGetItem(const PageData *page, const ItemIdData *itemId)
 {
-	Assert(page);
-	Assert(ItemIdHasStorage(itemId));
+  Assert(page);
+  Assert(ItemIdHasStorage(itemId));
 
-	return (Item) (((const char *) page) + ItemIdGetOffset(itemId));
+  return (Item) (((const char *) page) + ItemIdGetOffset(itemId));
 }
 
 /*
  * PageGetMaxOffsetNumber
- *		Returns the maximum offset number used by the given page.
- *		Since offset numbers are 1-based, this is also the number
- *		of items on the page.
+ *    Returns the maximum offset number used by the given page.
+ *    Since offset numbers are 1-based, this is also the number
+ *    of items on the page.
  *
- *		NOTE: if the page is not initialized (pd_lower == 0), we must
- *		return zero to ensure sane behavior.
+ *    NOTE: if the page is not initialized (pd_lower == 0), we must
+ *    return zero to ensure sane behavior.
  */
 static inline OffsetNumber
 PageGetMaxOffsetNumber(const PageData *page)
 {
-	const PageHeaderData *pageheader = (const PageHeaderData *) page;
+  const PageHeaderData *pageheader = (const PageHeaderData *) page;
 
-	if (pageheader->pd_lower <= SizeOfPageHeaderData)
-		return 0;
-	else
-		return (pageheader->pd_lower - SizeOfPageHeaderData) / sizeof(ItemIdData);
+  if (pageheader->pd_lower <= SizeOfPageHeaderData)
+    return 0;
+  else
+    return (pageheader->pd_lower - SizeOfPageHeaderData) / sizeof(ItemIdData);
 }
 
 /*
@@ -386,60 +386,60 @@ PageGetMaxOffsetNumber(const PageData *page)
 static inline XLogRecPtr
 PageGetLSN(const PageData *page)
 {
-	return PageXLogRecPtrGet(((const PageHeaderData *) page)->pd_lsn);
+  return PageXLogRecPtrGet(((const PageHeaderData *) page)->pd_lsn);
 }
 static inline void
 PageSetLSN(Page page, XLogRecPtr lsn)
 {
-	PageXLogRecPtrSet(((PageHeader) page)->pd_lsn, lsn);
+  PageXLogRecPtrSet(((PageHeader) page)->pd_lsn, lsn);
 }
 
 static inline bool
 PageHasFreeLinePointers(const PageData *page)
 {
-	return ((const PageHeaderData *) page)->pd_flags & PD_HAS_FREE_LINES;
+  return ((const PageHeaderData *) page)->pd_flags & PD_HAS_FREE_LINES;
 }
 static inline void
 PageSetHasFreeLinePointers(Page page)
 {
-	((PageHeader) page)->pd_flags |= PD_HAS_FREE_LINES;
+  ((PageHeader) page)->pd_flags |= PD_HAS_FREE_LINES;
 }
 static inline void
 PageClearHasFreeLinePointers(Page page)
 {
-	((PageHeader) page)->pd_flags &= ~PD_HAS_FREE_LINES;
+  ((PageHeader) page)->pd_flags &= ~PD_HAS_FREE_LINES;
 }
 
 static inline bool
 PageIsFull(const PageData *page)
 {
-	return ((const PageHeaderData *) page)->pd_flags & PD_PAGE_FULL;
+  return ((const PageHeaderData *) page)->pd_flags & PD_PAGE_FULL;
 }
 static inline void
 PageSetFull(Page page)
 {
-	((PageHeader) page)->pd_flags |= PD_PAGE_FULL;
+  ((PageHeader) page)->pd_flags |= PD_PAGE_FULL;
 }
 static inline void
 PageClearFull(Page page)
 {
-	((PageHeader) page)->pd_flags &= ~PD_PAGE_FULL;
+  ((PageHeader) page)->pd_flags &= ~PD_PAGE_FULL;
 }
 
 static inline bool
 PageIsAllVisible(const PageData *page)
 {
-	return ((const PageHeaderData *) page)->pd_flags & PD_ALL_VISIBLE;
+  return ((const PageHeaderData *) page)->pd_flags & PD_ALL_VISIBLE;
 }
 static inline void
 PageSetAllVisible(Page page)
 {
-	((PageHeader) page)->pd_flags |= PD_ALL_VISIBLE;
+  ((PageHeader) page)->pd_flags |= PD_ALL_VISIBLE;
 }
 static inline void
 PageClearAllVisible(Page page)
 {
-	((PageHeader) page)->pd_flags &= ~PD_ALL_VISIBLE;
+  ((PageHeader) page)->pd_flags &= ~PD_ALL_VISIBLE;
 }
 
 /*
@@ -447,33 +447,33 @@ PageClearAllVisible(Page page)
  */
 #define PageSetPrunable(page, xid) \
 do { \
-	Assert(TransactionIdIsNormal(xid)); \
-	if (!TransactionIdIsValid(((PageHeader) (page))->pd_prune_xid) || \
-		TransactionIdPrecedes(xid, ((PageHeader) (page))->pd_prune_xid)) \
-		((PageHeader) (page))->pd_prune_xid = (xid); \
+  Assert(TransactionIdIsNormal(xid)); \
+  if (!TransactionIdIsValid(((PageHeader) (page))->pd_prune_xid) || \
+    TransactionIdPrecedes(xid, ((PageHeader) (page))->pd_prune_xid)) \
+    ((PageHeader) (page))->pd_prune_xid = (xid); \
 } while (0)
 #define PageClearPrunable(page) \
-	(((PageHeader) (page))->pd_prune_xid = InvalidTransactionId)
+  (((PageHeader) (page))->pd_prune_xid = InvalidTransactionId)
 
 
 /* ----------------------------------------------------------------
- *		extern declarations
+ *    extern declarations
  * ----------------------------------------------------------------
  */
 
 /* flags for PageAddItemExtended() */
-#define PAI_OVERWRITE			(1 << 0)
-#define PAI_IS_HEAP				(1 << 1)
+#define PAI_OVERWRITE     (1 << 0)
+#define PAI_IS_HEAP       (1 << 1)
 
 /* flags for PageIsVerified() */
-#define PIV_LOG_WARNING			(1 << 0)
-#define PIV_LOG_LOG				(1 << 1)
+#define PIV_LOG_WARNING     (1 << 0)
+#define PIV_LOG_LOG       (1 << 1)
 #define PIV_IGNORE_CHECKSUM_FAILURE (1 << 2)
 
 #define PageAddItem(page, item, size, offsetNumber, overwrite, is_heap) \
-	PageAddItemExtended(page, item, size, offsetNumber, \
-						((overwrite) ? PAI_OVERWRITE : 0) | \
-						((is_heap) ? PAI_IS_HEAP : 0))
+  PageAddItemExtended(page, item, size, offsetNumber, \
+            ((overwrite) ? PAI_OVERWRITE : 0) | \
+            ((is_heap) ? PAI_IS_HEAP : 0))
 
 /*
  * Check that BLCKSZ is a multiple of sizeof(size_t).  In PageIsVerified(), it
@@ -483,13 +483,13 @@ do { \
  * compilers.
  */
 StaticAssertDecl(BLCKSZ == ((BLCKSZ / sizeof(size_t)) * sizeof(size_t)),
-				 "BLCKSZ has to be a multiple of sizeof(size_t)");
+                 "BLCKSZ has to be a multiple of sizeof(size_t)");
 
 extern void PageInit(Page page, Size pageSize, Size specialSize);
 extern bool PageIsVerified(PageData *page, BlockNumber blkno, int flags,
-						   bool *checksum_failure_p);
+                           bool *checksum_failure_p);
 extern OffsetNumber PageAddItemExtended(Page page, Item item, Size size,
-										OffsetNumber offsetNumber, int flags);
+                                        OffsetNumber offsetNumber, int flags);
 extern Page PageGetTempPage(const PageData *page);
 extern Page PageGetTempPageCopy(const PageData *page);
 extern Page PageGetTempPageCopySpecial(const PageData *page);
@@ -504,8 +504,8 @@ extern void PageIndexTupleDelete(Page page, OffsetNumber offnum);
 extern void PageIndexMultiDelete(Page page, OffsetNumber *itemnos, int nitems);
 extern void PageIndexTupleDeleteNoCompact(Page page, OffsetNumber offnum);
 extern bool PageIndexTupleOverwrite(Page page, OffsetNumber offnum,
-									Item newtup, Size newsize);
+                                    Item newtup, Size newsize);
 extern char *PageSetChecksumCopy(Page page, BlockNumber blkno);
 extern void PageSetChecksumInplace(Page page, BlockNumber blkno);
 
-#endif							/* BUFPAGE_H */
+#endif              /* BUFPAGE_H */

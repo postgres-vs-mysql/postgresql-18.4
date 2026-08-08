@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * regproc.c
- *	  Functions for the built-in types regproc, regclass, regtype, etc.
+ *    Functions for the built-in types regproc, regclass, regtype, etc.
  *
  * These types are all binary-compatible with type Oid, and rely on Oid
  * for comparison and so forth.  Their only interesting behavior is in
@@ -13,7 +13,7 @@
  *
  *
  * IDENTIFICATION
- *	  src/backend/utils/adt/regproc.c
+ *    src/backend/utils/adt/regproc.c
  *
  *-------------------------------------------------------------------------
  */
@@ -46,16 +46,16 @@
 static bool parseNumericOid(char *string, Oid *result, Node *escontext);
 static bool parseDashOrOid(char *string, Oid *result, Node *escontext);
 static bool parseNameAndArgTypes(const char *string, bool allowNone,
-								 List **names, int *nargs, Oid *argtypes,
-								 Node *escontext);
+                                 List **names, int *nargs, Oid *argtypes,
+                                 Node *escontext);
 
 
 /*****************************************************************************
- *	 USER I/O ROUTINES														 *
+ *   USER I/O ROUTINES                             *
  *****************************************************************************/
 
 /*
- * regprocin		- converts "proname" to proc OID
+ * regprocin    - converts "proname" to proc OID
  *
  * We also accept a numeric OID, for symmetry with the output routine.
  *
@@ -65,155 +65,153 @@ static bool parseNameAndArgTypes(const char *string, bool allowNone,
 Datum
 regprocin(PG_FUNCTION_ARGS)
 {
-	char	   *pro_name_or_oid = PG_GETARG_CSTRING(0);
-	Node	   *escontext = fcinfo->context;
-	RegProcedure result;
-	List	   *names;
-	FuncCandidateList clist;
+  char     *pro_name_or_oid = PG_GETARG_CSTRING(0);
+  Node     *escontext = fcinfo->context;
+  RegProcedure result;
+  List     *names;
+  FuncCandidateList clist;
 
-	/* Handle "-" or numeric OID */
-	if (parseDashOrOid(pro_name_or_oid, &result, escontext))
-		PG_RETURN_OID(result);
+  /* Handle "-" or numeric OID */
+  if (parseDashOrOid(pro_name_or_oid, &result, escontext))
+    PG_RETURN_OID(result);
 
-	/* Else it's a name, possibly schema-qualified */
+  /* Else it's a name, possibly schema-qualified */
 
-	/*
-	 * We should never get here in bootstrap mode, as all references should
-	 * have been resolved by genbki.pl.
-	 */
-	if (IsBootstrapProcessingMode())
-		elog(ERROR, "regproc values must be OIDs in bootstrap mode");
+  /*
+   * We should never get here in bootstrap mode, as all references should
+   * have been resolved by genbki.pl.
+   */
+  if (IsBootstrapProcessingMode())
+    elog(ERROR, "regproc values must be OIDs in bootstrap mode");
 
-	/*
-	 * Normal case: parse the name into components and see if it matches any
-	 * pg_proc entries in the current search path.
-	 */
-	names = stringToQualifiedNameList(pro_name_or_oid, escontext);
-	if (names == NIL)
-		PG_RETURN_NULL();
+  /*
+   * Normal case: parse the name into components and see if it matches any
+   * pg_proc entries in the current search path.
+   */
+  names = stringToQualifiedNameList(pro_name_or_oid, escontext);
 
-	clist = FuncnameGetCandidates(names, -1, NIL, false, false, false, true);
+  if (names == NIL)
+    PG_RETURN_NULL();
 
-	if (clist == NULL)
-		ereturn(escontext, (Datum) 0,
-				(errcode(ERRCODE_UNDEFINED_FUNCTION),
-				 errmsg("function \"%s\" does not exist", pro_name_or_oid)));
-	else if (clist->next != NULL)
-		ereturn(escontext, (Datum) 0,
-				(errcode(ERRCODE_AMBIGUOUS_FUNCTION),
-				 errmsg("more than one function named \"%s\"",
-						pro_name_or_oid)));
+  clist = FuncnameGetCandidates(names, -1, NIL, false, false, false, true);
 
-	result = clist->oid;
+  if (clist == NULL)
+    ereturn(escontext, (Datum) 0,
+            (errcode(ERRCODE_UNDEFINED_FUNCTION),
+             errmsg("function \"%s\" does not exist", pro_name_or_oid)));
+  else if (clist->next != NULL)
+    ereturn(escontext, (Datum) 0,
+            (errcode(ERRCODE_AMBIGUOUS_FUNCTION),
+             errmsg("more than one function named \"%s\"",
+                    pro_name_or_oid)));
 
-	PG_RETURN_OID(result);
+  result = clist->oid;
+
+  PG_RETURN_OID(result);
 }
 
 /*
- * to_regproc	- converts "proname" to proc OID
+ * to_regproc - converts "proname" to proc OID
  *
  * If the name is not found, we return NULL.
  */
 Datum
 to_regproc(PG_FUNCTION_ARGS)
 {
-	char	   *pro_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
-	Datum		result;
-	ErrorSaveContext escontext = {T_ErrorSaveContext};
+  char     *pro_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
+  Datum   result;
+  ErrorSaveContext escontext = {T_ErrorSaveContext};
 
-	if (!DirectInputFunctionCallSafe(regprocin, pro_name,
-									 InvalidOid, -1,
-									 (Node *) &escontext,
-									 &result))
-		PG_RETURN_NULL();
-	PG_RETURN_DATUM(result);
+  if (!DirectInputFunctionCallSafe(regprocin, pro_name,
+                                   InvalidOid, -1,
+                                   (Node *) &escontext,
+                                   &result))
+    PG_RETURN_NULL();
+
+  PG_RETURN_DATUM(result);
 }
 
 /*
- * regprocout		- converts proc OID to "pro_name"
+ * regprocout   - converts proc OID to "pro_name"
  */
 Datum
 regprocout(PG_FUNCTION_ARGS)
 {
-	RegProcedure proid = PG_GETARG_OID(0);
-	char	   *result;
-	HeapTuple	proctup;
+  RegProcedure proid = PG_GETARG_OID(0);
+  char     *result;
+  HeapTuple proctup;
 
-	if (proid == InvalidOid)
-	{
-		result = pstrdup("-");
-		PG_RETURN_CSTRING(result);
-	}
+  if (proid == InvalidOid) {
+    result = pstrdup("-");
+    PG_RETURN_CSTRING(result);
+  }
 
-	proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(proid));
+  proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(proid));
 
-	if (HeapTupleIsValid(proctup))
-	{
-		Form_pg_proc procform = (Form_pg_proc) GETSTRUCT(proctup);
-		char	   *proname = NameStr(procform->proname);
+  if (HeapTupleIsValid(proctup)) {
+    Form_pg_proc procform = (Form_pg_proc) GETSTRUCT(proctup);
+    char     *proname = NameStr(procform->proname);
 
-		/*
-		 * In bootstrap mode, skip the fancy namespace stuff and just return
-		 * the proc name.  (This path is only needed for debugging output
-		 * anyway.)
-		 */
-		if (IsBootstrapProcessingMode())
-			result = pstrdup(proname);
-		else
-		{
-			char	   *nspname;
-			FuncCandidateList clist;
+    /*
+     * In bootstrap mode, skip the fancy namespace stuff and just return
+     * the proc name.  (This path is only needed for debugging output
+     * anyway.)
+     */
+    if (IsBootstrapProcessingMode())
+      result = pstrdup(proname);
+    else {
+      char     *nspname;
+      FuncCandidateList clist;
 
-			/*
-			 * Would this proc be found (uniquely!) by regprocin? If not,
-			 * qualify it.
-			 */
-			clist = FuncnameGetCandidates(list_make1(makeString(proname)),
-										  -1, NIL, false, false, false, false);
-			if (clist != NULL && clist->next == NULL &&
-				clist->oid == proid)
-				nspname = NULL;
-			else
-				nspname = get_namespace_name(procform->pronamespace);
+      /*
+       * Would this proc be found (uniquely!) by regprocin? If not,
+       * qualify it.
+       */
+      clist = FuncnameGetCandidates(list_make1(makeString(proname)),
+                                    -1, NIL, false, false, false, false);
 
-			result = quote_qualified_identifier(nspname, proname);
-		}
+      if (clist != NULL && clist->next == NULL &&
+          clist->oid == proid)
+        nspname = NULL;
+      else
+        nspname = get_namespace_name(procform->pronamespace);
 
-		ReleaseSysCache(proctup);
-	}
-	else
-	{
-		/* If OID doesn't match any pg_proc entry, return it numerically */
-		result = (char *) palloc(NAMEDATALEN);
-		snprintf(result, NAMEDATALEN, "%u", proid);
-	}
+      result = quote_qualified_identifier(nspname, proname);
+    }
 
-	PG_RETURN_CSTRING(result);
+    ReleaseSysCache(proctup);
+  } else {
+    /* If OID doesn't match any pg_proc entry, return it numerically */
+    result = (char *) palloc(NAMEDATALEN);
+    snprintf(result, NAMEDATALEN, "%u", proid);
+  }
+
+  PG_RETURN_CSTRING(result);
 }
 
 /*
- *		regprocrecv			- converts external binary format to regproc
+ *    regprocrecv     - converts external binary format to regproc
  */
 Datum
 regprocrecv(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidrecv, so share code */
-	return oidrecv(fcinfo);
+  /* Exactly the same as oidrecv, so share code */
+  return oidrecv(fcinfo);
 }
 
 /*
- *		regprocsend			- converts regproc to binary format
+ *    regprocsend     - converts regproc to binary format
  */
 Datum
 regprocsend(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidsend, so share code */
-	return oidsend(fcinfo);
+  /* Exactly the same as oidsend, so share code */
+  return oidsend(fcinfo);
 }
 
 
 /*
- * regprocedurein		- converts "proname(args)" to proc OID
+ * regprocedurein   - converts "proname(args)" to proc OID
  *
  * We also accept a numeric OID, for symmetry with the output routine.
  *
@@ -223,74 +221,74 @@ regprocsend(PG_FUNCTION_ARGS)
 Datum
 regprocedurein(PG_FUNCTION_ARGS)
 {
-	char	   *pro_name_or_oid = PG_GETARG_CSTRING(0);
-	Node	   *escontext = fcinfo->context;
-	RegProcedure result;
-	List	   *names;
-	int			nargs;
-	Oid			argtypes[FUNC_MAX_ARGS];
-	FuncCandidateList clist;
+  char     *pro_name_or_oid = PG_GETARG_CSTRING(0);
+  Node     *escontext = fcinfo->context;
+  RegProcedure result;
+  List     *names;
+  int     nargs;
+  Oid     argtypes[FUNC_MAX_ARGS];
+  FuncCandidateList clist;
 
-	/* Handle "-" or numeric OID */
-	if (parseDashOrOid(pro_name_or_oid, &result, escontext))
-		PG_RETURN_OID(result);
+  /* Handle "-" or numeric OID */
+  if (parseDashOrOid(pro_name_or_oid, &result, escontext))
+    PG_RETURN_OID(result);
 
-	/* The rest of this wouldn't work in bootstrap mode */
-	if (IsBootstrapProcessingMode())
-		elog(ERROR, "regprocedure values must be OIDs in bootstrap mode");
+  /* The rest of this wouldn't work in bootstrap mode */
+  if (IsBootstrapProcessingMode())
+    elog(ERROR, "regprocedure values must be OIDs in bootstrap mode");
 
-	/*
-	 * Else it's a name and arguments.  Parse the name and arguments, look up
-	 * potential matches in the current namespace search list, and scan to see
-	 * which one exactly matches the given argument types.  (There will not be
-	 * more than one match.)
-	 */
-	if (!parseNameAndArgTypes(pro_name_or_oid, false,
-							  &names, &nargs, argtypes,
-							  escontext))
-		PG_RETURN_NULL();
+  /*
+   * Else it's a name and arguments.  Parse the name and arguments, look up
+   * potential matches in the current namespace search list, and scan to see
+   * which one exactly matches the given argument types.  (There will not be
+   * more than one match.)
+   */
+  if (!parseNameAndArgTypes(pro_name_or_oid, false,
+                            &names, &nargs, argtypes,
+                            escontext))
+    PG_RETURN_NULL();
 
-	clist = FuncnameGetCandidates(names, nargs, NIL, false, false,
-								  false, true);
+  clist = FuncnameGetCandidates(names, nargs, NIL, false, false,
+                                false, true);
 
-	for (; clist; clist = clist->next)
-	{
-		if (memcmp(clist->args, argtypes, nargs * sizeof(Oid)) == 0)
-			break;
-	}
+  for (; clist; clist = clist->next) {
+    if (memcmp(clist->args, argtypes, nargs * sizeof(Oid)) == 0)
+      break;
+  }
 
-	if (clist == NULL)
-		ereturn(escontext, (Datum) 0,
-				(errcode(ERRCODE_UNDEFINED_FUNCTION),
-				 errmsg("function \"%s\" does not exist", pro_name_or_oid)));
+  if (clist == NULL)
+    ereturn(escontext, (Datum) 0,
+            (errcode(ERRCODE_UNDEFINED_FUNCTION),
+             errmsg("function \"%s\" does not exist", pro_name_or_oid)));
 
-	result = clist->oid;
+  result = clist->oid;
 
-	PG_RETURN_OID(result);
+  PG_RETURN_OID(result);
 }
 
 /*
- * to_regprocedure	- converts "proname(args)" to proc OID
+ * to_regprocedure  - converts "proname(args)" to proc OID
  *
  * If the name is not found, we return NULL.
  */
 Datum
 to_regprocedure(PG_FUNCTION_ARGS)
 {
-	char	   *pro_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
-	Datum		result;
-	ErrorSaveContext escontext = {T_ErrorSaveContext};
+  char     *pro_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
+  Datum   result;
+  ErrorSaveContext escontext = {T_ErrorSaveContext};
 
-	if (!DirectInputFunctionCallSafe(regprocedurein, pro_name,
-									 InvalidOid, -1,
-									 (Node *) &escontext,
-									 &result))
-		PG_RETURN_NULL();
-	PG_RETURN_DATUM(result);
+  if (!DirectInputFunctionCallSafe(regprocedurein, pro_name,
+                                   InvalidOid, -1,
+                                   (Node *) &escontext,
+                                   &result))
+    PG_RETURN_NULL();
+
+  PG_RETURN_DATUM(result);
 }
 
 /*
- * format_procedure		- converts proc OID to "pro_name(args)"
+ * format_procedure   - converts proc OID to "pro_name(args)"
  *
  * This exports the useful functionality of regprocedureout for use
  * in other backend modules.  The result is a palloc'd string.
@@ -298,13 +296,13 @@ to_regprocedure(PG_FUNCTION_ARGS)
 char *
 format_procedure(Oid procedure_oid)
 {
-	return format_procedure_extended(procedure_oid, 0);
+  return format_procedure_extended(procedure_oid, 0);
 }
 
 char *
 format_procedure_qualified(Oid procedure_oid)
 {
-	return format_procedure_extended(procedure_oid, FORMAT_PROC_FORCE_QUALIFY);
+  return format_procedure_extended(procedure_oid, FORMAT_PROC_FORCE_QUALIFY);
 }
 
 /*
@@ -317,75 +315,72 @@ format_procedure_qualified(Oid procedure_oid)
  *
  * The following bits in 'flags' modify the behavior:
  * - FORMAT_PROC_INVALID_AS_NULL
- *			if the procedure OID is invalid or unknown, return NULL instead
- *			of the numeric OID.
+ *      if the procedure OID is invalid or unknown, return NULL instead
+ *      of the numeric OID.
  * - FORMAT_PROC_FORCE_QUALIFY
- *			always schema-qualify procedure names, regardless of search_path
+ *      always schema-qualify procedure names, regardless of search_path
  */
 char *
 format_procedure_extended(Oid procedure_oid, bits16 flags)
 {
-	char	   *result;
-	HeapTuple	proctup;
+  char     *result;
+  HeapTuple proctup;
 
-	proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(procedure_oid));
+  proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(procedure_oid));
 
-	if (HeapTupleIsValid(proctup))
-	{
-		Form_pg_proc procform = (Form_pg_proc) GETSTRUCT(proctup);
-		char	   *proname = NameStr(procform->proname);
-		int			nargs = procform->pronargs;
-		int			i;
-		char	   *nspname;
-		StringInfoData buf;
+  if (HeapTupleIsValid(proctup)) {
+    Form_pg_proc procform = (Form_pg_proc) GETSTRUCT(proctup);
+    char     *proname = NameStr(procform->proname);
+    int     nargs = procform->pronargs;
+    int     i;
+    char     *nspname;
+    StringInfoData buf;
 
-		/* XXX no support here for bootstrap mode */
-		Assert(!IsBootstrapProcessingMode());
+    /* XXX no support here for bootstrap mode */
+    Assert(!IsBootstrapProcessingMode());
 
-		initStringInfo(&buf);
+    initStringInfo(&buf);
 
-		/*
-		 * Would this proc be found (given the right args) by regprocedurein?
-		 * If not, or if caller requests it, we need to qualify it.
-		 */
-		if ((flags & FORMAT_PROC_FORCE_QUALIFY) == 0 &&
-			FunctionIsVisible(procedure_oid))
-			nspname = NULL;
-		else
-			nspname = get_namespace_name(procform->pronamespace);
+    /*
+     * Would this proc be found (given the right args) by regprocedurein?
+     * If not, or if caller requests it, we need to qualify it.
+     */
+    if ((flags & FORMAT_PROC_FORCE_QUALIFY) == 0 &&
+        FunctionIsVisible(procedure_oid))
+      nspname = NULL;
+    else
+      nspname = get_namespace_name(procform->pronamespace);
 
-		appendStringInfo(&buf, "%s(",
-						 quote_qualified_identifier(nspname, proname));
-		for (i = 0; i < nargs; i++)
-		{
-			Oid			thisargtype = procform->proargtypes.values[i];
+    appendStringInfo(&buf, "%s(",
+                     quote_qualified_identifier(nspname, proname));
 
-			if (i > 0)
-				appendStringInfoChar(&buf, ',');
-			appendStringInfoString(&buf,
-								   (flags & FORMAT_PROC_FORCE_QUALIFY) != 0 ?
-								   format_type_be_qualified(thisargtype) :
-								   format_type_be(thisargtype));
-		}
-		appendStringInfoChar(&buf, ')');
+    for (i = 0; i < nargs; i++) {
+      Oid     thisargtype = procform->proargtypes.values[i];
 
-		result = buf.data;
+      if (i > 0)
+        appendStringInfoChar(&buf, ',');
 
-		ReleaseSysCache(proctup);
-	}
-	else if ((flags & FORMAT_PROC_INVALID_AS_NULL) != 0)
-	{
-		/* If object is undefined, return NULL as wanted by caller */
-		result = NULL;
-	}
-	else
-	{
-		/* If OID doesn't match any pg_proc entry, return it numerically */
-		result = (char *) palloc(NAMEDATALEN);
-		snprintf(result, NAMEDATALEN, "%u", procedure_oid);
-	}
+      appendStringInfoString(&buf,
+                             (flags & FORMAT_PROC_FORCE_QUALIFY) != 0 ?
+                             format_type_be_qualified(thisargtype) :
+                             format_type_be(thisargtype));
+    }
 
-	return result;
+    appendStringInfoChar(&buf, ')');
+
+    result = buf.data;
+
+    ReleaseSysCache(proctup);
+  } else if ((flags & FORMAT_PROC_INVALID_AS_NULL) != 0) {
+    /* If object is undefined, return NULL as wanted by caller */
+    result = NULL;
+  } else {
+    /* If OID doesn't match any pg_proc entry, return it numerically */
+    result = (char *) palloc(NAMEDATALEN);
+    snprintf(result, NAMEDATALEN, "%u", procedure_oid);
+  }
+
+  return result;
 }
 
 /*
@@ -396,78 +391,78 @@ format_procedure_extended(Oid procedure_oid, bits16 flags)
  */
 void
 format_procedure_parts(Oid procedure_oid, List **objnames, List **objargs,
-					   bool missing_ok)
+                       bool missing_ok)
 {
-	HeapTuple	proctup;
-	Form_pg_proc procform;
-	int			nargs;
-	int			i;
+  HeapTuple proctup;
+  Form_pg_proc procform;
+  int     nargs;
+  int     i;
 
-	proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(procedure_oid));
+  proctup = SearchSysCache1(PROCOID, ObjectIdGetDatum(procedure_oid));
 
-	if (!HeapTupleIsValid(proctup))
-	{
-		if (!missing_ok)
-			elog(ERROR, "cache lookup failed for procedure with OID %u", procedure_oid);
-		return;
-	}
+  if (!HeapTupleIsValid(proctup)) {
+    if (!missing_ok)
+      elog(ERROR, "cache lookup failed for procedure with OID %u", procedure_oid);
 
-	procform = (Form_pg_proc) GETSTRUCT(proctup);
-	nargs = procform->pronargs;
+    return;
+  }
 
-	*objnames = list_make2(get_namespace_name_or_temp(procform->pronamespace),
-						   pstrdup(NameStr(procform->proname)));
-	*objargs = NIL;
-	for (i = 0; i < nargs; i++)
-	{
-		Oid			thisargtype = procform->proargtypes.values[i];
+  procform = (Form_pg_proc) GETSTRUCT(proctup);
+  nargs = procform->pronargs;
 
-		*objargs = lappend(*objargs, format_type_be_qualified(thisargtype));
-	}
+  *objnames = list_make2(get_namespace_name_or_temp(procform->pronamespace),
+                         pstrdup(NameStr(procform->proname)));
+  *objargs = NIL;
 
-	ReleaseSysCache(proctup);
+  for (i = 0; i < nargs; i++) {
+    Oid     thisargtype = procform->proargtypes.values[i];
+
+    *objargs = lappend(*objargs, format_type_be_qualified(thisargtype));
+  }
+
+  ReleaseSysCache(proctup);
 }
 
 /*
- * regprocedureout		- converts proc OID to "pro_name(args)"
+ * regprocedureout    - converts proc OID to "pro_name(args)"
  */
 Datum
 regprocedureout(PG_FUNCTION_ARGS)
 {
-	RegProcedure proid = PG_GETARG_OID(0);
-	char	   *result;
+  RegProcedure proid = PG_GETARG_OID(0);
+  char     *result;
 
-	if (proid == InvalidOid)
-		result = pstrdup("-");
-	else
-		result = format_procedure(proid);
+  if (proid == InvalidOid)
+    result = pstrdup("-");
+  else
+    result = format_procedure(proid);
 
-	PG_RETURN_CSTRING(result);
+  PG_RETURN_CSTRING(result);
 }
 
 /*
- *		regprocedurerecv			- converts external binary format to regprocedure
+ *    regprocedurerecv      - converts external binary format to regprocedure
  */
 Datum
 regprocedurerecv(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidrecv, so share code */
-	return oidrecv(fcinfo);
+  /* Exactly the same as oidrecv, so share code */
+  return oidrecv(fcinfo);
 }
 
 /*
- *		regproceduresend			- converts regprocedure to binary format
+ *    regproceduresend      - converts regprocedure to binary format
  */
 Datum
 regproceduresend(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidsend, so share code */
-	return oidsend(fcinfo);
+  /* Exactly the same as oidsend, so share code */
+  return oidsend(fcinfo);
 }
 
 
 /*
- * regoperin		- converts "oprname" to operator OID
+ * regoperin    - converts "oprname" to operator OID
  *
  * We also accept a numeric OID, for symmetry with the output routine.
  *
@@ -477,158 +472,155 @@ regproceduresend(PG_FUNCTION_ARGS)
 Datum
 regoperin(PG_FUNCTION_ARGS)
 {
-	char	   *opr_name_or_oid = PG_GETARG_CSTRING(0);
-	Node	   *escontext = fcinfo->context;
-	Oid			result;
-	List	   *names;
-	FuncCandidateList clist;
+  char     *opr_name_or_oid = PG_GETARG_CSTRING(0);
+  Node     *escontext = fcinfo->context;
+  Oid     result;
+  List     *names;
+  FuncCandidateList clist;
 
-	/* Handle "0" or numeric OID */
-	if (parseNumericOid(opr_name_or_oid, &result, escontext))
-		PG_RETURN_OID(result);
+  /* Handle "0" or numeric OID */
+  if (parseNumericOid(opr_name_or_oid, &result, escontext))
+    PG_RETURN_OID(result);
 
-	/* Else it's a name, possibly schema-qualified */
+  /* Else it's a name, possibly schema-qualified */
 
-	/* The rest of this wouldn't work in bootstrap mode */
-	if (IsBootstrapProcessingMode())
-		elog(ERROR, "regoper values must be OIDs in bootstrap mode");
+  /* The rest of this wouldn't work in bootstrap mode */
+  if (IsBootstrapProcessingMode())
+    elog(ERROR, "regoper values must be OIDs in bootstrap mode");
 
-	/*
-	 * Normal case: parse the name into components and see if it matches any
-	 * pg_operator entries in the current search path.
-	 */
-	names = stringToQualifiedNameList(opr_name_or_oid, escontext);
-	if (names == NIL)
-		PG_RETURN_NULL();
+  /*
+   * Normal case: parse the name into components and see if it matches any
+   * pg_operator entries in the current search path.
+   */
+  names = stringToQualifiedNameList(opr_name_or_oid, escontext);
 
-	clist = OpernameGetCandidates(names, '\0', true);
+  if (names == NIL)
+    PG_RETURN_NULL();
 
-	if (clist == NULL)
-		ereturn(escontext, (Datum) 0,
-				(errcode(ERRCODE_UNDEFINED_FUNCTION),
-				 errmsg("operator does not exist: %s", opr_name_or_oid)));
-	else if (clist->next != NULL)
-		ereturn(escontext, (Datum) 0,
-				(errcode(ERRCODE_AMBIGUOUS_FUNCTION),
-				 errmsg("more than one operator named %s",
-						opr_name_or_oid)));
+  clist = OpernameGetCandidates(names, '\0', true);
 
-	result = clist->oid;
+  if (clist == NULL)
+    ereturn(escontext, (Datum) 0,
+            (errcode(ERRCODE_UNDEFINED_FUNCTION),
+             errmsg("operator does not exist: %s", opr_name_or_oid)));
+  else if (clist->next != NULL)
+    ereturn(escontext, (Datum) 0,
+            (errcode(ERRCODE_AMBIGUOUS_FUNCTION),
+             errmsg("more than one operator named %s",
+                    opr_name_or_oid)));
 
-	PG_RETURN_OID(result);
+  result = clist->oid;
+
+  PG_RETURN_OID(result);
 }
 
 /*
- * to_regoper		- converts "oprname" to operator OID
+ * to_regoper   - converts "oprname" to operator OID
  *
  * If the name is not found, we return NULL.
  */
 Datum
 to_regoper(PG_FUNCTION_ARGS)
 {
-	char	   *opr_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
-	Datum		result;
-	ErrorSaveContext escontext = {T_ErrorSaveContext};
+  char     *opr_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
+  Datum   result;
+  ErrorSaveContext escontext = {T_ErrorSaveContext};
 
-	if (!DirectInputFunctionCallSafe(regoperin, opr_name,
-									 InvalidOid, -1,
-									 (Node *) &escontext,
-									 &result))
-		PG_RETURN_NULL();
-	PG_RETURN_DATUM(result);
+  if (!DirectInputFunctionCallSafe(regoperin, opr_name,
+                                   InvalidOid, -1,
+                                   (Node *) &escontext,
+                                   &result))
+    PG_RETURN_NULL();
+
+  PG_RETURN_DATUM(result);
 }
 
 /*
- * regoperout		- converts operator OID to "opr_name"
+ * regoperout   - converts operator OID to "opr_name"
  */
 Datum
 regoperout(PG_FUNCTION_ARGS)
 {
-	Oid			oprid = PG_GETARG_OID(0);
-	char	   *result;
-	HeapTuple	opertup;
+  Oid     oprid = PG_GETARG_OID(0);
+  char     *result;
+  HeapTuple opertup;
 
-	if (oprid == InvalidOid)
-	{
-		result = pstrdup("0");
-		PG_RETURN_CSTRING(result);
-	}
+  if (oprid == InvalidOid) {
+    result = pstrdup("0");
+    PG_RETURN_CSTRING(result);
+  }
 
-	opertup = SearchSysCache1(OPEROID, ObjectIdGetDatum(oprid));
+  opertup = SearchSysCache1(OPEROID, ObjectIdGetDatum(oprid));
 
-	if (HeapTupleIsValid(opertup))
-	{
-		Form_pg_operator operform = (Form_pg_operator) GETSTRUCT(opertup);
-		char	   *oprname = NameStr(operform->oprname);
+  if (HeapTupleIsValid(opertup)) {
+    Form_pg_operator operform = (Form_pg_operator) GETSTRUCT(opertup);
+    char     *oprname = NameStr(operform->oprname);
 
-		/*
-		 * In bootstrap mode, skip the fancy namespace stuff and just return
-		 * the oper name.  (This path is only needed for debugging output
-		 * anyway.)
-		 */
-		if (IsBootstrapProcessingMode())
-			result = pstrdup(oprname);
-		else
-		{
-			FuncCandidateList clist;
+    /*
+     * In bootstrap mode, skip the fancy namespace stuff and just return
+     * the oper name.  (This path is only needed for debugging output
+     * anyway.)
+     */
+    if (IsBootstrapProcessingMode())
+      result = pstrdup(oprname);
+    else {
+      FuncCandidateList clist;
 
-			/*
-			 * Would this oper be found (uniquely!) by regoperin? If not,
-			 * qualify it.
-			 */
-			clist = OpernameGetCandidates(list_make1(makeString(oprname)),
-										  '\0', false);
-			if (clist != NULL && clist->next == NULL &&
-				clist->oid == oprid)
-				result = pstrdup(oprname);
-			else
-			{
-				const char *nspname;
+      /*
+       * Would this oper be found (uniquely!) by regoperin? If not,
+       * qualify it.
+       */
+      clist = OpernameGetCandidates(list_make1(makeString(oprname)),
+                                    '\0', false);
 
-				nspname = get_namespace_name(operform->oprnamespace);
-				nspname = quote_identifier(nspname);
-				result = (char *) palloc(strlen(nspname) + strlen(oprname) + 2);
-				sprintf(result, "%s.%s", nspname, oprname);
-			}
-		}
+      if (clist != NULL && clist->next == NULL &&
+          clist->oid == oprid)
+        result = pstrdup(oprname);
+      else {
+        const char *nspname;
 
-		ReleaseSysCache(opertup);
-	}
-	else
-	{
-		/*
-		 * If OID doesn't match any pg_operator entry, return it numerically
-		 */
-		result = (char *) palloc(NAMEDATALEN);
-		snprintf(result, NAMEDATALEN, "%u", oprid);
-	}
+        nspname = get_namespace_name(operform->oprnamespace);
+        nspname = quote_identifier(nspname);
+        result = (char *) palloc(strlen(nspname) + strlen(oprname) + 2);
+        sprintf(result, "%s.%s", nspname, oprname);
+      }
+    }
 
-	PG_RETURN_CSTRING(result);
+    ReleaseSysCache(opertup);
+  } else {
+    /*
+     * If OID doesn't match any pg_operator entry, return it numerically
+     */
+    result = (char *) palloc(NAMEDATALEN);
+    snprintf(result, NAMEDATALEN, "%u", oprid);
+  }
+
+  PG_RETURN_CSTRING(result);
 }
 
 /*
- *		regoperrecv			- converts external binary format to regoper
+ *    regoperrecv     - converts external binary format to regoper
  */
 Datum
 regoperrecv(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidrecv, so share code */
-	return oidrecv(fcinfo);
+  /* Exactly the same as oidrecv, so share code */
+  return oidrecv(fcinfo);
 }
 
 /*
- *		regopersend			- converts regoper to binary format
+ *    regopersend     - converts regoper to binary format
  */
 Datum
 regopersend(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidsend, so share code */
-	return oidsend(fcinfo);
+  /* Exactly the same as oidsend, so share code */
+  return oidsend(fcinfo);
 }
 
 
 /*
- * regoperatorin		- converts "oprname(args)" to operator OID
+ * regoperatorin    - converts "oprname(args)" to operator OID
  *
  * We also accept a numeric OID, for symmetry with the output routine.
  *
@@ -638,71 +630,73 @@ regopersend(PG_FUNCTION_ARGS)
 Datum
 regoperatorin(PG_FUNCTION_ARGS)
 {
-	char	   *opr_name_or_oid = PG_GETARG_CSTRING(0);
-	Node	   *escontext = fcinfo->context;
-	Oid			result;
-	List	   *names;
-	int			nargs;
-	Oid			argtypes[FUNC_MAX_ARGS];
+  char     *opr_name_or_oid = PG_GETARG_CSTRING(0);
+  Node     *escontext = fcinfo->context;
+  Oid     result;
+  List     *names;
+  int     nargs;
+  Oid     argtypes[FUNC_MAX_ARGS];
 
-	/* Handle "0" or numeric OID */
-	if (parseNumericOid(opr_name_or_oid, &result, escontext))
-		PG_RETURN_OID(result);
+  /* Handle "0" or numeric OID */
+  if (parseNumericOid(opr_name_or_oid, &result, escontext))
+    PG_RETURN_OID(result);
 
-	/* The rest of this wouldn't work in bootstrap mode */
-	if (IsBootstrapProcessingMode())
-		elog(ERROR, "regoperator values must be OIDs in bootstrap mode");
+  /* The rest of this wouldn't work in bootstrap mode */
+  if (IsBootstrapProcessingMode())
+    elog(ERROR, "regoperator values must be OIDs in bootstrap mode");
 
-	/*
-	 * Else it's a name and arguments.  Parse the name and arguments, look up
-	 * potential matches in the current namespace search list, and scan to see
-	 * which one exactly matches the given argument types.  (There will not be
-	 * more than one match.)
-	 */
-	if (!parseNameAndArgTypes(opr_name_or_oid, true,
-							  &names, &nargs, argtypes,
-							  escontext))
-		PG_RETURN_NULL();
+  /*
+   * Else it's a name and arguments.  Parse the name and arguments, look up
+   * potential matches in the current namespace search list, and scan to see
+   * which one exactly matches the given argument types.  (There will not be
+   * more than one match.)
+   */
+  if (!parseNameAndArgTypes(opr_name_or_oid, true,
+                            &names, &nargs, argtypes,
+                            escontext))
+    PG_RETURN_NULL();
 
-	if (nargs == 1)
-		ereturn(escontext, (Datum) 0,
-				(errcode(ERRCODE_UNDEFINED_PARAMETER),
-				 errmsg("missing argument"),
-				 errhint("Use NONE to denote the missing argument of a unary operator.")));
-	if (nargs != 2)
-		ereturn(escontext, (Datum) 0,
-				(errcode(ERRCODE_TOO_MANY_ARGUMENTS),
-				 errmsg("too many arguments"),
-				 errhint("Provide two argument types for operator.")));
+  if (nargs == 1)
+    ereturn(escontext, (Datum) 0,
+            (errcode(ERRCODE_UNDEFINED_PARAMETER),
+             errmsg("missing argument"),
+             errhint("Use NONE to denote the missing argument of a unary operator.")));
 
-	result = OpernameGetOprid(names, argtypes[0], argtypes[1]);
+  if (nargs != 2)
+    ereturn(escontext, (Datum) 0,
+            (errcode(ERRCODE_TOO_MANY_ARGUMENTS),
+             errmsg("too many arguments"),
+             errhint("Provide two argument types for operator.")));
 
-	if (!OidIsValid(result))
-		ereturn(escontext, (Datum) 0,
-				(errcode(ERRCODE_UNDEFINED_FUNCTION),
-				 errmsg("operator does not exist: %s", opr_name_or_oid)));
+  result = OpernameGetOprid(names, argtypes[0], argtypes[1]);
 
-	PG_RETURN_OID(result);
+  if (!OidIsValid(result))
+    ereturn(escontext, (Datum) 0,
+            (errcode(ERRCODE_UNDEFINED_FUNCTION),
+             errmsg("operator does not exist: %s", opr_name_or_oid)));
+
+  PG_RETURN_OID(result);
 }
 
 /*
- * to_regoperator	- converts "oprname(args)" to operator OID
+ * to_regoperator - converts "oprname(args)" to operator OID
  *
  * If the name is not found, we return NULL.
  */
 Datum
 to_regoperator(PG_FUNCTION_ARGS)
 {
-	char	   *opr_name_or_oid = text_to_cstring(PG_GETARG_TEXT_PP(0));
-	Datum		result;
-	ErrorSaveContext escontext = {T_ErrorSaveContext};
+  char     *opr_name_or_oid = text_to_cstring(PG_GETARG_TEXT_PP(0));
+  Datum   result;
+  ErrorSaveContext escontext = {T_ErrorSaveContext};
 
-	if (!DirectInputFunctionCallSafe(regoperatorin, opr_name_or_oid,
-									 InvalidOid, -1,
-									 (Node *) &escontext,
-									 &result))
-		PG_RETURN_NULL();
-	PG_RETURN_DATUM(result);
+  if (!DirectInputFunctionCallSafe(regoperatorin, opr_name_or_oid,
+                                   InvalidOid, -1,
+                                   (Node *) &escontext,
+                                   &result))
+    PG_RETURN_NULL();
+
+  PG_RETURN_DATUM(result);
 }
 
 /*
@@ -713,165 +707,162 @@ to_regoperator(PG_FUNCTION_ARGS)
  *
  * The following bits in 'flags' modify the behavior:
  * - FORMAT_OPERATOR_INVALID_AS_NULL
- *			if the operator OID is invalid or unknown, return NULL instead
- *			of the numeric OID.
+ *      if the operator OID is invalid or unknown, return NULL instead
+ *      of the numeric OID.
  * - FORMAT_OPERATOR_FORCE_QUALIFY
- *			always schema-qualify operator names, regardless of search_path
+ *      always schema-qualify operator names, regardless of search_path
  */
 char *
 format_operator_extended(Oid operator_oid, bits16 flags)
 {
-	char	   *result;
-	HeapTuple	opertup;
+  char     *result;
+  HeapTuple opertup;
 
-	opertup = SearchSysCache1(OPEROID, ObjectIdGetDatum(operator_oid));
+  opertup = SearchSysCache1(OPEROID, ObjectIdGetDatum(operator_oid));
 
-	if (HeapTupleIsValid(opertup))
-	{
-		Form_pg_operator operform = (Form_pg_operator) GETSTRUCT(opertup);
-		char	   *oprname = NameStr(operform->oprname);
-		char	   *nspname;
-		StringInfoData buf;
+  if (HeapTupleIsValid(opertup)) {
+    Form_pg_operator operform = (Form_pg_operator) GETSTRUCT(opertup);
+    char     *oprname = NameStr(operform->oprname);
+    char     *nspname;
+    StringInfoData buf;
 
-		/* XXX no support here for bootstrap mode */
-		Assert(!IsBootstrapProcessingMode());
+    /* XXX no support here for bootstrap mode */
+    Assert(!IsBootstrapProcessingMode());
 
-		initStringInfo(&buf);
+    initStringInfo(&buf);
 
-		/*
-		 * Would this oper be found (given the right args) by regoperatorin?
-		 * If not, or if caller explicitly requests it, we need to qualify it.
-		 */
-		if ((flags & FORMAT_OPERATOR_FORCE_QUALIFY) != 0 ||
-			!OperatorIsVisible(operator_oid))
-		{
-			nspname = get_namespace_name(operform->oprnamespace);
-			appendStringInfo(&buf, "%s.",
-							 quote_identifier(nspname));
-		}
+    /*
+     * Would this oper be found (given the right args) by regoperatorin?
+     * If not, or if caller explicitly requests it, we need to qualify it.
+     */
+    if ((flags & FORMAT_OPERATOR_FORCE_QUALIFY) != 0 ||
+        !OperatorIsVisible(operator_oid)) {
+      nspname = get_namespace_name(operform->oprnamespace);
+      appendStringInfo(&buf, "%s.",
+                       quote_identifier(nspname));
+    }
 
-		appendStringInfo(&buf, "%s(", oprname);
+    appendStringInfo(&buf, "%s(", oprname);
 
-		if (operform->oprleft)
-			appendStringInfo(&buf, "%s,",
-							 (flags & FORMAT_OPERATOR_FORCE_QUALIFY) != 0 ?
-							 format_type_be_qualified(operform->oprleft) :
-							 format_type_be(operform->oprleft));
-		else
-			appendStringInfoString(&buf, "NONE,");
+    if (operform->oprleft)
+      appendStringInfo(&buf, "%s,",
+                       (flags & FORMAT_OPERATOR_FORCE_QUALIFY) != 0 ?
+                       format_type_be_qualified(operform->oprleft) :
+                       format_type_be(operform->oprleft));
+    else
+      appendStringInfoString(&buf, "NONE,");
 
-		if (operform->oprright)
-			appendStringInfo(&buf, "%s)",
-							 (flags & FORMAT_OPERATOR_FORCE_QUALIFY) != 0 ?
-							 format_type_be_qualified(operform->oprright) :
-							 format_type_be(operform->oprright));
-		else
-			appendStringInfoString(&buf, "NONE)");
+    if (operform->oprright)
+      appendStringInfo(&buf, "%s)",
+                       (flags & FORMAT_OPERATOR_FORCE_QUALIFY) != 0 ?
+                       format_type_be_qualified(operform->oprright) :
+                       format_type_be(operform->oprright));
+    else
+      appendStringInfoString(&buf, "NONE)");
 
-		result = buf.data;
+    result = buf.data;
 
-		ReleaseSysCache(opertup);
-	}
-	else if ((flags & FORMAT_OPERATOR_INVALID_AS_NULL) != 0)
-	{
-		/* If object is undefined, return NULL as wanted by caller */
-		result = NULL;
-	}
-	else
-	{
-		/*
-		 * If OID doesn't match any pg_operator entry, return it numerically
-		 */
-		result = (char *) palloc(NAMEDATALEN);
-		snprintf(result, NAMEDATALEN, "%u", operator_oid);
-	}
+    ReleaseSysCache(opertup);
+  } else if ((flags & FORMAT_OPERATOR_INVALID_AS_NULL) != 0) {
+    /* If object is undefined, return NULL as wanted by caller */
+    result = NULL;
+  } else {
+    /*
+     * If OID doesn't match any pg_operator entry, return it numerically
+     */
+    result = (char *) palloc(NAMEDATALEN);
+    snprintf(result, NAMEDATALEN, "%u", operator_oid);
+  }
 
-	return result;
+  return result;
 }
 
 char *
 format_operator(Oid operator_oid)
 {
-	return format_operator_extended(operator_oid, 0);
+  return format_operator_extended(operator_oid, 0);
 }
 
 char *
 format_operator_qualified(Oid operator_oid)
 {
-	return format_operator_extended(operator_oid,
-									FORMAT_OPERATOR_FORCE_QUALIFY);
+  return format_operator_extended(operator_oid,
+                                  FORMAT_OPERATOR_FORCE_QUALIFY);
 }
 
 void
 format_operator_parts(Oid operator_oid, List **objnames, List **objargs,
-					  bool missing_ok)
+                      bool missing_ok)
 {
-	HeapTuple	opertup;
-	Form_pg_operator oprForm;
+  HeapTuple opertup;
+  Form_pg_operator oprForm;
 
-	opertup = SearchSysCache1(OPEROID, ObjectIdGetDatum(operator_oid));
-	if (!HeapTupleIsValid(opertup))
-	{
-		if (!missing_ok)
-			elog(ERROR, "cache lookup failed for operator with OID %u",
-				 operator_oid);
-		return;
-	}
+  opertup = SearchSysCache1(OPEROID, ObjectIdGetDatum(operator_oid));
 
-	oprForm = (Form_pg_operator) GETSTRUCT(opertup);
-	*objnames = list_make2(get_namespace_name_or_temp(oprForm->oprnamespace),
-						   pstrdup(NameStr(oprForm->oprname)));
-	*objargs = NIL;
-	if (oprForm->oprleft)
-		*objargs = lappend(*objargs,
-						   format_type_be_qualified(oprForm->oprleft));
-	if (oprForm->oprright)
-		*objargs = lappend(*objargs,
-						   format_type_be_qualified(oprForm->oprright));
+  if (!HeapTupleIsValid(opertup)) {
+    if (!missing_ok)
+      elog(ERROR, "cache lookup failed for operator with OID %u",
+           operator_oid);
 
-	ReleaseSysCache(opertup);
+    return;
+  }
+
+  oprForm = (Form_pg_operator) GETSTRUCT(opertup);
+  *objnames = list_make2(get_namespace_name_or_temp(oprForm->oprnamespace),
+                         pstrdup(NameStr(oprForm->oprname)));
+  *objargs = NIL;
+
+  if (oprForm->oprleft)
+    *objargs = lappend(*objargs,
+                       format_type_be_qualified(oprForm->oprleft));
+
+  if (oprForm->oprright)
+    *objargs = lappend(*objargs,
+                       format_type_be_qualified(oprForm->oprright));
+
+  ReleaseSysCache(opertup);
 }
 
 /*
- * regoperatorout		- converts operator OID to "opr_name(args)"
+ * regoperatorout   - converts operator OID to "opr_name(args)"
  */
 Datum
 regoperatorout(PG_FUNCTION_ARGS)
 {
-	Oid			oprid = PG_GETARG_OID(0);
-	char	   *result;
+  Oid     oprid = PG_GETARG_OID(0);
+  char     *result;
 
-	if (oprid == InvalidOid)
-		result = pstrdup("0");
-	else
-		result = format_operator(oprid);
+  if (oprid == InvalidOid)
+    result = pstrdup("0");
+  else
+    result = format_operator(oprid);
 
-	PG_RETURN_CSTRING(result);
+  PG_RETURN_CSTRING(result);
 }
 
 /*
- *		regoperatorrecv			- converts external binary format to regoperator
+ *    regoperatorrecv     - converts external binary format to regoperator
  */
 Datum
 regoperatorrecv(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidrecv, so share code */
-	return oidrecv(fcinfo);
+  /* Exactly the same as oidrecv, so share code */
+  return oidrecv(fcinfo);
 }
 
 /*
- *		regoperatorsend			- converts regoperator to binary format
+ *    regoperatorsend     - converts regoperator to binary format
  */
 Datum
 regoperatorsend(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidsend, so share code */
-	return oidsend(fcinfo);
+  /* Exactly the same as oidsend, so share code */
+  return oidsend(fcinfo);
 }
 
 
 /*
- * regclassin		- converts "classname" to class OID
+ * regclassin   - converts "classname" to class OID
  *
  * We also accept a numeric OID, for symmetry with the output routine.
  *
@@ -881,141 +872,138 @@ regoperatorsend(PG_FUNCTION_ARGS)
 Datum
 regclassin(PG_FUNCTION_ARGS)
 {
-	char	   *class_name_or_oid = PG_GETARG_CSTRING(0);
-	Node	   *escontext = fcinfo->context;
-	Oid			result;
-	List	   *names;
+  char     *class_name_or_oid = PG_GETARG_CSTRING(0);
+  Node     *escontext = fcinfo->context;
+  Oid     result;
+  List     *names;
 
-	/* Handle "-" or numeric OID */
-	if (parseDashOrOid(class_name_or_oid, &result, escontext))
-		PG_RETURN_OID(result);
+  /* Handle "-" or numeric OID */
+  if (parseDashOrOid(class_name_or_oid, &result, escontext))
+    PG_RETURN_OID(result);
 
-	/* Else it's a name, possibly schema-qualified */
+  /* Else it's a name, possibly schema-qualified */
 
-	/* The rest of this wouldn't work in bootstrap mode */
-	if (IsBootstrapProcessingMode())
-		elog(ERROR, "regclass values must be OIDs in bootstrap mode");
+  /* The rest of this wouldn't work in bootstrap mode */
+  if (IsBootstrapProcessingMode())
+    elog(ERROR, "regclass values must be OIDs in bootstrap mode");
 
-	/*
-	 * Normal case: parse the name into components and see if it matches any
-	 * pg_class entries in the current search path.
-	 */
-	names = stringToQualifiedNameList(class_name_or_oid, escontext);
-	if (names == NIL)
-		PG_RETURN_NULL();
+  /*
+   * Normal case: parse the name into components and see if it matches any
+   * pg_class entries in the current search path.
+   */
+  names = stringToQualifiedNameList(class_name_or_oid, escontext);
 
-	/* We might not even have permissions on this relation; don't lock it. */
-	result = RangeVarGetRelid(makeRangeVarFromNameList(names), NoLock, true);
+  if (names == NIL)
+    PG_RETURN_NULL();
 
-	if (!OidIsValid(result))
-		ereturn(escontext, (Datum) 0,
-				(errcode(ERRCODE_UNDEFINED_TABLE),
-				 errmsg("relation \"%s\" does not exist",
-						NameListToString(names))));
+  /* We might not even have permissions on this relation; don't lock it. */
+  result = RangeVarGetRelid(makeRangeVarFromNameList(names), NoLock, true);
 
-	PG_RETURN_OID(result);
+  if (!OidIsValid(result))
+    ereturn(escontext, (Datum) 0,
+            (errcode(ERRCODE_UNDEFINED_TABLE),
+             errmsg("relation \"%s\" does not exist",
+                    NameListToString(names))));
+
+  PG_RETURN_OID(result);
 }
 
 /*
- * to_regclass		- converts "classname" to class OID
+ * to_regclass    - converts "classname" to class OID
  *
  * If the name is not found, we return NULL.
  */
 Datum
 to_regclass(PG_FUNCTION_ARGS)
 {
-	char	   *class_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
-	Datum		result;
-	ErrorSaveContext escontext = {T_ErrorSaveContext};
+  char     *class_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
+  Datum   result;
+  ErrorSaveContext escontext = {T_ErrorSaveContext};
 
-	if (!DirectInputFunctionCallSafe(regclassin, class_name,
-									 InvalidOid, -1,
-									 (Node *) &escontext,
-									 &result))
-		PG_RETURN_NULL();
-	PG_RETURN_DATUM(result);
+  if (!DirectInputFunctionCallSafe(regclassin, class_name,
+                                   InvalidOid, -1,
+                                   (Node *) &escontext,
+                                   &result))
+    PG_RETURN_NULL();
+
+  PG_RETURN_DATUM(result);
 }
 
 /*
- * regclassout		- converts class OID to "class_name"
+ * regclassout    - converts class OID to "class_name"
  */
 Datum
 regclassout(PG_FUNCTION_ARGS)
 {
-	Oid			classid = PG_GETARG_OID(0);
-	char	   *result;
-	HeapTuple	classtup;
+  Oid     classid = PG_GETARG_OID(0);
+  char     *result;
+  HeapTuple classtup;
 
-	if (classid == InvalidOid)
-	{
-		result = pstrdup("-");
-		PG_RETURN_CSTRING(result);
-	}
+  if (classid == InvalidOid) {
+    result = pstrdup("-");
+    PG_RETURN_CSTRING(result);
+  }
 
-	classtup = SearchSysCache1(RELOID, ObjectIdGetDatum(classid));
+  classtup = SearchSysCache1(RELOID, ObjectIdGetDatum(classid));
 
-	if (HeapTupleIsValid(classtup))
-	{
-		Form_pg_class classform = (Form_pg_class) GETSTRUCT(classtup);
-		char	   *classname = NameStr(classform->relname);
+  if (HeapTupleIsValid(classtup)) {
+    Form_pg_class classform = (Form_pg_class) GETSTRUCT(classtup);
+    char     *classname = NameStr(classform->relname);
 
-		/*
-		 * In bootstrap mode, skip the fancy namespace stuff and just return
-		 * the class name.  (This path is only needed for debugging output
-		 * anyway.)
-		 */
-		if (IsBootstrapProcessingMode())
-			result = pstrdup(classname);
-		else
-		{
-			char	   *nspname;
+    /*
+     * In bootstrap mode, skip the fancy namespace stuff and just return
+     * the class name.  (This path is only needed for debugging output
+     * anyway.)
+     */
+    if (IsBootstrapProcessingMode())
+      result = pstrdup(classname);
+    else {
+      char     *nspname;
 
-			/*
-			 * Would this class be found by regclassin? If not, qualify it.
-			 */
-			if (RelationIsVisible(classid))
-				nspname = NULL;
-			else
-				nspname = get_namespace_name(classform->relnamespace);
+      /*
+       * Would this class be found by regclassin? If not, qualify it.
+       */
+      if (RelationIsVisible(classid))
+        nspname = NULL;
+      else
+        nspname = get_namespace_name(classform->relnamespace);
 
-			result = quote_qualified_identifier(nspname, classname);
-		}
+      result = quote_qualified_identifier(nspname, classname);
+    }
 
-		ReleaseSysCache(classtup);
-	}
-	else
-	{
-		/* If OID doesn't match any pg_class entry, return it numerically */
-		result = (char *) palloc(NAMEDATALEN);
-		snprintf(result, NAMEDATALEN, "%u", classid);
-	}
+    ReleaseSysCache(classtup);
+  } else {
+    /* If OID doesn't match any pg_class entry, return it numerically */
+    result = (char *) palloc(NAMEDATALEN);
+    snprintf(result, NAMEDATALEN, "%u", classid);
+  }
 
-	PG_RETURN_CSTRING(result);
+  PG_RETURN_CSTRING(result);
 }
 
 /*
- *		regclassrecv			- converts external binary format to regclass
+ *    regclassrecv      - converts external binary format to regclass
  */
 Datum
 regclassrecv(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidrecv, so share code */
-	return oidrecv(fcinfo);
+  /* Exactly the same as oidrecv, so share code */
+  return oidrecv(fcinfo);
 }
 
 /*
- *		regclasssend			- converts regclass to binary format
+ *    regclasssend      - converts regclass to binary format
  */
 Datum
 regclasssend(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidsend, so share code */
-	return oidsend(fcinfo);
+  /* Exactly the same as oidsend, so share code */
+  return oidsend(fcinfo);
 }
 
 
 /*
- * regcollationin		- converts "collationname" to collation OID
+ * regcollationin   - converts "collationname" to collation OID
  *
  * We also accept a numeric OID, for symmetry with the output routine.
  *
@@ -1025,141 +1013,138 @@ regclasssend(PG_FUNCTION_ARGS)
 Datum
 regcollationin(PG_FUNCTION_ARGS)
 {
-	char	   *collation_name_or_oid = PG_GETARG_CSTRING(0);
-	Node	   *escontext = fcinfo->context;
-	Oid			result;
-	List	   *names;
+  char     *collation_name_or_oid = PG_GETARG_CSTRING(0);
+  Node     *escontext = fcinfo->context;
+  Oid     result;
+  List     *names;
 
-	/* Handle "-" or numeric OID */
-	if (parseDashOrOid(collation_name_or_oid, &result, escontext))
-		PG_RETURN_OID(result);
+  /* Handle "-" or numeric OID */
+  if (parseDashOrOid(collation_name_or_oid, &result, escontext))
+    PG_RETURN_OID(result);
 
-	/* Else it's a name, possibly schema-qualified */
+  /* Else it's a name, possibly schema-qualified */
 
-	/* The rest of this wouldn't work in bootstrap mode */
-	if (IsBootstrapProcessingMode())
-		elog(ERROR, "regcollation values must be OIDs in bootstrap mode");
+  /* The rest of this wouldn't work in bootstrap mode */
+  if (IsBootstrapProcessingMode())
+    elog(ERROR, "regcollation values must be OIDs in bootstrap mode");
 
-	/*
-	 * Normal case: parse the name into components and see if it matches any
-	 * pg_collation entries in the current search path.
-	 */
-	names = stringToQualifiedNameList(collation_name_or_oid, escontext);
-	if (names == NIL)
-		PG_RETURN_NULL();
+  /*
+   * Normal case: parse the name into components and see if it matches any
+   * pg_collation entries in the current search path.
+   */
+  names = stringToQualifiedNameList(collation_name_or_oid, escontext);
 
-	result = get_collation_oid(names, true);
+  if (names == NIL)
+    PG_RETURN_NULL();
 
-	if (!OidIsValid(result))
-		ereturn(escontext, (Datum) 0,
-				(errcode(ERRCODE_UNDEFINED_OBJECT),
-				 errmsg("collation \"%s\" for encoding \"%s\" does not exist",
-						NameListToString(names), GetDatabaseEncodingName())));
+  result = get_collation_oid(names, true);
 
-	PG_RETURN_OID(result);
+  if (!OidIsValid(result))
+    ereturn(escontext, (Datum) 0,
+            (errcode(ERRCODE_UNDEFINED_OBJECT),
+             errmsg("collation \"%s\" for encoding \"%s\" does not exist",
+                    NameListToString(names), GetDatabaseEncodingName())));
+
+  PG_RETURN_OID(result);
 }
 
 /*
- * to_regcollation		- converts "collationname" to collation OID
+ * to_regcollation    - converts "collationname" to collation OID
  *
  * If the name is not found, we return NULL.
  */
 Datum
 to_regcollation(PG_FUNCTION_ARGS)
 {
-	char	   *collation_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
-	Datum		result;
-	ErrorSaveContext escontext = {T_ErrorSaveContext};
+  char     *collation_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
+  Datum   result;
+  ErrorSaveContext escontext = {T_ErrorSaveContext};
 
-	if (!DirectInputFunctionCallSafe(regcollationin, collation_name,
-									 InvalidOid, -1,
-									 (Node *) &escontext,
-									 &result))
-		PG_RETURN_NULL();
-	PG_RETURN_DATUM(result);
+  if (!DirectInputFunctionCallSafe(regcollationin, collation_name,
+                                   InvalidOid, -1,
+                                   (Node *) &escontext,
+                                   &result))
+    PG_RETURN_NULL();
+
+  PG_RETURN_DATUM(result);
 }
 
 /*
- * regcollationout		- converts collation OID to "collation_name"
+ * regcollationout    - converts collation OID to "collation_name"
  */
 Datum
 regcollationout(PG_FUNCTION_ARGS)
 {
-	Oid			collationid = PG_GETARG_OID(0);
-	char	   *result;
-	HeapTuple	collationtup;
+  Oid     collationid = PG_GETARG_OID(0);
+  char     *result;
+  HeapTuple collationtup;
 
-	if (collationid == InvalidOid)
-	{
-		result = pstrdup("-");
-		PG_RETURN_CSTRING(result);
-	}
+  if (collationid == InvalidOid) {
+    result = pstrdup("-");
+    PG_RETURN_CSTRING(result);
+  }
 
-	collationtup = SearchSysCache1(COLLOID, ObjectIdGetDatum(collationid));
+  collationtup = SearchSysCache1(COLLOID, ObjectIdGetDatum(collationid));
 
-	if (HeapTupleIsValid(collationtup))
-	{
-		Form_pg_collation collationform = (Form_pg_collation) GETSTRUCT(collationtup);
-		char	   *collationname = NameStr(collationform->collname);
+  if (HeapTupleIsValid(collationtup)) {
+    Form_pg_collation collationform = (Form_pg_collation) GETSTRUCT(collationtup);
+    char     *collationname = NameStr(collationform->collname);
 
-		/*
-		 * In bootstrap mode, skip the fancy namespace stuff and just return
-		 * the collation name.  (This path is only needed for debugging output
-		 * anyway.)
-		 */
-		if (IsBootstrapProcessingMode())
-			result = pstrdup(collationname);
-		else
-		{
-			char	   *nspname;
+    /*
+     * In bootstrap mode, skip the fancy namespace stuff and just return
+     * the collation name.  (This path is only needed for debugging output
+     * anyway.)
+     */
+    if (IsBootstrapProcessingMode())
+      result = pstrdup(collationname);
+    else {
+      char     *nspname;
 
-			/*
-			 * Would this collation be found by regcollationin? If not,
-			 * qualify it.
-			 */
-			if (CollationIsVisible(collationid))
-				nspname = NULL;
-			else
-				nspname = get_namespace_name(collationform->collnamespace);
+      /*
+       * Would this collation be found by regcollationin? If not,
+       * qualify it.
+       */
+      if (CollationIsVisible(collationid))
+        nspname = NULL;
+      else
+        nspname = get_namespace_name(collationform->collnamespace);
 
-			result = quote_qualified_identifier(nspname, collationname);
-		}
+      result = quote_qualified_identifier(nspname, collationname);
+    }
 
-		ReleaseSysCache(collationtup);
-	}
-	else
-	{
-		/* If OID doesn't match any pg_collation entry, return it numerically */
-		result = (char *) palloc(NAMEDATALEN);
-		snprintf(result, NAMEDATALEN, "%u", collationid);
-	}
+    ReleaseSysCache(collationtup);
+  } else {
+    /* If OID doesn't match any pg_collation entry, return it numerically */
+    result = (char *) palloc(NAMEDATALEN);
+    snprintf(result, NAMEDATALEN, "%u", collationid);
+  }
 
-	PG_RETURN_CSTRING(result);
+  PG_RETURN_CSTRING(result);
 }
 
 /*
- *		regcollationrecv			- converts external binary format to regcollation
+ *    regcollationrecv      - converts external binary format to regcollation
  */
 Datum
 regcollationrecv(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidrecv, so share code */
-	return oidrecv(fcinfo);
+  /* Exactly the same as oidrecv, so share code */
+  return oidrecv(fcinfo);
 }
 
 /*
- *		regcollationsend			- converts regcollation to binary format
+ *    regcollationsend      - converts regcollation to binary format
  */
 Datum
 regcollationsend(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidsend, so share code */
-	return oidsend(fcinfo);
+  /* Exactly the same as oidsend, so share code */
+  return oidsend(fcinfo);
 }
 
 
 /*
- * regtypein		- converts "typename" to type OID
+ * regtypein    - converts "typename" to type OID
  *
  * The type name can be specified using the full type syntax recognized by
  * the parser; for example, DOUBLE PRECISION and INTEGER[] will work and be
@@ -1175,142 +1160,137 @@ regcollationsend(PG_FUNCTION_ARGS)
 Datum
 regtypein(PG_FUNCTION_ARGS)
 {
-	char	   *typ_name_or_oid = PG_GETARG_CSTRING(0);
-	Node	   *escontext = fcinfo->context;
-	Oid			result;
-	int32		typmod;
+  char     *typ_name_or_oid = PG_GETARG_CSTRING(0);
+  Node     *escontext = fcinfo->context;
+  Oid     result;
+  int32   typmod;
 
-	/* Handle "-" or numeric OID */
-	if (parseDashOrOid(typ_name_or_oid, &result, escontext))
-		PG_RETURN_OID(result);
+  /* Handle "-" or numeric OID */
+  if (parseDashOrOid(typ_name_or_oid, &result, escontext))
+    PG_RETURN_OID(result);
 
-	/* Else it's a type name, possibly schema-qualified or decorated */
+  /* Else it's a type name, possibly schema-qualified or decorated */
 
-	/* The rest of this wouldn't work in bootstrap mode */
-	if (IsBootstrapProcessingMode())
-		elog(ERROR, "regtype values must be OIDs in bootstrap mode");
+  /* The rest of this wouldn't work in bootstrap mode */
+  if (IsBootstrapProcessingMode())
+    elog(ERROR, "regtype values must be OIDs in bootstrap mode");
 
-	/*
-	 * Normal case: invoke the full parser to deal with special cases such as
-	 * array syntax.  We don't need to check for parseTypeString failure,
-	 * since we'll just return anyway.
-	 */
-	(void) parseTypeString(typ_name_or_oid, &result, &typmod, escontext);
+  /*
+   * Normal case: invoke the full parser to deal with special cases such as
+   * array syntax.  We don't need to check for parseTypeString failure,
+   * since we'll just return anyway.
+   */
+  (void) parseTypeString(typ_name_or_oid, &result, &typmod, escontext);
 
-	PG_RETURN_OID(result);
+  PG_RETURN_OID(result);
 }
 
 /*
- * to_regtype		- converts "typename" to type OID
+ * to_regtype   - converts "typename" to type OID
  *
  * If the name is not found, we return NULL.
  */
 Datum
 to_regtype(PG_FUNCTION_ARGS)
 {
-	char	   *typ_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
-	Datum		result;
-	ErrorSaveContext escontext = {T_ErrorSaveContext};
+  char     *typ_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
+  Datum   result;
+  ErrorSaveContext escontext = {T_ErrorSaveContext};
 
-	if (!DirectInputFunctionCallSafe(regtypein, typ_name,
-									 InvalidOid, -1,
-									 (Node *) &escontext,
-									 &result))
-		PG_RETURN_NULL();
-	PG_RETURN_DATUM(result);
+  if (!DirectInputFunctionCallSafe(regtypein, typ_name,
+                                   InvalidOid, -1,
+                                   (Node *) &escontext,
+                                   &result))
+    PG_RETURN_NULL();
+
+  PG_RETURN_DATUM(result);
 }
 
 /*
- * to_regtypemod	- converts "typename" to type modifier
+ * to_regtypemod  - converts "typename" to type modifier
  *
  * If the name is not found, we return NULL.
  */
 Datum
 to_regtypemod(PG_FUNCTION_ARGS)
 {
-	char	   *typ_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
-	Oid			typid;
-	int32		typmod;
-	ErrorSaveContext escontext = {T_ErrorSaveContext};
+  char     *typ_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
+  Oid     typid;
+  int32   typmod;
+  ErrorSaveContext escontext = {T_ErrorSaveContext};
 
-	/* We rely on parseTypeString to parse the input. */
-	if (!parseTypeString(typ_name, &typid, &typmod, (Node *) &escontext))
-		PG_RETURN_NULL();
+  /* We rely on parseTypeString to parse the input. */
+  if (!parseTypeString(typ_name, &typid, &typmod, (Node *) &escontext))
+    PG_RETURN_NULL();
 
-	PG_RETURN_INT32(typmod);
+  PG_RETURN_INT32(typmod);
 }
 
 /*
- * regtypeout		- converts type OID to "typ_name"
+ * regtypeout   - converts type OID to "typ_name"
  */
 Datum
 regtypeout(PG_FUNCTION_ARGS)
 {
-	Oid			typid = PG_GETARG_OID(0);
-	char	   *result;
-	HeapTuple	typetup;
+  Oid     typid = PG_GETARG_OID(0);
+  char     *result;
+  HeapTuple typetup;
 
-	if (typid == InvalidOid)
-	{
-		result = pstrdup("-");
-		PG_RETURN_CSTRING(result);
-	}
+  if (typid == InvalidOid) {
+    result = pstrdup("-");
+    PG_RETURN_CSTRING(result);
+  }
 
-	typetup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
+  typetup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
 
-	if (HeapTupleIsValid(typetup))
-	{
-		Form_pg_type typeform = (Form_pg_type) GETSTRUCT(typetup);
+  if (HeapTupleIsValid(typetup)) {
+    Form_pg_type typeform = (Form_pg_type) GETSTRUCT(typetup);
 
-		/*
-		 * In bootstrap mode, skip the fancy namespace stuff and just return
-		 * the type name.  (This path is only needed for debugging output
-		 * anyway.)
-		 */
-		if (IsBootstrapProcessingMode())
-		{
-			char	   *typname = NameStr(typeform->typname);
+    /*
+     * In bootstrap mode, skip the fancy namespace stuff and just return
+     * the type name.  (This path is only needed for debugging output
+     * anyway.)
+     */
+    if (IsBootstrapProcessingMode()) {
+      char     *typname = NameStr(typeform->typname);
 
-			result = pstrdup(typname);
-		}
-		else
-			result = format_type_be(typid);
+      result = pstrdup(typname);
+    } else
+      result = format_type_be(typid);
 
-		ReleaseSysCache(typetup);
-	}
-	else
-	{
-		/* If OID doesn't match any pg_type entry, return it numerically */
-		result = (char *) palloc(NAMEDATALEN);
-		snprintf(result, NAMEDATALEN, "%u", typid);
-	}
+    ReleaseSysCache(typetup);
+  } else {
+    /* If OID doesn't match any pg_type entry, return it numerically */
+    result = (char *) palloc(NAMEDATALEN);
+    snprintf(result, NAMEDATALEN, "%u", typid);
+  }
 
-	PG_RETURN_CSTRING(result);
+  PG_RETURN_CSTRING(result);
 }
 
 /*
- *		regtyperecv			- converts external binary format to regtype
+ *    regtyperecv     - converts external binary format to regtype
  */
 Datum
 regtyperecv(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidrecv, so share code */
-	return oidrecv(fcinfo);
+  /* Exactly the same as oidrecv, so share code */
+  return oidrecv(fcinfo);
 }
 
 /*
- *		regtypesend			- converts regtype to binary format
+ *    regtypesend     - converts regtype to binary format
  */
 Datum
 regtypesend(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidsend, so share code */
-	return oidsend(fcinfo);
+  /* Exactly the same as oidsend, so share code */
+  return oidsend(fcinfo);
 }
 
 
 /*
- * regconfigin		- converts "tsconfigname" to tsconfig OID
+ * regconfigin    - converts "tsconfigname" to tsconfig OID
  *
  * We also accept a numeric OID, for symmetry with the output routine.
  *
@@ -1320,107 +1300,104 @@ regtypesend(PG_FUNCTION_ARGS)
 Datum
 regconfigin(PG_FUNCTION_ARGS)
 {
-	char	   *cfg_name_or_oid = PG_GETARG_CSTRING(0);
-	Node	   *escontext = fcinfo->context;
-	Oid			result;
-	List	   *names;
+  char     *cfg_name_or_oid = PG_GETARG_CSTRING(0);
+  Node     *escontext = fcinfo->context;
+  Oid     result;
+  List     *names;
 
-	/* Handle "-" or numeric OID */
-	if (parseDashOrOid(cfg_name_or_oid, &result, escontext))
-		PG_RETURN_OID(result);
+  /* Handle "-" or numeric OID */
+  if (parseDashOrOid(cfg_name_or_oid, &result, escontext))
+    PG_RETURN_OID(result);
 
-	/* The rest of this wouldn't work in bootstrap mode */
-	if (IsBootstrapProcessingMode())
-		elog(ERROR, "regconfig values must be OIDs in bootstrap mode");
+  /* The rest of this wouldn't work in bootstrap mode */
+  if (IsBootstrapProcessingMode())
+    elog(ERROR, "regconfig values must be OIDs in bootstrap mode");
 
-	/*
-	 * Normal case: parse the name into components and see if it matches any
-	 * pg_ts_config entries in the current search path.
-	 */
-	names = stringToQualifiedNameList(cfg_name_or_oid, escontext);
-	if (names == NIL)
-		PG_RETURN_NULL();
+  /*
+   * Normal case: parse the name into components and see if it matches any
+   * pg_ts_config entries in the current search path.
+   */
+  names = stringToQualifiedNameList(cfg_name_or_oid, escontext);
 
-	result = get_ts_config_oid(names, true);
+  if (names == NIL)
+    PG_RETURN_NULL();
 
-	if (!OidIsValid(result))
-		ereturn(escontext, (Datum) 0,
-				(errcode(ERRCODE_UNDEFINED_OBJECT),
-				 errmsg("text search configuration \"%s\" does not exist",
-						NameListToString(names))));
+  result = get_ts_config_oid(names, true);
 
-	PG_RETURN_OID(result);
+  if (!OidIsValid(result))
+    ereturn(escontext, (Datum) 0,
+            (errcode(ERRCODE_UNDEFINED_OBJECT),
+             errmsg("text search configuration \"%s\" does not exist",
+                    NameListToString(names))));
+
+  PG_RETURN_OID(result);
 }
 
 /*
- * regconfigout		- converts tsconfig OID to "tsconfigname"
+ * regconfigout   - converts tsconfig OID to "tsconfigname"
  */
 Datum
 regconfigout(PG_FUNCTION_ARGS)
 {
-	Oid			cfgid = PG_GETARG_OID(0);
-	char	   *result;
-	HeapTuple	cfgtup;
+  Oid     cfgid = PG_GETARG_OID(0);
+  char     *result;
+  HeapTuple cfgtup;
 
-	if (cfgid == InvalidOid)
-	{
-		result = pstrdup("-");
-		PG_RETURN_CSTRING(result);
-	}
+  if (cfgid == InvalidOid) {
+    result = pstrdup("-");
+    PG_RETURN_CSTRING(result);
+  }
 
-	cfgtup = SearchSysCache1(TSCONFIGOID, ObjectIdGetDatum(cfgid));
+  cfgtup = SearchSysCache1(TSCONFIGOID, ObjectIdGetDatum(cfgid));
 
-	if (HeapTupleIsValid(cfgtup))
-	{
-		Form_pg_ts_config cfgform = (Form_pg_ts_config) GETSTRUCT(cfgtup);
-		char	   *cfgname = NameStr(cfgform->cfgname);
-		char	   *nspname;
+  if (HeapTupleIsValid(cfgtup)) {
+    Form_pg_ts_config cfgform = (Form_pg_ts_config) GETSTRUCT(cfgtup);
+    char     *cfgname = NameStr(cfgform->cfgname);
+    char     *nspname;
 
-		/*
-		 * Would this config be found by regconfigin? If not, qualify it.
-		 */
-		if (TSConfigIsVisible(cfgid))
-			nspname = NULL;
-		else
-			nspname = get_namespace_name(cfgform->cfgnamespace);
+    /*
+     * Would this config be found by regconfigin? If not, qualify it.
+     */
+    if (TSConfigIsVisible(cfgid))
+      nspname = NULL;
+    else
+      nspname = get_namespace_name(cfgform->cfgnamespace);
 
-		result = quote_qualified_identifier(nspname, cfgname);
+    result = quote_qualified_identifier(nspname, cfgname);
 
-		ReleaseSysCache(cfgtup);
-	}
-	else
-	{
-		/* If OID doesn't match any pg_ts_config row, return it numerically */
-		result = (char *) palloc(NAMEDATALEN);
-		snprintf(result, NAMEDATALEN, "%u", cfgid);
-	}
+    ReleaseSysCache(cfgtup);
+  } else {
+    /* If OID doesn't match any pg_ts_config row, return it numerically */
+    result = (char *) palloc(NAMEDATALEN);
+    snprintf(result, NAMEDATALEN, "%u", cfgid);
+  }
 
-	PG_RETURN_CSTRING(result);
+  PG_RETURN_CSTRING(result);
 }
 
 /*
- *		regconfigrecv			- converts external binary format to regconfig
+ *    regconfigrecv     - converts external binary format to regconfig
  */
 Datum
 regconfigrecv(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidrecv, so share code */
-	return oidrecv(fcinfo);
+  /* Exactly the same as oidrecv, so share code */
+  return oidrecv(fcinfo);
 }
 
 /*
- *		regconfigsend			- converts regconfig to binary format
+ *    regconfigsend     - converts regconfig to binary format
  */
 Datum
 regconfigsend(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidsend, so share code */
-	return oidsend(fcinfo);
+  /* Exactly the same as oidsend, so share code */
+  return oidsend(fcinfo);
 }
 
 
 /*
- * regdictionaryin		- converts "tsdictionaryname" to tsdictionary OID
+ * regdictionaryin    - converts "tsdictionaryname" to tsdictionary OID
  *
  * We also accept a numeric OID, for symmetry with the output routine.
  *
@@ -1430,107 +1407,104 @@ regconfigsend(PG_FUNCTION_ARGS)
 Datum
 regdictionaryin(PG_FUNCTION_ARGS)
 {
-	char	   *dict_name_or_oid = PG_GETARG_CSTRING(0);
-	Node	   *escontext = fcinfo->context;
-	Oid			result;
-	List	   *names;
+  char     *dict_name_or_oid = PG_GETARG_CSTRING(0);
+  Node     *escontext = fcinfo->context;
+  Oid     result;
+  List     *names;
 
-	/* Handle "-" or numeric OID */
-	if (parseDashOrOid(dict_name_or_oid, &result, escontext))
-		PG_RETURN_OID(result);
+  /* Handle "-" or numeric OID */
+  if (parseDashOrOid(dict_name_or_oid, &result, escontext))
+    PG_RETURN_OID(result);
 
-	/* The rest of this wouldn't work in bootstrap mode */
-	if (IsBootstrapProcessingMode())
-		elog(ERROR, "regdictionary values must be OIDs in bootstrap mode");
+  /* The rest of this wouldn't work in bootstrap mode */
+  if (IsBootstrapProcessingMode())
+    elog(ERROR, "regdictionary values must be OIDs in bootstrap mode");
 
-	/*
-	 * Normal case: parse the name into components and see if it matches any
-	 * pg_ts_dict entries in the current search path.
-	 */
-	names = stringToQualifiedNameList(dict_name_or_oid, escontext);
-	if (names == NIL)
-		PG_RETURN_NULL();
+  /*
+   * Normal case: parse the name into components and see if it matches any
+   * pg_ts_dict entries in the current search path.
+   */
+  names = stringToQualifiedNameList(dict_name_or_oid, escontext);
 
-	result = get_ts_dict_oid(names, true);
+  if (names == NIL)
+    PG_RETURN_NULL();
 
-	if (!OidIsValid(result))
-		ereturn(escontext, (Datum) 0,
-				(errcode(ERRCODE_UNDEFINED_OBJECT),
-				 errmsg("text search dictionary \"%s\" does not exist",
-						NameListToString(names))));
+  result = get_ts_dict_oid(names, true);
 
-	PG_RETURN_OID(result);
+  if (!OidIsValid(result))
+    ereturn(escontext, (Datum) 0,
+            (errcode(ERRCODE_UNDEFINED_OBJECT),
+             errmsg("text search dictionary \"%s\" does not exist",
+                    NameListToString(names))));
+
+  PG_RETURN_OID(result);
 }
 
 /*
- * regdictionaryout		- converts tsdictionary OID to "tsdictionaryname"
+ * regdictionaryout   - converts tsdictionary OID to "tsdictionaryname"
  */
 Datum
 regdictionaryout(PG_FUNCTION_ARGS)
 {
-	Oid			dictid = PG_GETARG_OID(0);
-	char	   *result;
-	HeapTuple	dicttup;
+  Oid     dictid = PG_GETARG_OID(0);
+  char     *result;
+  HeapTuple dicttup;
 
-	if (dictid == InvalidOid)
-	{
-		result = pstrdup("-");
-		PG_RETURN_CSTRING(result);
-	}
+  if (dictid == InvalidOid) {
+    result = pstrdup("-");
+    PG_RETURN_CSTRING(result);
+  }
 
-	dicttup = SearchSysCache1(TSDICTOID, ObjectIdGetDatum(dictid));
+  dicttup = SearchSysCache1(TSDICTOID, ObjectIdGetDatum(dictid));
 
-	if (HeapTupleIsValid(dicttup))
-	{
-		Form_pg_ts_dict dictform = (Form_pg_ts_dict) GETSTRUCT(dicttup);
-		char	   *dictname = NameStr(dictform->dictname);
-		char	   *nspname;
+  if (HeapTupleIsValid(dicttup)) {
+    Form_pg_ts_dict dictform = (Form_pg_ts_dict) GETSTRUCT(dicttup);
+    char     *dictname = NameStr(dictform->dictname);
+    char     *nspname;
 
-		/*
-		 * Would this dictionary be found by regdictionaryin? If not, qualify
-		 * it.
-		 */
-		if (TSDictionaryIsVisible(dictid))
-			nspname = NULL;
-		else
-			nspname = get_namespace_name(dictform->dictnamespace);
+    /*
+     * Would this dictionary be found by regdictionaryin? If not, qualify
+     * it.
+     */
+    if (TSDictionaryIsVisible(dictid))
+      nspname = NULL;
+    else
+      nspname = get_namespace_name(dictform->dictnamespace);
 
-		result = quote_qualified_identifier(nspname, dictname);
+    result = quote_qualified_identifier(nspname, dictname);
 
-		ReleaseSysCache(dicttup);
-	}
-	else
-	{
-		/* If OID doesn't match any pg_ts_dict row, return it numerically */
-		result = (char *) palloc(NAMEDATALEN);
-		snprintf(result, NAMEDATALEN, "%u", dictid);
-	}
+    ReleaseSysCache(dicttup);
+  } else {
+    /* If OID doesn't match any pg_ts_dict row, return it numerically */
+    result = (char *) palloc(NAMEDATALEN);
+    snprintf(result, NAMEDATALEN, "%u", dictid);
+  }
 
-	PG_RETURN_CSTRING(result);
+  PG_RETURN_CSTRING(result);
 }
 
 /*
- *		regdictionaryrecv	- converts external binary format to regdictionary
+ *    regdictionaryrecv - converts external binary format to regdictionary
  */
 Datum
 regdictionaryrecv(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidrecv, so share code */
-	return oidrecv(fcinfo);
+  /* Exactly the same as oidrecv, so share code */
+  return oidrecv(fcinfo);
 }
 
 /*
- *		regdictionarysend	- converts regdictionary to binary format
+ *    regdictionarysend - converts regdictionary to binary format
  */
 Datum
 regdictionarysend(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidsend, so share code */
-	return oidsend(fcinfo);
+  /* Exactly the same as oidsend, so share code */
+  return oidsend(fcinfo);
 }
 
 /*
- * regrolein	- converts "rolename" to role OID
+ * regrolein  - converts "rolename" to role OID
  *
  * We also accept a numeric OID, for symmetry with the output routine.
  *
@@ -1540,114 +1514,112 @@ regdictionarysend(PG_FUNCTION_ARGS)
 Datum
 regrolein(PG_FUNCTION_ARGS)
 {
-	char	   *role_name_or_oid = PG_GETARG_CSTRING(0);
-	Node	   *escontext = fcinfo->context;
-	Oid			result;
-	List	   *names;
+  char     *role_name_or_oid = PG_GETARG_CSTRING(0);
+  Node     *escontext = fcinfo->context;
+  Oid     result;
+  List     *names;
 
-	/* Handle "-" or numeric OID */
-	if (parseDashOrOid(role_name_or_oid, &result, escontext))
-		PG_RETURN_OID(result);
+  /* Handle "-" or numeric OID */
+  if (parseDashOrOid(role_name_or_oid, &result, escontext))
+    PG_RETURN_OID(result);
 
-	/* The rest of this wouldn't work in bootstrap mode */
-	if (IsBootstrapProcessingMode())
-		elog(ERROR, "regrole values must be OIDs in bootstrap mode");
+  /* The rest of this wouldn't work in bootstrap mode */
+  if (IsBootstrapProcessingMode())
+    elog(ERROR, "regrole values must be OIDs in bootstrap mode");
 
-	/* Normal case: see if the name matches any pg_authid entry. */
-	names = stringToQualifiedNameList(role_name_or_oid, escontext);
-	if (names == NIL)
-		PG_RETURN_NULL();
+  /* Normal case: see if the name matches any pg_authid entry. */
+  names = stringToQualifiedNameList(role_name_or_oid, escontext);
 
-	if (list_length(names) != 1)
-		ereturn(escontext, (Datum) 0,
-				(errcode(ERRCODE_INVALID_NAME),
-				 errmsg("invalid name syntax")));
+  if (names == NIL)
+    PG_RETURN_NULL();
 
-	result = get_role_oid(strVal(linitial(names)), true);
+  if (list_length(names) != 1)
+    ereturn(escontext, (Datum) 0,
+            (errcode(ERRCODE_INVALID_NAME),
+             errmsg("invalid name syntax")));
 
-	if (!OidIsValid(result))
-		ereturn(escontext, (Datum) 0,
-				(errcode(ERRCODE_UNDEFINED_OBJECT),
-				 errmsg("role \"%s\" does not exist",
-						strVal(linitial(names)))));
+  result = get_role_oid(strVal(linitial(names)), true);
 
-	PG_RETURN_OID(result);
+  if (!OidIsValid(result))
+    ereturn(escontext, (Datum) 0,
+            (errcode(ERRCODE_UNDEFINED_OBJECT),
+             errmsg("role \"%s\" does not exist",
+                    strVal(linitial(names)))));
+
+  PG_RETURN_OID(result);
 }
 
 /*
- * to_regrole		- converts "rolename" to role OID
+ * to_regrole   - converts "rolename" to role OID
  *
  * If the name is not found, we return NULL.
  */
 Datum
 to_regrole(PG_FUNCTION_ARGS)
 {
-	char	   *role_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
-	Datum		result;
-	ErrorSaveContext escontext = {T_ErrorSaveContext};
+  char     *role_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
+  Datum   result;
+  ErrorSaveContext escontext = {T_ErrorSaveContext};
 
-	if (!DirectInputFunctionCallSafe(regrolein, role_name,
-									 InvalidOid, -1,
-									 (Node *) &escontext,
-									 &result))
-		PG_RETURN_NULL();
-	PG_RETURN_DATUM(result);
+  if (!DirectInputFunctionCallSafe(regrolein, role_name,
+                                   InvalidOid, -1,
+                                   (Node *) &escontext,
+                                   &result))
+    PG_RETURN_NULL();
+
+  PG_RETURN_DATUM(result);
 }
 
 /*
- * regroleout		- converts role OID to "role_name"
+ * regroleout   - converts role OID to "role_name"
  */
 Datum
 regroleout(PG_FUNCTION_ARGS)
 {
-	Oid			roleoid = PG_GETARG_OID(0);
-	char	   *result;
+  Oid     roleoid = PG_GETARG_OID(0);
+  char     *result;
 
-	if (roleoid == InvalidOid)
-	{
-		result = pstrdup("-");
-		PG_RETURN_CSTRING(result);
-	}
+  if (roleoid == InvalidOid) {
+    result = pstrdup("-");
+    PG_RETURN_CSTRING(result);
+  }
 
-	result = GetUserNameFromId(roleoid, true);
+  result = GetUserNameFromId(roleoid, true);
 
-	if (result)
-	{
-		/* pstrdup is not really necessary, but it avoids a compiler warning */
-		result = pstrdup(quote_identifier(result));
-	}
-	else
-	{
-		/* If OID doesn't match any role, return it numerically */
-		result = (char *) palloc(NAMEDATALEN);
-		snprintf(result, NAMEDATALEN, "%u", roleoid);
-	}
+  if (result) {
+    /* pstrdup is not really necessary, but it avoids a compiler warning */
+    result = pstrdup(quote_identifier(result));
+  } else {
+    /* If OID doesn't match any role, return it numerically */
+    result = (char *) palloc(NAMEDATALEN);
+    snprintf(result, NAMEDATALEN, "%u", roleoid);
+  }
 
-	PG_RETURN_CSTRING(result);
+  PG_RETURN_CSTRING(result);
 }
 
 /*
- *		regrolerecv - converts external binary format to regrole
+ *    regrolerecv - converts external binary format to regrole
  */
 Datum
 regrolerecv(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidrecv, so share code */
-	return oidrecv(fcinfo);
+  /* Exactly the same as oidrecv, so share code */
+  return oidrecv(fcinfo);
 }
 
 /*
- *		regrolesend - converts regrole to binary format
+ *    regrolesend - converts regrole to binary format
  */
 Datum
 regrolesend(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidsend, so share code */
-	return oidsend(fcinfo);
+  /* Exactly the same as oidsend, so share code */
+  return oidsend(fcinfo);
 }
 
 /*
- * regnamespacein		- converts "nspname" to namespace OID
+ * regnamespacein   - converts "nspname" to namespace OID
  *
  * We also accept a numeric OID, for symmetry with the output routine.
  *
@@ -1657,110 +1629,108 @@ regrolesend(PG_FUNCTION_ARGS)
 Datum
 regnamespacein(PG_FUNCTION_ARGS)
 {
-	char	   *nsp_name_or_oid = PG_GETARG_CSTRING(0);
-	Node	   *escontext = fcinfo->context;
-	Oid			result;
-	List	   *names;
+  char     *nsp_name_or_oid = PG_GETARG_CSTRING(0);
+  Node     *escontext = fcinfo->context;
+  Oid     result;
+  List     *names;
 
-	/* Handle "-" or numeric OID */
-	if (parseDashOrOid(nsp_name_or_oid, &result, escontext))
-		PG_RETURN_OID(result);
+  /* Handle "-" or numeric OID */
+  if (parseDashOrOid(nsp_name_or_oid, &result, escontext))
+    PG_RETURN_OID(result);
 
-	/* The rest of this wouldn't work in bootstrap mode */
-	if (IsBootstrapProcessingMode())
-		elog(ERROR, "regnamespace values must be OIDs in bootstrap mode");
+  /* The rest of this wouldn't work in bootstrap mode */
+  if (IsBootstrapProcessingMode())
+    elog(ERROR, "regnamespace values must be OIDs in bootstrap mode");
 
-	/* Normal case: see if the name matches any pg_namespace entry. */
-	names = stringToQualifiedNameList(nsp_name_or_oid, escontext);
-	if (names == NIL)
-		PG_RETURN_NULL();
+  /* Normal case: see if the name matches any pg_namespace entry. */
+  names = stringToQualifiedNameList(nsp_name_or_oid, escontext);
 
-	if (list_length(names) != 1)
-		ereturn(escontext, (Datum) 0,
-				(errcode(ERRCODE_INVALID_NAME),
-				 errmsg("invalid name syntax")));
+  if (names == NIL)
+    PG_RETURN_NULL();
 
-	result = get_namespace_oid(strVal(linitial(names)), true);
+  if (list_length(names) != 1)
+    ereturn(escontext, (Datum) 0,
+            (errcode(ERRCODE_INVALID_NAME),
+             errmsg("invalid name syntax")));
 
-	if (!OidIsValid(result))
-		ereturn(escontext, (Datum) 0,
-				(errcode(ERRCODE_UNDEFINED_SCHEMA),
-				 errmsg("schema \"%s\" does not exist",
-						strVal(linitial(names)))));
+  result = get_namespace_oid(strVal(linitial(names)), true);
 
-	PG_RETURN_OID(result);
+  if (!OidIsValid(result))
+    ereturn(escontext, (Datum) 0,
+            (errcode(ERRCODE_UNDEFINED_SCHEMA),
+             errmsg("schema \"%s\" does not exist",
+                    strVal(linitial(names)))));
+
+  PG_RETURN_OID(result);
 }
 
 /*
- * to_regnamespace		- converts "nspname" to namespace OID
+ * to_regnamespace    - converts "nspname" to namespace OID
  *
  * If the name is not found, we return NULL.
  */
 Datum
 to_regnamespace(PG_FUNCTION_ARGS)
 {
-	char	   *nsp_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
-	Datum		result;
-	ErrorSaveContext escontext = {T_ErrorSaveContext};
+  char     *nsp_name = text_to_cstring(PG_GETARG_TEXT_PP(0));
+  Datum   result;
+  ErrorSaveContext escontext = {T_ErrorSaveContext};
 
-	if (!DirectInputFunctionCallSafe(regnamespacein, nsp_name,
-									 InvalidOid, -1,
-									 (Node *) &escontext,
-									 &result))
-		PG_RETURN_NULL();
-	PG_RETURN_DATUM(result);
+  if (!DirectInputFunctionCallSafe(regnamespacein, nsp_name,
+                                   InvalidOid, -1,
+                                   (Node *) &escontext,
+                                   &result))
+    PG_RETURN_NULL();
+
+  PG_RETURN_DATUM(result);
 }
 
 /*
- * regnamespaceout		- converts namespace OID to "nsp_name"
+ * regnamespaceout    - converts namespace OID to "nsp_name"
  */
 Datum
 regnamespaceout(PG_FUNCTION_ARGS)
 {
-	Oid			nspid = PG_GETARG_OID(0);
-	char	   *result;
+  Oid     nspid = PG_GETARG_OID(0);
+  char     *result;
 
-	if (nspid == InvalidOid)
-	{
-		result = pstrdup("-");
-		PG_RETURN_CSTRING(result);
-	}
+  if (nspid == InvalidOid) {
+    result = pstrdup("-");
+    PG_RETURN_CSTRING(result);
+  }
 
-	result = get_namespace_name(nspid);
+  result = get_namespace_name(nspid);
 
-	if (result)
-	{
-		/* pstrdup is not really necessary, but it avoids a compiler warning */
-		result = pstrdup(quote_identifier(result));
-	}
-	else
-	{
-		/* If OID doesn't match any namespace, return it numerically */
-		result = (char *) palloc(NAMEDATALEN);
-		snprintf(result, NAMEDATALEN, "%u", nspid);
-	}
+  if (result) {
+    /* pstrdup is not really necessary, but it avoids a compiler warning */
+    result = pstrdup(quote_identifier(result));
+  } else {
+    /* If OID doesn't match any namespace, return it numerically */
+    result = (char *) palloc(NAMEDATALEN);
+    snprintf(result, NAMEDATALEN, "%u", nspid);
+  }
 
-	PG_RETURN_CSTRING(result);
+  PG_RETURN_CSTRING(result);
 }
 
 /*
- *		regnamespacerecv	- converts external binary format to regnamespace
+ *    regnamespacerecv  - converts external binary format to regnamespace
  */
 Datum
 regnamespacerecv(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidrecv, so share code */
-	return oidrecv(fcinfo);
+  /* Exactly the same as oidrecv, so share code */
+  return oidrecv(fcinfo);
 }
 
 /*
- *		regnamespacesend		- converts regnamespace to binary format
+ *    regnamespacesend    - converts regnamespace to binary format
  */
 Datum
 regnamespacesend(PG_FUNCTION_ARGS)
 {
-	/* Exactly the same as oidsend, so share code */
-	return oidsend(fcinfo);
+  /* Exactly the same as oidsend, so share code */
+  return oidsend(fcinfo);
 }
 
 /*
@@ -1773,16 +1743,16 @@ regnamespacesend(PG_FUNCTION_ARGS)
 Datum
 text_regclass(PG_FUNCTION_ARGS)
 {
-	text	   *relname = PG_GETARG_TEXT_PP(0);
-	Oid			result;
-	RangeVar   *rv;
+  text     *relname = PG_GETARG_TEXT_PP(0);
+  Oid     result;
+  RangeVar   *rv;
 
-	rv = makeRangeVarFromNameList(textToQualifiedNameList(relname));
+  rv = makeRangeVarFromNameList(textToQualifiedNameList(relname));
 
-	/* We might not even have permissions on this relation; don't lock it. */
-	result = RangeVarGetRelid(rv, NoLock, false);
+  /* We might not even have permissions on this relation; don't lock it. */
+  result = RangeVarGetRelid(rv, NoLock, false);
 
-	PG_RETURN_OID(result);
+  PG_RETURN_OID(result);
 }
 
 
@@ -1796,39 +1766,38 @@ text_regclass(PG_FUNCTION_ARGS)
 List *
 stringToQualifiedNameList(const char *string, Node *escontext)
 {
-	char	   *rawname;
-	List	   *result = NIL;
-	List	   *namelist;
-	ListCell   *l;
+  char     *rawname;
+  List     *result = NIL;
+  List     *namelist;
+  ListCell   *l;
 
-	/* We need a modifiable copy of the input string. */
-	rawname = pstrdup(string);
+  /* We need a modifiable copy of the input string. */
+  rawname = pstrdup(string);
 
-	if (!SplitIdentifierString(rawname, '.', &namelist))
-		ereturn(escontext, NIL,
-				(errcode(ERRCODE_INVALID_NAME),
-				 errmsg("invalid name syntax")));
+  if (!SplitIdentifierString(rawname, '.', &namelist))
+    ereturn(escontext, NIL,
+            (errcode(ERRCODE_INVALID_NAME),
+             errmsg("invalid name syntax")));
 
-	if (namelist == NIL)
-		ereturn(escontext, NIL,
-				(errcode(ERRCODE_INVALID_NAME),
-				 errmsg("invalid name syntax")));
+  if (namelist == NIL)
+    ereturn(escontext, NIL,
+            (errcode(ERRCODE_INVALID_NAME),
+             errmsg("invalid name syntax")));
 
-	foreach(l, namelist)
-	{
-		char	   *curname = (char *) lfirst(l);
+  foreach(l, namelist) {
+    char     *curname = (char *) lfirst(l);
 
-		result = lappend(result, makeString(pstrdup(curname)));
-	}
+    result = lappend(result, makeString(pstrdup(curname)));
+  }
 
-	pfree(rawname);
-	list_free(namelist);
+  pfree(rawname);
+  list_free(namelist);
 
-	return result;
+  return result;
 }
 
 /*****************************************************************************
- *	 SUPPORT ROUTINES														 *
+ *   SUPPORT ROUTINES                            *
  *****************************************************************************/
 
 /*
@@ -1842,23 +1811,22 @@ stringToQualifiedNameList(const char *string, Node *escontext)
 static bool
 parseNumericOid(char *string, Oid *result, Node *escontext)
 {
-	if (string[0] >= '0' && string[0] <= '9' &&
-		strspn(string, "0123456789") == strlen(string))
-	{
-		Datum		oid_datum;
+  if (string[0] >= '0' && string[0] <= '9' &&
+      strspn(string, "0123456789") == strlen(string)) {
+    Datum   oid_datum;
 
-		/* We need not care here whether oidin() fails or not. */
-		(void) DirectInputFunctionCallSafe(oidin, string,
-										   InvalidOid, -1,
-										   escontext,
-										   &oid_datum);
-		*result = DatumGetObjectId(oid_datum);
-		return true;
-	}
+    /* We need not care here whether oidin() fails or not. */
+    (void) DirectInputFunctionCallSafe(oidin, string,
+                                       InvalidOid, -1,
+                                       escontext,
+                                       &oid_datum);
+    *result = DatumGetObjectId(oid_datum);
+    return true;
+  }
 
-	/* Prevent uninitialized-variable warnings from stupider compilers. */
-	*result = InvalidOid;
-	return false;
+  /* Prevent uninitialized-variable warnings from stupider compilers. */
+  *result = InvalidOid;
+  return false;
 }
 
 /*
@@ -1867,15 +1835,14 @@ parseNumericOid(char *string, Oid *result, Node *escontext)
 static bool
 parseDashOrOid(char *string, Oid *result, Node *escontext)
 {
-	/* '-' ? */
-	if (strcmp(string, "-") == 0)
-	{
-		*result = InvalidOid;
-		return true;
-	}
+  /* '-' ? */
+  if (strcmp(string, "-") == 0) {
+    *result = InvalidOid;
+    return true;
+  }
 
-	/* Numeric OID? */
-	return parseNumericOid(string, result, escontext);
+  /* Numeric OID? */
+  return parseNumericOid(string, result, escontext);
 }
 
 /*
@@ -1893,146 +1860,147 @@ parseDashOrOid(char *string, Oid *result, Node *escontext)
  */
 static bool
 parseNameAndArgTypes(const char *string, bool allowNone, List **names,
-					 int *nargs, Oid *argtypes,
-					 Node *escontext)
+                     int *nargs, Oid *argtypes,
+                     Node *escontext)
 {
-	char	   *rawname;
-	char	   *ptr;
-	char	   *ptr2;
-	char	   *typename;
-	bool		in_quote;
-	bool		had_comma;
-	int			paren_count;
-	Oid			typeid;
-	int32		typmod;
+  char     *rawname;
+  char     *ptr;
+  char     *ptr2;
+  char     *typename;
+  bool    in_quote;
+  bool    had_comma;
+  int     paren_count;
+  Oid     typeid;
+  int32   typmod;
 
-	/* We need a modifiable copy of the input string. */
-	rawname = pstrdup(string);
+  /* We need a modifiable copy of the input string. */
+  rawname = pstrdup(string);
 
-	/* Scan to find the expected left paren; mustn't be quoted */
-	in_quote = false;
-	for (ptr = rawname; *ptr; ptr++)
-	{
-		if (*ptr == '"')
-			in_quote = !in_quote;
-		else if (*ptr == '(' && !in_quote)
-			break;
-	}
-	if (*ptr == '\0')
-		ereturn(escontext, false,
-				(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-				 errmsg("expected a left parenthesis")));
+  /* Scan to find the expected left paren; mustn't be quoted */
+  in_quote = false;
 
-	/* Separate the name and parse it into a list */
-	*ptr++ = '\0';
-	*names = stringToQualifiedNameList(rawname, escontext);
-	if (*names == NIL)
-		return false;
+  for (ptr = rawname; *ptr; ptr++) {
+    if (*ptr == '"')
+      in_quote = !in_quote;
+    else if (*ptr == '(' && !in_quote)
+      break;
+  }
 
-	/* Check for the trailing right parenthesis and remove it */
-	ptr2 = ptr + strlen(ptr);
-	while (--ptr2 > ptr)
-	{
-		if (!scanner_isspace(*ptr2))
-			break;
-	}
-	if (*ptr2 != ')')
-		ereturn(escontext, false,
-				(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-				 errmsg("expected a right parenthesis")));
+  if (*ptr == '\0')
+    ereturn(escontext, false,
+            (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+             errmsg("expected a left parenthesis")));
 
-	*ptr2 = '\0';
+  /* Separate the name and parse it into a list */
+  *ptr++ = '\0';
+  *names = stringToQualifiedNameList(rawname, escontext);
 
-	/* Separate the remaining string into comma-separated type names */
-	*nargs = 0;
-	had_comma = false;
+  if (*names == NIL)
+    return false;
 
-	for (;;)
-	{
-		/* allow leading whitespace */
-		while (scanner_isspace(*ptr))
-			ptr++;
-		if (*ptr == '\0')
-		{
-			/* End of string.  Okay unless we had a comma before. */
-			if (had_comma)
-				ereturn(escontext, false,
-						(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-						 errmsg("expected a type name")));
-			break;
-		}
-		typename = ptr;
-		/* Find end of type name --- end of string or comma */
-		/* ... but not a quoted or parenthesized comma */
-		in_quote = false;
-		paren_count = 0;
-		for (; *ptr; ptr++)
-		{
-			if (*ptr == '"')
-				in_quote = !in_quote;
-			else if (*ptr == ',' && !in_quote && paren_count == 0)
-				break;
-			else if (!in_quote)
-			{
-				switch (*ptr)
-				{
-					case '(':
-					case '[':
-						paren_count++;
-						break;
-					case ')':
-					case ']':
-						paren_count--;
-						break;
-				}
-			}
-		}
-		if (in_quote || paren_count != 0)
-			ereturn(escontext, false,
-					(errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
-					 errmsg("improper type name")));
+  /* Check for the trailing right parenthesis and remove it */
+  ptr2 = ptr + strlen(ptr);
 
-		ptr2 = ptr;
-		if (*ptr == ',')
-		{
-			had_comma = true;
-			*ptr++ = '\0';
-		}
-		else
-		{
-			had_comma = false;
-			Assert(*ptr == '\0');
-		}
-		/* Lop off trailing whitespace */
-		while (--ptr2 >= typename)
-		{
-			if (!scanner_isspace(*ptr2))
-				break;
-			*ptr2 = '\0';
-		}
+  while (--ptr2 > ptr) {
+    if (!scanner_isspace(*ptr2))
+      break;
+  }
 
-		if (allowNone && pg_strcasecmp(typename, "none") == 0)
-		{
-			/* Special case for NONE */
-			typeid = InvalidOid;
-			typmod = -1;
-		}
-		else
-		{
-			/* Use full parser to resolve the type name */
-			if (!parseTypeString(typename, &typeid, &typmod, escontext))
-				return false;
-		}
-		if (*nargs >= FUNC_MAX_ARGS)
-			ereturn(escontext, false,
-					(errcode(ERRCODE_TOO_MANY_ARGUMENTS),
-					 errmsg("too many arguments")));
+  if (*ptr2 != ')')
+    ereturn(escontext, false,
+            (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+             errmsg("expected a right parenthesis")));
 
-		argtypes[*nargs] = typeid;
-		(*nargs)++;
-	}
+  *ptr2 = '\0';
 
-	pfree(rawname);
+  /* Separate the remaining string into comma-separated type names */
+  *nargs = 0;
+  had_comma = false;
 
-	return true;
+  for (;;) {
+    /* allow leading whitespace */
+    while (scanner_isspace(*ptr))
+      ptr++;
+
+    if (*ptr == '\0') {
+      /* End of string.  Okay unless we had a comma before. */
+      if (had_comma)
+        ereturn(escontext, false,
+                (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+                 errmsg("expected a type name")));
+
+      break;
+    }
+
+    typename = ptr;
+    /* Find end of type name --- end of string or comma */
+    /* ... but not a quoted or parenthesized comma */
+    in_quote = false;
+    paren_count = 0;
+
+    for (; *ptr; ptr++) {
+      if (*ptr == '"')
+        in_quote = !in_quote;
+      else if (*ptr == ',' && !in_quote && paren_count == 0)
+        break;
+      else if (!in_quote) {
+        switch (*ptr) {
+          case '(':
+          case '[':
+            paren_count++;
+            break;
+
+          case ')':
+          case ']':
+            paren_count--;
+            break;
+        }
+      }
+    }
+
+    if (in_quote || paren_count != 0)
+      ereturn(escontext, false,
+              (errcode(ERRCODE_INVALID_TEXT_REPRESENTATION),
+               errmsg("improper type name")));
+
+    ptr2 = ptr;
+
+    if (*ptr == ',') {
+      had_comma = true;
+      *ptr++ = '\0';
+    } else {
+      had_comma = false;
+      Assert(*ptr == '\0');
+    }
+
+    /* Lop off trailing whitespace */
+    while (--ptr2 >= typename) {
+      if (!scanner_isspace(*ptr2))
+        break;
+
+      *ptr2 = '\0';
+    }
+
+    if (allowNone && pg_strcasecmp(typename, "none") == 0) {
+      /* Special case for NONE */
+      typeid = InvalidOid;
+      typmod = -1;
+    } else {
+      /* Use full parser to resolve the type name */
+      if (!parseTypeString(typename, &typeid, &typmod, escontext))
+        return false;
+    }
+
+    if (*nargs >= FUNC_MAX_ARGS)
+      ereturn(escontext, false,
+              (errcode(ERRCODE_TOO_MANY_ARGUMENTS),
+               errmsg("too many arguments")));
+
+    argtypes[*nargs] = typeid;
+    (*nargs)++;
+  }
+
+  pfree(rawname);
+
+  return true;
 }

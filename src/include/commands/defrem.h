@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * defrem.h
- *	  POSTGRES define and remove utility definitions.
+ *    POSTGRES define and remove utility definitions.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -26,32 +26,32 @@ extern void RemoveObjects(DropStmt *stmt);
 
 /* commands/indexcmds.c */
 extern ObjectAddress DefineIndex(Oid tableId,
-								 IndexStmt *stmt,
-								 Oid indexRelationId,
-								 Oid parentIndexId,
-								 Oid parentConstraintId,
-								 int total_parts,
-								 bool is_alter_table,
-								 bool check_rights,
-								 bool check_not_in_use,
-								 bool skip_build,
-								 bool quiet);
+                                 IndexStmt *stmt,
+                                 Oid indexRelationId,
+                                 Oid parentIndexId,
+                                 Oid parentConstraintId,
+                                 int total_parts,
+                                 bool is_alter_table,
+                                 bool check_rights,
+                                 bool check_not_in_use,
+                                 bool skip_build,
+                                 bool quiet);
 extern void ExecReindex(ParseState *pstate, const ReindexStmt *stmt, bool isTopLevel);
 extern char *makeObjectName(const char *name1, const char *name2,
-							const char *label);
+                            const char *label);
 extern char *ChooseRelationName(const char *name1, const char *name2,
-								const char *label, Oid namespaceid,
-								bool isconstraint);
+                                const char *label, Oid namespaceid,
+                                bool isconstraint);
 extern bool CheckIndexCompatible(Oid oldId,
-								 const char *accessMethodName,
-								 const List *attributeList,
-								 const List *exclusionOpNames,
-								 bool isWithoutOverlaps);
-extern Oid	GetDefaultOpClass(Oid type_id, Oid am_id);
-extern Oid	ResolveOpClass(const List *opclass, Oid attrType,
-						   const char *accessMethodName, Oid accessMethodId);
+                                 const char *accessMethodName,
+                                 const List *attributeList,
+                                 const List *exclusionOpNames,
+                                 bool isWithoutOverlaps);
+extern Oid  GetDefaultOpClass(Oid type_id, Oid am_id);
+extern Oid  ResolveOpClass(const List *opclass, Oid attrType,
+                           const char *accessMethodName, Oid accessMethodId);
 extern void GetOperatorFromCompareType(Oid opclass, Oid rhstype, CompareType cmptype,
-									   Oid *opid, StrategyNumber *strat);
+                                       Oid *opid, StrategyNumber *strat);
 
 /* commands/functioncmds.c */
 extern ObjectAddress CreateFunction(ParseState *pstate, CreateFunctionStmt *stmt);
@@ -60,24 +60,24 @@ extern ObjectAddress AlterFunction(ParseState *pstate, AlterFunctionStmt *stmt);
 extern ObjectAddress CreateCast(CreateCastStmt *stmt);
 extern ObjectAddress CreateTransform(CreateTransformStmt *stmt);
 extern void IsThereFunctionInNamespace(const char *proname, int pronargs,
-									   oidvector *proargtypes, Oid nspOid);
+                                       oidvector *proargtypes, Oid nspOid);
 extern void ExecuteDoStmt(ParseState *pstate, DoStmt *stmt, bool atomic);
 extern void ExecuteCallStmt(CallStmt *stmt, ParamListInfo params, bool atomic, DestReceiver *dest);
 extern TupleDesc CallStmtResultDesc(CallStmt *stmt);
-extern Oid	get_transform_oid(Oid type_id, Oid lang_id, bool missing_ok);
+extern Oid  get_transform_oid(Oid type_id, Oid lang_id, bool missing_ok);
 extern void interpret_function_parameter_list(ParseState *pstate,
-											  List *parameters,
-											  Oid languageOid,
-											  ObjectType objtype,
-											  oidvector **parameterTypes,
-											  List **parameterTypes_list,
-											  ArrayType **allParameterTypes,
-											  ArrayType **parameterModes,
-											  ArrayType **parameterNames,
-											  List **inParameterNames_list,
-											  List **parameterDefaults,
-											  Oid *variadicArgType,
-											  Oid *requiredResultType);
+    List *parameters,
+    Oid languageOid,
+    ObjectType objtype,
+    oidvector **parameterTypes,
+    List **parameterTypes_list,
+    ArrayType **allParameterTypes,
+    ArrayType **parameterModes,
+    ArrayType **parameterNames,
+    List **inParameterNames_list,
+    List **parameterDefaults,
+    Oid *variadicArgType,
+    Oid *requiredResultType);
 
 /* commands/operatorcmds.c */
 extern ObjectAddress DefineOperator(List *names, List *parameters);
@@ -89,22 +89,22 @@ extern ObjectAddress CreateStatistics(CreateStatsStmt *stmt, bool check_rights);
 extern ObjectAddress AlterStatistics(AlterStatsStmt *stmt);
 extern void RemoveStatisticsById(Oid statsOid);
 extern void RemoveStatisticsDataById(Oid statsOid, bool inh);
-extern Oid	StatisticsGetRelation(Oid statId, bool missing_ok);
+extern Oid  StatisticsGetRelation(Oid statId, bool missing_ok);
 
 /* commands/aggregatecmds.c */
 extern ObjectAddress DefineAggregate(ParseState *pstate, List *name, List *args, bool oldstyle,
-									 List *parameters, bool replace);
+                                     List *parameters, bool replace);
 
 /* commands/opclasscmds.c */
 extern ObjectAddress DefineOpClass(CreateOpClassStmt *stmt);
 extern ObjectAddress DefineOpFamily(CreateOpFamilyStmt *stmt);
-extern Oid	AlterOpFamily(AlterOpFamilyStmt *stmt);
+extern Oid  AlterOpFamily(AlterOpFamilyStmt *stmt);
 extern void IsThereOpClassInNamespace(const char *opcname, Oid opcmethod,
-									  Oid opcnamespace);
+                                      Oid opcnamespace);
 extern void IsThereOpFamilyInNamespace(const char *opfname, Oid opfmethod,
-									   Oid opfnamespace);
-extern Oid	get_opclass_oid(Oid amID, List *opclassname, bool missing_ok);
-extern Oid	get_opfamily_oid(Oid amID, List *opfamilyname, bool missing_ok);
+                                       Oid opfnamespace);
+extern Oid  get_opclass_oid(Oid amID, List *opclassname, bool missing_ok);
+extern Oid  get_opfamily_oid(Oid amID, List *opfamilyname, bool missing_ok);
 
 /* commands/tsearchcmds.c */
 extern ObjectAddress DefineTSParser(List *names, List *parameters);
@@ -115,7 +115,7 @@ extern ObjectAddress AlterTSDictionary(AlterTSDictionaryStmt *stmt);
 extern ObjectAddress DefineTSTemplate(List *names, List *parameters);
 
 extern ObjectAddress DefineTSConfiguration(List *names, List *parameters,
-										   ObjectAddress *copied);
+    ObjectAddress *copied);
 extern void RemoveTSConfigurationById(Oid cfgId);
 extern ObjectAddress AlterTSConfiguration(AlterTSConfigurationStmt *stmt);
 
@@ -133,19 +133,19 @@ extern ObjectAddress CreateForeignServer(CreateForeignServerStmt *stmt);
 extern ObjectAddress AlterForeignServer(AlterForeignServerStmt *stmt);
 extern ObjectAddress CreateUserMapping(CreateUserMappingStmt *stmt);
 extern ObjectAddress AlterUserMapping(AlterUserMappingStmt *stmt);
-extern Oid	RemoveUserMapping(DropUserMappingStmt *stmt);
+extern Oid  RemoveUserMapping(DropUserMappingStmt *stmt);
 extern void CreateForeignTable(CreateForeignTableStmt *stmt, Oid relid);
 extern void ImportForeignSchema(ImportForeignSchemaStmt *stmt);
 extern Datum transformGenericOptions(Oid catalogId,
-									 Datum oldOptions,
-									 List *options,
-									 Oid fdwvalidator);
+                                     Datum oldOptions,
+                                     List *options,
+                                     Oid fdwvalidator);
 
 /* commands/amcmds.c */
 extern ObjectAddress CreateAccessMethod(CreateAmStmt *stmt);
-extern Oid	get_index_am_oid(const char *amname, bool missing_ok);
-extern Oid	get_table_am_oid(const char *amname, bool missing_ok);
-extern Oid	get_am_oid(const char *amname, bool missing_ok);
+extern Oid  get_index_am_oid(const char *amname, bool missing_ok);
+extern Oid  get_table_am_oid(const char *amname, bool missing_ok);
+extern Oid  get_am_oid(const char *amname, bool missing_ok);
 extern char *get_am_name(Oid amOid);
 
 /* support routines in commands/define.c */
@@ -155,11 +155,11 @@ extern double defGetNumeric(DefElem *def);
 extern bool defGetBoolean(DefElem *def);
 extern int32 defGetInt32(DefElem *def);
 extern int64 defGetInt64(DefElem *def);
-extern Oid	defGetObjectId(DefElem *def);
+extern Oid  defGetObjectId(DefElem *def);
 extern List *defGetQualifiedName(DefElem *def);
 extern TypeName *defGetTypeName(DefElem *def);
-extern int	defGetTypeLength(DefElem *def);
+extern int  defGetTypeLength(DefElem *def);
 extern List *defGetStringList(DefElem *def);
 pg_noreturn extern void errorConflictingDefElem(DefElem *defel, ParseState *pstate);
 
-#endif							/* DEFREM_H */
+#endif              /* DEFREM_H */

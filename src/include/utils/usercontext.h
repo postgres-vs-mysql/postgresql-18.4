@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * usercontext.h
- *	  Convenience functions for running code as a different database user.
+ *    Convenience functions for running code as a different database user.
  *
  *-------------------------------------------------------------------------
  */
@@ -14,13 +14,13 @@
  */
 typedef struct UserContext
 {
-	Oid			save_userid;
-	int			save_sec_context;
-	int			save_nestlevel;
+  Oid     save_userid;
+  int     save_sec_context;
+  int     save_nestlevel;
 } UserContext;
 
 /* Function prototypes. */
 extern void SwitchToUntrustedUser(Oid userid, UserContext *context);
 extern void RestoreUserContext(UserContext *context);
 
-#endif							/* USERCONTEXT_H */
+#endif              /* USERCONTEXT_H */

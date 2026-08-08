@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * fd.c
- *	  Virtual file descriptor code.
+ *    Virtual file descriptor code.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/storage/file/fd.c
+ *    src/backend/storage/file/fd.c
  *
  * NOTES:
  *
@@ -75,7 +75,7 @@
 #include <dirent.h>
 #include <sys/file.h>
 #include <sys/param.h>
-#include <sys/resource.h>		/* for getrlimit */
+#include <sys/resource.h>   /* for getrlimit */
 #include <sys/stat.h>
 #include <sys/types.h>
 #ifndef WIN32
@@ -126,7 +126,7 @@
  * the number of open files.  (This appears to be true on most if not
  * all platforms as of Feb 2004.)
  */
-#define NUM_RESERVED_FDS		10
+#define NUM_RESERVED_FDS    10
 
 /*
  * If we have fewer than this many usable FDs after allowing for the reserved
@@ -135,7 +135,7 @@
  * at least 16; as of this writing, the contrib/postgres_fdw regression tests
  * will not pass unless that can grow to at least 14.)
  */
-#define FD_MINFREE				48
+#define FD_MINFREE        48
 
 /*
  * A number of platforms allow individual processes to open many more files
@@ -143,7 +143,7 @@
  * This GUC parameter lets the DBA limit max_safe_fds to something less than
  * what the postmaster's initial probe suggests will work.
  */
-int			max_files_per_process = 1000;
+int     max_files_per_process = 1000;
 
 /*
  * Maximum number of file descriptors to open for operations that fd.c knows
@@ -156,59 +156,58 @@ int			max_files_per_process = 1000;
  * Note: the value of max_files_per_process is taken into account while
  * setting this variable, and so need not be tested separately.
  */
-int			max_safe_fds = FD_MINFREE;	/* default if not changed */
+int     max_safe_fds = FD_MINFREE;  /* default if not changed */
 
 /* Whether it is safe to continue running after fsync() fails. */
-bool		data_sync_retry = false;
+bool    data_sync_retry = false;
 
 /* How SyncDataDirectory() should do its job. */
-int			recovery_init_sync_method = DATA_DIR_SYNC_METHOD_FSYNC;
+int     recovery_init_sync_method = DATA_DIR_SYNC_METHOD_FSYNC;
 
 /* How data files should be bulk-extended with zeros. */
-int			file_extend_method = DEFAULT_FILE_EXTEND_METHOD;
+int     file_extend_method = DEFAULT_FILE_EXTEND_METHOD;
 
 /* Which kinds of files should be opened with PG_O_DIRECT. */
-int			io_direct_flags;
+int     io_direct_flags;
 
 /* Debugging.... */
 
 #ifdef FDDEBUG
 #define DO_DB(A) \
-	do { \
-		int			_do_db_save_errno = errno; \
-		A; \
-		errno = _do_db_save_errno; \
-	} while (0)
+  do { \
+    int     _do_db_save_errno = errno; \
+    A; \
+    errno = _do_db_save_errno; \
+  } while (0)
 #else
 #define DO_DB(A) \
-	((void) 0)
+  ((void) 0)
 #endif
 
 #define VFD_CLOSED (-1)
 
 #define FileIsValid(file) \
-	((file) > 0 && (file) < (int) SizeVfdCache && VfdCache[file].fileName != NULL)
+  ((file) > 0 && (file) < (int) SizeVfdCache && VfdCache[file].fileName != NULL)
 
 #define FileIsNotOpen(file) (VfdCache[file].fd == VFD_CLOSED)
 
 /* these are the assigned bits in fdstate below: */
-#define FD_DELETE_AT_CLOSE	(1 << 0)	/* T = delete when closed */
-#define FD_CLOSE_AT_EOXACT	(1 << 1)	/* T = close at eoXact */
-#define FD_TEMP_FILE_LIMIT	(1 << 2)	/* T = respect temp_file_limit */
+#define FD_DELETE_AT_CLOSE  (1 << 0)  /* T = delete when closed */
+#define FD_CLOSE_AT_EOXACT  (1 << 1)  /* T = close at eoXact */
+#define FD_TEMP_FILE_LIMIT  (1 << 2)  /* T = respect temp_file_limit */
 
-typedef struct vfd
-{
-	int			fd;				/* current FD, or VFD_CLOSED if none */
-	unsigned short fdstate;		/* bitflags for VFD's state */
-	ResourceOwner resowner;		/* owner, for automatic cleanup */
-	File		nextFree;		/* link to next free VFD, if in freelist */
-	File		lruMoreRecently;	/* doubly linked recency-of-use list */
-	File		lruLessRecently;
-	off_t		fileSize;		/* current size of file (0 if not temporary) */
-	char	   *fileName;		/* name of file, or NULL for unused VFD */
-	/* NB: fileName is malloc'd, and must be free'd when closing the VFD */
-	int			fileFlags;		/* open(2) flags for (re)opening the file */
-	mode_t		fileMode;		/* mode to pass to open(2) */
+typedef struct vfd {
+  int     fd;       /* current FD, or VFD_CLOSED if none */
+  unsigned short fdstate;   /* bitflags for VFD's state */
+  ResourceOwner resowner;   /* owner, for automatic cleanup */
+  File    nextFree;   /* link to next free VFD, if in freelist */
+  File    lruMoreRecently;  /* doubly linked recency-of-use list */
+  File    lruLessRecently;
+  off_t   fileSize;   /* current size of file (0 if not temporary) */
+  char     *fileName;   /* name of file, or NULL for unused VFD */
+  /* NB: fileName is malloc'd, and must be free'd when closing the VFD */
+  int     fileFlags;    /* open(2) flags for (re)opening the file */
+  mode_t    fileMode;   /* mode to pass to open(2) */
 } Vfd;
 
 /*
@@ -222,7 +221,7 @@ static Size SizeVfdCache = 0;
 /*
  * Number of file descriptors known to be in use by VFD entries.
  */
-static int	nfile = 0;
+static int  nfile = 0;
 
 /*
  * Flag to tell whether it's worth scanning VfdCache looking for temp files
@@ -247,34 +246,31 @@ static bool temporary_files_allowed = false;
  * List of OS handles opened with AllocateFile, AllocateDir and
  * OpenTransientFile.
  */
-typedef enum
-{
-	AllocateDescFile,
-	AllocateDescPipe,
-	AllocateDescDir,
-	AllocateDescRawFD,
+typedef enum {
+  AllocateDescFile,
+  AllocateDescPipe,
+  AllocateDescDir,
+  AllocateDescRawFD,
 } AllocateDescKind;
 
-typedef struct
-{
-	AllocateDescKind kind;
-	SubTransactionId create_subid;
-	union
-	{
-		FILE	   *file;
-		DIR		   *dir;
-		int			fd;
-	}			desc;
+typedef struct {
+  AllocateDescKind kind;
+  SubTransactionId create_subid;
+  union {
+    FILE     *file;
+    DIR      *dir;
+    int     fd;
+  }     desc;
 } AllocateDesc;
 
-static int	numAllocatedDescs = 0;
-static int	maxAllocatedDescs = 0;
+static int  numAllocatedDescs = 0;
+static int  maxAllocatedDescs = 0;
 static AllocateDesc *allocatedDescs = NULL;
 
 /*
  * Number of open "external" FDs reported to Reserve/ReleaseExternalFD.
  */
-static int	numExternalFDs = 0;
+static int  numExternalFDs = 0;
 
 /*
  * Number of temporary files opened during the current session;
@@ -289,22 +285,22 @@ static long tempFileCounter = 0;
  * transaction.
  */
 static Oid *tempTableSpaces = NULL;
-static int	numTempTableSpaces = -1;
-static int	nextTempTableSpace = 0;
+static int  numTempTableSpaces = -1;
+static int  nextTempTableSpace = 0;
 
 
 /*--------------------
  *
  * Private Routines
  *
- * Delete		   - delete a file from the Lru ring
- * LruDelete	   - remove a file from the Lru ring and close its FD
- * Insert		   - put a file at the front of the Lru ring
- * LruInsert	   - put a file at the front of the Lru ring and open it
+ * Delete      - delete a file from the Lru ring
+ * LruDelete     - remove a file from the Lru ring and close its FD
+ * Insert      - put a file at the front of the Lru ring
+ * LruInsert     - put a file at the front of the Lru ring and open it
  * ReleaseLruFile  - Release an fd by closing the last entry in the Lru ring
  * ReleaseLruFiles - Release fd(s) until we're under the max_safe_fds limit
- * AllocateVfd	   - grab a free (or new) file record (from VfdCache)
- * FreeVfd		   - free a file record
+ * AllocateVfd     - grab a free (or new) file record (from VfdCache)
+ * FreeVfd       - free a file record
  *
  * The Least Recently Used ring is a doubly linked list that begins and
  * ends on element zero.  Element zero is special -- it doesn't represent
@@ -316,28 +312,28 @@ static int	nextTempTableSpace = 0;
  *
  * example:
  *
- *	   /--less----\				   /---------\
- *	   v		   \			  v			  \
- *	 #0 --more---> LeastRecentlyUsed --more-\ \
- *	  ^\									| |
- *	   \\less--> MostRecentlyUsedFile	<---/ |
- *		\more---/					 \--less--/
+ *     /--less----\          /---------\
+ *     v       \        v       \
+ *   #0 --more---> LeastRecentlyUsed --more-\ \
+ *    ^\                  | |
+ *     \\less--> MostRecentlyUsedFile <---/ |
+ *    \more---/          \--less--/
  *
  *--------------------
  */
 static void Delete(File file);
 static void LruDelete(File file);
 static void Insert(File file);
-static int	LruInsert(File file);
+static int  LruInsert(File file);
 static bool ReleaseLruFile(void);
 static void ReleaseLruFiles(void);
 static File AllocateVfd(void);
 static void FreeVfd(File file);
 
-static int	FileAccess(File file);
+static int  FileAccess(File file);
 static File OpenTemporaryFileInTablespace(Oid tblspcOid, bool rejectError);
 static bool reserveAllocatedDesc(void);
-static int	FreeDesc(AllocateDesc *desc);
+static int  FreeDesc(AllocateDesc *desc);
 
 static void BeforeShmemExit_Files(int code, Datum arg);
 static void CleanupTempFiles(bool isCommit, bool isProcExit);
@@ -345,41 +341,40 @@ static void RemovePgTempRelationFiles(const char *tsdirname);
 static void RemovePgTempRelationFilesInDbspace(const char *dbspacedirname);
 
 static void walkdir(const char *path,
-					void (*action) (const char *fname, bool isdir, int elevel),
-					bool process_symlinks,
-					int elevel);
+                    void (*action) (const char *fname, bool isdir, int elevel),
+                    bool process_symlinks,
+                    int elevel);
 #ifdef PG_FLUSH_DATA_WORKS
 static void pre_sync_fname(const char *fname, bool isdir, int elevel);
 #endif
 static void datadir_fsync_fname(const char *fname, bool isdir, int elevel);
 static void unlink_if_exists_fname(const char *fname, bool isdir, int elevel);
 
-static int	fsync_parent_path(const char *fname, int elevel);
+static int  fsync_parent_path(const char *fname, int elevel);
 
 
 /* ResourceOwner callbacks to hold virtual file descriptors */
 static void ResOwnerReleaseFile(Datum res);
 static char *ResOwnerPrintFile(Datum res);
 
-static const ResourceOwnerDesc file_resowner_desc =
-{
-	.name = "File",
-	.release_phase = RESOURCE_RELEASE_AFTER_LOCKS,
-	.release_priority = RELEASE_PRIO_FILES,
-	.ReleaseResource = ResOwnerReleaseFile,
-	.DebugPrint = ResOwnerPrintFile
+static const ResourceOwnerDesc file_resowner_desc = {
+  .name = "File",
+  .release_phase = RESOURCE_RELEASE_AFTER_LOCKS,
+  .release_priority = RELEASE_PRIO_FILES,
+  .ReleaseResource = ResOwnerReleaseFile,
+  .DebugPrint = ResOwnerPrintFile
 };
 
 /* Convenience wrappers over ResourceOwnerRemember/Forget */
 static inline void
 ResourceOwnerRememberFile(ResourceOwner owner, File file)
 {
-	ResourceOwnerRemember(owner, Int32GetDatum(file), &file_resowner_desc);
+  ResourceOwnerRemember(owner, Int32GetDatum(file), &file_resowner_desc);
 }
 static inline void
 ResourceOwnerForgetFile(ResourceOwner owner, File file)
 {
-	ResourceOwnerForget(owner, Int32GetDatum(file), &file_resowner_desc);
+  ResourceOwnerForget(owner, Int32GetDatum(file), &file_resowner_desc);
 }
 
 /*
@@ -389,69 +384,70 @@ int
 pg_fsync(int fd)
 {
 #if !defined(WIN32) && defined(USE_ASSERT_CHECKING)
-	struct stat st;
+  struct stat st;
 
-	/*
-	 * Some operating system implementations of fsync() have requirements
-	 * about the file access modes that were used when their file descriptor
-	 * argument was opened, and these requirements differ depending on whether
-	 * the file descriptor is for a directory.
-	 *
-	 * For any file descriptor that may eventually be handed to fsync(), we
-	 * should have opened it with access modes that are compatible with
-	 * fsync() on all supported systems, otherwise the code may not be
-	 * portable, even if it runs ok on the current system.
-	 *
-	 * We assert here that a descriptor for a file was opened with write
-	 * permissions (i.e., not O_RDONLY) and for a directory without write
-	 * permissions (O_RDONLY).  Notice that the assertion check is made even
-	 * if fsync() is disabled.
-	 *
-	 * If fstat() fails, ignore it and let the follow-up fsync() complain.
-	 */
-	if (fstat(fd, &st) == 0)
-	{
-		int			desc_flags = fcntl(fd, F_GETFL);
+  /*
+   * Some operating system implementations of fsync() have requirements
+   * about the file access modes that were used when their file descriptor
+   * argument was opened, and these requirements differ depending on whether
+   * the file descriptor is for a directory.
+   *
+   * For any file descriptor that may eventually be handed to fsync(), we
+   * should have opened it with access modes that are compatible with
+   * fsync() on all supported systems, otherwise the code may not be
+   * portable, even if it runs ok on the current system.
+   *
+   * We assert here that a descriptor for a file was opened with write
+   * permissions (i.e., not O_RDONLY) and for a directory without write
+   * permissions (O_RDONLY).  Notice that the assertion check is made even
+   * if fsync() is disabled.
+   *
+   * If fstat() fails, ignore it and let the follow-up fsync() complain.
+   */
+  if (fstat(fd, &st) == 0) {
+    int     desc_flags = fcntl(fd, F_GETFL);
 
-		desc_flags &= O_ACCMODE;
+    desc_flags &= O_ACCMODE;
 
-		if (S_ISDIR(st.st_mode))
-			Assert(desc_flags == O_RDONLY);
-		else
-			Assert(desc_flags != O_RDONLY);
-	}
-	errno = 0;
+    if (S_ISDIR(st.st_mode))
+      Assert(desc_flags == O_RDONLY);
+    else
+      Assert(desc_flags != O_RDONLY);
+  }
+
+  errno = 0;
 #endif
 
-	/* #if is to skip the wal_sync_method test if there's no need for it */
+  /* #if is to skip the wal_sync_method test if there's no need for it */
 #if defined(HAVE_FSYNC_WRITETHROUGH)
-	if (wal_sync_method == WAL_SYNC_METHOD_FSYNC_WRITETHROUGH)
-		return pg_fsync_writethrough(fd);
-	else
+
+  if (wal_sync_method == WAL_SYNC_METHOD_FSYNC_WRITETHROUGH)
+    return pg_fsync_writethrough(fd);
+  else
 #endif
-		return pg_fsync_no_writethrough(fd);
+    return pg_fsync_no_writethrough(fd);
 }
 
 
 /*
  * pg_fsync_no_writethrough --- same as fsync except does nothing if
- *	enableFsync is off
+ *  enableFsync is off
  */
 int
 pg_fsync_no_writethrough(int fd)
 {
-	int			rc;
+  int     rc;
 
-	if (!enableFsync)
-		return 0;
+  if (!enableFsync)
+    return 0;
 
 retry:
-	rc = fsync(fd);
+  rc = fsync(fd);
 
-	if (rc == -1 && errno == EINTR)
-		goto retry;
+  if (rc == -1 && errno == EINTR)
+    goto retry;
 
-	return rc;
+  return rc;
 }
 
 /*
@@ -460,17 +456,15 @@ retry:
 int
 pg_fsync_writethrough(int fd)
 {
-	if (enableFsync)
-	{
+  if (enableFsync) {
 #if defined(F_FULLFSYNC)
-		return (fcntl(fd, F_FULLFSYNC, 0) == -1) ? -1 : 0;
+    return (fcntl(fd, F_FULLFSYNC, 0) == -1) ? -1 : 0;
 #else
-		errno = ENOSYS;
-		return -1;
+    errno = ENOSYS;
+    return -1;
 #endif
-	}
-	else
-		return 0;
+  } else
+    return 0;
 }
 
 /*
@@ -479,18 +473,18 @@ pg_fsync_writethrough(int fd)
 int
 pg_fdatasync(int fd)
 {
-	int			rc;
+  int     rc;
 
-	if (!enableFsync)
-		return 0;
+  if (!enableFsync)
+    return 0;
 
 retry:
-	rc = fdatasync(fd);
+  rc = fdatasync(fd);
 
-	if (rc == -1 && errno == EINTR)
-		goto retry;
+  if (rc == -1 && errno == EINTR)
+    goto retry;
 
-	return rc;
+  return rc;
 }
 
 /*
@@ -502,18 +496,18 @@ retry:
 bool
 pg_file_exists(const char *name)
 {
-	struct stat st;
+  struct stat st;
 
-	Assert(name != NULL);
+  Assert(name != NULL);
 
-	if (stat(name, &st) == 0)
-		return !S_ISDIR(st.st_mode);
-	else if (!(errno == ENOENT || errno == ENOTDIR || errno == EACCES))
-		ereport(ERROR,
-				(errcode_for_file_access(),
-				 errmsg("could not access file \"%s\": %m", name)));
+  if (stat(name, &st) == 0)
+    return !S_ISDIR(st.st_mode);
+  else if (!(errno == ENOENT || errno == ENOTDIR || errno == EACCES))
+    ereport(ERROR,
+            (errcode_for_file_access(),
+             errmsg("could not access file \"%s\": %m", name)));
 
-	return false;
+  return false;
 }
 
 /*
@@ -524,175 +518,170 @@ pg_file_exists(const char *name)
 void
 pg_flush_data(int fd, off_t offset, off_t nbytes)
 {
-	/*
-	 * Right now file flushing is primarily used to avoid making later
-	 * fsync()/fdatasync() calls have less impact. Thus don't trigger flushes
-	 * if fsyncs are disabled - that's a decision we might want to make
-	 * configurable at some point.
-	 */
-	if (!enableFsync)
-		return;
+  /*
+   * Right now file flushing is primarily used to avoid making later
+   * fsync()/fdatasync() calls have less impact. Thus don't trigger flushes
+   * if fsyncs are disabled - that's a decision we might want to make
+   * configurable at some point.
+   */
+  if (!enableFsync)
+    return;
 
-	/*
-	 * We compile all alternatives that are supported on the current platform,
-	 * to find portability problems more easily.
-	 */
+  /*
+   * We compile all alternatives that are supported on the current platform,
+   * to find portability problems more easily.
+   */
 #if defined(HAVE_SYNC_FILE_RANGE)
-	{
-		int			rc;
-		static bool not_implemented_by_kernel = false;
+  {
+    int     rc;
+    static bool not_implemented_by_kernel = false;
 
-		if (not_implemented_by_kernel)
-			return;
+    if (not_implemented_by_kernel)
+      return;
 
 retry:
 
-		/*
-		 * sync_file_range(SYNC_FILE_RANGE_WRITE), currently linux specific,
-		 * tells the OS that writeback for the specified blocks should be
-		 * started, but that we don't want to wait for completion.  Note that
-		 * this call might block if too much dirty data exists in the range.
-		 * This is the preferable method on OSs supporting it, as it works
-		 * reliably when available (contrast to msync()) and doesn't flush out
-		 * clean data (like FADV_DONTNEED).
-		 */
-		rc = sync_file_range(fd, offset, nbytes,
-							 SYNC_FILE_RANGE_WRITE);
-		if (rc != 0)
-		{
-			int			elevel;
+    /*
+     * sync_file_range(SYNC_FILE_RANGE_WRITE), currently linux specific,
+     * tells the OS that writeback for the specified blocks should be
+     * started, but that we don't want to wait for completion.  Note that
+     * this call might block if too much dirty data exists in the range.
+     * This is the preferable method on OSs supporting it, as it works
+     * reliably when available (contrast to msync()) and doesn't flush out
+     * clean data (like FADV_DONTNEED).
+     */
+    rc = sync_file_range(fd, offset, nbytes,
+                         SYNC_FILE_RANGE_WRITE);
 
-			if (errno == EINTR)
-				goto retry;
+    if (rc != 0) {
+      int     elevel;
 
-			/*
-			 * For systems that don't have an implementation of
-			 * sync_file_range() such as Windows WSL, generate only one
-			 * warning and then suppress all further attempts by this process.
-			 */
-			if (errno == ENOSYS)
-			{
-				elevel = WARNING;
-				not_implemented_by_kernel = true;
-			}
-			else
-				elevel = data_sync_elevel(WARNING);
+      if (errno == EINTR)
+        goto retry;
 
-			ereport(elevel,
-					(errcode_for_file_access(),
-					 errmsg("could not flush dirty data: %m")));
-		}
+      /*
+       * For systems that don't have an implementation of
+       * sync_file_range() such as Windows WSL, generate only one
+       * warning and then suppress all further attempts by this process.
+       */
+      if (errno == ENOSYS) {
+        elevel = WARNING;
+        not_implemented_by_kernel = true;
+      } else
+        elevel = data_sync_elevel(WARNING);
 
-		return;
-	}
+      ereport(elevel,
+              (errcode_for_file_access(),
+               errmsg("could not flush dirty data: %m")));
+    }
+
+    return;
+  }
 #endif
 #if !defined(WIN32) && defined(MS_ASYNC)
-	{
-		void	   *p;
-		static int	pagesize = 0;
+  {
+    void     *p;
+    static int  pagesize = 0;
 
-		/*
-		 * On several OSs msync(MS_ASYNC) on a mmap'ed file triggers
-		 * writeback. On linux it only does so if MS_SYNC is specified, but
-		 * then it does the writeback synchronously. Luckily all common linux
-		 * systems have sync_file_range().  This is preferable over
-		 * FADV_DONTNEED because it doesn't flush out clean data.
-		 *
-		 * We map the file (mmap()), tell the kernel to sync back the contents
-		 * (msync()), and then remove the mapping again (munmap()).
-		 */
+    /*
+     * On several OSs msync(MS_ASYNC) on a mmap'ed file triggers
+     * writeback. On linux it only does so if MS_SYNC is specified, but
+     * then it does the writeback synchronously. Luckily all common linux
+     * systems have sync_file_range().  This is preferable over
+     * FADV_DONTNEED because it doesn't flush out clean data.
+     *
+     * We map the file (mmap()), tell the kernel to sync back the contents
+     * (msync()), and then remove the mapping again (munmap()).
+     */
 
-		/* mmap() needs actual length if we want to map whole file */
-		if (offset == 0 && nbytes == 0)
-		{
-			nbytes = lseek(fd, 0, SEEK_END);
-			if (nbytes < 0)
-			{
-				ereport(WARNING,
-						(errcode_for_file_access(),
-						 errmsg("could not determine dirty data size: %m")));
-				return;
-			}
-		}
+    /* mmap() needs actual length if we want to map whole file */
+    if (offset == 0 && nbytes == 0) {
+      nbytes = lseek(fd, 0, SEEK_END);
 
-		/*
-		 * Some platforms reject partial-page mmap() attempts.  To deal with
-		 * that, just truncate the request to a page boundary.  If any extra
-		 * bytes don't get flushed, well, it's only a hint anyway.
-		 */
+      if (nbytes < 0) {
+        ereport(WARNING,
+                (errcode_for_file_access(),
+                 errmsg("could not determine dirty data size: %m")));
+        return;
+      }
+    }
 
-		/* fetch pagesize only once */
-		if (pagesize == 0)
-			pagesize = sysconf(_SC_PAGESIZE);
+    /*
+     * Some platforms reject partial-page mmap() attempts.  To deal with
+     * that, just truncate the request to a page boundary.  If any extra
+     * bytes don't get flushed, well, it's only a hint anyway.
+     */
 
-		/* align length to pagesize, dropping any fractional page */
-		if (pagesize > 0)
-			nbytes = (nbytes / pagesize) * pagesize;
+    /* fetch pagesize only once */
+    if (pagesize == 0)
+      pagesize = sysconf(_SC_PAGESIZE);
 
-		/* fractional-page request is a no-op */
-		if (nbytes <= 0)
-			return;
+    /* align length to pagesize, dropping any fractional page */
+    if (pagesize > 0)
+      nbytes = (nbytes / pagesize) * pagesize;
 
-		/*
-		 * mmap could well fail, particularly on 32-bit platforms where there
-		 * may simply not be enough address space.  If so, silently fall
-		 * through to the next implementation.
-		 */
-		if (nbytes <= (off_t) SSIZE_MAX)
-			p = mmap(NULL, nbytes, PROT_READ, MAP_SHARED, fd, offset);
-		else
-			p = MAP_FAILED;
+    /* fractional-page request is a no-op */
+    if (nbytes <= 0)
+      return;
 
-		if (p != MAP_FAILED)
-		{
-			int			rc;
+    /*
+     * mmap could well fail, particularly on 32-bit platforms where there
+     * may simply not be enough address space.  If so, silently fall
+     * through to the next implementation.
+     */
+    if (nbytes <= (off_t) SSIZE_MAX)
+      p = mmap(NULL, nbytes, PROT_READ, MAP_SHARED, fd, offset);
+    else
+      p = MAP_FAILED;
 
-			rc = msync(p, (size_t) nbytes, MS_ASYNC);
-			if (rc != 0)
-			{
-				ereport(data_sync_elevel(WARNING),
-						(errcode_for_file_access(),
-						 errmsg("could not flush dirty data: %m")));
-				/* NB: need to fall through to munmap()! */
-			}
+    if (p != MAP_FAILED) {
+      int     rc;
 
-			rc = munmap(p, (size_t) nbytes);
-			if (rc != 0)
-			{
-				/* FATAL error because mapping would remain */
-				ereport(FATAL,
-						(errcode_for_file_access(),
-						 errmsg("could not munmap() while flushing data: %m")));
-			}
+      rc = msync(p, (size_t) nbytes, MS_ASYNC);
 
-			return;
-		}
-	}
+      if (rc != 0) {
+        ereport(data_sync_elevel(WARNING),
+                (errcode_for_file_access(),
+                 errmsg("could not flush dirty data: %m")));
+        /* NB: need to fall through to munmap()! */
+      }
+
+      rc = munmap(p, (size_t) nbytes);
+
+      if (rc != 0) {
+        /* FATAL error because mapping would remain */
+        ereport(FATAL,
+                (errcode_for_file_access(),
+                 errmsg("could not munmap() while flushing data: %m")));
+      }
+
+      return;
+    }
+  }
 #endif
 #if defined(USE_POSIX_FADVISE) && defined(POSIX_FADV_DONTNEED)
-	{
-		int			rc;
+  {
+    int     rc;
 
-		/*
-		 * Signal the kernel that the passed in range should not be cached
-		 * anymore. This has the, desired, side effect of writing out dirty
-		 * data, and the, undesired, side effect of likely discarding useful
-		 * clean cached blocks.  For the latter reason this is the least
-		 * preferable method.
-		 */
+    /*
+     * Signal the kernel that the passed in range should not be cached
+     * anymore. This has the, desired, side effect of writing out dirty
+     * data, and the, undesired, side effect of likely discarding useful
+     * clean cached blocks.  For the latter reason this is the least
+     * preferable method.
+     */
 
-		rc = posix_fadvise(fd, offset, nbytes, POSIX_FADV_DONTNEED);
+    rc = posix_fadvise(fd, offset, nbytes, POSIX_FADV_DONTNEED);
 
-		if (rc != 0)
-		{
-			/* don't error out, this is just a performance optimization */
-			ereport(WARNING,
-					(errcode_for_file_access(),
-					 errmsg("could not flush dirty data: %m")));
-		}
+    if (rc != 0) {
+      /* don't error out, this is just a performance optimization */
+      ereport(WARNING,
+              (errcode_for_file_access(),
+               errmsg("could not flush dirty data: %m")));
+    }
 
-		return;
-	}
+    return;
+  }
 #endif
 }
 
@@ -702,15 +691,15 @@ retry:
 static int
 pg_ftruncate(int fd, off_t length)
 {
-	int			ret;
+  int     ret;
 
 retry:
-	ret = ftruncate(fd, length);
+  ret = ftruncate(fd, length);
 
-	if (ret == -1 && errno == EINTR)
-		goto retry;
+  if (ret == -1 && errno == EINTR)
+    goto retry;
 
-	return ret;
+  return ret;
 }
 
 /*
@@ -719,31 +708,32 @@ retry:
 int
 pg_truncate(const char *path, off_t length)
 {
-	int			ret;
+  int     ret;
 #ifdef WIN32
-	int			save_errno;
-	int			fd;
+  int     save_errno;
+  int     fd;
 
-	fd = OpenTransientFile(path, O_RDWR | PG_BINARY);
-	if (fd >= 0)
-	{
-		ret = pg_ftruncate(fd, length);
-		save_errno = errno;
-		CloseTransientFile(fd);
-		errno = save_errno;
-	}
-	else
-		ret = -1;
+  fd = OpenTransientFile(path, O_RDWR | PG_BINARY);
+
+  if (fd >= 0) {
+    ret = pg_ftruncate(fd, length);
+    save_errno = errno;
+    CloseTransientFile(fd);
+    errno = save_errno;
+  } else
+    ret = -1;
+
 #else
 
 retry:
-	ret = truncate(path, length);
+  ret = truncate(path, length);
 
-	if (ret == -1 && errno == EINTR)
-		goto retry;
+  if (ret == -1 && errno == EINTR)
+    goto retry;
+
 #endif
 
-	return ret;
+  return ret;
 }
 
 /*
@@ -755,7 +745,7 @@ retry:
 void
 fsync_fname(const char *fname, bool isdir)
 {
-	fsync_fname_ext(fname, isdir, false, data_sync_elevel(ERROR));
+  fsync_fname_ext(fname, isdir, false, data_sync_elevel(ERROR));
 }
 
 /*
@@ -781,76 +771,70 @@ fsync_fname(const char *fname, bool isdir)
 int
 durable_rename(const char *oldfile, const char *newfile, int elevel)
 {
-	int			fd;
+  int     fd;
 
-	/*
-	 * First fsync the old and target path (if it exists), to ensure that they
-	 * are properly persistent on disk. Syncing the target file is not
-	 * strictly necessary, but it makes it easier to reason about crashes;
-	 * because it's then guaranteed that either source or target file exists
-	 * after a crash.
-	 */
-	if (fsync_fname_ext(oldfile, false, false, elevel) != 0)
-		return -1;
+  /*
+   * First fsync the old and target path (if it exists), to ensure that they
+   * are properly persistent on disk. Syncing the target file is not
+   * strictly necessary, but it makes it easier to reason about crashes;
+   * because it's then guaranteed that either source or target file exists
+   * after a crash.
+   */
+  if (fsync_fname_ext(oldfile, false, false, elevel) != 0)
+    return -1;
 
-	fd = OpenTransientFile(newfile, PG_BINARY | O_RDWR);
-	if (fd < 0)
-	{
-		if (errno != ENOENT)
-		{
-			ereport(elevel,
-					(errcode_for_file_access(),
-					 errmsg("could not open file \"%s\": %m", newfile)));
-			return -1;
-		}
-	}
-	else
-	{
-		if (pg_fsync(fd) != 0)
-		{
-			int			save_errno;
+  fd = OpenTransientFile(newfile, PG_BINARY | O_RDWR);
 
-			/* close file upon error, might not be in transaction context */
-			save_errno = errno;
-			CloseTransientFile(fd);
-			errno = save_errno;
+  if (fd < 0) {
+    if (errno != ENOENT) {
+      ereport(elevel,
+              (errcode_for_file_access(),
+               errmsg("could not open file \"%s\": %m", newfile)));
+      return -1;
+    }
+  } else {
+    if (pg_fsync(fd) != 0) {
+      int     save_errno;
 
-			ereport(elevel,
-					(errcode_for_file_access(),
-					 errmsg("could not fsync file \"%s\": %m", newfile)));
-			return -1;
-		}
+      /* close file upon error, might not be in transaction context */
+      save_errno = errno;
+      CloseTransientFile(fd);
+      errno = save_errno;
 
-		if (CloseTransientFile(fd) != 0)
-		{
-			ereport(elevel,
-					(errcode_for_file_access(),
-					 errmsg("could not close file \"%s\": %m", newfile)));
-			return -1;
-		}
-	}
+      ereport(elevel,
+              (errcode_for_file_access(),
+               errmsg("could not fsync file \"%s\": %m", newfile)));
+      return -1;
+    }
 
-	/* Time to do the real deal... */
-	if (rename(oldfile, newfile) < 0)
-	{
-		ereport(elevel,
-				(errcode_for_file_access(),
-				 errmsg("could not rename file \"%s\" to \"%s\": %m",
-						oldfile, newfile)));
-		return -1;
-	}
+    if (CloseTransientFile(fd) != 0) {
+      ereport(elevel,
+              (errcode_for_file_access(),
+               errmsg("could not close file \"%s\": %m", newfile)));
+      return -1;
+    }
+  }
 
-	/*
-	 * To guarantee renaming the file is persistent, fsync the file with its
-	 * new name, and its containing directory.
-	 */
-	if (fsync_fname_ext(newfile, false, false, elevel) != 0)
-		return -1;
+  /* Time to do the real deal... */
+  if (rename(oldfile, newfile) < 0) {
+    ereport(elevel,
+            (errcode_for_file_access(),
+             errmsg("could not rename file \"%s\" to \"%s\": %m",
+                    oldfile, newfile)));
+    return -1;
+  }
 
-	if (fsync_parent_path(newfile, elevel) != 0)
-		return -1;
+  /*
+   * To guarantee renaming the file is persistent, fsync the file with its
+   * new name, and its containing directory.
+   */
+  if (fsync_fname_ext(newfile, false, false, elevel) != 0)
+    return -1;
 
-	return 0;
+  if (fsync_parent_path(newfile, elevel) != 0)
+    return -1;
+
+  return 0;
 }
 
 /*
@@ -871,23 +855,22 @@ durable_rename(const char *oldfile, const char *newfile, int elevel)
 int
 durable_unlink(const char *fname, int elevel)
 {
-	if (unlink(fname) < 0)
-	{
-		ereport(elevel,
-				(errcode_for_file_access(),
-				 errmsg("could not remove file \"%s\": %m",
-						fname)));
-		return -1;
-	}
+  if (unlink(fname) < 0) {
+    ereport(elevel,
+            (errcode_for_file_access(),
+             errmsg("could not remove file \"%s\": %m",
+                    fname)));
+    return -1;
+  }
 
-	/*
-	 * To guarantee that the removal of the file is persistent, fsync its
-	 * parent directory.
-	 */
-	if (fsync_parent_path(fname, elevel) != 0)
-		return -1;
+  /*
+   * To guarantee that the removal of the file is persistent, fsync its
+   * parent directory.
+   */
+  if (fsync_parent_path(fname, elevel) != 0)
+    return -1;
 
-	return 0;
+  return 0;
 }
 
 /*
@@ -902,19 +885,20 @@ durable_unlink(const char *fname, int elevel)
 void
 InitFileAccess(void)
 {
-	Assert(SizeVfdCache == 0);	/* call me only once */
+  Assert(SizeVfdCache == 0);  /* call me only once */
 
-	/* initialize cache header entry */
-	VfdCache = (Vfd *) malloc(sizeof(Vfd));
-	if (VfdCache == NULL)
-		ereport(FATAL,
-				(errcode(ERRCODE_OUT_OF_MEMORY),
-				 errmsg("out of memory")));
+  /* initialize cache header entry */
+  VfdCache = (Vfd *) malloc(sizeof(Vfd));
 
-	MemSet(&(VfdCache[0]), 0, sizeof(Vfd));
-	VfdCache->fd = VFD_CLOSED;
+  if (VfdCache == NULL)
+    ereport(FATAL,
+            (errcode(ERRCODE_OUT_OF_MEMORY),
+             errmsg("out of memory")));
 
-	SizeVfdCache = 1;
+  MemSet(&(VfdCache[0]), 0, sizeof(Vfd));
+  VfdCache->fd = VFD_CLOSED;
+
+  SizeVfdCache = 1;
 }
 
 /*
@@ -932,23 +916,23 @@ InitFileAccess(void)
 void
 InitTemporaryFileAccess(void)
 {
-	Assert(SizeVfdCache != 0);	/* InitFileAccess() needs to have run */
-	Assert(!temporary_files_allowed);	/* call me only once */
+  Assert(SizeVfdCache != 0);  /* InitFileAccess() needs to have run */
+  Assert(!temporary_files_allowed); /* call me only once */
 
-	/*
-	 * Register before-shmem-exit hook to ensure temp files are dropped while
-	 * we can still report stats.
-	 */
-	before_shmem_exit(BeforeShmemExit_Files, 0);
+  /*
+   * Register before-shmem-exit hook to ensure temp files are dropped while
+   * we can still report stats.
+   */
+  before_shmem_exit(BeforeShmemExit_Files, 0);
 
 #ifdef USE_ASSERT_CHECKING
-	temporary_files_allowed = true;
+  temporary_files_allowed = true;
 #endif
 }
 
 /*
  * count_usable_fds --- count how many FDs the system will let us open,
- *		and estimate how many are already open.
+ *    and estimate how many are already open.
  *
  * We stop counting if usable_fds reaches max_to_probe.  Note: a small
  * value of max_to_probe might result in an underestimate of already_open;
@@ -963,122 +947,125 @@ InitTemporaryFileAccess(void)
 static void
 count_usable_fds(int max_to_probe, int *usable_fds, int *already_open)
 {
-	int		   *fd;
-	int			size;
-	int			used = 0;
-	int			highestfd = 0;
-	int			j;
+  int      *fd;
+  int     size;
+  int     used = 0;
+  int     highestfd = 0;
+  int     j;
 
 #ifdef HAVE_GETRLIMIT
-	struct rlimit rlim;
-	int			getrlimit_status;
+  struct rlimit rlim;
+  int     getrlimit_status;
 #endif
 
-	size = 1024;
-	fd = (int *) palloc(size * sizeof(int));
+  size = 1024;
+  fd = (int *) palloc(size * sizeof(int));
 
 #ifdef HAVE_GETRLIMIT
-	getrlimit_status = getrlimit(RLIMIT_NOFILE, &rlim);
-	if (getrlimit_status != 0)
-		ereport(WARNING, (errmsg("getrlimit failed: %m")));
-#endif							/* HAVE_GETRLIMIT */
+  getrlimit_status = getrlimit(RLIMIT_NOFILE, &rlim);
 
-	/* dup until failure or probe limit reached */
-	for (;;)
-	{
-		int			thisfd;
+  if (getrlimit_status != 0)
+    ereport(WARNING, (errmsg("getrlimit failed: %m")));
+
+#endif              /* HAVE_GETRLIMIT */
+
+  /* dup until failure or probe limit reached */
+  for (;;) {
+    int     thisfd;
 
 #ifdef HAVE_GETRLIMIT
 
-		/*
-		 * don't go beyond RLIMIT_NOFILE; causes irritating kernel logs on
-		 * some platforms
-		 */
-		if (getrlimit_status == 0 && highestfd >= rlim.rlim_cur - 1)
-			break;
+    /*
+     * don't go beyond RLIMIT_NOFILE; causes irritating kernel logs on
+     * some platforms
+     */
+    if (getrlimit_status == 0 && highestfd >= rlim.rlim_cur - 1)
+      break;
+
 #endif
 
-		thisfd = dup(2);
-		if (thisfd < 0)
-		{
-			/* Expect EMFILE or ENFILE, else it's fishy */
-			if (errno != EMFILE && errno != ENFILE)
-				elog(WARNING, "duplicating stderr file descriptor failed after %d successes: %m", used);
-			break;
-		}
+    thisfd = dup(2);
 
-		if (used >= size)
-		{
-			size *= 2;
-			fd = (int *) repalloc(fd, size * sizeof(int));
-		}
-		fd[used++] = thisfd;
+    if (thisfd < 0) {
+      /* Expect EMFILE or ENFILE, else it's fishy */
+      if (errno != EMFILE && errno != ENFILE)
+        elog(WARNING, "duplicating stderr file descriptor failed after %d successes: %m", used);
 
-		if (highestfd < thisfd)
-			highestfd = thisfd;
+      break;
+    }
 
-		if (used >= max_to_probe)
-			break;
-	}
+    if (used >= size) {
+      size *= 2;
+      fd = (int *) repalloc(fd, size * sizeof(int));
+    }
 
-	/* release the files we opened */
-	for (j = 0; j < used; j++)
-		close(fd[j]);
+    fd[used++] = thisfd;
 
-	pfree(fd);
+    if (highestfd < thisfd)
+      highestfd = thisfd;
 
-	/*
-	 * Return results.  usable_fds is just the number of successful dups. We
-	 * assume that the system limit is highestfd+1 (remember 0 is a legal FD
-	 * number) and so already_open is highestfd+1 - usable_fds.
-	 */
-	*usable_fds = used;
-	*already_open = highestfd + 1 - used;
+    if (used >= max_to_probe)
+      break;
+  }
+
+  /* release the files we opened */
+  for (j = 0; j < used; j++)
+    close(fd[j]);
+
+  pfree(fd);
+
+  /*
+   * Return results.  usable_fds is just the number of successful dups. We
+   * assume that the system limit is highestfd+1 (remember 0 is a legal FD
+   * number) and so already_open is highestfd+1 - usable_fds.
+   */
+  *usable_fds = used;
+  *already_open = highestfd + 1 - used;
 }
 
 /*
  * set_max_safe_fds
- *		Determine number of file descriptors that fd.c is allowed to use
+ *    Determine number of file descriptors that fd.c is allowed to use
  */
 void
 set_max_safe_fds(void)
 {
-	int			usable_fds;
-	int			already_open;
+  int     usable_fds;
+  int     already_open;
 
-	/*----------
-	 * We want to set max_safe_fds to
-	 *			MIN(usable_fds, max_files_per_process)
-	 * less the slop factor for files that are opened without consulting
-	 * fd.c.  This ensures that we won't allow to open more than
-	 * max_files_per_process, or the experimentally-determined EMFILE limit,
-	 * additional files.
-	 *----------
-	 */
-	count_usable_fds(max_files_per_process,
-					 &usable_fds, &already_open);
+  /*----------
+   * We want to set max_safe_fds to
+   *      MIN(usable_fds, max_files_per_process)
+   * less the slop factor for files that are opened without consulting
+   * fd.c.  This ensures that we won't allow to open more than
+   * max_files_per_process, or the experimentally-determined EMFILE limit,
+   * additional files.
+   *----------
+   */
+  count_usable_fds(max_files_per_process,
+                   &usable_fds, &already_open);
 
-	max_safe_fds = Min(usable_fds, max_files_per_process);
+  max_safe_fds = Min(usable_fds, max_files_per_process);
 
-	/*
-	 * Take off the FDs reserved for system() etc.
-	 */
-	max_safe_fds -= NUM_RESERVED_FDS;
+  /*
+   * Take off the FDs reserved for system() etc.
+   */
+  max_safe_fds -= NUM_RESERVED_FDS;
 
-	/*
-	 * Make sure we still have enough to get by.
-	 */
-	if (max_safe_fds < FD_MINFREE)
-		ereport(FATAL,
-				(errcode(ERRCODE_INSUFFICIENT_RESOURCES),
-				 errmsg("insufficient file descriptors available to start server process"),
-				 errdetail("System allows %d, server needs at least %d, %d files are already open.",
-						   max_safe_fds + NUM_RESERVED_FDS,
-						   FD_MINFREE + NUM_RESERVED_FDS,
-						   already_open)));
+  /*
+   * Make sure we still have enough to get by.
+   */
+  if (max_safe_fds < FD_MINFREE)
+    ereport(FATAL,
+            (errcode(ERRCODE_INSUFFICIENT_RESOURCES),
+             errmsg("insufficient file descriptors available to start server process"),
+             errdetail("System allows %d, server needs at least %d, %d files are already open.",
+                       max_safe_fds + NUM_RESERVED_FDS,
+                       FD_MINFREE + NUM_RESERVED_FDS,
+                       already_open)));
 
-	elog(DEBUG2, "max_safe_fds = %d, usable_fds = %d, already_open = %d",
-		 max_safe_fds, usable_fds, already_open);
+  elog(DEBUG2, "max_safe_fds = %d, usable_fds = %d, already_open = %d",
+       max_safe_fds, usable_fds, already_open);
 }
 
 /*
@@ -1088,7 +1075,7 @@ set_max_safe_fds(void)
 int
 BasicOpenFile(const char *fileName, int fileFlags)
 {
-	return BasicOpenFilePerm(fileName, fileFlags, pg_file_create_mode);
+  return BasicOpenFilePerm(fileName, fileFlags, pg_file_create_mode);
 }
 
 /*
@@ -1097,7 +1084,7 @@ BasicOpenFile(const char *fileName, int fileFlags)
  * This is exported for use by places that really want a plain kernel FD,
  * but need to be proof against running out of FDs.  Once an FD has been
  * successfully returned, it is the caller's responsibility to ensure that
- * it will not be leaked on ereport()!	Most users should *not* call this
+ * it will not be leaked on ereport()!  Most users should *not* call this
  * routine directly, but instead use the VFD abstraction level, which
  * provides protection against descriptor leaks as well as management of
  * files that need to be open for more than a short period of time.
@@ -1110,65 +1097,65 @@ BasicOpenFile(const char *fileName, int fileFlags)
 int
 BasicOpenFilePerm(const char *fileName, int fileFlags, mode_t fileMode)
 {
-	int			fd;
+  int     fd;
 
 tryAgain:
 #ifdef PG_O_DIRECT_USE_F_NOCACHE
 
-	/*
-	 * The value we defined to stand in for O_DIRECT when simulating it with
-	 * F_NOCACHE had better not collide with any of the standard flags.
-	 */
-	StaticAssertStmt((PG_O_DIRECT &
-					  (O_APPEND |
-					   O_CLOEXEC |
-					   O_CREAT |
-					   O_DSYNC |
-					   O_EXCL |
-					   O_RDWR |
-					   O_RDONLY |
-					   O_SYNC |
-					   O_TRUNC |
-					   O_WRONLY)) == 0,
-					 "PG_O_DIRECT value collides with standard flag");
-	fd = open(fileName, fileFlags & ~PG_O_DIRECT, fileMode);
+  /*
+   * The value we defined to stand in for O_DIRECT when simulating it with
+   * F_NOCACHE had better not collide with any of the standard flags.
+   */
+  StaticAssertStmt((PG_O_DIRECT &
+                    (O_APPEND |
+                     O_CLOEXEC |
+                     O_CREAT |
+                     O_DSYNC |
+                     O_EXCL |
+                     O_RDWR |
+                     O_RDONLY |
+                     O_SYNC |
+                     O_TRUNC |
+                     O_WRONLY)) == 0,
+                   "PG_O_DIRECT value collides with standard flag");
+  fd = open(fileName, fileFlags & ~PG_O_DIRECT, fileMode);
 #else
-	fd = open(fileName, fileFlags, fileMode);
+  fd = open(fileName, fileFlags, fileMode);
 #endif
 
-	if (fd >= 0)
-	{
+  if (fd >= 0) {
 #ifdef PG_O_DIRECT_USE_F_NOCACHE
-		if (fileFlags & PG_O_DIRECT)
-		{
-			if (fcntl(fd, F_NOCACHE, 1) < 0)
-			{
-				int			save_errno = errno;
 
-				close(fd);
-				errno = save_errno;
-				return -1;
-			}
-		}
+    if (fileFlags & PG_O_DIRECT) {
+      if (fcntl(fd, F_NOCACHE, 1) < 0) {
+        int     save_errno = errno;
+
+        close(fd);
+        errno = save_errno;
+        return -1;
+      }
+    }
+
 #endif
 
-		return fd;				/* success! */
-	}
+    return fd;        /* success! */
+  }
 
-	if (errno == EMFILE || errno == ENFILE)
-	{
-		int			save_errno = errno;
+  if (errno == EMFILE || errno == ENFILE) {
+    int     save_errno = errno;
 
-		ereport(LOG,
-				(errcode(ERRCODE_INSUFFICIENT_RESOURCES),
-				 errmsg("out of file descriptors: %m; release and retry")));
-		errno = 0;
-		if (ReleaseLruFile())
-			goto tryAgain;
-		errno = save_errno;
-	}
+    ereport(LOG,
+            (errcode(ERRCODE_INSUFFICIENT_RESOURCES),
+             errmsg("out of file descriptors: %m; release and retry")));
+    errno = 0;
 
-	return -1;					/* failure */
+    if (ReleaseLruFile())
+      goto tryAgain;
+
+    errno = save_errno;
+  }
+
+  return -1;          /* failure */
 }
 
 /*
@@ -1187,17 +1174,17 @@ tryAgain:
 bool
 AcquireExternalFD(void)
 {
-	/*
-	 * We don't want more than max_safe_fds / 3 FDs to be consumed for
-	 * "external" FDs.
-	 */
-	if (numExternalFDs < max_safe_fds / 3)
-	{
-		ReserveExternalFD();
-		return true;
-	}
-	errno = EMFILE;
-	return false;
+  /*
+   * We don't want more than max_safe_fds / 3 FDs to be consumed for
+   * "external" FDs.
+   */
+  if (numExternalFDs < max_safe_fds / 3) {
+    ReserveExternalFD();
+    return true;
+  }
+
+  errno = EMFILE;
+  return false;
 }
 
 /*
@@ -1222,14 +1209,14 @@ AcquireExternalFD(void)
 void
 ReserveExternalFD(void)
 {
-	/*
-	 * Release VFDs if needed to stay safe.  Because we do this before
-	 * incrementing numExternalFDs, the final state will be as desired, i.e.,
-	 * nfile + numAllocatedDescs + numExternalFDs <= max_safe_fds.
-	 */
-	ReleaseLruFiles();
+  /*
+   * Release VFDs if needed to stay safe.  Because we do this before
+   * incrementing numExternalFDs, the final state will be as desired, i.e.,
+   * nfile + numAllocatedDescs + numExternalFDs <= max_safe_fds.
+   */
+  ReleaseLruFiles();
 
-	numExternalFDs++;
+  numExternalFDs++;
 }
 
 /*
@@ -1240,8 +1227,8 @@ ReserveExternalFD(void)
 void
 ReleaseExternalFD(void)
 {
-	Assert(numExternalFDs > 0);
-	numExternalFDs--;
+  Assert(numExternalFDs > 0);
+  numExternalFDs--;
 }
 
 
@@ -1250,133 +1237,132 @@ ReleaseExternalFD(void)
 static void
 _dump_lru(void)
 {
-	int			mru = VfdCache[0].lruLessRecently;
-	Vfd		   *vfdP = &VfdCache[mru];
-	char		buf[2048];
+  int     mru = VfdCache[0].lruLessRecently;
+  Vfd      *vfdP = &VfdCache[mru];
+  char    buf[2048];
 
-	snprintf(buf, sizeof(buf), "LRU: MOST %d ", mru);
-	while (mru != 0)
-	{
-		mru = vfdP->lruLessRecently;
-		vfdP = &VfdCache[mru];
-		snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "%d ", mru);
-	}
-	snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "LEAST");
-	elog(LOG, "%s", buf);
+  snprintf(buf, sizeof(buf), "LRU: MOST %d ", mru);
+
+  while (mru != 0) {
+    mru = vfdP->lruLessRecently;
+    vfdP = &VfdCache[mru];
+    snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "%d ", mru);
+  }
+
+  snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf), "LEAST");
+  elog(LOG, "%s", buf);
 }
-#endif							/* FDDEBUG */
+#endif              /* FDDEBUG */
 
 static void
 Delete(File file)
 {
-	Vfd		   *vfdP;
+  Vfd      *vfdP;
 
-	Assert(file != 0);
+  Assert(file != 0);
 
-	DO_DB(elog(LOG, "Delete %d (%s)",
-			   file, VfdCache[file].fileName));
-	DO_DB(_dump_lru());
+  DO_DB(elog(LOG, "Delete %d (%s)",
+             file, VfdCache[file].fileName));
+  DO_DB(_dump_lru());
 
-	vfdP = &VfdCache[file];
+  vfdP = &VfdCache[file];
 
-	VfdCache[vfdP->lruLessRecently].lruMoreRecently = vfdP->lruMoreRecently;
-	VfdCache[vfdP->lruMoreRecently].lruLessRecently = vfdP->lruLessRecently;
+  VfdCache[vfdP->lruLessRecently].lruMoreRecently = vfdP->lruMoreRecently;
+  VfdCache[vfdP->lruMoreRecently].lruLessRecently = vfdP->lruLessRecently;
 
-	DO_DB(_dump_lru());
+  DO_DB(_dump_lru());
 }
 
 static void
 LruDelete(File file)
 {
-	Vfd		   *vfdP;
+  Vfd      *vfdP;
 
-	Assert(file != 0);
+  Assert(file != 0);
 
-	DO_DB(elog(LOG, "LruDelete %d (%s)",
-			   file, VfdCache[file].fileName));
+  DO_DB(elog(LOG, "LruDelete %d (%s)",
+             file, VfdCache[file].fileName));
 
-	vfdP = &VfdCache[file];
+  vfdP = &VfdCache[file];
 
-	pgaio_closing_fd(vfdP->fd);
+  pgaio_closing_fd(vfdP->fd);
 
-	/*
-	 * Close the file.  We aren't expecting this to fail; if it does, better
-	 * to leak the FD than to mess up our internal state.
-	 */
-	if (close(vfdP->fd) != 0)
-		elog(vfdP->fdstate & FD_TEMP_FILE_LIMIT ? LOG : data_sync_elevel(LOG),
-			 "could not close file \"%s\": %m", vfdP->fileName);
-	vfdP->fd = VFD_CLOSED;
-	--nfile;
+  /*
+   * Close the file.  We aren't expecting this to fail; if it does, better
+   * to leak the FD than to mess up our internal state.
+   */
+  if (close(vfdP->fd) != 0)
+    elog(vfdP->fdstate & FD_TEMP_FILE_LIMIT ? LOG : data_sync_elevel(LOG),
+         "could not close file \"%s\": %m", vfdP->fileName);
 
-	/* delete the vfd record from the LRU ring */
-	Delete(file);
+  vfdP->fd = VFD_CLOSED;
+  --nfile;
+
+  /* delete the vfd record from the LRU ring */
+  Delete(file);
 }
 
 static void
 Insert(File file)
 {
-	Vfd		   *vfdP;
+  Vfd      *vfdP;
 
-	Assert(file != 0);
+  Assert(file != 0);
 
-	DO_DB(elog(LOG, "Insert %d (%s)",
-			   file, VfdCache[file].fileName));
-	DO_DB(_dump_lru());
+  DO_DB(elog(LOG, "Insert %d (%s)",
+             file, VfdCache[file].fileName));
+  DO_DB(_dump_lru());
 
-	vfdP = &VfdCache[file];
+  vfdP = &VfdCache[file];
 
-	vfdP->lruMoreRecently = 0;
-	vfdP->lruLessRecently = VfdCache[0].lruLessRecently;
-	VfdCache[0].lruLessRecently = file;
-	VfdCache[vfdP->lruLessRecently].lruMoreRecently = file;
+  vfdP->lruMoreRecently = 0;
+  vfdP->lruLessRecently = VfdCache[0].lruLessRecently;
+  VfdCache[0].lruLessRecently = file;
+  VfdCache[vfdP->lruLessRecently].lruMoreRecently = file;
 
-	DO_DB(_dump_lru());
+  DO_DB(_dump_lru());
 }
 
 /* returns 0 on success, -1 on re-open failure (with errno set) */
 static int
 LruInsert(File file)
 {
-	Vfd		   *vfdP;
+  Vfd      *vfdP;
 
-	Assert(file != 0);
+  Assert(file != 0);
 
-	DO_DB(elog(LOG, "LruInsert %d (%s)",
-			   file, VfdCache[file].fileName));
+  DO_DB(elog(LOG, "LruInsert %d (%s)",
+             file, VfdCache[file].fileName));
 
-	vfdP = &VfdCache[file];
+  vfdP = &VfdCache[file];
 
-	if (FileIsNotOpen(file))
-	{
-		/* Close excess kernel FDs. */
-		ReleaseLruFiles();
+  if (FileIsNotOpen(file)) {
+    /* Close excess kernel FDs. */
+    ReleaseLruFiles();
 
-		/*
-		 * The open could still fail for lack of file descriptors, eg due to
-		 * overall system file table being full.  So, be prepared to release
-		 * another FD if necessary...
-		 */
-		vfdP->fd = BasicOpenFilePerm(vfdP->fileName, vfdP->fileFlags,
-									 vfdP->fileMode);
-		if (vfdP->fd < 0)
-		{
-			DO_DB(elog(LOG, "re-open failed: %m"));
-			return -1;
-		}
-		else
-		{
-			++nfile;
-		}
-	}
+    /*
+     * The open could still fail for lack of file descriptors, eg due to
+     * overall system file table being full.  So, be prepared to release
+     * another FD if necessary...
+     */
+    vfdP->fd = BasicOpenFilePerm(vfdP->fileName, vfdP->fileFlags,
+                                 vfdP->fileMode);
 
-	/*
-	 * put it at the head of the Lru ring
-	 */
+    if (vfdP->fd < 0) {
+      DO_DB(elog(LOG, "re-open failed: %m"));
+      return -1;
+    } else {
+      ++nfile;
+    }
+  }
 
-	Insert(file);
+  /*
+   * put it at the head of the Lru ring
+   */
 
-	return 0;
+  Insert(file);
+
+  return 0;
 }
 
 /*
@@ -1385,19 +1371,19 @@ LruInsert(File file)
 static bool
 ReleaseLruFile(void)
 {
-	DO_DB(elog(LOG, "ReleaseLruFile. Opened %d", nfile));
+  DO_DB(elog(LOG, "ReleaseLruFile. Opened %d", nfile));
 
-	if (nfile > 0)
-	{
-		/*
-		 * There are opened files and so there should be at least one used vfd
-		 * in the ring.
-		 */
-		Assert(VfdCache[0].lruMoreRecently != 0);
-		LruDelete(VfdCache[0].lruMoreRecently);
-		return true;			/* freed a file */
-	}
-	return false;				/* no files available to free */
+  if (nfile > 0) {
+    /*
+     * There are opened files and so there should be at least one used vfd
+     * in the ring.
+     */
+    Assert(VfdCache[0].lruMoreRecently != 0);
+    LruDelete(VfdCache[0].lruMoreRecently);
+    return true;      /* freed a file */
+  }
+
+  return false;       /* no files available to free */
 }
 
 /*
@@ -1407,122 +1393,120 @@ ReleaseLruFile(void)
 static void
 ReleaseLruFiles(void)
 {
-	while (nfile + numAllocatedDescs + numExternalFDs >= max_safe_fds)
-	{
-		if (!ReleaseLruFile())
-			break;
-	}
+  while (nfile + numAllocatedDescs + numExternalFDs >= max_safe_fds) {
+    if (!ReleaseLruFile())
+      break;
+  }
 }
 
 static File
 AllocateVfd(void)
 {
-	Index		i;
-	File		file;
+  Index   i;
+  File    file;
 
-	DO_DB(elog(LOG, "AllocateVfd. Size %zu", SizeVfdCache));
+  DO_DB(elog(LOG, "AllocateVfd. Size %zu", SizeVfdCache));
 
-	Assert(SizeVfdCache > 0);	/* InitFileAccess not called? */
+  Assert(SizeVfdCache > 0); /* InitFileAccess not called? */
 
-	if (VfdCache[0].nextFree == 0)
-	{
-		/*
-		 * The free list is empty so it is time to increase the size of the
-		 * array.  We choose to double it each time this happens. However,
-		 * there's not much point in starting *real* small.
-		 */
-		Size		newCacheSize = SizeVfdCache * 2;
-		Vfd		   *newVfdCache;
+  if (VfdCache[0].nextFree == 0) {
+    /*
+     * The free list is empty so it is time to increase the size of the
+     * array.  We choose to double it each time this happens. However,
+     * there's not much point in starting *real* small.
+     */
+    Size    newCacheSize = SizeVfdCache * 2;
+    Vfd      *newVfdCache;
 
-		if (newCacheSize < 32)
-			newCacheSize = 32;
+    if (newCacheSize < 32)
+      newCacheSize = 32;
 
-		/*
-		 * Be careful not to clobber VfdCache ptr if realloc fails.
-		 */
-		newVfdCache = (Vfd *) realloc(VfdCache, sizeof(Vfd) * newCacheSize);
-		if (newVfdCache == NULL)
-			ereport(ERROR,
-					(errcode(ERRCODE_OUT_OF_MEMORY),
-					 errmsg("out of memory")));
-		VfdCache = newVfdCache;
+    /*
+     * Be careful not to clobber VfdCache ptr if realloc fails.
+     */
+    newVfdCache = (Vfd *) realloc(VfdCache, sizeof(Vfd) * newCacheSize);
 
-		/*
-		 * Initialize the new entries and link them into the free list.
-		 */
-		for (i = SizeVfdCache; i < newCacheSize; i++)
-		{
-			MemSet(&(VfdCache[i]), 0, sizeof(Vfd));
-			VfdCache[i].nextFree = i + 1;
-			VfdCache[i].fd = VFD_CLOSED;
-		}
-		VfdCache[newCacheSize - 1].nextFree = 0;
-		VfdCache[0].nextFree = SizeVfdCache;
+    if (newVfdCache == NULL)
+      ereport(ERROR,
+              (errcode(ERRCODE_OUT_OF_MEMORY),
+               errmsg("out of memory")));
 
-		/*
-		 * Record the new size
-		 */
-		SizeVfdCache = newCacheSize;
-	}
+    VfdCache = newVfdCache;
 
-	file = VfdCache[0].nextFree;
+    /*
+     * Initialize the new entries and link them into the free list.
+     */
+    for (i = SizeVfdCache; i < newCacheSize; i++) {
+      MemSet(&(VfdCache[i]), 0, sizeof(Vfd));
+      VfdCache[i].nextFree = i + 1;
+      VfdCache[i].fd = VFD_CLOSED;
+    }
 
-	VfdCache[0].nextFree = VfdCache[file].nextFree;
+    VfdCache[newCacheSize - 1].nextFree = 0;
+    VfdCache[0].nextFree = SizeVfdCache;
 
-	return file;
+    /*
+     * Record the new size
+     */
+    SizeVfdCache = newCacheSize;
+  }
+
+  file = VfdCache[0].nextFree;
+
+  VfdCache[0].nextFree = VfdCache[file].nextFree;
+
+  return file;
 }
 
 static void
 FreeVfd(File file)
 {
-	Vfd		   *vfdP = &VfdCache[file];
+  Vfd      *vfdP = &VfdCache[file];
 
-	DO_DB(elog(LOG, "FreeVfd: %d (%s)",
-			   file, vfdP->fileName ? vfdP->fileName : ""));
+  DO_DB(elog(LOG, "FreeVfd: %d (%s)",
+             file, vfdP->fileName ? vfdP->fileName : ""));
 
-	if (vfdP->fileName != NULL)
-	{
-		free(vfdP->fileName);
-		vfdP->fileName = NULL;
-	}
-	vfdP->fdstate = 0x0;
+  if (vfdP->fileName != NULL) {
+    free(vfdP->fileName);
+    vfdP->fileName = NULL;
+  }
 
-	vfdP->nextFree = VfdCache[0].nextFree;
-	VfdCache[0].nextFree = file;
+  vfdP->fdstate = 0x0;
+
+  vfdP->nextFree = VfdCache[0].nextFree;
+  VfdCache[0].nextFree = file;
 }
 
 /* returns 0 on success, -1 on re-open failure (with errno set) */
 static int
 FileAccess(File file)
 {
-	int			returnValue;
+  int     returnValue;
 
-	DO_DB(elog(LOG, "FileAccess %d (%s)",
-			   file, VfdCache[file].fileName));
+  DO_DB(elog(LOG, "FileAccess %d (%s)",
+             file, VfdCache[file].fileName));
 
-	/*
-	 * Is the file open?  If not, open it and put it at the head of the LRU
-	 * ring (possibly closing the least recently used file to get an FD).
-	 */
+  /*
+   * Is the file open?  If not, open it and put it at the head of the LRU
+   * ring (possibly closing the least recently used file to get an FD).
+   */
 
-	if (FileIsNotOpen(file))
-	{
-		returnValue = LruInsert(file);
-		if (returnValue != 0)
-			return returnValue;
-	}
-	else if (VfdCache[0].lruLessRecently != file)
-	{
-		/*
-		 * We now know that the file is open and that it is not the last one
-		 * accessed, so we need to move it to the head of the Lru ring.
-		 */
+  if (FileIsNotOpen(file)) {
+    returnValue = LruInsert(file);
 
-		Delete(file);
-		Insert(file);
-	}
+    if (returnValue != 0)
+      return returnValue;
+  } else if (VfdCache[0].lruLessRecently != file) {
+    /*
+     * We now know that the file is open and that it is not the last one
+     * accessed, so we need to move it to the head of the Lru ring.
+     */
 
-	return 0;
+    Delete(file);
+    Insert(file);
+  }
+
+  return 0;
 }
 
 /*
@@ -1531,15 +1515,14 @@ FileAccess(File file)
 static void
 ReportTemporaryFileUsage(const char *path, off_t size)
 {
-	pgstat_report_tempfile(size);
+  pgstat_report_tempfile(size);
 
-	if (log_temp_files >= 0)
-	{
-		if ((size / 1024) >= log_temp_files)
-			ereport(LOG,
-					(errmsg("temporary file: path \"%s\", size %lu",
-							path, (unsigned long) size)));
-	}
+  if (log_temp_files >= 0) {
+    if ((size / 1024) >= log_temp_files)
+      ereport(LOG,
+              (errmsg("temporary file: path \"%s\", size %lu",
+                      path, (unsigned long) size)));
+  }
 }
 
 /*
@@ -1550,24 +1533,25 @@ ReportTemporaryFileUsage(const char *path, off_t size)
 static void
 RegisterTemporaryFile(File file)
 {
-	ResourceOwnerRememberFile(CurrentResourceOwner, file);
-	VfdCache[file].resowner = CurrentResourceOwner;
+  ResourceOwnerRememberFile(CurrentResourceOwner, file);
+  VfdCache[file].resowner = CurrentResourceOwner;
 
-	/* Backup mechanism for closing at end of xact. */
-	VfdCache[file].fdstate |= FD_CLOSE_AT_EOXACT;
-	have_xact_temporary_files = true;
+  /* Backup mechanism for closing at end of xact. */
+  VfdCache[file].fdstate |= FD_CLOSE_AT_EOXACT;
+  have_xact_temporary_files = true;
 }
 
 /*
- *	Called when we get a shared invalidation message on some relation.
+ *  Called when we get a shared invalidation message on some relation.
  */
 #ifdef NOT_USED
 void
 FileInvalidate(File file)
 {
-	Assert(FileIsValid(file));
-	if (!FileIsNotOpen(file))
-		LruDelete(file);
+  Assert(FileIsValid(file));
+
+  if (!FileIsNotOpen(file))
+    LruDelete(file);
 }
 #endif
 
@@ -1578,7 +1562,7 @@ FileInvalidate(File file)
 File
 PathNameOpenFile(const char *fileName, int fileFlags)
 {
-	return PathNameOpenFilePerm(fileName, fileFlags, pg_file_create_mode);
+  return PathNameOpenFilePerm(fileName, fileFlags, pg_file_create_mode);
 }
 
 /*
@@ -1591,62 +1575,63 @@ PathNameOpenFile(const char *fileName, int fileFlags)
 File
 PathNameOpenFilePerm(const char *fileName, int fileFlags, mode_t fileMode)
 {
-	char	   *fnamecopy;
-	File		file;
-	Vfd		   *vfdP;
+  char     *fnamecopy;
+  File    file;
+  Vfd      *vfdP;
 
-	DO_DB(elog(LOG, "PathNameOpenFilePerm: %s %x %o",
-			   fileName, fileFlags, fileMode));
+  DO_DB(elog(LOG, "PathNameOpenFilePerm: %s %x %o",
+             fileName, fileFlags, fileMode));
 
-	/*
-	 * We need a malloc'd copy of the file name; fail cleanly if no room.
-	 */
-	fnamecopy = strdup(fileName);
-	if (fnamecopy == NULL)
-		ereport(ERROR,
-				(errcode(ERRCODE_OUT_OF_MEMORY),
-				 errmsg("out of memory")));
+  /*
+   * We need a malloc'd copy of the file name; fail cleanly if no room.
+   */
+  fnamecopy = strdup(fileName);
 
-	file = AllocateVfd();
-	vfdP = &VfdCache[file];
+  if (fnamecopy == NULL)
+    ereport(ERROR,
+            (errcode(ERRCODE_OUT_OF_MEMORY),
+             errmsg("out of memory")));
 
-	/* Close excess kernel FDs. */
-	ReleaseLruFiles();
+  file = AllocateVfd();
+  vfdP = &VfdCache[file];
 
-	/*
-	 * Descriptors managed by VFDs are implicitly marked O_CLOEXEC.  The
-	 * client shouldn't be expected to know which kernel descriptors are
-	 * currently open, so it wouldn't make sense for them to be inherited by
-	 * executed subprograms.
-	 */
-	fileFlags |= O_CLOEXEC;
+  /* Close excess kernel FDs. */
+  ReleaseLruFiles();
 
-	vfdP->fd = BasicOpenFilePerm(fileName, fileFlags, fileMode);
+  /*
+   * Descriptors managed by VFDs are implicitly marked O_CLOEXEC.  The
+   * client shouldn't be expected to know which kernel descriptors are
+   * currently open, so it wouldn't make sense for them to be inherited by
+   * executed subprograms.
+   */
+  fileFlags |= O_CLOEXEC;
 
-	if (vfdP->fd < 0)
-	{
-		int			save_errno = errno;
+  vfdP->fd = BasicOpenFilePerm(fileName, fileFlags, fileMode);
 
-		FreeVfd(file);
-		free(fnamecopy);
-		errno = save_errno;
-		return -1;
-	}
-	++nfile;
-	DO_DB(elog(LOG, "PathNameOpenFile: success %d",
-			   vfdP->fd));
+  if (vfdP->fd < 0) {
+    int     save_errno = errno;
 
-	vfdP->fileName = fnamecopy;
-	/* Saved flags are adjusted to be OK for re-opening file */
-	vfdP->fileFlags = fileFlags & ~(O_CREAT | O_TRUNC | O_EXCL);
-	vfdP->fileMode = fileMode;
-	vfdP->fileSize = 0;
-	vfdP->fdstate = 0x0;
-	vfdP->resowner = NULL;
+    FreeVfd(file);
+    free(fnamecopy);
+    errno = save_errno;
+    return -1;
+  }
 
-	Insert(file);
+  ++nfile;
+  DO_DB(elog(LOG, "PathNameOpenFile: success %d",
+             vfdP->fd));
 
-	return file;
+  vfdP->fileName = fnamecopy;
+  /* Saved flags are adjusted to be OK for re-opening file */
+  vfdP->fileFlags = fileFlags & ~(O_CREAT | O_TRUNC | O_EXCL);
+  vfdP->fileMode = fileMode;
+  vfdP->fileSize = 0;
+  vfdP->fdstate = 0x0;
+  vfdP->resowner = NULL;
+
+  Insert(file);
+
+  return file;
 }
 
 /*
@@ -1663,29 +1648,28 @@ PathNameOpenFilePerm(const char *fileName, int fileFlags, mode_t fileMode)
 void
 PathNameCreateTemporaryDir(const char *basedir, const char *directory)
 {
-	if (MakePGDirectory(directory) < 0)
-	{
-		if (errno == EEXIST)
-			return;
+  if (MakePGDirectory(directory) < 0) {
+    if (errno == EEXIST)
+      return;
 
-		/*
-		 * Failed.  Try to create basedir first in case it's missing. Tolerate
-		 * EEXIST to close a race against another process following the same
-		 * algorithm.
-		 */
-		if (MakePGDirectory(basedir) < 0 && errno != EEXIST)
-			ereport(ERROR,
-					(errcode_for_file_access(),
-					 errmsg("cannot create temporary directory \"%s\": %m",
-							basedir)));
+    /*
+     * Failed.  Try to create basedir first in case it's missing. Tolerate
+     * EEXIST to close a race against another process following the same
+     * algorithm.
+     */
+    if (MakePGDirectory(basedir) < 0 && errno != EEXIST)
+      ereport(ERROR,
+              (errcode_for_file_access(),
+               errmsg("cannot create temporary directory \"%s\": %m",
+                      basedir)));
 
-		/* Try again. */
-		if (MakePGDirectory(directory) < 0 && errno != EEXIST)
-			ereport(ERROR,
-					(errcode_for_file_access(),
-					 errmsg("cannot create temporary subdirectory \"%s\": %m",
-							directory)));
-	}
+    /* Try again. */
+    if (MakePGDirectory(directory) < 0 && errno != EEXIST)
+      ereport(ERROR,
+              (errcode_for_file_access(),
+               errmsg("cannot create temporary subdirectory \"%s\": %m",
+                      directory)));
+  }
 }
 
 /*
@@ -1694,20 +1678,20 @@ PathNameCreateTemporaryDir(const char *basedir, const char *directory)
 void
 PathNameDeleteTemporaryDir(const char *dirname)
 {
-	struct stat statbuf;
+  struct stat statbuf;
 
-	/* Silently ignore missing directory. */
-	if (stat(dirname, &statbuf) != 0 && errno == ENOENT)
-		return;
+  /* Silently ignore missing directory. */
+  if (stat(dirname, &statbuf) != 0 && errno == ENOENT)
+    return;
 
-	/*
-	 * Currently, walkdir doesn't offer a way for our passed in function to
-	 * maintain state.  Perhaps it should, so that we could tell the caller
-	 * whether this operation succeeded or failed.  Since this operation is
-	 * used in a cleanup path, we wouldn't actually behave differently: we'll
-	 * just log failures.
-	 */
-	walkdir(dirname, unlink_if_exists_fname, false, LOG);
+  /*
+   * Currently, walkdir doesn't offer a way for our passed in function to
+   * maintain state.  Perhaps it should, so that we could tell the caller
+   * whether this operation succeeded or failed.  Since this operation is
+   * used in a cleanup path, we wouldn't actually behave differently: we'll
+   * just log failures.
+   */
+  walkdir(dirname, unlink_if_exists_fname, false, LOG);
 }
 
 /*
@@ -1727,53 +1711,52 @@ PathNameDeleteTemporaryDir(const char *dirname)
 File
 OpenTemporaryFile(bool interXact)
 {
-	File		file = 0;
+  File    file = 0;
 
-	Assert(temporary_files_allowed);	/* check temp file access is up */
+  Assert(temporary_files_allowed);  /* check temp file access is up */
 
-	/*
-	 * Make sure the current resource owner has space for this File before we
-	 * open it, if we'll be registering it below.
-	 */
-	if (!interXact)
-		ResourceOwnerEnlarge(CurrentResourceOwner);
+  /*
+   * Make sure the current resource owner has space for this File before we
+   * open it, if we'll be registering it below.
+   */
+  if (!interXact)
+    ResourceOwnerEnlarge(CurrentResourceOwner);
 
-	/*
-	 * If some temp tablespace(s) have been given to us, try to use the next
-	 * one.  If a given tablespace can't be found, we silently fall back to
-	 * the database's default tablespace.
-	 *
-	 * BUT: if the temp file is slated to outlive the current transaction,
-	 * force it into the database's default tablespace, so that it will not
-	 * pose a threat to possible tablespace drop attempts.
-	 */
-	if (numTempTableSpaces > 0 && !interXact)
-	{
-		Oid			tblspcOid = GetNextTempTableSpace();
+  /*
+   * If some temp tablespace(s) have been given to us, try to use the next
+   * one.  If a given tablespace can't be found, we silently fall back to
+   * the database's default tablespace.
+   *
+   * BUT: if the temp file is slated to outlive the current transaction,
+   * force it into the database's default tablespace, so that it will not
+   * pose a threat to possible tablespace drop attempts.
+   */
+  if (numTempTableSpaces > 0 && !interXact) {
+    Oid     tblspcOid = GetNextTempTableSpace();
 
-		if (OidIsValid(tblspcOid))
-			file = OpenTemporaryFileInTablespace(tblspcOid, false);
-	}
+    if (OidIsValid(tblspcOid))
+      file = OpenTemporaryFileInTablespace(tblspcOid, false);
+  }
 
-	/*
-	 * If not, or if tablespace is bad, create in database's default
-	 * tablespace.  MyDatabaseTableSpace should normally be set before we get
-	 * here, but just in case it isn't, fall back to pg_default tablespace.
-	 */
-	if (file <= 0)
-		file = OpenTemporaryFileInTablespace(MyDatabaseTableSpace ?
-											 MyDatabaseTableSpace :
-											 DEFAULTTABLESPACE_OID,
-											 true);
+  /*
+   * If not, or if tablespace is bad, create in database's default
+   * tablespace.  MyDatabaseTableSpace should normally be set before we get
+   * here, but just in case it isn't, fall back to pg_default tablespace.
+   */
+  if (file <= 0)
+    file = OpenTemporaryFileInTablespace(MyDatabaseTableSpace ?
+                                         MyDatabaseTableSpace :
+                                         DEFAULTTABLESPACE_OID,
+                                         true);
 
-	/* Mark it for deletion at close and temporary file size limit */
-	VfdCache[file].fdstate |= FD_DELETE_AT_CLOSE | FD_TEMP_FILE_LIMIT;
+  /* Mark it for deletion at close and temporary file size limit */
+  VfdCache[file].fdstate |= FD_DELETE_AT_CLOSE | FD_TEMP_FILE_LIMIT;
 
-	/* Register it with the current resource owner */
-	if (!interXact)
-		RegisterTemporaryFile(file);
+  /* Register it with the current resource owner */
+  if (!interXact)
+    RegisterTemporaryFile(file);
 
-	return file;
+  return file;
 }
 
 /*
@@ -1782,22 +1765,21 @@ OpenTemporaryFile(bool interXact)
 void
 TempTablespacePath(char *path, Oid tablespace)
 {
-	/*
-	 * Identify the tempfile directory for this tablespace.
-	 *
-	 * If someone tries to specify pg_global, use pg_default instead.
-	 */
-	if (tablespace == InvalidOid ||
-		tablespace == DEFAULTTABLESPACE_OID ||
-		tablespace == GLOBALTABLESPACE_OID)
-		snprintf(path, MAXPGPATH, "base/%s", PG_TEMP_FILES_DIR);
-	else
-	{
-		/* All other tablespaces are accessed via symlinks */
-		snprintf(path, MAXPGPATH, "%s/%u/%s/%s",
-				 PG_TBLSPC_DIR, tablespace, TABLESPACE_VERSION_DIRECTORY,
-				 PG_TEMP_FILES_DIR);
-	}
+  /*
+   * Identify the tempfile directory for this tablespace.
+   *
+   * If someone tries to specify pg_global, use pg_default instead.
+   */
+  if (tablespace == InvalidOid ||
+      tablespace == DEFAULTTABLESPACE_OID ||
+      tablespace == GLOBALTABLESPACE_OID)
+    snprintf(path, MAXPGPATH, "base/%s", PG_TEMP_FILES_DIR);
+  else {
+    /* All other tablespaces are accessed via symlinks */
+    snprintf(path, MAXPGPATH, "%s/%u/%s/%s",
+             PG_TBLSPC_DIR, tablespace, TABLESPACE_VERSION_DIRECTORY,
+             PG_TEMP_FILES_DIR);
+  }
 }
 
 /*
@@ -1807,45 +1789,46 @@ TempTablespacePath(char *path, Oid tablespace)
 static File
 OpenTemporaryFileInTablespace(Oid tblspcOid, bool rejectError)
 {
-	char		tempdirpath[MAXPGPATH];
-	char		tempfilepath[MAXPGPATH];
-	File		file;
+  char    tempdirpath[MAXPGPATH];
+  char    tempfilepath[MAXPGPATH];
+  File    file;
 
-	TempTablespacePath(tempdirpath, tblspcOid);
+  TempTablespacePath(tempdirpath, tblspcOid);
 
-	/*
-	 * Generate a tempfile name that should be unique within the current
-	 * database instance.
-	 */
-	snprintf(tempfilepath, sizeof(tempfilepath), "%s/%s%d.%ld",
-			 tempdirpath, PG_TEMP_FILE_PREFIX, MyProcPid, tempFileCounter++);
+  /*
+   * Generate a tempfile name that should be unique within the current
+   * database instance.
+   */
+  snprintf(tempfilepath, sizeof(tempfilepath), "%s/%s%d.%ld",
+           tempdirpath, PG_TEMP_FILE_PREFIX, MyProcPid, tempFileCounter++);
 
-	/*
-	 * Open the file.  Note: we don't use O_EXCL, in case there is an orphaned
-	 * temp file that can be reused.
-	 */
-	file = PathNameOpenFile(tempfilepath,
-							O_RDWR | O_CREAT | O_TRUNC | PG_BINARY);
-	if (file <= 0)
-	{
-		/*
-		 * We might need to create the tablespace's tempfile directory, if no
-		 * one has yet done so.
-		 *
-		 * Don't check for an error from MakePGDirectory; it could fail if
-		 * someone else just did the same thing.  If it doesn't work then
-		 * we'll bomb out on the second create attempt, instead.
-		 */
-		(void) MakePGDirectory(tempdirpath);
+  /*
+   * Open the file.  Note: we don't use O_EXCL, in case there is an orphaned
+   * temp file that can be reused.
+   */
+  file = PathNameOpenFile(tempfilepath,
+                          O_RDWR | O_CREAT | O_TRUNC | PG_BINARY);
 
-		file = PathNameOpenFile(tempfilepath,
-								O_RDWR | O_CREAT | O_TRUNC | PG_BINARY);
-		if (file <= 0 && rejectError)
-			elog(ERROR, "could not create temporary file \"%s\": %m",
-				 tempfilepath);
-	}
+  if (file <= 0) {
+    /*
+     * We might need to create the tablespace's tempfile directory, if no
+     * one has yet done so.
+     *
+     * Don't check for an error from MakePGDirectory; it could fail if
+     * someone else just did the same thing.  If it doesn't work then
+     * we'll bomb out on the second create attempt, instead.
+     */
+    (void) MakePGDirectory(tempdirpath);
 
-	return file;
+    file = PathNameOpenFile(tempfilepath,
+                            O_RDWR | O_CREAT | O_TRUNC | PG_BINARY);
+
+    if (file <= 0 && rejectError)
+      elog(ERROR, "could not create temporary file \"%s\": %m",
+           tempfilepath);
+  }
+
+  return file;
 }
 
 
@@ -1864,35 +1847,35 @@ OpenTemporaryFileInTablespace(Oid tblspcOid, bool rejectError)
 File
 PathNameCreateTemporaryFile(const char *path, bool error_on_failure)
 {
-	File		file;
+  File    file;
 
-	Assert(temporary_files_allowed);	/* check temp file access is up */
+  Assert(temporary_files_allowed);  /* check temp file access is up */
 
-	ResourceOwnerEnlarge(CurrentResourceOwner);
+  ResourceOwnerEnlarge(CurrentResourceOwner);
 
-	/*
-	 * Open the file.  Note: we don't use O_EXCL, in case there is an orphaned
-	 * temp file that can be reused.
-	 */
-	file = PathNameOpenFile(path, O_RDWR | O_CREAT | O_TRUNC | PG_BINARY);
-	if (file <= 0)
-	{
-		if (error_on_failure)
-			ereport(ERROR,
-					(errcode_for_file_access(),
-					 errmsg("could not create temporary file \"%s\": %m",
-							path)));
-		else
-			return file;
-	}
+  /*
+   * Open the file.  Note: we don't use O_EXCL, in case there is an orphaned
+   * temp file that can be reused.
+   */
+  file = PathNameOpenFile(path, O_RDWR | O_CREAT | O_TRUNC | PG_BINARY);
 
-	/* Mark it for temp_file_limit accounting. */
-	VfdCache[file].fdstate |= FD_TEMP_FILE_LIMIT;
+  if (file <= 0) {
+    if (error_on_failure)
+      ereport(ERROR,
+              (errcode_for_file_access(),
+               errmsg("could not create temporary file \"%s\": %m",
+                      path)));
+    else
+      return file;
+  }
 
-	/* Register it for automatic close. */
-	RegisterTemporaryFile(file);
+  /* Mark it for temp_file_limit accounting. */
+  VfdCache[file].fdstate |= FD_TEMP_FILE_LIMIT;
 
-	return file;
+  /* Register it for automatic close. */
+  RegisterTemporaryFile(file);
+
+  return file;
 }
 
 /*
@@ -1904,28 +1887,27 @@ PathNameCreateTemporaryFile(const char *path, bool error_on_failure)
 File
 PathNameOpenTemporaryFile(const char *path, int mode)
 {
-	File		file;
+  File    file;
 
-	Assert(temporary_files_allowed);	/* check temp file access is up */
+  Assert(temporary_files_allowed);  /* check temp file access is up */
 
-	ResourceOwnerEnlarge(CurrentResourceOwner);
+  ResourceOwnerEnlarge(CurrentResourceOwner);
 
-	file = PathNameOpenFile(path, mode | PG_BINARY);
+  file = PathNameOpenFile(path, mode | PG_BINARY);
 
-	/* If no such file, then we don't raise an error. */
-	if (file <= 0 && errno != ENOENT)
-		ereport(ERROR,
-				(errcode_for_file_access(),
-				 errmsg("could not open temporary file \"%s\": %m",
-						path)));
+  /* If no such file, then we don't raise an error. */
+  if (file <= 0 && errno != ENOENT)
+    ereport(ERROR,
+            (errcode_for_file_access(),
+             errmsg("could not open temporary file \"%s\": %m",
+                    path)));
 
-	if (file > 0)
-	{
-		/* Register it for automatic close. */
-		RegisterTemporaryFile(file);
-	}
+  if (file > 0) {
+    /* Register it for automatic close. */
+    RegisterTemporaryFile(file);
+  }
 
-	return file;
+  return file;
 }
 
 /*
@@ -1935,44 +1917,43 @@ PathNameOpenTemporaryFile(const char *path, int mode)
 bool
 PathNameDeleteTemporaryFile(const char *path, bool error_on_failure)
 {
-	struct stat filestats;
-	int			stat_errno;
+  struct stat filestats;
+  int     stat_errno;
 
-	/* Get the final size for pgstat reporting. */
-	if (stat(path, &filestats) != 0)
-		stat_errno = errno;
-	else
-		stat_errno = 0;
+  /* Get the final size for pgstat reporting. */
+  if (stat(path, &filestats) != 0)
+    stat_errno = errno;
+  else
+    stat_errno = 0;
 
-	/*
-	 * Unlike FileClose's automatic file deletion code, we tolerate
-	 * non-existence to support BufFileDeleteFileSet which doesn't know how
-	 * many segments it has to delete until it runs out.
-	 */
-	if (stat_errno == ENOENT)
-		return false;
+  /*
+   * Unlike FileClose's automatic file deletion code, we tolerate
+   * non-existence to support BufFileDeleteFileSet which doesn't know how
+   * many segments it has to delete until it runs out.
+   */
+  if (stat_errno == ENOENT)
+    return false;
 
-	if (unlink(path) < 0)
-	{
-		if (errno != ENOENT)
-			ereport(error_on_failure ? ERROR : LOG,
-					(errcode_for_file_access(),
-					 errmsg("could not unlink temporary file \"%s\": %m",
-							path)));
-		return false;
-	}
+  if (unlink(path) < 0) {
+    if (errno != ENOENT)
+      ereport(error_on_failure ? ERROR : LOG,
+              (errcode_for_file_access(),
+               errmsg("could not unlink temporary file \"%s\": %m",
+                      path)));
 
-	if (stat_errno == 0)
-		ReportTemporaryFileUsage(path, filestats.st_size);
-	else
-	{
-		errno = stat_errno;
-		ereport(LOG,
-				(errcode_for_file_access(),
-				 errmsg("could not stat file \"%s\": %m", path)));
-	}
+    return false;
+  }
 
-	return true;
+  if (stat_errno == 0)
+    ReportTemporaryFileUsage(path, filestats.st_size);
+  else {
+    errno = stat_errno;
+    ereport(LOG,
+            (errcode_for_file_access(),
+             errmsg("could not stat file \"%s\": %m", path)));
+  }
+
+  return true;
 }
 
 /*
@@ -1981,94 +1962,89 @@ PathNameDeleteTemporaryFile(const char *path, bool error_on_failure)
 void
 FileClose(File file)
 {
-	Vfd		   *vfdP;
+  Vfd      *vfdP;
 
-	Assert(FileIsValid(file));
+  Assert(FileIsValid(file));
 
-	DO_DB(elog(LOG, "FileClose: %d (%s)",
-			   file, VfdCache[file].fileName));
+  DO_DB(elog(LOG, "FileClose: %d (%s)",
+             file, VfdCache[file].fileName));
 
-	vfdP = &VfdCache[file];
+  vfdP = &VfdCache[file];
 
-	if (!FileIsNotOpen(file))
-	{
-		pgaio_closing_fd(vfdP->fd);
+  if (!FileIsNotOpen(file)) {
+    pgaio_closing_fd(vfdP->fd);
 
-		/* close the file */
-		if (close(vfdP->fd) != 0)
-		{
-			/*
-			 * We may need to panic on failure to close non-temporary files;
-			 * see LruDelete.
-			 */
-			elog(vfdP->fdstate & FD_TEMP_FILE_LIMIT ? LOG : data_sync_elevel(LOG),
-				 "could not close file \"%s\": %m", vfdP->fileName);
-		}
+    /* close the file */
+    if (close(vfdP->fd) != 0) {
+      /*
+       * We may need to panic on failure to close non-temporary files;
+       * see LruDelete.
+       */
+      elog(vfdP->fdstate & FD_TEMP_FILE_LIMIT ? LOG : data_sync_elevel(LOG),
+           "could not close file \"%s\": %m", vfdP->fileName);
+    }
 
-		--nfile;
-		vfdP->fd = VFD_CLOSED;
+    --nfile;
+    vfdP->fd = VFD_CLOSED;
 
-		/* remove the file from the lru ring */
-		Delete(file);
-	}
+    /* remove the file from the lru ring */
+    Delete(file);
+  }
 
-	if (vfdP->fdstate & FD_TEMP_FILE_LIMIT)
-	{
-		/* Subtract its size from current usage (do first in case of error) */
-		temporary_files_size -= vfdP->fileSize;
-		vfdP->fileSize = 0;
-	}
+  if (vfdP->fdstate & FD_TEMP_FILE_LIMIT) {
+    /* Subtract its size from current usage (do first in case of error) */
+    temporary_files_size -= vfdP->fileSize;
+    vfdP->fileSize = 0;
+  }
 
-	/*
-	 * Delete the file if it was temporary, and make a log entry if wanted
-	 */
-	if (vfdP->fdstate & FD_DELETE_AT_CLOSE)
-	{
-		struct stat filestats;
-		int			stat_errno;
+  /*
+   * Delete the file if it was temporary, and make a log entry if wanted
+   */
+  if (vfdP->fdstate & FD_DELETE_AT_CLOSE) {
+    struct stat filestats;
+    int     stat_errno;
 
-		/*
-		 * If we get an error, as could happen within the ereport/elog calls,
-		 * we'll come right back here during transaction abort.  Reset the
-		 * flag to ensure that we can't get into an infinite loop.  This code
-		 * is arranged to ensure that the worst-case consequence is failing to
-		 * emit log message(s), not failing to attempt the unlink.
-		 */
-		vfdP->fdstate &= ~FD_DELETE_AT_CLOSE;
+    /*
+     * If we get an error, as could happen within the ereport/elog calls,
+     * we'll come right back here during transaction abort.  Reset the
+     * flag to ensure that we can't get into an infinite loop.  This code
+     * is arranged to ensure that the worst-case consequence is failing to
+     * emit log message(s), not failing to attempt the unlink.
+     */
+    vfdP->fdstate &= ~FD_DELETE_AT_CLOSE;
 
 
-		/* first try the stat() */
-		if (stat(vfdP->fileName, &filestats))
-			stat_errno = errno;
-		else
-			stat_errno = 0;
+    /* first try the stat() */
+    if (stat(vfdP->fileName, &filestats))
+      stat_errno = errno;
+    else
+      stat_errno = 0;
 
-		/* in any case do the unlink */
-		if (unlink(vfdP->fileName))
-			ereport(LOG,
-					(errcode_for_file_access(),
-					 errmsg("could not delete file \"%s\": %m", vfdP->fileName)));
+    /* in any case do the unlink */
+    if (unlink(vfdP->fileName))
+      ereport(LOG,
+              (errcode_for_file_access(),
+               errmsg("could not delete file \"%s\": %m", vfdP->fileName)));
 
-		/* and last report the stat results */
-		if (stat_errno == 0)
-			ReportTemporaryFileUsage(vfdP->fileName, filestats.st_size);
-		else
-		{
-			errno = stat_errno;
-			ereport(LOG,
-					(errcode_for_file_access(),
-					 errmsg("could not stat file \"%s\": %m", vfdP->fileName)));
-		}
-	}
+    /* and last report the stat results */
+    if (stat_errno == 0)
+      ReportTemporaryFileUsage(vfdP->fileName, filestats.st_size);
+    else {
+      errno = stat_errno;
+      ereport(LOG,
+              (errcode_for_file_access(),
+               errmsg("could not stat file \"%s\": %m", vfdP->fileName)));
+    }
+  }
 
-	/* Unregister it from the resource owner */
-	if (vfdP->resowner)
-		ResourceOwnerForgetFile(vfdP->resowner, file);
+  /* Unregister it from the resource owner */
+  if (vfdP->resowner)
+    ResourceOwnerForgetFile(vfdP->resowner, file);
 
-	/*
-	 * Return the Vfd slot to the free list
-	 */
-	FreeVfd(file);
+  /*
+   * Return the Vfd slot to the free list
+   */
+  FreeVfd(file);
 }
 
 /*
@@ -2082,291 +2058,295 @@ FileClose(File file)
 int
 FilePrefetch(File file, off_t offset, off_t amount, uint32 wait_event_info)
 {
-	Assert(FileIsValid(file));
+  Assert(FileIsValid(file));
 
-	DO_DB(elog(LOG, "FilePrefetch: %d (%s) " INT64_FORMAT " " INT64_FORMAT,
-			   file, VfdCache[file].fileName,
-			   (int64) offset, (int64) amount));
+  DO_DB(elog(LOG, "FilePrefetch: %d (%s) " INT64_FORMAT " " INT64_FORMAT,
+             file, VfdCache[file].fileName,
+             (int64) offset, (int64) amount));
 
 #if defined(USE_POSIX_FADVISE) && defined(POSIX_FADV_WILLNEED)
-	{
-		int			returnCode;
+  {
+    int     returnCode;
 
-		returnCode = FileAccess(file);
-		if (returnCode < 0)
-			return returnCode;
+    returnCode = FileAccess(file);
+
+    if (returnCode < 0)
+      return returnCode;
 
 retry:
-		pgstat_report_wait_start(wait_event_info);
-		returnCode = posix_fadvise(VfdCache[file].fd, offset, amount,
-								   POSIX_FADV_WILLNEED);
-		pgstat_report_wait_end();
+    pgstat_report_wait_start(wait_event_info);
+    returnCode = posix_fadvise(VfdCache[file].fd, offset, amount,
+                               POSIX_FADV_WILLNEED);
+    pgstat_report_wait_end();
 
-		if (returnCode == EINTR)
-			goto retry;
+    if (returnCode == EINTR)
+      goto retry;
 
-		return returnCode;
-	}
+    return returnCode;
+  }
 #elif defined(__darwin__)
-	{
-		struct radvisory
-		{
-			off_t		ra_offset;	/* offset into the file */
-			int			ra_count;	/* size of the read     */
-		}			ra;
-		int			returnCode;
+  {
+    struct radvisory {
+      off_t   ra_offset;  /* offset into the file */
+      int     ra_count; /* size of the read     */
+    }     ra;
+    int     returnCode;
 
-		returnCode = FileAccess(file);
-		if (returnCode < 0)
-			return returnCode;
+    returnCode = FileAccess(file);
 
-		ra.ra_offset = offset;
-		ra.ra_count = amount;
-		pgstat_report_wait_start(wait_event_info);
-		returnCode = fcntl(VfdCache[file].fd, F_RDADVISE, &ra);
-		pgstat_report_wait_end();
-		if (returnCode != -1)
-			return 0;
-		else
-			return errno;
-	}
+    if (returnCode < 0)
+      return returnCode;
+
+    ra.ra_offset = offset;
+    ra.ra_count = amount;
+    pgstat_report_wait_start(wait_event_info);
+    returnCode = fcntl(VfdCache[file].fd, F_RDADVISE, &ra);
+    pgstat_report_wait_end();
+
+    if (returnCode != -1)
+      return 0;
+    else
+      return errno;
+  }
 #else
-	return 0;
+  return 0;
 #endif
 }
 
 void
 FileWriteback(File file, off_t offset, off_t nbytes, uint32 wait_event_info)
 {
-	int			returnCode;
+  int     returnCode;
 
-	Assert(FileIsValid(file));
+  Assert(FileIsValid(file));
 
-	DO_DB(elog(LOG, "FileWriteback: %d (%s) " INT64_FORMAT " " INT64_FORMAT,
-			   file, VfdCache[file].fileName,
-			   (int64) offset, (int64) nbytes));
+  DO_DB(elog(LOG, "FileWriteback: %d (%s) " INT64_FORMAT " " INT64_FORMAT,
+             file, VfdCache[file].fileName,
+             (int64) offset, (int64) nbytes));
 
-	if (nbytes <= 0)
-		return;
+  if (nbytes <= 0)
+    return;
 
-	if (VfdCache[file].fileFlags & PG_O_DIRECT)
-		return;
+  if (VfdCache[file].fileFlags & PG_O_DIRECT)
+    return;
 
-	returnCode = FileAccess(file);
-	if (returnCode < 0)
-		return;
+  returnCode = FileAccess(file);
 
-	pgstat_report_wait_start(wait_event_info);
-	pg_flush_data(VfdCache[file].fd, offset, nbytes);
-	pgstat_report_wait_end();
+  if (returnCode < 0)
+    return;
+
+  pgstat_report_wait_start(wait_event_info);
+  pg_flush_data(VfdCache[file].fd, offset, nbytes);
+  pgstat_report_wait_end();
 }
 
 ssize_t
 FileReadV(File file, const struct iovec *iov, int iovcnt, off_t offset,
-		  uint32 wait_event_info)
+          uint32 wait_event_info)
 {
-	ssize_t		returnCode;
-	Vfd		   *vfdP;
+  ssize_t   returnCode;
+  Vfd      *vfdP;
 
-	Assert(FileIsValid(file));
+  Assert(FileIsValid(file));
 
-	DO_DB(elog(LOG, "FileReadV: %d (%s) " INT64_FORMAT " %d",
-			   file, VfdCache[file].fileName,
-			   (int64) offset,
-			   iovcnt));
+  DO_DB(elog(LOG, "FileReadV: %d (%s) " INT64_FORMAT " %d",
+             file, VfdCache[file].fileName,
+             (int64) offset,
+             iovcnt));
 
-	returnCode = FileAccess(file);
-	if (returnCode < 0)
-		return returnCode;
+  returnCode = FileAccess(file);
 
-	vfdP = &VfdCache[file];
+  if (returnCode < 0)
+    return returnCode;
+
+  vfdP = &VfdCache[file];
 
 retry:
-	pgstat_report_wait_start(wait_event_info);
-	returnCode = pg_preadv(vfdP->fd, iov, iovcnt, offset);
-	pgstat_report_wait_end();
+  pgstat_report_wait_start(wait_event_info);
+  returnCode = pg_preadv(vfdP->fd, iov, iovcnt, offset);
+  pgstat_report_wait_end();
 
-	if (returnCode < 0)
-	{
-		/*
-		 * Windows may run out of kernel buffers and return "Insufficient
-		 * system resources" error.  Wait a bit and retry to solve it.
-		 *
-		 * It is rumored that EINTR is also possible on some Unix filesystems,
-		 * in which case immediate retry is indicated.
-		 */
+  if (returnCode < 0) {
+    /*
+     * Windows may run out of kernel buffers and return "Insufficient
+     * system resources" error.  Wait a bit and retry to solve it.
+     *
+     * It is rumored that EINTR is also possible on some Unix filesystems,
+     * in which case immediate retry is indicated.
+     */
 #ifdef WIN32
-		DWORD		error = GetLastError();
+    DWORD   error = GetLastError();
 
-		switch (error)
-		{
-			case ERROR_NO_SYSTEM_RESOURCES:
-				pg_usleep(1000L);
-				errno = EINTR;
-				break;
-			default:
-				_dosmaperr(error);
-				break;
-		}
+    switch (error) {
+      case ERROR_NO_SYSTEM_RESOURCES:
+        pg_usleep(1000L);
+        errno = EINTR;
+        break;
+
+      default:
+        _dosmaperr(error);
+        break;
+    }
+
 #endif
-		/* OK to retry if interrupted */
-		if (errno == EINTR)
-			goto retry;
-	}
 
-	return returnCode;
+    /* OK to retry if interrupted */
+    if (errno == EINTR)
+      goto retry;
+  }
+
+  return returnCode;
 }
 
 int
 FileStartReadV(PgAioHandle *ioh, File file,
-			   int iovcnt, off_t offset,
-			   uint32 wait_event_info)
+               int iovcnt, off_t offset,
+               uint32 wait_event_info)
 {
-	int			returnCode;
-	Vfd		   *vfdP;
+  int     returnCode;
+  Vfd      *vfdP;
 
-	Assert(FileIsValid(file));
+  Assert(FileIsValid(file));
 
-	DO_DB(elog(LOG, "FileStartReadV: %d (%s) " INT64_FORMAT " %d",
-			   file, VfdCache[file].fileName,
-			   (int64) offset,
-			   iovcnt));
+  DO_DB(elog(LOG, "FileStartReadV: %d (%s) " INT64_FORMAT " %d",
+             file, VfdCache[file].fileName,
+             (int64) offset,
+             iovcnt));
 
-	returnCode = FileAccess(file);
-	if (returnCode < 0)
-		return returnCode;
+  returnCode = FileAccess(file);
 
-	vfdP = &VfdCache[file];
+  if (returnCode < 0)
+    return returnCode;
 
-	pgaio_io_start_readv(ioh, vfdP->fd, iovcnt, offset);
+  vfdP = &VfdCache[file];
 
-	return 0;
+  pgaio_io_start_readv(ioh, vfdP->fd, iovcnt, offset);
+
+  return 0;
 }
 
 ssize_t
 FileWriteV(File file, const struct iovec *iov, int iovcnt, off_t offset,
-		   uint32 wait_event_info)
+           uint32 wait_event_info)
 {
-	ssize_t		returnCode;
-	Vfd		   *vfdP;
+  ssize_t   returnCode;
+  Vfd      *vfdP;
 
-	Assert(FileIsValid(file));
+  Assert(FileIsValid(file));
 
-	DO_DB(elog(LOG, "FileWriteV: %d (%s) " INT64_FORMAT " %d",
-			   file, VfdCache[file].fileName,
-			   (int64) offset,
-			   iovcnt));
+  DO_DB(elog(LOG, "FileWriteV: %d (%s) " INT64_FORMAT " %d",
+             file, VfdCache[file].fileName,
+             (int64) offset,
+             iovcnt));
 
-	returnCode = FileAccess(file);
-	if (returnCode < 0)
-		return returnCode;
+  returnCode = FileAccess(file);
 
-	vfdP = &VfdCache[file];
+  if (returnCode < 0)
+    return returnCode;
 
-	/*
-	 * If enforcing temp_file_limit and it's a temp file, check to see if the
-	 * write would overrun temp_file_limit, and throw error if so.  Note: it's
-	 * really a modularity violation to throw error here; we should set errno
-	 * and return -1.  However, there's no way to report a suitable error
-	 * message if we do that.  All current callers would just throw error
-	 * immediately anyway, so this is safe at present.
-	 */
-	if (temp_file_limit >= 0 && (vfdP->fdstate & FD_TEMP_FILE_LIMIT))
-	{
-		off_t		past_write = offset;
+  vfdP = &VfdCache[file];
 
-		for (int i = 0; i < iovcnt; ++i)
-			past_write += iov[i].iov_len;
+  /*
+   * If enforcing temp_file_limit and it's a temp file, check to see if the
+   * write would overrun temp_file_limit, and throw error if so.  Note: it's
+   * really a modularity violation to throw error here; we should set errno
+   * and return -1.  However, there's no way to report a suitable error
+   * message if we do that.  All current callers would just throw error
+   * immediately anyway, so this is safe at present.
+   */
+  if (temp_file_limit >= 0 && (vfdP->fdstate & FD_TEMP_FILE_LIMIT)) {
+    off_t   past_write = offset;
 
-		if (past_write > vfdP->fileSize)
-		{
-			uint64		newTotal = temporary_files_size;
+    for (int i = 0; i < iovcnt; ++i)
+      past_write += iov[i].iov_len;
 
-			newTotal += past_write - vfdP->fileSize;
-			if (newTotal > (uint64) temp_file_limit * (uint64) 1024)
-				ereport(ERROR,
-						(errcode(ERRCODE_CONFIGURATION_LIMIT_EXCEEDED),
-						 errmsg("temporary file size exceeds \"temp_file_limit\" (%dkB)",
-								temp_file_limit)));
-		}
-	}
+    if (past_write > vfdP->fileSize) {
+      uint64    newTotal = temporary_files_size;
+
+      newTotal += past_write - vfdP->fileSize;
+
+      if (newTotal > (uint64) temp_file_limit * (uint64) 1024)
+        ereport(ERROR,
+                (errcode(ERRCODE_CONFIGURATION_LIMIT_EXCEEDED),
+                 errmsg("temporary file size exceeds \"temp_file_limit\" (%dkB)",
+                        temp_file_limit)));
+    }
+  }
 
 retry:
-	pgstat_report_wait_start(wait_event_info);
-	returnCode = pg_pwritev(vfdP->fd, iov, iovcnt, offset);
-	pgstat_report_wait_end();
+  pgstat_report_wait_start(wait_event_info);
+  returnCode = pg_pwritev(vfdP->fd, iov, iovcnt, offset);
+  pgstat_report_wait_end();
 
-	if (returnCode >= 0)
-	{
-		/*
-		 * Some callers expect short writes to set errno, and traditionally we
-		 * have assumed that they imply disk space shortage.  We don't want to
-		 * waste CPU cycles adding up the total size here, so we'll just set
-		 * it for all successful writes in case such a caller determines that
-		 * the write was short and ereports "%m".
-		 */
-		errno = ENOSPC;
+  if (returnCode >= 0) {
+    /*
+     * Some callers expect short writes to set errno, and traditionally we
+     * have assumed that they imply disk space shortage.  We don't want to
+     * waste CPU cycles adding up the total size here, so we'll just set
+     * it for all successful writes in case such a caller determines that
+     * the write was short and ereports "%m".
+     */
+    errno = ENOSPC;
 
-		/*
-		 * Maintain fileSize and temporary_files_size if it's a temp file.
-		 */
-		if (vfdP->fdstate & FD_TEMP_FILE_LIMIT)
-		{
-			off_t		past_write = offset + returnCode;
+    /*
+     * Maintain fileSize and temporary_files_size if it's a temp file.
+     */
+    if (vfdP->fdstate & FD_TEMP_FILE_LIMIT) {
+      off_t   past_write = offset + returnCode;
 
-			if (past_write > vfdP->fileSize)
-			{
-				temporary_files_size += past_write - vfdP->fileSize;
-				vfdP->fileSize = past_write;
-			}
-		}
-	}
-	else
-	{
-		/*
-		 * See comments in FileReadV()
-		 */
+      if (past_write > vfdP->fileSize) {
+        temporary_files_size += past_write - vfdP->fileSize;
+        vfdP->fileSize = past_write;
+      }
+    }
+  } else {
+    /*
+     * See comments in FileReadV()
+     */
 #ifdef WIN32
-		DWORD		error = GetLastError();
+    DWORD   error = GetLastError();
 
-		switch (error)
-		{
-			case ERROR_NO_SYSTEM_RESOURCES:
-				pg_usleep(1000L);
-				errno = EINTR;
-				break;
-			default:
-				_dosmaperr(error);
-				break;
-		}
+    switch (error) {
+      case ERROR_NO_SYSTEM_RESOURCES:
+        pg_usleep(1000L);
+        errno = EINTR;
+        break;
+
+      default:
+        _dosmaperr(error);
+        break;
+    }
+
 #endif
-		/* OK to retry if interrupted */
-		if (errno == EINTR)
-			goto retry;
-	}
 
-	return returnCode;
+    /* OK to retry if interrupted */
+    if (errno == EINTR)
+      goto retry;
+  }
+
+  return returnCode;
 }
 
 int
 FileSync(File file, uint32 wait_event_info)
 {
-	int			returnCode;
+  int     returnCode;
 
-	Assert(FileIsValid(file));
+  Assert(FileIsValid(file));
 
-	DO_DB(elog(LOG, "FileSync: %d (%s)",
-			   file, VfdCache[file].fileName));
+  DO_DB(elog(LOG, "FileSync: %d (%s)",
+             file, VfdCache[file].fileName));
 
-	returnCode = FileAccess(file);
-	if (returnCode < 0)
-		return returnCode;
+  returnCode = FileAccess(file);
 
-	pgstat_report_wait_start(wait_event_info);
-	returnCode = pg_fsync(VfdCache[file].fd);
-	pgstat_report_wait_end();
+  if (returnCode < 0)
+    return returnCode;
 
-	return returnCode;
+  pgstat_report_wait_start(wait_event_info);
+  returnCode = pg_fsync(VfdCache[file].fd);
+  pgstat_report_wait_end();
+
+  return returnCode;
 }
 
 /*
@@ -2378,34 +2358,35 @@ FileSync(File file, uint32 wait_event_info)
 int
 FileZero(File file, off_t offset, off_t amount, uint32 wait_event_info)
 {
-	int			returnCode;
-	ssize_t		written;
+  int     returnCode;
+  ssize_t   written;
 
-	Assert(FileIsValid(file));
+  Assert(FileIsValid(file));
 
-	DO_DB(elog(LOG, "FileZero: %d (%s) " INT64_FORMAT " " INT64_FORMAT,
-			   file, VfdCache[file].fileName,
-			   (int64) offset, (int64) amount));
+  DO_DB(elog(LOG, "FileZero: %d (%s) " INT64_FORMAT " " INT64_FORMAT,
+             file, VfdCache[file].fileName,
+             (int64) offset, (int64) amount));
 
-	returnCode = FileAccess(file);
-	if (returnCode < 0)
-		return returnCode;
+  returnCode = FileAccess(file);
 
-	pgstat_report_wait_start(wait_event_info);
-	written = pg_pwrite_zeros(VfdCache[file].fd, amount, offset);
-	pgstat_report_wait_end();
+  if (returnCode < 0)
+    return returnCode;
 
-	if (written < 0)
-		return -1;
-	else if (written != amount)
-	{
-		/* if errno is unset, assume problem is no disk space */
-		if (errno == 0)
-			errno = ENOSPC;
-		return -1;
-	}
+  pgstat_report_wait_start(wait_event_info);
+  written = pg_pwrite_zeros(VfdCache[file].fd, amount, offset);
+  pgstat_report_wait_end();
 
-	return 0;
+  if (written < 0)
+    return -1;
+  else if (written != amount) {
+    /* if errno is unset, assume problem is no disk space */
+    if (errno == 0)
+      errno = ENOSPC;
+
+    return -1;
+  }
+
+  return 0;
 }
 
 /*
@@ -2424,86 +2405,87 @@ int
 FileFallocate(File file, off_t offset, off_t amount, uint32 wait_event_info)
 {
 #ifdef HAVE_POSIX_FALLOCATE
-	int			returnCode;
+  int     returnCode;
 
-	Assert(FileIsValid(file));
+  Assert(FileIsValid(file));
 
-	DO_DB(elog(LOG, "FileFallocate: %d (%s) " INT64_FORMAT " " INT64_FORMAT,
-			   file, VfdCache[file].fileName,
-			   (int64) offset, (int64) amount));
+  DO_DB(elog(LOG, "FileFallocate: %d (%s) " INT64_FORMAT " " INT64_FORMAT,
+             file, VfdCache[file].fileName,
+             (int64) offset, (int64) amount));
 
-	returnCode = FileAccess(file);
-	if (returnCode < 0)
-		return -1;
+  returnCode = FileAccess(file);
+
+  if (returnCode < 0)
+    return -1;
 
 retry:
-	pgstat_report_wait_start(wait_event_info);
-	returnCode = posix_fallocate(VfdCache[file].fd, offset, amount);
-	pgstat_report_wait_end();
+  pgstat_report_wait_start(wait_event_info);
+  returnCode = posix_fallocate(VfdCache[file].fd, offset, amount);
+  pgstat_report_wait_end();
 
-	if (returnCode == 0)
-		return 0;
-	else if (returnCode == EINTR)
-		goto retry;
+  if (returnCode == 0)
+    return 0;
+  else if (returnCode == EINTR)
+    goto retry;
 
-	/* for compatibility with %m printing etc */
-	errno = returnCode;
+  /* for compatibility with %m printing etc */
+  errno = returnCode;
 
-	/*
-	 * Return in cases of a "real" failure, if fallocate is not supported,
-	 * fall through to the FileZero() backed implementation.
-	 */
-	if (returnCode != EINVAL && returnCode != EOPNOTSUPP)
-		return -1;
+  /*
+   * Return in cases of a "real" failure, if fallocate is not supported,
+   * fall through to the FileZero() backed implementation.
+   */
+  if (returnCode != EINVAL && returnCode != EOPNOTSUPP)
+    return -1;
+
 #endif
 
-	return FileZero(file, offset, amount, wait_event_info);
+  return FileZero(file, offset, amount, wait_event_info);
 }
 
 off_t
 FileSize(File file)
 {
-	Assert(FileIsValid(file));
+  Assert(FileIsValid(file));
 
-	DO_DB(elog(LOG, "FileSize %d (%s)",
-			   file, VfdCache[file].fileName));
+  DO_DB(elog(LOG, "FileSize %d (%s)",
+             file, VfdCache[file].fileName));
 
-	if (FileIsNotOpen(file))
-	{
-		if (FileAccess(file) < 0)
-			return (off_t) -1;
-	}
+  if (FileIsNotOpen(file)) {
+    if (FileAccess(file) < 0)
+      return (off_t) -1;
+  }
 
-	return lseek(VfdCache[file].fd, 0, SEEK_END);
+  return lseek(VfdCache[file].fd, 0, SEEK_END);
 }
 
 int
 FileTruncate(File file, off_t offset, uint32 wait_event_info)
 {
-	int			returnCode;
+  int     returnCode;
 
-	Assert(FileIsValid(file));
+  Assert(FileIsValid(file));
 
-	DO_DB(elog(LOG, "FileTruncate %d (%s)",
-			   file, VfdCache[file].fileName));
+  DO_DB(elog(LOG, "FileTruncate %d (%s)",
+             file, VfdCache[file].fileName));
 
-	returnCode = FileAccess(file);
-	if (returnCode < 0)
-		return returnCode;
+  returnCode = FileAccess(file);
 
-	pgstat_report_wait_start(wait_event_info);
-	returnCode = pg_ftruncate(VfdCache[file].fd, offset);
-	pgstat_report_wait_end();
+  if (returnCode < 0)
+    return returnCode;
 
-	if (returnCode == 0 && VfdCache[file].fileSize > offset)
-	{
-		/* adjust our state for truncation of a temp file */
-		Assert(VfdCache[file].fdstate & FD_TEMP_FILE_LIMIT);
-		temporary_files_size -= VfdCache[file].fileSize - offset;
-		VfdCache[file].fileSize = offset;
-	}
+  pgstat_report_wait_start(wait_event_info);
+  returnCode = pg_ftruncate(VfdCache[file].fd, offset);
+  pgstat_report_wait_end();
 
-	return returnCode;
+  if (returnCode == 0 && VfdCache[file].fileSize > offset) {
+    /* adjust our state for truncation of a temp file */
+    Assert(VfdCache[file].fdstate & FD_TEMP_FILE_LIMIT);
+    temporary_files_size -= VfdCache[file].fileSize - offset;
+    VfdCache[file].fileSize = offset;
+  }
+
+  return returnCode;
 }
 
 /*
@@ -2515,9 +2497,9 @@ FileTruncate(File file, off_t offset, uint32 wait_event_info)
 char *
 FilePathName(File file)
 {
-	Assert(FileIsValid(file));
+  Assert(FileIsValid(file));
 
-	return VfdCache[file].fileName;
+  return VfdCache[file].fileName;
 }
 
 /*
@@ -2531,14 +2513,15 @@ FilePathName(File file)
 int
 FileGetRawDesc(File file)
 {
-	int			returnCode;
+  int     returnCode;
 
-	returnCode = FileAccess(file);
-	if (returnCode < 0)
-		return returnCode;
+  returnCode = FileAccess(file);
 
-	Assert(FileIsValid(file));
-	return VfdCache[file].fd;
+  if (returnCode < 0)
+    return returnCode;
+
+  Assert(FileIsValid(file));
+  return VfdCache[file].fd;
 }
 
 /*
@@ -2547,8 +2530,8 @@ FileGetRawDesc(File file)
 int
 FileGetRawFlags(File file)
 {
-	Assert(FileIsValid(file));
-	return VfdCache[file].fileFlags;
+  Assert(FileIsValid(file));
+  return VfdCache[file].fileFlags;
 }
 
 /*
@@ -2557,8 +2540,8 @@ FileGetRawFlags(File file)
 mode_t
 FileGetRawMode(File file)
 {
-	Assert(FileIsValid(file));
-	return VfdCache[file].fileMode;
+  Assert(FileIsValid(file));
+  return VfdCache[file].fileMode;
 }
 
 /*
@@ -2568,59 +2551,62 @@ FileGetRawMode(File file)
 static bool
 reserveAllocatedDesc(void)
 {
-	AllocateDesc *newDescs;
-	int			newMax;
+  AllocateDesc *newDescs;
+  int     newMax;
 
-	/* Quick out if array already has a free slot. */
-	if (numAllocatedDescs < maxAllocatedDescs)
-		return true;
+  /* Quick out if array already has a free slot. */
+  if (numAllocatedDescs < maxAllocatedDescs)
+    return true;
 
-	/*
-	 * If the array hasn't yet been created in the current process, initialize
-	 * it with FD_MINFREE / 3 elements.  In many scenarios this is as many as
-	 * we will ever need, anyway.  We don't want to look at max_safe_fds
-	 * immediately because set_max_safe_fds() may not have run yet.
-	 */
-	if (allocatedDescs == NULL)
-	{
-		newMax = FD_MINFREE / 3;
-		newDescs = (AllocateDesc *) malloc(newMax * sizeof(AllocateDesc));
-		/* Out of memory already?  Treat as fatal error. */
-		if (newDescs == NULL)
-			ereport(ERROR,
-					(errcode(ERRCODE_OUT_OF_MEMORY),
-					 errmsg("out of memory")));
-		allocatedDescs = newDescs;
-		maxAllocatedDescs = newMax;
-		return true;
-	}
+  /*
+   * If the array hasn't yet been created in the current process, initialize
+   * it with FD_MINFREE / 3 elements.  In many scenarios this is as many as
+   * we will ever need, anyway.  We don't want to look at max_safe_fds
+   * immediately because set_max_safe_fds() may not have run yet.
+   */
+  if (allocatedDescs == NULL) {
+    newMax = FD_MINFREE / 3;
+    newDescs = (AllocateDesc *) malloc(newMax * sizeof(AllocateDesc));
 
-	/*
-	 * Consider enlarging the array beyond the initial allocation used above.
-	 * By the time this happens, max_safe_fds should be known accurately.
-	 *
-	 * We mustn't let allocated descriptors hog all the available FDs, and in
-	 * practice we'd better leave a reasonable number of FDs for VFD use.  So
-	 * set the maximum to max_safe_fds / 3.  (This should certainly be at
-	 * least as large as the initial size, FD_MINFREE / 3, so we aren't
-	 * tightening the restriction here.)  Recall that "external" FDs are
-	 * allowed to consume another third of max_safe_fds.
-	 */
-	newMax = max_safe_fds / 3;
-	if (newMax > maxAllocatedDescs)
-	{
-		newDescs = (AllocateDesc *) realloc(allocatedDescs,
-											newMax * sizeof(AllocateDesc));
-		/* Treat out-of-memory as a non-fatal error. */
-		if (newDescs == NULL)
-			return false;
-		allocatedDescs = newDescs;
-		maxAllocatedDescs = newMax;
-		return true;
-	}
+    /* Out of memory already?  Treat as fatal error. */
+    if (newDescs == NULL)
+      ereport(ERROR,
+              (errcode(ERRCODE_OUT_OF_MEMORY),
+               errmsg("out of memory")));
 
-	/* Can't enlarge allocatedDescs[] any more. */
-	return false;
+    allocatedDescs = newDescs;
+    maxAllocatedDescs = newMax;
+    return true;
+  }
+
+  /*
+   * Consider enlarging the array beyond the initial allocation used above.
+   * By the time this happens, max_safe_fds should be known accurately.
+   *
+   * We mustn't let allocated descriptors hog all the available FDs, and in
+   * practice we'd better leave a reasonable number of FDs for VFD use.  So
+   * set the maximum to max_safe_fds / 3.  (This should certainly be at
+   * least as large as the initial size, FD_MINFREE / 3, so we aren't
+   * tightening the restriction here.)  Recall that "external" FDs are
+   * allowed to consume another third of max_safe_fds.
+   */
+  newMax = max_safe_fds / 3;
+
+  if (newMax > maxAllocatedDescs) {
+    newDescs = (AllocateDesc *) realloc(allocatedDescs,
+                                        newMax * sizeof(AllocateDesc));
+
+    /* Treat out-of-memory as a non-fatal error. */
+    if (newDescs == NULL)
+      return false;
+
+    allocatedDescs = newDescs;
+    maxAllocatedDescs = newMax;
+    return true;
+  }
+
+  /* Can't enlarge allocatedDescs[] any more. */
+  return false;
 }
 
 /*
@@ -2643,47 +2629,48 @@ reserveAllocatedDesc(void)
 FILE *
 AllocateFile(const char *name, const char *mode)
 {
-	FILE	   *file;
+  FILE     *file;
 
-	DO_DB(elog(LOG, "AllocateFile: Allocated %d (%s)",
-			   numAllocatedDescs, name));
+  DO_DB(elog(LOG, "AllocateFile: Allocated %d (%s)",
+             numAllocatedDescs, name));
 
-	/* Can we allocate another non-virtual FD? */
-	if (!reserveAllocatedDesc())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_RESOURCES),
-				 errmsg("exceeded maxAllocatedDescs (%d) while trying to open file \"%s\"",
-						maxAllocatedDescs, name)));
+  /* Can we allocate another non-virtual FD? */
+  if (!reserveAllocatedDesc())
+    ereport(ERROR,
+            (errcode(ERRCODE_INSUFFICIENT_RESOURCES),
+             errmsg("exceeded maxAllocatedDescs (%d) while trying to open file \"%s\"",
+                    maxAllocatedDescs, name)));
 
-	/* Close excess kernel FDs. */
-	ReleaseLruFiles();
+  /* Close excess kernel FDs. */
+  ReleaseLruFiles();
 
 TryAgain:
-	if ((file = fopen(name, mode)) != NULL)
-	{
-		AllocateDesc *desc = &allocatedDescs[numAllocatedDescs];
 
-		desc->kind = AllocateDescFile;
-		desc->desc.file = file;
-		desc->create_subid = GetCurrentSubTransactionId();
-		numAllocatedDescs++;
-		return desc->desc.file;
-	}
+  if ((file = fopen(name, mode)) != NULL) {
+    AllocateDesc *desc = &allocatedDescs[numAllocatedDescs];
 
-	if (errno == EMFILE || errno == ENFILE)
-	{
-		int			save_errno = errno;
+    desc->kind = AllocateDescFile;
+    desc->desc.file = file;
+    desc->create_subid = GetCurrentSubTransactionId();
+    numAllocatedDescs++;
+    return desc->desc.file;
+  }
 
-		ereport(LOG,
-				(errcode(ERRCODE_INSUFFICIENT_RESOURCES),
-				 errmsg("out of file descriptors: %m; release and retry")));
-		errno = 0;
-		if (ReleaseLruFile())
-			goto TryAgain;
-		errno = save_errno;
-	}
+  if (errno == EMFILE || errno == ENFILE) {
+    int     save_errno = errno;
 
-	return NULL;
+    ereport(LOG,
+            (errcode(ERRCODE_INSUFFICIENT_RESOURCES),
+             errmsg("out of file descriptors: %m; release and retry")));
+    errno = 0;
+
+    if (ReleaseLruFile())
+      goto TryAgain;
+
+    errno = save_errno;
+  }
+
+  return NULL;
 }
 
 /*
@@ -2693,7 +2680,7 @@ TryAgain:
 int
 OpenTransientFile(const char *fileName, int fileFlags)
 {
-	return OpenTransientFilePerm(fileName, fileFlags, pg_file_create_mode);
+  return OpenTransientFilePerm(fileName, fileFlags, pg_file_create_mode);
 }
 
 /*
@@ -2702,36 +2689,35 @@ OpenTransientFile(const char *fileName, int fileFlags)
 int
 OpenTransientFilePerm(const char *fileName, int fileFlags, mode_t fileMode)
 {
-	int			fd;
+  int     fd;
 
-	DO_DB(elog(LOG, "OpenTransientFile: Allocated %d (%s)",
-			   numAllocatedDescs, fileName));
+  DO_DB(elog(LOG, "OpenTransientFile: Allocated %d (%s)",
+             numAllocatedDescs, fileName));
 
-	/* Can we allocate another non-virtual FD? */
-	if (!reserveAllocatedDesc())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_RESOURCES),
-				 errmsg("exceeded maxAllocatedDescs (%d) while trying to open file \"%s\"",
-						maxAllocatedDescs, fileName)));
+  /* Can we allocate another non-virtual FD? */
+  if (!reserveAllocatedDesc())
+    ereport(ERROR,
+            (errcode(ERRCODE_INSUFFICIENT_RESOURCES),
+             errmsg("exceeded maxAllocatedDescs (%d) while trying to open file \"%s\"",
+                    maxAllocatedDescs, fileName)));
 
-	/* Close excess kernel FDs. */
-	ReleaseLruFiles();
+  /* Close excess kernel FDs. */
+  ReleaseLruFiles();
 
-	fd = BasicOpenFilePerm(fileName, fileFlags, fileMode);
+  fd = BasicOpenFilePerm(fileName, fileFlags, fileMode);
 
-	if (fd >= 0)
-	{
-		AllocateDesc *desc = &allocatedDescs[numAllocatedDescs];
+  if (fd >= 0) {
+    AllocateDesc *desc = &allocatedDescs[numAllocatedDescs];
 
-		desc->kind = AllocateDescRawFD;
-		desc->desc.fd = fd;
-		desc->create_subid = GetCurrentSubTransactionId();
-		numAllocatedDescs++;
+    desc->kind = AllocateDescRawFD;
+    desc->desc.fd = fd;
+    desc->create_subid = GetCurrentSubTransactionId();
+    numAllocatedDescs++;
 
-		return fd;
-	}
+    return fd;
+  }
 
-	return -1;					/* failure */
+  return -1;          /* failure */
 }
 
 /*
@@ -2746,52 +2732,53 @@ OpenTransientFilePerm(const char *fileName, int fileFlags, mode_t fileMode)
 FILE *
 OpenPipeStream(const char *command, const char *mode)
 {
-	FILE	   *file;
-	int			save_errno;
+  FILE     *file;
+  int     save_errno;
 
-	DO_DB(elog(LOG, "OpenPipeStream: Allocated %d (%s)",
-			   numAllocatedDescs, command));
+  DO_DB(elog(LOG, "OpenPipeStream: Allocated %d (%s)",
+             numAllocatedDescs, command));
 
-	/* Can we allocate another non-virtual FD? */
-	if (!reserveAllocatedDesc())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_RESOURCES),
-				 errmsg("exceeded maxAllocatedDescs (%d) while trying to execute command \"%s\"",
-						maxAllocatedDescs, command)));
+  /* Can we allocate another non-virtual FD? */
+  if (!reserveAllocatedDesc())
+    ereport(ERROR,
+            (errcode(ERRCODE_INSUFFICIENT_RESOURCES),
+             errmsg("exceeded maxAllocatedDescs (%d) while trying to execute command \"%s\"",
+                    maxAllocatedDescs, command)));
 
-	/* Close excess kernel FDs. */
-	ReleaseLruFiles();
+  /* Close excess kernel FDs. */
+  ReleaseLruFiles();
 
 TryAgain:
-	fflush(NULL);
-	pqsignal(SIGPIPE, SIG_DFL);
-	errno = 0;
-	file = popen(command, mode);
-	save_errno = errno;
-	pqsignal(SIGPIPE, SIG_IGN);
-	errno = save_errno;
-	if (file != NULL)
-	{
-		AllocateDesc *desc = &allocatedDescs[numAllocatedDescs];
+  fflush(NULL);
+  pqsignal(SIGPIPE, SIG_DFL);
+  errno = 0;
+  file = popen(command, mode);
+  save_errno = errno;
+  pqsignal(SIGPIPE, SIG_IGN);
+  errno = save_errno;
 
-		desc->kind = AllocateDescPipe;
-		desc->desc.file = file;
-		desc->create_subid = GetCurrentSubTransactionId();
-		numAllocatedDescs++;
-		return desc->desc.file;
-	}
+  if (file != NULL) {
+    AllocateDesc *desc = &allocatedDescs[numAllocatedDescs];
 
-	if (errno == EMFILE || errno == ENFILE)
-	{
-		ereport(LOG,
-				(errcode(ERRCODE_INSUFFICIENT_RESOURCES),
-				 errmsg("out of file descriptors: %m; release and retry")));
-		if (ReleaseLruFile())
-			goto TryAgain;
-		errno = save_errno;
-	}
+    desc->kind = AllocateDescPipe;
+    desc->desc.file = file;
+    desc->create_subid = GetCurrentSubTransactionId();
+    numAllocatedDescs++;
+    return desc->desc.file;
+  }
 
-	return NULL;
+  if (errno == EMFILE || errno == ENFILE) {
+    ereport(LOG,
+            (errcode(ERRCODE_INSUFFICIENT_RESOURCES),
+             errmsg("out of file descriptors: %m; release and retry")));
+
+    if (ReleaseLruFile())
+      goto TryAgain;
+
+    errno = save_errno;
+  }
+
+  return NULL;
 }
 
 /*
@@ -2802,35 +2789,38 @@ TryAgain:
 static int
 FreeDesc(AllocateDesc *desc)
 {
-	int			result;
+  int     result;
 
-	/* Close the underlying object */
-	switch (desc->kind)
-	{
-		case AllocateDescFile:
-			result = fclose(desc->desc.file);
-			break;
-		case AllocateDescPipe:
-			result = pclose(desc->desc.file);
-			break;
-		case AllocateDescDir:
-			result = closedir(desc->desc.dir);
-			break;
-		case AllocateDescRawFD:
-			pgaio_closing_fd(desc->desc.fd);
-			result = close(desc->desc.fd);
-			break;
-		default:
-			elog(ERROR, "AllocateDesc kind not recognized");
-			result = 0;			/* keep compiler quiet */
-			break;
-	}
+  /* Close the underlying object */
+  switch (desc->kind) {
+    case AllocateDescFile:
+      result = fclose(desc->desc.file);
+      break;
 
-	/* Compact storage in the allocatedDescs array */
-	numAllocatedDescs--;
-	*desc = allocatedDescs[numAllocatedDescs];
+    case AllocateDescPipe:
+      result = pclose(desc->desc.file);
+      break;
 
-	return result;
+    case AllocateDescDir:
+      result = closedir(desc->desc.dir);
+      break;
+
+    case AllocateDescRawFD:
+      pgaio_closing_fd(desc->desc.fd);
+      result = close(desc->desc.fd);
+      break;
+
+    default:
+      elog(ERROR, "AllocateDesc kind not recognized");
+      result = 0;     /* keep compiler quiet */
+      break;
+  }
+
+  /* Compact storage in the allocatedDescs array */
+  numAllocatedDescs--;
+  *desc = allocatedDescs[numAllocatedDescs];
+
+  return result;
 }
 
 /*
@@ -2842,23 +2832,22 @@ FreeDesc(AllocateDesc *desc)
 int
 FreeFile(FILE *file)
 {
-	int			i;
+  int     i;
 
-	DO_DB(elog(LOG, "FreeFile: Allocated %d", numAllocatedDescs));
+  DO_DB(elog(LOG, "FreeFile: Allocated %d", numAllocatedDescs));
 
-	/* Remove file from list of allocated files, if it's present */
-	for (i = numAllocatedDescs; --i >= 0;)
-	{
-		AllocateDesc *desc = &allocatedDescs[i];
+  /* Remove file from list of allocated files, if it's present */
+  for (i = numAllocatedDescs; --i >= 0;) {
+    AllocateDesc *desc = &allocatedDescs[i];
 
-		if (desc->kind == AllocateDescFile && desc->desc.file == file)
-			return FreeDesc(desc);
-	}
+    if (desc->kind == AllocateDescFile && desc->desc.file == file)
+      return FreeDesc(desc);
+  }
 
-	/* Only get here if someone passes us a file not in allocatedDescs */
-	elog(WARNING, "file passed to FreeFile was not obtained from AllocateFile");
+  /* Only get here if someone passes us a file not in allocatedDescs */
+  elog(WARNING, "file passed to FreeFile was not obtained from AllocateFile");
 
-	return fclose(file);
+  return fclose(file);
 }
 
 /*
@@ -2870,25 +2859,24 @@ FreeFile(FILE *file)
 int
 CloseTransientFile(int fd)
 {
-	int			i;
+  int     i;
 
-	DO_DB(elog(LOG, "CloseTransientFile: Allocated %d", numAllocatedDescs));
+  DO_DB(elog(LOG, "CloseTransientFile: Allocated %d", numAllocatedDescs));
 
-	/* Remove fd from list of allocated files, if it's present */
-	for (i = numAllocatedDescs; --i >= 0;)
-	{
-		AllocateDesc *desc = &allocatedDescs[i];
+  /* Remove fd from list of allocated files, if it's present */
+  for (i = numAllocatedDescs; --i >= 0;) {
+    AllocateDesc *desc = &allocatedDescs[i];
 
-		if (desc->kind == AllocateDescRawFD && desc->desc.fd == fd)
-			return FreeDesc(desc);
-	}
+    if (desc->kind == AllocateDescRawFD && desc->desc.fd == fd)
+      return FreeDesc(desc);
+  }
 
-	/* Only get here if someone passes us a file not in allocatedDescs */
-	elog(WARNING, "fd passed to CloseTransientFile was not obtained from OpenTransientFile");
+  /* Only get here if someone passes us a file not in allocatedDescs */
+  elog(WARNING, "fd passed to CloseTransientFile was not obtained from OpenTransientFile");
 
-	pgaio_closing_fd(fd);
+  pgaio_closing_fd(fd);
 
-	return close(fd);
+  return close(fd);
 }
 
 /*
@@ -2906,47 +2894,48 @@ CloseTransientFile(int fd)
 DIR *
 AllocateDir(const char *dirname)
 {
-	DIR		   *dir;
+  DIR      *dir;
 
-	DO_DB(elog(LOG, "AllocateDir: Allocated %d (%s)",
-			   numAllocatedDescs, dirname));
+  DO_DB(elog(LOG, "AllocateDir: Allocated %d (%s)",
+             numAllocatedDescs, dirname));
 
-	/* Can we allocate another non-virtual FD? */
-	if (!reserveAllocatedDesc())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_RESOURCES),
-				 errmsg("exceeded maxAllocatedDescs (%d) while trying to open directory \"%s\"",
-						maxAllocatedDescs, dirname)));
+  /* Can we allocate another non-virtual FD? */
+  if (!reserveAllocatedDesc())
+    ereport(ERROR,
+            (errcode(ERRCODE_INSUFFICIENT_RESOURCES),
+             errmsg("exceeded maxAllocatedDescs (%d) while trying to open directory \"%s\"",
+                    maxAllocatedDescs, dirname)));
 
-	/* Close excess kernel FDs. */
-	ReleaseLruFiles();
+  /* Close excess kernel FDs. */
+  ReleaseLruFiles();
 
 TryAgain:
-	if ((dir = opendir(dirname)) != NULL)
-	{
-		AllocateDesc *desc = &allocatedDescs[numAllocatedDescs];
 
-		desc->kind = AllocateDescDir;
-		desc->desc.dir = dir;
-		desc->create_subid = GetCurrentSubTransactionId();
-		numAllocatedDescs++;
-		return desc->desc.dir;
-	}
+  if ((dir = opendir(dirname)) != NULL) {
+    AllocateDesc *desc = &allocatedDescs[numAllocatedDescs];
 
-	if (errno == EMFILE || errno == ENFILE)
-	{
-		int			save_errno = errno;
+    desc->kind = AllocateDescDir;
+    desc->desc.dir = dir;
+    desc->create_subid = GetCurrentSubTransactionId();
+    numAllocatedDescs++;
+    return desc->desc.dir;
+  }
 
-		ereport(LOG,
-				(errcode(ERRCODE_INSUFFICIENT_RESOURCES),
-				 errmsg("out of file descriptors: %m; release and retry")));
-		errno = 0;
-		if (ReleaseLruFile())
-			goto TryAgain;
-		errno = save_errno;
-	}
+  if (errno == EMFILE || errno == ENFILE) {
+    int     save_errno = errno;
 
-	return NULL;
+    ereport(LOG,
+            (errcode(ERRCODE_INSUFFICIENT_RESOURCES),
+             errmsg("out of file descriptors: %m; release and retry")));
+    errno = 0;
+
+    if (ReleaseLruFile())
+      goto TryAgain;
+
+    errno = save_errno;
+  }
+
+  return NULL;
 }
 
 /*
@@ -2957,10 +2946,10 @@ TryAgain:
  * if you are happy with a generic error message for AllocateDir failure,
  * you can just do
  *
- *		dir = AllocateDir(path);
- *		while ((dirent = ReadDir(dir, path)) != NULL)
- *			process dirent;
- *		FreeDir(dir);
+ *    dir = AllocateDir(path);
+ *    while ((dirent = ReadDir(dir, path)) != NULL)
+ *      process dirent;
+ *    FreeDir(dir);
  *
  * since a NULL dir parameter is taken as indicating AllocateDir failed.
  * (Make sure errno isn't changed between AllocateDir and ReadDir if you
@@ -2972,7 +2961,7 @@ TryAgain:
 struct dirent *
 ReadDir(DIR *dir, const char *dirname)
 {
-	return ReadDirExtended(dir, dirname, ERROR);
+  return ReadDirExtended(dir, dirname, ERROR);
 }
 
 /*
@@ -2987,28 +2976,29 @@ ReadDir(DIR *dir, const char *dirname)
 struct dirent *
 ReadDirExtended(DIR *dir, const char *dirname, int elevel)
 {
-	struct dirent *dent;
+  struct dirent *dent;
 
-	/* Give a generic message for AllocateDir failure, if caller didn't */
-	if (dir == NULL)
-	{
-		ereport(elevel,
-				(errcode_for_file_access(),
-				 errmsg("could not open directory \"%s\": %m",
-						dirname)));
-		return NULL;
-	}
+  /* Give a generic message for AllocateDir failure, if caller didn't */
+  if (dir == NULL) {
+    ereport(elevel,
+            (errcode_for_file_access(),
+             errmsg("could not open directory \"%s\": %m",
+                    dirname)));
+    return NULL;
+  }
 
-	errno = 0;
-	if ((dent = readdir(dir)) != NULL)
-		return dent;
+  errno = 0;
 
-	if (errno)
-		ereport(elevel,
-				(errcode_for_file_access(),
-				 errmsg("could not read directory \"%s\": %m",
-						dirname)));
-	return NULL;
+  if ((dent = readdir(dir)) != NULL)
+    return dent;
+
+  if (errno)
+    ereport(elevel,
+            (errcode_for_file_access(),
+             errmsg("could not read directory \"%s\": %m",
+                    dirname)));
+
+  return NULL;
 }
 
 /*
@@ -3024,27 +3014,26 @@ ReadDirExtended(DIR *dir, const char *dirname, int elevel)
 int
 FreeDir(DIR *dir)
 {
-	int			i;
+  int     i;
 
-	/* Nothing to do if AllocateDir failed */
-	if (dir == NULL)
-		return 0;
+  /* Nothing to do if AllocateDir failed */
+  if (dir == NULL)
+    return 0;
 
-	DO_DB(elog(LOG, "FreeDir: Allocated %d", numAllocatedDescs));
+  DO_DB(elog(LOG, "FreeDir: Allocated %d", numAllocatedDescs));
 
-	/* Remove dir from list of allocated dirs, if it's present */
-	for (i = numAllocatedDescs; --i >= 0;)
-	{
-		AllocateDesc *desc = &allocatedDescs[i];
+  /* Remove dir from list of allocated dirs, if it's present */
+  for (i = numAllocatedDescs; --i >= 0;) {
+    AllocateDesc *desc = &allocatedDescs[i];
 
-		if (desc->kind == AllocateDescDir && desc->desc.dir == dir)
-			return FreeDesc(desc);
-	}
+    if (desc->kind == AllocateDescDir && desc->desc.dir == dir)
+      return FreeDesc(desc);
+  }
 
-	/* Only get here if someone passes us a dir not in allocatedDescs */
-	elog(WARNING, "dir passed to FreeDir was not obtained from AllocateDir");
+  /* Only get here if someone passes us a dir not in allocatedDescs */
+  elog(WARNING, "dir passed to FreeDir was not obtained from AllocateDir");
 
-	return closedir(dir);
+  return closedir(dir);
 }
 
 
@@ -3054,23 +3043,22 @@ FreeDir(DIR *dir)
 int
 ClosePipeStream(FILE *file)
 {
-	int			i;
+  int     i;
 
-	DO_DB(elog(LOG, "ClosePipeStream: Allocated %d", numAllocatedDescs));
+  DO_DB(elog(LOG, "ClosePipeStream: Allocated %d", numAllocatedDescs));
 
-	/* Remove file from list of allocated files, if it's present */
-	for (i = numAllocatedDescs; --i >= 0;)
-	{
-		AllocateDesc *desc = &allocatedDescs[i];
+  /* Remove file from list of allocated files, if it's present */
+  for (i = numAllocatedDescs; --i >= 0;) {
+    AllocateDesc *desc = &allocatedDescs[i];
 
-		if (desc->kind == AllocateDescPipe && desc->desc.file == file)
-			return FreeDesc(desc);
-	}
+    if (desc->kind == AllocateDescPipe && desc->desc.file == file)
+      return FreeDesc(desc);
+  }
 
-	/* Only get here if someone passes us a file not in allocatedDescs */
-	elog(WARNING, "file passed to ClosePipeStream was not obtained from OpenPipeStream");
+  /* Only get here if someone passes us a file not in allocatedDescs */
+  elog(WARNING, "file passed to ClosePipeStream was not obtained from OpenPipeStream");
 
-	return pclose(file);
+  return pclose(file);
 }
 
 /*
@@ -3083,17 +3071,16 @@ ClosePipeStream(FILE *file)
 void
 closeAllVfds(void)
 {
-	Index		i;
+  Index   i;
 
-	if (SizeVfdCache > 0)
-	{
-		Assert(FileIsNotOpen(0));	/* Make sure ring not corrupted */
-		for (i = 1; i < SizeVfdCache; i++)
-		{
-			if (!FileIsNotOpen(i))
-				LruDelete(i);
-		}
-	}
+  if (SizeVfdCache > 0) {
+    Assert(FileIsNotOpen(0)); /* Make sure ring not corrupted */
+
+    for (i = 1; i < SizeVfdCache; i++) {
+      if (!FileIsNotOpen(i))
+        LruDelete(i);
+    }
+  }
 }
 
 
@@ -3112,23 +3099,23 @@ closeAllVfds(void)
 void
 SetTempTablespaces(Oid *tableSpaces, int numSpaces)
 {
-	Assert(numSpaces >= 0);
-	tempTableSpaces = tableSpaces;
-	numTempTableSpaces = numSpaces;
+  Assert(numSpaces >= 0);
+  tempTableSpaces = tableSpaces;
+  numTempTableSpaces = numSpaces;
 
-	/*
-	 * Select a random starting point in the list.  This is to minimize
-	 * conflicts between backends that are most likely sharing the same list
-	 * of temp tablespaces.  Note that if we create multiple temp files in the
-	 * same transaction, we'll advance circularly through the list --- this
-	 * ensures that large temporary sort files are nicely spread across all
-	 * available tablespaces.
-	 */
-	if (numSpaces > 1)
-		nextTempTableSpace = pg_prng_uint64_range(&pg_global_prng_state,
-												  0, numSpaces - 1);
-	else
-		nextTempTableSpace = 0;
+  /*
+   * Select a random starting point in the list.  This is to minimize
+   * conflicts between backends that are most likely sharing the same list
+   * of temp tablespaces.  Note that if we create multiple temp files in the
+   * same transaction, we'll advance circularly through the list --- this
+   * ensures that large temporary sort files are nicely spread across all
+   * available tablespaces.
+   */
+  if (numSpaces > 1)
+    nextTempTableSpace = pg_prng_uint64_range(&pg_global_prng_state,
+                         0, numSpaces - 1);
+  else
+    nextTempTableSpace = 0;
 }
 
 /*
@@ -3141,7 +3128,7 @@ SetTempTablespaces(Oid *tableSpaces, int numSpaces)
 bool
 TempTablespacesAreSet(void)
 {
-	return (numTempTableSpaces >= 0);
+  return (numTempTableSpaces >= 0);
 }
 
 /*
@@ -3156,13 +3143,14 @@ TempTablespacesAreSet(void)
 int
 GetTempTablespaces(Oid *tableSpaces, int numSpaces)
 {
-	int			i;
+  int     i;
 
-	Assert(TempTablespacesAreSet());
-	for (i = 0; i < numTempTableSpaces && i < numSpaces; ++i)
-		tableSpaces[i] = tempTableSpaces[i];
+  Assert(TempTablespacesAreSet());
 
-	return i;
+  for (i = 0; i < numTempTableSpaces && i < numSpaces; ++i)
+    tableSpaces[i] = tempTableSpaces[i];
+
+  return i;
 }
 
 /*
@@ -3174,14 +3162,15 @@ GetTempTablespaces(Oid *tableSpaces, int numSpaces)
 Oid
 GetNextTempTableSpace(void)
 {
-	if (numTempTableSpaces > 0)
-	{
-		/* Advance nextTempTableSpace counter with wraparound */
-		if (++nextTempTableSpace >= numTempTableSpaces)
-			nextTempTableSpace = 0;
-		return tempTableSpaces[nextTempTableSpace];
-	}
-	return InvalidOid;
+  if (numTempTableSpaces > 0) {
+    /* Advance nextTempTableSpace counter with wraparound */
+    if (++nextTempTableSpace >= numTempTableSpaces)
+      nextTempTableSpace = 0;
+
+    return tempTableSpaces[nextTempTableSpace];
+  }
+
+  return InvalidOid;
 }
 
 
@@ -3194,23 +3183,20 @@ GetNextTempTableSpace(void)
  */
 void
 AtEOSubXact_Files(bool isCommit, SubTransactionId mySubid,
-				  SubTransactionId parentSubid)
+                  SubTransactionId parentSubid)
 {
-	Index		i;
+  Index   i;
 
-	for (i = 0; i < numAllocatedDescs; i++)
-	{
-		if (allocatedDescs[i].create_subid == mySubid)
-		{
-			if (isCommit)
-				allocatedDescs[i].create_subid = parentSubid;
-			else
-			{
-				/* have to recheck the item after FreeDesc (ugly) */
-				FreeDesc(&allocatedDescs[i--]);
-			}
-		}
-	}
+  for (i = 0; i < numAllocatedDescs; i++) {
+    if (allocatedDescs[i].create_subid == mySubid) {
+      if (isCommit)
+        allocatedDescs[i].create_subid = parentSubid;
+      else {
+        /* have to recheck the item after FreeDesc (ugly) */
+        FreeDesc(&allocatedDescs[i--]);
+      }
+    }
+  }
 }
 
 /*
@@ -3228,9 +3214,9 @@ AtEOSubXact_Files(bool isCommit, SubTransactionId mySubid,
 void
 AtEOXact_Files(bool isCommit)
 {
-	CleanupTempFiles(isCommit, false);
-	tempTableSpaces = NULL;
-	numTempTableSpaces = -1;
+  CleanupTempFiles(isCommit, false);
+  tempTableSpaces = NULL;
+  numTempTableSpaces = -1;
 }
 
 /*
@@ -3242,11 +3228,11 @@ AtEOXact_Files(bool isCommit)
 static void
 BeforeShmemExit_Files(int code, Datum arg)
 {
-	CleanupTempFiles(false, true);
+  CleanupTempFiles(false, true);
 
-	/* prevent further temp files from being created */
+  /* prevent further temp files from being created */
 #ifdef USE_ASSERT_CHECKING
-	temporary_files_allowed = false;
+  temporary_files_allowed = false;
 #endif
 }
 
@@ -3265,52 +3251,49 @@ BeforeShmemExit_Files(int code, Datum arg)
 static void
 CleanupTempFiles(bool isCommit, bool isProcExit)
 {
-	Index		i;
+  Index   i;
 
-	/*
-	 * Careful here: at proc_exit we need extra cleanup, not just
-	 * xact_temporary files.
-	 */
-	if (isProcExit || have_xact_temporary_files)
-	{
-		Assert(FileIsNotOpen(0));	/* Make sure ring not corrupted */
-		for (i = 1; i < SizeVfdCache; i++)
-		{
-			unsigned short fdstate = VfdCache[i].fdstate;
+  /*
+   * Careful here: at proc_exit we need extra cleanup, not just
+   * xact_temporary files.
+   */
+  if (isProcExit || have_xact_temporary_files) {
+    Assert(FileIsNotOpen(0)); /* Make sure ring not corrupted */
 
-			if (((fdstate & FD_DELETE_AT_CLOSE) || (fdstate & FD_CLOSE_AT_EOXACT)) &&
-				VfdCache[i].fileName != NULL)
-			{
-				/*
-				 * If we're in the process of exiting a backend process, close
-				 * all temporary files. Otherwise, only close temporary files
-				 * local to the current transaction. They should be closed by
-				 * the ResourceOwner mechanism already, so this is just a
-				 * debugging cross-check.
-				 */
-				if (isProcExit)
-					FileClose(i);
-				else if (fdstate & FD_CLOSE_AT_EOXACT)
-				{
-					elog(WARNING,
-						 "temporary file %s not closed at end-of-transaction",
-						 VfdCache[i].fileName);
-					FileClose(i);
-				}
-			}
-		}
+    for (i = 1; i < SizeVfdCache; i++) {
+      unsigned short fdstate = VfdCache[i].fdstate;
 
-		have_xact_temporary_files = false;
-	}
+      if (((fdstate & FD_DELETE_AT_CLOSE) || (fdstate & FD_CLOSE_AT_EOXACT)) &&
+          VfdCache[i].fileName != NULL) {
+        /*
+         * If we're in the process of exiting a backend process, close
+         * all temporary files. Otherwise, only close temporary files
+         * local to the current transaction. They should be closed by
+         * the ResourceOwner mechanism already, so this is just a
+         * debugging cross-check.
+         */
+        if (isProcExit)
+          FileClose(i);
+        else if (fdstate & FD_CLOSE_AT_EOXACT) {
+          elog(WARNING,
+               "temporary file %s not closed at end-of-transaction",
+               VfdCache[i].fileName);
+          FileClose(i);
+        }
+      }
+    }
 
-	/* Complain if any allocated files remain open at commit. */
-	if (isCommit && numAllocatedDescs > 0)
-		elog(WARNING, "%d temporary files and directories not closed at end-of-transaction",
-			 numAllocatedDescs);
+    have_xact_temporary_files = false;
+  }
 
-	/* Clean up "allocated" stdio files, dirs and fds. */
-	while (numAllocatedDescs > 0)
-		FreeDesc(&allocatedDescs[0]);
+  /* Complain if any allocated files remain open at commit. */
+  if (isCommit && numAllocatedDescs > 0)
+    elog(WARNING, "%d temporary files and directories not closed at end-of-transaction",
+         numAllocatedDescs);
+
+  /* Clean up "allocated" stdio files, dirs and fds. */
+  while (numAllocatedDescs > 0)
+    FreeDesc(&allocatedDescs[0]);
 }
 
 
@@ -3337,46 +3320,45 @@ CleanupTempFiles(bool isCommit, bool isProcExit)
 void
 RemovePgTempFiles(void)
 {
-	char		temp_path[MAXPGPATH + sizeof(PG_TBLSPC_DIR) + sizeof(TABLESPACE_VERSION_DIRECTORY) + sizeof(PG_TEMP_FILES_DIR)];
-	DIR		   *spc_dir;
-	struct dirent *spc_de;
+  char    temp_path[MAXPGPATH + sizeof(PG_TBLSPC_DIR) + sizeof(TABLESPACE_VERSION_DIRECTORY) + sizeof(PG_TEMP_FILES_DIR)];
+  DIR      *spc_dir;
+  struct dirent *spc_de;
 
-	/*
-	 * First process temp files in pg_default ($PGDATA/base)
-	 */
-	snprintf(temp_path, sizeof(temp_path), "base/%s", PG_TEMP_FILES_DIR);
-	RemovePgTempFilesInDir(temp_path, true, false);
-	RemovePgTempRelationFiles("base");
+  /*
+   * First process temp files in pg_default ($PGDATA/base)
+   */
+  snprintf(temp_path, sizeof(temp_path), "base/%s", PG_TEMP_FILES_DIR);
+  RemovePgTempFilesInDir(temp_path, true, false);
+  RemovePgTempRelationFiles("base");
 
-	/*
-	 * Cycle through temp directories for all non-default tablespaces.
-	 */
-	spc_dir = AllocateDir(PG_TBLSPC_DIR);
+  /*
+   * Cycle through temp directories for all non-default tablespaces.
+   */
+  spc_dir = AllocateDir(PG_TBLSPC_DIR);
 
-	while ((spc_de = ReadDirExtended(spc_dir, PG_TBLSPC_DIR, LOG)) != NULL)
-	{
-		if (strcmp(spc_de->d_name, ".") == 0 ||
-			strcmp(spc_de->d_name, "..") == 0)
-			continue;
+  while ((spc_de = ReadDirExtended(spc_dir, PG_TBLSPC_DIR, LOG)) != NULL) {
+    if (strcmp(spc_de->d_name, ".") == 0 ||
+        strcmp(spc_de->d_name, "..") == 0)
+      continue;
 
-		snprintf(temp_path, sizeof(temp_path), "%s/%s/%s/%s",
-				 PG_TBLSPC_DIR, spc_de->d_name, TABLESPACE_VERSION_DIRECTORY,
-				 PG_TEMP_FILES_DIR);
-		RemovePgTempFilesInDir(temp_path, true, false);
+    snprintf(temp_path, sizeof(temp_path), "%s/%s/%s/%s",
+             PG_TBLSPC_DIR, spc_de->d_name, TABLESPACE_VERSION_DIRECTORY,
+             PG_TEMP_FILES_DIR);
+    RemovePgTempFilesInDir(temp_path, true, false);
 
-		snprintf(temp_path, sizeof(temp_path), "%s/%s/%s",
-				 PG_TBLSPC_DIR, spc_de->d_name, TABLESPACE_VERSION_DIRECTORY);
-		RemovePgTempRelationFiles(temp_path);
-	}
+    snprintf(temp_path, sizeof(temp_path), "%s/%s/%s",
+             PG_TBLSPC_DIR, spc_de->d_name, TABLESPACE_VERSION_DIRECTORY);
+    RemovePgTempRelationFiles(temp_path);
+  }
 
-	FreeDir(spc_dir);
+  FreeDir(spc_dir);
 
-	/*
-	 * In EXEC_BACKEND case there is a pgsql_tmp directory at the top level of
-	 * DataDir as well.  However, that is *not* cleaned here because doing so
-	 * would create a race condition.  It's done separately, earlier in
-	 * postmaster startup.
-	 */
+  /*
+   * In EXEC_BACKEND case there is a pgsql_tmp directory at the top level of
+   * DataDir as well.  However, that is *not* cleaned here because doing so
+   * would create a race condition.  It's done separately, earlier in
+   * postmaster startup.
+   */
 }
 
 /*
@@ -3397,189 +3379,188 @@ RemovePgTempFiles(void)
 void
 RemovePgTempFilesInDir(const char *tmpdirname, bool missing_ok, bool unlink_all)
 {
-	DIR		   *temp_dir;
-	struct dirent *temp_de;
-	char		rm_path[MAXPGPATH * 2];
+  DIR      *temp_dir;
+  struct dirent *temp_de;
+  char    rm_path[MAXPGPATH * 2];
 
-	temp_dir = AllocateDir(tmpdirname);
+  temp_dir = AllocateDir(tmpdirname);
 
-	if (temp_dir == NULL && errno == ENOENT && missing_ok)
-		return;
+  if (temp_dir == NULL && errno == ENOENT && missing_ok)
+    return;
 
-	while ((temp_de = ReadDirExtended(temp_dir, tmpdirname, LOG)) != NULL)
-	{
-		if (strcmp(temp_de->d_name, ".") == 0 ||
-			strcmp(temp_de->d_name, "..") == 0)
-			continue;
+  while ((temp_de = ReadDirExtended(temp_dir, tmpdirname, LOG)) != NULL) {
+    if (strcmp(temp_de->d_name, ".") == 0 ||
+        strcmp(temp_de->d_name, "..") == 0)
+      continue;
 
-		snprintf(rm_path, sizeof(rm_path), "%s/%s",
-				 tmpdirname, temp_de->d_name);
+    snprintf(rm_path, sizeof(rm_path), "%s/%s",
+             tmpdirname, temp_de->d_name);
 
-		if (unlink_all ||
-			strncmp(temp_de->d_name,
-					PG_TEMP_FILE_PREFIX,
-					strlen(PG_TEMP_FILE_PREFIX)) == 0)
-		{
-			PGFileType	type = get_dirent_type(rm_path, temp_de, false, LOG);
+    if (unlink_all ||
+        strncmp(temp_de->d_name,
+                PG_TEMP_FILE_PREFIX,
+                strlen(PG_TEMP_FILE_PREFIX)) == 0) {
+      PGFileType  type = get_dirent_type(rm_path, temp_de, false, LOG);
 
-			if (type == PGFILETYPE_ERROR)
-				continue;
-			else if (type == PGFILETYPE_DIR)
-			{
-				/* recursively remove contents, then directory itself */
-				RemovePgTempFilesInDir(rm_path, false, true);
+      if (type == PGFILETYPE_ERROR)
+        continue;
+      else if (type == PGFILETYPE_DIR) {
+        /* recursively remove contents, then directory itself */
+        RemovePgTempFilesInDir(rm_path, false, true);
 
-				if (rmdir(rm_path) < 0)
-					ereport(LOG,
-							(errcode_for_file_access(),
-							 errmsg("could not remove directory \"%s\": %m",
-									rm_path)));
-			}
-			else
-			{
-				if (unlink(rm_path) < 0)
-					ereport(LOG,
-							(errcode_for_file_access(),
-							 errmsg("could not remove file \"%s\": %m",
-									rm_path)));
-			}
-		}
-		else
-			ereport(LOG,
-					(errmsg("unexpected file found in temporary-files directory: \"%s\"",
-							rm_path)));
-	}
+        if (rmdir(rm_path) < 0)
+          ereport(LOG,
+                  (errcode_for_file_access(),
+                   errmsg("could not remove directory \"%s\": %m",
+                          rm_path)));
+      } else {
+        if (unlink(rm_path) < 0)
+          ereport(LOG,
+                  (errcode_for_file_access(),
+                   errmsg("could not remove file \"%s\": %m",
+                          rm_path)));
+      }
+    } else
+      ereport(LOG,
+              (errmsg("unexpected file found in temporary-files directory: \"%s\"",
+                      rm_path)));
+  }
 
-	FreeDir(temp_dir);
+  FreeDir(temp_dir);
 }
 
 /* Process one tablespace directory, look for per-DB subdirectories */
 static void
 RemovePgTempRelationFiles(const char *tsdirname)
 {
-	DIR		   *ts_dir;
-	struct dirent *de;
-	char		dbspace_path[MAXPGPATH * 2];
+  DIR      *ts_dir;
+  struct dirent *de;
+  char    dbspace_path[MAXPGPATH * 2];
 
-	ts_dir = AllocateDir(tsdirname);
+  ts_dir = AllocateDir(tsdirname);
 
-	while ((de = ReadDirExtended(ts_dir, tsdirname, LOG)) != NULL)
-	{
-		/*
-		 * We're only interested in the per-database directories, which have
-		 * numeric names.  Note that this code will also (properly) ignore "."
-		 * and "..".
-		 */
-		if (strspn(de->d_name, "0123456789") != strlen(de->d_name))
-			continue;
+  while ((de = ReadDirExtended(ts_dir, tsdirname, LOG)) != NULL) {
+    /*
+     * We're only interested in the per-database directories, which have
+     * numeric names.  Note that this code will also (properly) ignore "."
+     * and "..".
+     */
+    if (strspn(de->d_name, "0123456789") != strlen(de->d_name))
+      continue;
 
-		snprintf(dbspace_path, sizeof(dbspace_path), "%s/%s",
-				 tsdirname, de->d_name);
-		RemovePgTempRelationFilesInDbspace(dbspace_path);
-	}
+    snprintf(dbspace_path, sizeof(dbspace_path), "%s/%s",
+             tsdirname, de->d_name);
+    RemovePgTempRelationFilesInDbspace(dbspace_path);
+  }
 
-	FreeDir(ts_dir);
+  FreeDir(ts_dir);
 }
 
 /* Process one per-dbspace directory for RemovePgTempRelationFiles */
 static void
 RemovePgTempRelationFilesInDbspace(const char *dbspacedirname)
 {
-	DIR		   *dbspace_dir;
-	struct dirent *de;
-	char		rm_path[MAXPGPATH * 2];
+  DIR      *dbspace_dir;
+  struct dirent *de;
+  char    rm_path[MAXPGPATH * 2];
 
-	dbspace_dir = AllocateDir(dbspacedirname);
+  dbspace_dir = AllocateDir(dbspacedirname);
 
-	while ((de = ReadDirExtended(dbspace_dir, dbspacedirname, LOG)) != NULL)
-	{
-		if (!looks_like_temp_rel_name(de->d_name))
-			continue;
+  while ((de = ReadDirExtended(dbspace_dir, dbspacedirname, LOG)) != NULL) {
+    if (!looks_like_temp_rel_name(de->d_name))
+      continue;
 
-		snprintf(rm_path, sizeof(rm_path), "%s/%s",
-				 dbspacedirname, de->d_name);
+    snprintf(rm_path, sizeof(rm_path), "%s/%s",
+             dbspacedirname, de->d_name);
 
-		if (unlink(rm_path) < 0)
-			ereport(LOG,
-					(errcode_for_file_access(),
-					 errmsg("could not remove file \"%s\": %m",
-							rm_path)));
-	}
+    if (unlink(rm_path) < 0)
+      ereport(LOG,
+              (errcode_for_file_access(),
+               errmsg("could not remove file \"%s\": %m",
+                      rm_path)));
+  }
 
-	FreeDir(dbspace_dir);
+  FreeDir(dbspace_dir);
 }
 
 /* t<digits>_<digits>, or t<digits>_<digits>_<forkname> */
 bool
 looks_like_temp_rel_name(const char *name)
 {
-	int			pos;
-	int			savepos;
+  int     pos;
+  int     savepos;
 
-	/* Must start with "t". */
-	if (name[0] != 't')
-		return false;
+  /* Must start with "t". */
+  if (name[0] != 't')
+    return false;
 
-	/* Followed by a non-empty string of digits and then an underscore. */
-	for (pos = 1; isdigit((unsigned char) name[pos]); ++pos)
-		;
-	if (pos == 1 || name[pos] != '_')
-		return false;
+  /* Followed by a non-empty string of digits and then an underscore. */
+  for (pos = 1; isdigit((unsigned char) name[pos]); ++pos)
+    ;
 
-	/* Followed by another nonempty string of digits. */
-	for (savepos = ++pos; isdigit((unsigned char) name[pos]); ++pos)
-		;
-	if (savepos == pos)
-		return false;
+  if (pos == 1 || name[pos] != '_')
+    return false;
 
-	/* We might have _forkname or .segment or both. */
-	if (name[pos] == '_')
-	{
-		int			forkchar = forkname_chars(&name[pos + 1], NULL);
+  /* Followed by another nonempty string of digits. */
+  for (savepos = ++pos; isdigit((unsigned char) name[pos]); ++pos)
+    ;
 
-		if (forkchar <= 0)
-			return false;
-		pos += forkchar + 1;
-	}
-	if (name[pos] == '.')
-	{
-		int			segchar;
+  if (savepos == pos)
+    return false;
 
-		for (segchar = 1; isdigit((unsigned char) name[pos + segchar]); ++segchar)
-			;
-		if (segchar <= 1)
-			return false;
-		pos += segchar;
-	}
+  /* We might have _forkname or .segment or both. */
+  if (name[pos] == '_') {
+    int     forkchar = forkname_chars(&name[pos + 1], NULL);
 
-	/* Now we should be at the end. */
-	if (name[pos] != '\0')
-		return false;
-	return true;
+    if (forkchar <= 0)
+      return false;
+
+    pos += forkchar + 1;
+  }
+
+  if (name[pos] == '.') {
+    int     segchar;
+
+    for (segchar = 1; isdigit((unsigned char) name[pos + segchar]); ++segchar)
+      ;
+
+    if (segchar <= 1)
+      return false;
+
+    pos += segchar;
+  }
+
+  /* Now we should be at the end. */
+  if (name[pos] != '\0')
+    return false;
+
+  return true;
 }
 
 #ifdef HAVE_SYNCFS
 static void
 do_syncfs(const char *path)
 {
-	int			fd;
+  int     fd;
 
-	ereport_startup_progress("syncing data directory (syncfs), elapsed time: %ld.%02d s, current path: %s",
-							 path);
+  ereport_startup_progress("syncing data directory (syncfs), elapsed time: %ld.%02d s, current path: %s",
+                           path);
 
-	fd = OpenTransientFile(path, O_RDONLY);
-	if (fd < 0)
-	{
-		ereport(LOG,
-				(errcode_for_file_access(),
-				 errmsg("could not open file \"%s\": %m", path)));
-		return;
-	}
-	if (syncfs(fd) < 0)
-		ereport(LOG,
-				(errcode_for_file_access(),
-				 errmsg("could not synchronize file system for file \"%s\": %m", path)));
-	CloseTransientFile(fd);
+  fd = OpenTransientFile(path, O_RDONLY);
+
+  if (fd < 0) {
+    ereport(LOG,
+            (errcode_for_file_access(),
+             errmsg("could not open file \"%s\": %m", path)));
+    return;
+  }
+
+  if (syncfs(fd) < 0)
+    ereport(LOG,
+            (errcode_for_file_access(),
+             errmsg("could not synchronize file system for file \"%s\": %m", path)));
+
+  CloseTransientFile(fd);
 }
 #endif
 
@@ -3608,100 +3589,108 @@ do_syncfs(const char *path)
 void
 SyncDataDirectory(void)
 {
-	bool		xlog_is_symlink;
+  bool    xlog_is_symlink;
 
-	/* We can skip this whole thing if fsync is disabled. */
-	if (!enableFsync)
-		return;
+  /* We can skip this whole thing if fsync is disabled. */
+  if (!enableFsync)
+    return;
 
-	/*
-	 * If pg_wal is a symlink, we'll need to recurse into it separately,
-	 * because the first walkdir below will ignore it.
-	 */
-	xlog_is_symlink = false;
+  /*
+   * If pg_wal is a symlink, we'll need to recurse into it separately,
+   * because the first walkdir below will ignore it.
+   */
+  xlog_is_symlink = false;
 
-	{
-		struct stat st;
+  {
+    struct stat st;
 
-		if (lstat("pg_wal", &st) < 0)
-			ereport(LOG,
-					(errcode_for_file_access(),
-					 errmsg("could not stat file \"%s\": %m",
-							"pg_wal")));
-		else if (S_ISLNK(st.st_mode))
-			xlog_is_symlink = true;
-	}
+    if (lstat("pg_wal", &st) < 0)
+      ereport(LOG,
+              (errcode_for_file_access(),
+               errmsg("could not stat file \"%s\": %m",
+                      "pg_wal")));
+    else if (S_ISLNK(st.st_mode))
+      xlog_is_symlink = true;
+  }
 
 #ifdef HAVE_SYNCFS
-	if (recovery_init_sync_method == DATA_DIR_SYNC_METHOD_SYNCFS)
-	{
-		DIR		   *dir;
-		struct dirent *de;
 
-		/*
-		 * On Linux, we don't have to open every single file one by one.  We
-		 * can use syncfs() to sync whole filesystems.  We only expect
-		 * filesystem boundaries to exist where we tolerate symlinks, namely
-		 * pg_wal and the tablespaces, so we call syncfs() for each of those
-		 * directories.
-		 */
+  if (recovery_init_sync_method == DATA_DIR_SYNC_METHOD_SYNCFS) {
+    DIR      *dir;
+    struct dirent *de;
 
-		/* Prepare to report progress syncing the data directory via syncfs. */
-		begin_startup_progress_phase();
+    /*
+     * On Linux, we don't have to open every single file one by one.  We
+     * can use syncfs() to sync whole filesystems.  We only expect
+     * filesystem boundaries to exist where we tolerate symlinks, namely
+     * pg_wal and the tablespaces, so we call syncfs() for each of those
+     * directories.
+     */
 
-		/* Sync the top level pgdata directory. */
-		do_syncfs(".");
-		/* If any tablespaces are configured, sync each of those. */
-		dir = AllocateDir(PG_TBLSPC_DIR);
-		while ((de = ReadDirExtended(dir, PG_TBLSPC_DIR, LOG)))
-		{
-			char		path[MAXPGPATH];
+    /* Prepare to report progress syncing the data directory via syncfs. */
+    begin_startup_progress_phase();
 
-			if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
-				continue;
+    /* Sync the top level pgdata directory. */
+    do_syncfs(".");
+    /* If any tablespaces are configured, sync each of those. */
+    dir = AllocateDir(PG_TBLSPC_DIR);
 
-			snprintf(path, MAXPGPATH, "%s/%s", PG_TBLSPC_DIR, de->d_name);
-			do_syncfs(path);
-		}
-		FreeDir(dir);
-		/* If pg_wal is a symlink, process that too. */
-		if (xlog_is_symlink)
-			do_syncfs("pg_wal");
-		return;
-	}
-#endif							/* !HAVE_SYNCFS */
+    while ((de = ReadDirExtended(dir, PG_TBLSPC_DIR, LOG))) {
+      char    path[MAXPGPATH];
+
+      if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
+        continue;
+
+      snprintf(path, MAXPGPATH, "%s/%s", PG_TBLSPC_DIR, de->d_name);
+      do_syncfs(path);
+    }
+
+    FreeDir(dir);
+
+    /* If pg_wal is a symlink, process that too. */
+    if (xlog_is_symlink)
+      do_syncfs("pg_wal");
+
+    return;
+  }
+
+#endif              /* !HAVE_SYNCFS */
 
 #ifdef PG_FLUSH_DATA_WORKS
-	/* Prepare to report progress of the pre-fsync phase. */
-	begin_startup_progress_phase();
+  /* Prepare to report progress of the pre-fsync phase. */
+  begin_startup_progress_phase();
 
-	/*
-	 * If possible, hint to the kernel that we're soon going to fsync the data
-	 * directory and its contents.  Errors in this step are even less
-	 * interesting than normal, so log them only at DEBUG1.
-	 */
-	walkdir(".", pre_sync_fname, false, DEBUG1);
-	if (xlog_is_symlink)
-		walkdir("pg_wal", pre_sync_fname, false, DEBUG1);
-	walkdir(PG_TBLSPC_DIR, pre_sync_fname, true, DEBUG1);
+  /*
+   * If possible, hint to the kernel that we're soon going to fsync the data
+   * directory and its contents.  Errors in this step are even less
+   * interesting than normal, so log them only at DEBUG1.
+   */
+  walkdir(".", pre_sync_fname, false, DEBUG1);
+
+  if (xlog_is_symlink)
+    walkdir("pg_wal", pre_sync_fname, false, DEBUG1);
+
+  walkdir(PG_TBLSPC_DIR, pre_sync_fname, true, DEBUG1);
 #endif
 
-	/* Prepare to report progress syncing the data directory via fsync. */
-	begin_startup_progress_phase();
+  /* Prepare to report progress syncing the data directory via fsync. */
+  begin_startup_progress_phase();
 
-	/*
-	 * Now we do the fsync()s in the same order.
-	 *
-	 * The main call ignores symlinks, so in addition to specially processing
-	 * pg_wal if it's a symlink, pg_tblspc has to be visited separately with
-	 * process_symlinks = true.  Note that if there are any plain directories
-	 * in pg_tblspc, they'll get fsync'd twice.  That's not an expected case
-	 * so we don't worry about optimizing it.
-	 */
-	walkdir(".", datadir_fsync_fname, false, LOG);
-	if (xlog_is_symlink)
-		walkdir("pg_wal", datadir_fsync_fname, false, LOG);
-	walkdir(PG_TBLSPC_DIR, datadir_fsync_fname, true, LOG);
+  /*
+   * Now we do the fsync()s in the same order.
+   *
+   * The main call ignores symlinks, so in addition to specially processing
+   * pg_wal if it's a symlink, pg_tblspc has to be visited separately with
+   * process_symlinks = true.  Note that if there are any plain directories
+   * in pg_tblspc, they'll get fsync'd twice.  That's not an expected case
+   * so we don't worry about optimizing it.
+   */
+  walkdir(".", datadir_fsync_fname, false, LOG);
+
+  if (xlog_is_symlink)
+    walkdir("pg_wal", datadir_fsync_fname, false, LOG);
+
+  walkdir(PG_TBLSPC_DIR, datadir_fsync_fname, true, LOG);
 }
 
 /*
@@ -3721,56 +3710,56 @@ SyncDataDirectory(void)
  */
 static void
 walkdir(const char *path,
-		void (*action) (const char *fname, bool isdir, int elevel),
-		bool process_symlinks,
-		int elevel)
+        void (*action) (const char *fname, bool isdir, int elevel),
+        bool process_symlinks,
+        int elevel)
 {
-	DIR		   *dir;
-	struct dirent *de;
+  DIR      *dir;
+  struct dirent *de;
 
-	dir = AllocateDir(path);
+  dir = AllocateDir(path);
 
-	while ((de = ReadDirExtended(dir, path, elevel)) != NULL)
-	{
-		char		subpath[MAXPGPATH * 2];
+  while ((de = ReadDirExtended(dir, path, elevel)) != NULL) {
+    char    subpath[MAXPGPATH * 2];
 
-		CHECK_FOR_INTERRUPTS();
+    CHECK_FOR_INTERRUPTS();
 
-		if (strcmp(de->d_name, ".") == 0 ||
-			strcmp(de->d_name, "..") == 0)
-			continue;
+    if (strcmp(de->d_name, ".") == 0 ||
+        strcmp(de->d_name, "..") == 0)
+      continue;
 
-		snprintf(subpath, sizeof(subpath), "%s/%s", path, de->d_name);
+    snprintf(subpath, sizeof(subpath), "%s/%s", path, de->d_name);
 
-		switch (get_dirent_type(subpath, de, process_symlinks, elevel))
-		{
-			case PGFILETYPE_REG:
-				(*action) (subpath, false, elevel);
-				break;
-			case PGFILETYPE_DIR:
-				walkdir(subpath, action, false, elevel);
-				break;
-			default:
+    switch (get_dirent_type(subpath, de, process_symlinks, elevel)) {
+      case PGFILETYPE_REG:
+        (*action) (subpath, false, elevel);
+        break;
 
-				/*
-				 * Errors are already reported directly by get_dirent_type(),
-				 * and any remaining symlinks and unknown file types are
-				 * ignored.
-				 */
-				break;
-		}
-	}
+      case PGFILETYPE_DIR:
+        walkdir(subpath, action, false, elevel);
+        break;
 
-	FreeDir(dir);				/* we ignore any error here */
+      default:
 
-	/*
-	 * It's important to fsync the destination directory itself as individual
-	 * file fsyncs don't guarantee that the directory entry for the file is
-	 * synced.  However, skip this if AllocateDir failed; the action function
-	 * might not be robust against that.
-	 */
-	if (dir)
-		(*action) (path, true, elevel);
+        /*
+         * Errors are already reported directly by get_dirent_type(),
+         * and any remaining symlinks and unknown file types are
+         * ignored.
+         */
+        break;
+    }
+  }
+
+  FreeDir(dir);       /* we ignore any error here */
+
+  /*
+   * It's important to fsync the destination directory itself as individual
+   * file fsyncs don't guarantee that the directory entry for the file is
+   * synced.  However, skip this if AllocateDir failed; the action function
+   * might not be robust against that.
+   */
+  if (dir)
+    (*action) (path, true, elevel);
 }
 
 
@@ -3785,69 +3774,66 @@ walkdir(const char *path,
 static void
 pre_sync_fname(const char *fname, bool isdir, int elevel)
 {
-	int			fd;
+  int     fd;
 
-	/* Don't try to flush directories, it'll likely just fail */
-	if (isdir)
-		return;
+  /* Don't try to flush directories, it'll likely just fail */
+  if (isdir)
+    return;
 
-	ereport_startup_progress("syncing data directory (pre-fsync), elapsed time: %ld.%02d s, current path: %s",
-							 fname);
+  ereport_startup_progress("syncing data directory (pre-fsync), elapsed time: %ld.%02d s, current path: %s",
+                           fname);
 
-	fd = OpenTransientFile(fname, O_RDONLY | PG_BINARY);
+  fd = OpenTransientFile(fname, O_RDONLY | PG_BINARY);
 
-	if (fd < 0)
-	{
-		if (errno == EACCES)
-			return;
-		ereport(elevel,
-				(errcode_for_file_access(),
-				 errmsg("could not open file \"%s\": %m", fname)));
-		return;
-	}
+  if (fd < 0) {
+    if (errno == EACCES)
+      return;
 
-	/*
-	 * pg_flush_data() ignores errors, which is ok because this is only a
-	 * hint.
-	 */
-	pg_flush_data(fd, 0, 0);
+    ereport(elevel,
+            (errcode_for_file_access(),
+             errmsg("could not open file \"%s\": %m", fname)));
+    return;
+  }
 
-	if (CloseTransientFile(fd) != 0)
-		ereport(elevel,
-				(errcode_for_file_access(),
-				 errmsg("could not close file \"%s\": %m", fname)));
+  /*
+   * pg_flush_data() ignores errors, which is ok because this is only a
+   * hint.
+   */
+  pg_flush_data(fd, 0, 0);
+
+  if (CloseTransientFile(fd) != 0)
+    ereport(elevel,
+            (errcode_for_file_access(),
+             errmsg("could not close file \"%s\": %m", fname)));
 }
 
-#endif							/* PG_FLUSH_DATA_WORKS */
+#endif              /* PG_FLUSH_DATA_WORKS */
 
 static void
 datadir_fsync_fname(const char *fname, bool isdir, int elevel)
 {
-	ereport_startup_progress("syncing data directory (fsync), elapsed time: %ld.%02d s, current path: %s",
-							 fname);
+  ereport_startup_progress("syncing data directory (fsync), elapsed time: %ld.%02d s, current path: %s",
+                           fname);
 
-	/*
-	 * We want to silently ignoring errors about unreadable files.  Pass that
-	 * desire on to fsync_fname_ext().
-	 */
-	fsync_fname_ext(fname, isdir, true, elevel);
+  /*
+   * We want to silently ignoring errors about unreadable files.  Pass that
+   * desire on to fsync_fname_ext().
+   */
+  fsync_fname_ext(fname, isdir, true, elevel);
 }
 
 static void
 unlink_if_exists_fname(const char *fname, bool isdir, int elevel)
 {
-	if (isdir)
-	{
-		if (rmdir(fname) != 0 && errno != ENOENT)
-			ereport(elevel,
-					(errcode_for_file_access(),
-					 errmsg("could not remove directory \"%s\": %m", fname)));
-	}
-	else
-	{
-		/* Use PathNameDeleteTemporaryFile to report filesize */
-		PathNameDeleteTemporaryFile(fname, false);
-	}
+  if (isdir) {
+    if (rmdir(fname) != 0 && errno != ENOENT)
+      ereport(elevel,
+              (errcode_for_file_access(),
+               errmsg("could not remove directory \"%s\": %m", fname)));
+  } else {
+    /* Use PathNameDeleteTemporaryFile to report filesize */
+    PathNameDeleteTemporaryFile(fname, false);
+  }
 }
 
 /*
@@ -3861,71 +3847,69 @@ unlink_if_exists_fname(const char *fname, bool isdir, int elevel)
 int
 fsync_fname_ext(const char *fname, bool isdir, bool ignore_perm, int elevel)
 {
-	int			fd;
-	int			flags;
-	int			returncode;
+  int     fd;
+  int     flags;
+  int     returncode;
 
-	/*
-	 * Some OSs require directories to be opened read-only whereas other
-	 * systems don't allow us to fsync files opened read-only; so we need both
-	 * cases here.  Using O_RDWR will cause us to fail to fsync files that are
-	 * not writable by our userid, but we assume that's OK.
-	 */
-	flags = PG_BINARY;
-	if (!isdir)
-		flags |= O_RDWR;
-	else
-		flags |= O_RDONLY;
+  /*
+   * Some OSs require directories to be opened read-only whereas other
+   * systems don't allow us to fsync files opened read-only; so we need both
+   * cases here.  Using O_RDWR will cause us to fail to fsync files that are
+   * not writable by our userid, but we assume that's OK.
+   */
+  flags = PG_BINARY;
 
-	fd = OpenTransientFile(fname, flags);
+  if (!isdir)
+    flags |= O_RDWR;
+  else
+    flags |= O_RDONLY;
 
-	/*
-	 * Some OSs don't allow us to open directories at all (Windows returns
-	 * EACCES), just ignore the error in that case.  If desired also silently
-	 * ignoring errors about unreadable files. Log others.
-	 */
-	if (fd < 0 && isdir && (errno == EISDIR || errno == EACCES))
-		return 0;
-	else if (fd < 0 && ignore_perm && errno == EACCES)
-		return 0;
-	else if (fd < 0)
-	{
-		ereport(elevel,
-				(errcode_for_file_access(),
-				 errmsg("could not open file \"%s\": %m", fname)));
-		return -1;
-	}
+  fd = OpenTransientFile(fname, flags);
 
-	returncode = pg_fsync(fd);
+  /*
+   * Some OSs don't allow us to open directories at all (Windows returns
+   * EACCES), just ignore the error in that case.  If desired also silently
+   * ignoring errors about unreadable files. Log others.
+   */
+  if (fd < 0 && isdir && (errno == EISDIR || errno == EACCES))
+    return 0;
+  else if (fd < 0 && ignore_perm && errno == EACCES)
+    return 0;
+  else if (fd < 0) {
+    ereport(elevel,
+            (errcode_for_file_access(),
+             errmsg("could not open file \"%s\": %m", fname)));
+    return -1;
+  }
 
-	/*
-	 * Some OSes don't allow us to fsync directories at all, so we can ignore
-	 * those errors. Anything else needs to be logged.
-	 */
-	if (returncode != 0 && !(isdir && (errno == EBADF || errno == EINVAL)))
-	{
-		int			save_errno;
+  returncode = pg_fsync(fd);
 
-		/* close file upon error, might not be in transaction context */
-		save_errno = errno;
-		(void) CloseTransientFile(fd);
-		errno = save_errno;
+  /*
+   * Some OSes don't allow us to fsync directories at all, so we can ignore
+   * those errors. Anything else needs to be logged.
+   */
+  if (returncode != 0 && !(isdir && (errno == EBADF || errno == EINVAL))) {
+    int     save_errno;
 
-		ereport(elevel,
-				(errcode_for_file_access(),
-				 errmsg("could not fsync file \"%s\": %m", fname)));
-		return -1;
-	}
+    /* close file upon error, might not be in transaction context */
+    save_errno = errno;
+    (void) CloseTransientFile(fd);
+    errno = save_errno;
 
-	if (CloseTransientFile(fd) != 0)
-	{
-		ereport(elevel,
-				(errcode_for_file_access(),
-				 errmsg("could not close file \"%s\": %m", fname)));
-		return -1;
-	}
+    ereport(elevel,
+            (errcode_for_file_access(),
+             errmsg("could not fsync file \"%s\": %m", fname)));
+    return -1;
+  }
 
-	return 0;
+  if (CloseTransientFile(fd) != 0) {
+    ereport(elevel,
+            (errcode_for_file_access(),
+             errmsg("could not close file \"%s\": %m", fname)));
+    return -1;
+  }
+
+  return 0;
 }
 
 /*
@@ -3937,23 +3921,23 @@ fsync_fname_ext(const char *fname, bool isdir, bool ignore_perm, int elevel)
 static int
 fsync_parent_path(const char *fname, int elevel)
 {
-	char		parentpath[MAXPGPATH];
+  char    parentpath[MAXPGPATH];
 
-	strlcpy(parentpath, fname, MAXPGPATH);
-	get_parent_directory(parentpath);
+  strlcpy(parentpath, fname, MAXPGPATH);
+  get_parent_directory(parentpath);
 
-	/*
-	 * get_parent_directory() returns an empty string if the input argument is
-	 * just a file name (see comments in path.c), so handle that as being the
-	 * current directory.
-	 */
-	if (strlen(parentpath) == 0)
-		strlcpy(parentpath, ".", MAXPGPATH);
+  /*
+   * get_parent_directory() returns an empty string if the input argument is
+   * just a file name (see comments in path.c), so handle that as being the
+   * current directory.
+   */
+  if (strlen(parentpath) == 0)
+    strlcpy(parentpath, ".", MAXPGPATH);
 
-	if (fsync_fname_ext(parentpath, true, false, elevel) != 0)
-		return -1;
+  if (fsync_fname_ext(parentpath, true, false, elevel) != 0)
+    return -1;
 
-	return 0;
+  return 0;
 }
 
 /*
@@ -3977,7 +3961,7 @@ fsync_parent_path(const char *fname, int elevel)
 int
 MakePGDirectory(const char *directoryName)
 {
-	return mkdir(directoryName, pg_dir_create_mode);
+  return mkdir(directoryName, pg_dir_create_mode);
 }
 
 /*
@@ -4000,102 +3984,105 @@ MakePGDirectory(const char *directoryName)
 int
 data_sync_elevel(int elevel)
 {
-	return data_sync_retry ? elevel : PANIC;
+  return data_sync_retry ? elevel : PANIC;
 }
 
 bool
 check_debug_io_direct(char **newval, void **extra, GucSource source)
 {
-	bool		result = true;
-	int			flags;
+  bool    result = true;
+  int     flags;
 
 #if PG_O_DIRECT == 0
-	if (strcmp(*newval, "") != 0)
-	{
-		GUC_check_errdetail("\"%s\" is not supported on this platform.",
-							"debug_io_direct");
-		result = false;
-	}
-	flags = 0;
+
+  if (strcmp(*newval, "") != 0) {
+    GUC_check_errdetail("\"%s\" is not supported on this platform.",
+                        "debug_io_direct");
+    result = false;
+  }
+
+  flags = 0;
 #else
-	List	   *elemlist;
-	ListCell   *l;
-	char	   *rawstring;
+  List     *elemlist;
+  ListCell   *l;
+  char     *rawstring;
 
-	/* Need a modifiable copy of string */
-	rawstring = pstrdup(*newval);
+  /* Need a modifiable copy of string */
+  rawstring = pstrdup(*newval);
 
-	if (!SplitGUCList(rawstring, ',', &elemlist))
-	{
-		GUC_check_errdetail("Invalid list syntax in parameter \"%s\".",
-							"debug_io_direct");
-		pfree(rawstring);
-		list_free(elemlist);
-		return false;
-	}
+  if (!SplitGUCList(rawstring, ',', &elemlist)) {
+    GUC_check_errdetail("Invalid list syntax in parameter \"%s\".",
+                        "debug_io_direct");
+    pfree(rawstring);
+    list_free(elemlist);
+    return false;
+  }
 
-	flags = 0;
-	foreach(l, elemlist)
-	{
-		char	   *item = (char *) lfirst(l);
+  flags = 0;
 
-		if (pg_strcasecmp(item, "data") == 0)
-			flags |= IO_DIRECT_DATA;
-		else if (pg_strcasecmp(item, "wal") == 0)
-			flags |= IO_DIRECT_WAL;
-		else if (pg_strcasecmp(item, "wal_init") == 0)
-			flags |= IO_DIRECT_WAL_INIT;
-		else
-		{
-			GUC_check_errdetail("Invalid option \"%s\".", item);
-			result = false;
-			break;
-		}
-	}
+  foreach(l, elemlist) {
+    char     *item = (char *) lfirst(l);
 
-	/*
-	 * It's possible to configure block sizes smaller than our assumed I/O
-	 * alignment size, which could result in invalid I/O requests.
-	 */
+    if (pg_strcasecmp(item, "data") == 0)
+      flags |= IO_DIRECT_DATA;
+    else if (pg_strcasecmp(item, "wal") == 0)
+      flags |= IO_DIRECT_WAL;
+    else if (pg_strcasecmp(item, "wal_init") == 0)
+      flags |= IO_DIRECT_WAL_INIT;
+    else {
+      GUC_check_errdetail("Invalid option \"%s\".", item);
+      result = false;
+      break;
+    }
+  }
+
+  /*
+   * It's possible to configure block sizes smaller than our assumed I/O
+   * alignment size, which could result in invalid I/O requests.
+   */
 #if XLOG_BLCKSZ < PG_IO_ALIGN_SIZE
-	if (result && (flags & (IO_DIRECT_WAL | IO_DIRECT_WAL_INIT)))
-	{
-		GUC_check_errdetail("\"%s\" is not supported for WAL because %s is too small.",
-							"debug_io_direct", "XLOG_BLCKSZ");
-		result = false;
-	}
+
+  if (result && (flags & (IO_DIRECT_WAL | IO_DIRECT_WAL_INIT))) {
+    GUC_check_errdetail("\"%s\" is not supported for WAL because %s is too small.",
+                        "debug_io_direct", "XLOG_BLCKSZ");
+    result = false;
+  }
+
 #endif
 #if BLCKSZ < PG_IO_ALIGN_SIZE
-	if (result && (flags & IO_DIRECT_DATA))
-	{
-		GUC_check_errdetail("\"%s\" is not supported for data because %s is too small.",
-							"debug_io_direct", "BLCKSZ");
-		result = false;
-	}
+
+  if (result && (flags & IO_DIRECT_DATA)) {
+    GUC_check_errdetail("\"%s\" is not supported for data because %s is too small.",
+                        "debug_io_direct", "BLCKSZ");
+    result = false;
+  }
+
 #endif
 
-	pfree(rawstring);
-	list_free(elemlist);
+  pfree(rawstring);
+  list_free(elemlist);
 #endif
 
-	if (!result)
-		return result;
+  if (!result)
+    return result;
 
-	/* Save the flags in *extra, for use by assign_debug_io_direct */
-	*extra = guc_malloc(LOG, sizeof(int));
-	if (!*extra)
-		return false;
-	*((int *) *extra) = flags;
+  /* Save the flags in *extra, for use by assign_debug_io_direct */
+  *extra = guc_malloc(LOG, sizeof(int));
 
-	return result;
+  if (!*extra)
+    return false;
+
+  *((int *) *extra) = flags;
+
+  return result;
 }
 
 void
 assign_debug_io_direct(const char *newval, void *extra)
 {
-	int		   *flags = (int *) extra;
+  int      *flags = (int *) extra;
 
-	io_direct_flags = *flags;
+  io_direct_flags = *flags;
 }
 
 /* ResourceOwner callbacks */
@@ -4103,19 +4090,19 @@ assign_debug_io_direct(const char *newval, void *extra)
 static void
 ResOwnerReleaseFile(Datum res)
 {
-	File		file = (File) DatumGetInt32(res);
-	Vfd		   *vfdP;
+  File    file = (File) DatumGetInt32(res);
+  Vfd      *vfdP;
 
-	Assert(FileIsValid(file));
+  Assert(FileIsValid(file));
 
-	vfdP = &VfdCache[file];
-	vfdP->resowner = NULL;
+  vfdP = &VfdCache[file];
+  vfdP->resowner = NULL;
 
-	FileClose(file);
+  FileClose(file);
 }
 
 static char *
 ResOwnerPrintFile(Datum res)
 {
-	return psprintf("File %d", DatumGetInt32(res));
+  return psprintf("File %d", DatumGetInt32(res));
 }

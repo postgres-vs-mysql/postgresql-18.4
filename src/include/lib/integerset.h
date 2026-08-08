@@ -1,6 +1,6 @@
 /*
  * integerset.h
- *	  In-memory data structure to hold a large set of integers efficiently
+ *    In-memory data structure to hold a large set of integers efficiently
  *
  * Portions Copyright (c) 2012-2025, PostgreSQL Global Development Group
  *
@@ -21,4 +21,4 @@ extern uint64 intset_memory_usage(IntegerSet *intset);
 extern void intset_begin_iterate(IntegerSet *intset);
 extern bool intset_iterate_next(IntegerSet *intset, uint64 *next);
 
-#endif							/* INTEGERSET_H */
+#endif              /* INTEGERSET_H */

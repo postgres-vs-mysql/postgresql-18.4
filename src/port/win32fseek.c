@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * win32fseek.c
- *	  Replacements for fseeko() and ftello().
+ *    Replacements for fseeko() and ftello().
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/port/win32fseek.c
+ *    src/port/win32fseek.c
  *
  *-------------------------------------------------------------------------
  */
@@ -30,21 +30,22 @@
 int
 _pgfseeko64(FILE *stream, pgoff_t offset, int origin)
 {
-	DWORD		fileType;
-	HANDLE		hFile = (HANDLE) _get_osfhandle(_fileno(stream));
+  DWORD   fileType;
+  HANDLE    hFile = (HANDLE) _get_osfhandle(_fileno(stream));
 
-	fileType = pgwin32_get_file_type(hFile);
-	if (errno != 0)
-		return -1;
+  fileType = pgwin32_get_file_type(hFile);
 
-	if (fileType == FILE_TYPE_DISK)
-		return _fseeki64(stream, offset, origin);
-	else if (fileType == FILE_TYPE_CHAR || fileType == FILE_TYPE_PIPE)
-		errno = ESPIPE;
-	else
-		errno = EINVAL;
+  if (errno != 0)
+    return -1;
 
-	return -1;
+  if (fileType == FILE_TYPE_DISK)
+    return _fseeki64(stream, offset, origin);
+  else if (fileType == FILE_TYPE_CHAR || fileType == FILE_TYPE_PIPE)
+    errno = ESPIPE;
+  else
+    errno = EINVAL;
+
+  return -1;
 }
 
 /*
@@ -55,21 +56,22 @@ _pgfseeko64(FILE *stream, pgoff_t offset, int origin)
 pgoff_t
 _pgftello64(FILE *stream)
 {
-	DWORD		fileType;
-	HANDLE		hFile = (HANDLE) _get_osfhandle(_fileno(stream));
+  DWORD   fileType;
+  HANDLE    hFile = (HANDLE) _get_osfhandle(_fileno(stream));
 
-	fileType = pgwin32_get_file_type(hFile);
-	if (errno != 0)
-		return -1;
+  fileType = pgwin32_get_file_type(hFile);
 
-	if (fileType == FILE_TYPE_DISK)
-		return _ftelli64(stream);
-	else if (fileType == FILE_TYPE_CHAR || fileType == FILE_TYPE_PIPE)
-		errno = ESPIPE;
-	else
-		errno = EINVAL;
+  if (errno != 0)
+    return -1;
 
-	return -1;
+  if (fileType == FILE_TYPE_DISK)
+    return _ftelli64(stream);
+  else if (fileType == FILE_TYPE_CHAR || fileType == FILE_TYPE_PIPE)
+    errno = ESPIPE;
+  else
+    errno = EINVAL;
+
+  return -1;
 }
 
-#endif							/* _MSC_VER */
+#endif              /* _MSC_VER */

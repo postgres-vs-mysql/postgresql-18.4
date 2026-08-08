@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * plperl_system.h
- *	  Pull in Perl's system header files.
+ *    Pull in Perl's system header files.
  *
  * We break this out as a separate header file to precisely control
  * the scope of the "system_header" pragma.  No Postgres-specific
@@ -30,7 +30,7 @@
 /* stop perl headers from hijacking stdio and other stuff on Windows */
 #ifdef WIN32
 #define WIN32IO_IS_STDIO
-#endif							/* WIN32 */
+#endif              /* WIN32 */
 
 /*
  * Supply a value of PERL_UNUSED_DECL that will satisfy gcc - the one
@@ -146,14 +146,14 @@
 #undef printf
 #endif
 
-#define vsnprintf		pg_vsnprintf
-#define snprintf		pg_snprintf
-#define vsprintf		pg_vsprintf
-#define sprintf			pg_sprintf
-#define vfprintf		pg_vfprintf
-#define fprintf			pg_fprintf
-#define vprintf			pg_vprintf
-#define printf(...)		pg_printf(__VA_ARGS__)
+#define vsnprintf   pg_vsnprintf
+#define snprintf    pg_snprintf
+#define vsprintf    pg_vsprintf
+#define sprintf     pg_sprintf
+#define vfprintf    pg_vfprintf
+#define fprintf     pg_fprintf
+#define vprintf     pg_vprintf
+#define printf(...)   pg_printf(__VA_ARGS__)
 
 /*
  * Put back "_" too; but rather than making it just gettext() as the core
@@ -177,14 +177,14 @@
 
 /* supply HeUTF8 if it's missing - ppport.h doesn't supply it, unfortunately */
 #ifndef HeUTF8
-#define HeUTF8(he)			   ((HeKLEN(he) == HEf_SVKEY) ?			   \
-								SvUTF8(HeKEY_sv(he)) :				   \
-								(U32)HeKUTF8(he))
+#define HeUTF8(he)         ((HeKLEN(he) == HEf_SVKEY) ?        \
+                SvUTF8(HeKEY_sv(he)) :           \
+                (U32)HeKUTF8(he))
 #endif
 
 /* supply GvCV_set if it's missing - ppport.h doesn't supply it, unfortunately */
 #ifndef GvCV_set
-#define GvCV_set(gv, cv)		(GvCV(gv) = cv)
+#define GvCV_set(gv, cv)    (GvCV(gv) = cv)
 #endif
 
 /* Perl 5.19.4 changed array indices from I32 to SSize_t */
@@ -194,4 +194,4 @@
 #define AV_SIZE_MAX I32_MAX
 #endif
 
-#endif							/* PL_PERL_SYSTEM_H */
+#endif              /* PL_PERL_SYSTEM_H */

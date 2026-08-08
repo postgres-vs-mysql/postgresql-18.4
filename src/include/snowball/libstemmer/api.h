@@ -11,11 +11,16 @@ typedef unsigned char symbol;
 
 */
 
-struct SN_env {
-    symbol * p;
-    int c; int l; int lb; int bra; int ket;
-    symbol * * S;
-    int * I;
+struct SN_env
+{
+  symbol * p;
+  int c;
+  int l;
+  int lb;
+  int bra;
+  int ket;
+  symbol * * S;
+  int * I;
 };
 
 #ifdef __cplusplus

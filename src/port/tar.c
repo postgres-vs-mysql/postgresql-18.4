@@ -21,26 +21,23 @@
 void
 print_tar_number(char *s, int len, uint64 val)
 {
-	if (val < (((uint64) 1) << ((len - 1) * 3)))
-	{
-		/* Use octal with trailing space */
-		s[--len] = ' ';
-		while (len)
-		{
-			s[--len] = (val & 7) + '0';
-			val >>= 3;
-		}
-	}
-	else
-	{
-		/* Use base-256 with leading \200 */
-		s[0] = '\200';
-		while (len > 1)
-		{
-			s[--len] = (val & 255);
-			val >>= 8;
-		}
-	}
+  if (val < (((uint64) 1) << ((len - 1) * 3))) {
+    /* Use octal with trailing space */
+    s[--len] = ' ';
+
+    while (len) {
+      s[--len] = (val & 7) + '0';
+      val >>= 3;
+    }
+  } else {
+    /* Use base-256 with leading \200 */
+    s[0] = '\200';
+
+    while (len > 1) {
+      s[--len] = (val & 255);
+      val >>= 8;
+    }
+  }
 }
 
 
@@ -57,28 +54,24 @@ print_tar_number(char *s, int len, uint64 val)
 uint64
 read_tar_number(const char *s, int len)
 {
-	uint64		result = 0;
+  uint64    result = 0;
 
-	if (*s == '\200')
-	{
-		/* base-256 */
-		while (--len)
-		{
-			result <<= 8;
-			result |= (unsigned char) (*++s);
-		}
-	}
-	else
-	{
-		/* octal */
-		while (len-- && *s >= '0' && *s <= '7')
-		{
-			result <<= 3;
-			result |= (*s - '0');
-			s++;
-		}
-	}
-	return result;
+  if (*s == '\200') {
+    /* base-256 */
+    while (--len) {
+      result <<= 8;
+      result |= (unsigned char) (*++s);
+    }
+  } else {
+    /* octal */
+    while (len-- && *s >= '0' && *s <= '7') {
+      result <<= 3;
+      result |= (*s - '0');
+      s++;
+    }
+  }
+
+  return result;
 }
 
 
@@ -89,19 +82,21 @@ read_tar_number(const char *s, int len)
 int
 tarChecksum(const char *header)
 {
-	int			i,
-				sum;
+  int     i,
+          sum;
 
-	/*
-	 * Per POSIX, the checksum is the simple sum of all bytes in the header,
-	 * treating the bytes as unsigned, and treating the checksum field (at
-	 * offset TAR_OFFSET_CHECKSUM) as though it contained 8 spaces.
-	 */
-	sum = 8 * ' ';				/* presumed value for checksum field */
-	for (i = 0; i < TAR_BLOCK_SIZE; i++)
-		if (i < TAR_OFFSET_CHECKSUM || i >= TAR_OFFSET_CHECKSUM + 8)
-			sum += 0xFF & header[i];
-	return sum;
+  /*
+   * Per POSIX, the checksum is the simple sum of all bytes in the header,
+   * treating the bytes as unsigned, and treating the checksum field (at
+   * offset TAR_OFFSET_CHECKSUM) as though it contained 8 spaces.
+   */
+  sum = 8 * ' ';        /* presumed value for checksum field */
+
+  for (i = 0; i < TAR_BLOCK_SIZE; i++)
+    if (i < TAR_OFFSET_CHECKSUM || i >= TAR_OFFSET_CHECKSUM + 8)
+      sum += 0xFF & header[i];
+
+  return sum;
 }
 
 /*
@@ -111,26 +106,28 @@ tarChecksum(const char *header)
 bool
 isValidTarHeader(const char *header)
 {
-	int			sum;
-	int			chk = tarChecksum(header);
+  int     sum;
+  int     chk = tarChecksum(header);
 
-	sum = read_tar_number(&header[TAR_OFFSET_CHECKSUM], 8);
+  sum = read_tar_number(&header[TAR_OFFSET_CHECKSUM], 8);
 
-	if (sum != chk)
-		return false;
+  if (sum != chk)
+    return false;
 
-	/* POSIX tar format */
-	if (memcmp(&header[TAR_OFFSET_MAGIC], "ustar\0", 6) == 0 &&
-		memcmp(&header[TAR_OFFSET_VERSION], "00", 2) == 0)
-		return true;
-	/* GNU tar format */
-	if (memcmp(&header[TAR_OFFSET_MAGIC], "ustar  \0", 8) == 0)
-		return true;
-	/* not-quite-POSIX format written by pre-9.3 pg_dump */
-	if (memcmp(&header[TAR_OFFSET_MAGIC], "ustar00\0", 8) == 0)
-		return true;
+  /* POSIX tar format */
+  if (memcmp(&header[TAR_OFFSET_MAGIC], "ustar\0", 6) == 0 &&
+      memcmp(&header[TAR_OFFSET_VERSION], "00", 2) == 0)
+    return true;
 
-	return false;
+  /* GNU tar format */
+  if (memcmp(&header[TAR_OFFSET_MAGIC], "ustar  \0", 8) == 0)
+    return true;
+
+  /* not-quite-POSIX format written by pre-9.3 pg_dump */
+  if (memcmp(&header[TAR_OFFSET_MAGIC], "ustar00\0", 8) == 0)
+    return true;
+
+  return false;
 }
 
 
@@ -141,95 +138,93 @@ isValidTarHeader(const char *header)
  */
 enum tarError
 tarCreateHeader(char *h, const char *filename, const char *linktarget,
-				pgoff_t size, mode_t mode, uid_t uid, gid_t gid, time_t mtime)
-{
-	if (strlen(filename) > 99)
-		return TAR_NAME_TOO_LONG;
+                pgoff_t size, mode_t mode, uid_t uid, gid_t gid, time_t mtime) {
+  if (strlen(filename) > 99)
+    return TAR_NAME_TOO_LONG;
 
-	if (linktarget && strlen(linktarget) > 99)
-		return TAR_SYMLINK_TOO_LONG;
+  if (linktarget && strlen(linktarget) > 99)
+    return TAR_SYMLINK_TOO_LONG;
 
-	memset(h, 0, TAR_BLOCK_SIZE);
+  memset(h, 0, TAR_BLOCK_SIZE);
 
-	/* Name 100 */
-	strlcpy(&h[TAR_OFFSET_NAME], filename, 100);
-	if (linktarget != NULL || S_ISDIR(mode))
-	{
-		/*
-		 * We only support symbolic links to directories, and this is
-		 * indicated in the tar format by adding a slash at the end of the
-		 * name, the same as for regular directories.
-		 */
-		int			flen = strlen(filename);
+  /* Name 100 */
+  strlcpy(&h[TAR_OFFSET_NAME], filename, 100);
 
-		flen = Min(flen, 99);
-		h[flen] = '/';
-		h[flen + 1] = '\0';
-	}
+  if (linktarget != NULL || S_ISDIR(mode))
+  {
+    /*
+     * We only support symbolic links to directories, and this is
+     * indicated in the tar format by adding a slash at the end of the
+     * name, the same as for regular directories.
+     */
+    int     flen = strlen(filename);
 
-	/* Mode 8 - this doesn't include the file type bits (S_IFMT)  */
-	print_tar_number(&h[TAR_OFFSET_MODE], 8, (mode & 07777));
+    flen = Min(flen, 99);
+    h[flen] = '/';
+    h[flen + 1] = '\0';
+  }
 
-	/* User ID 8 */
-	print_tar_number(&h[TAR_OFFSET_UID], 8, uid);
+  /* Mode 8 - this doesn't include the file type bits (S_IFMT)  */
+  print_tar_number(&h[TAR_OFFSET_MODE], 8, (mode & 07777));
 
-	/* Group 8 */
-	print_tar_number(&h[TAR_OFFSET_GID], 8, gid);
+  /* User ID 8 */
+  print_tar_number(&h[TAR_OFFSET_UID], 8, uid);
 
-	/* File size 12 */
-	if (linktarget != NULL || S_ISDIR(mode))
-		/* Symbolic link or directory has size zero */
-		print_tar_number(&h[TAR_OFFSET_SIZE], 12, 0);
-	else
-		print_tar_number(&h[TAR_OFFSET_SIZE], 12, size);
+  /* Group 8 */
+  print_tar_number(&h[TAR_OFFSET_GID], 8, gid);
 
-	/* Mod Time 12 */
-	print_tar_number(&h[TAR_OFFSET_MTIME], 12, mtime);
+  /* File size 12 */
+  if (linktarget != NULL || S_ISDIR(mode))
+    /* Symbolic link or directory has size zero */
+    print_tar_number(&h[TAR_OFFSET_SIZE], 12, 0);
+  else
+    print_tar_number(&h[TAR_OFFSET_SIZE], 12, size);
 
-	/* Checksum 8 cannot be calculated until we've filled all other fields */
+  /* Mod Time 12 */
+  print_tar_number(&h[TAR_OFFSET_MTIME], 12, mtime);
 
-	if (linktarget != NULL)
-	{
-		/* Type - Symbolic link */
-		h[TAR_OFFSET_TYPEFLAG] = TAR_FILETYPE_SYMLINK;
-		/* Link Name 100 */
-		strlcpy(&h[TAR_OFFSET_LINKNAME], linktarget, 100);
-	}
-	else if (S_ISDIR(mode))
-	{
-		/* Type - directory */
-		h[TAR_OFFSET_TYPEFLAG] = TAR_FILETYPE_DIRECTORY;
-	}
-	else
-	{
-		/* Type - regular file */
-		h[TAR_OFFSET_TYPEFLAG] = TAR_FILETYPE_PLAIN;
-	}
+  /* Checksum 8 cannot be calculated until we've filled all other fields */
 
-	/* Magic 6 */
-	strcpy(&h[TAR_OFFSET_MAGIC], "ustar");
+  if (linktarget != NULL)
+  {
+    /* Type - Symbolic link */
+    h[TAR_OFFSET_TYPEFLAG] = TAR_FILETYPE_SYMLINK;
+    /* Link Name 100 */
+    strlcpy(&h[TAR_OFFSET_LINKNAME], linktarget, 100);
+  } else if (S_ISDIR(mode))
+  {
+    /* Type - directory */
+    h[TAR_OFFSET_TYPEFLAG] = TAR_FILETYPE_DIRECTORY;
+  } else
+  {
+    /* Type - regular file */
+    h[TAR_OFFSET_TYPEFLAG] = TAR_FILETYPE_PLAIN;
+  }
 
-	/* Version 2 */
-	memcpy(&h[TAR_OFFSET_VERSION], "00", 2);
+  /* Magic 6 */
+  strcpy(&h[TAR_OFFSET_MAGIC], "ustar");
 
-	/* User 32 */
-	/* XXX: Do we need to care about setting correct username? */
-	strlcpy(&h[TAR_OFFSET_UNAME], "postgres", 32);
+  /* Version 2 */
+  memcpy(&h[TAR_OFFSET_VERSION], "00", 2);
 
-	/* Group 32 */
-	/* XXX: Do we need to care about setting correct group name? */
-	strlcpy(&h[TAR_OFFSET_GNAME], "postgres", 32);
+  /* User 32 */
+  /* XXX: Do we need to care about setting correct username? */
+  strlcpy(&h[TAR_OFFSET_UNAME], "postgres", 32);
 
-	/* Major Dev 8 */
-	print_tar_number(&h[TAR_OFFSET_DEVMAJOR], 8, 0);
+  /* Group 32 */
+  /* XXX: Do we need to care about setting correct group name? */
+  strlcpy(&h[TAR_OFFSET_GNAME], "postgres", 32);
 
-	/* Minor Dev 8 */
-	print_tar_number(&h[TAR_OFFSET_DEVMINOR], 8, 0);
+  /* Major Dev 8 */
+  print_tar_number(&h[TAR_OFFSET_DEVMAJOR], 8, 0);
 
-	/* Prefix 155 - not used, leave as nulls */
+  /* Minor Dev 8 */
+  print_tar_number(&h[TAR_OFFSET_DEVMINOR], 8, 0);
 
-	/* Finally, compute and insert the checksum */
-	print_tar_number(&h[TAR_OFFSET_CHECKSUM], 8, tarChecksum(h));
+  /* Prefix 155 - not used, leave as nulls */
 
-	return TAR_OK;
+  /* Finally, compute and insert the checksum */
+  print_tar_number(&h[TAR_OFFSET_CHECKSUM], 8, tarChecksum(h));
+
+  return TAR_OK;
 }

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * sysattr.h
- *	  POSTGRES system attribute definitions.
+ *    POSTGRES system attribute definitions.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -18,12 +18,12 @@
 /*
  * Attribute numbers for the system-defined attributes
  */
-#define SelfItemPointerAttributeNumber			(-1)
-#define MinTransactionIdAttributeNumber			(-2)
-#define MinCommandIdAttributeNumber				(-3)
-#define MaxTransactionIdAttributeNumber			(-4)
-#define MaxCommandIdAttributeNumber				(-5)
-#define TableOidAttributeNumber					(-6)
-#define FirstLowInvalidHeapAttributeNumber		(-7)
+#define SelfItemPointerAttributeNumber      (-1)
+#define MinTransactionIdAttributeNumber     (-2)
+#define MinCommandIdAttributeNumber       (-3)
+#define MaxTransactionIdAttributeNumber     (-4)
+#define MaxCommandIdAttributeNumber       (-5)
+#define TableOidAttributeNumber         (-6)
+#define FirstLowInvalidHeapAttributeNumber    (-7)
 
-#endif							/* SYSATTR_H */
+#endif              /* SYSATTR_H */

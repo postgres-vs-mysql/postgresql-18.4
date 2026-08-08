@@ -1,13 +1,13 @@
 /*-------------------------------------------------------------------------
  *
  * pg_numa.h
- *	  Basic NUMA portability routines
+ *    Basic NUMA portability routines
  *
  *
  * Copyright (c) 2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- * 	src/include/port/pg_numa.h
+ *  src/include/port/pg_numa.h
  *
  *-------------------------------------------------------------------------
  */
@@ -27,16 +27,16 @@ extern PGDLLIMPORT int pg_numa_get_max_node(void);
 static inline void
 pg_numa_touch_mem_if_required(void *ptr)
 {
-	volatile uint64 touch pg_attribute_unused();
+  volatile uint64 touch pg_attribute_unused();
 
-	touch = *(volatile uint64 *) ptr;
+  touch = *(volatile uint64 *) ptr;
 }
 
 #else
 
 #define pg_numa_touch_mem_if_required(ptr) \
-	do {} while(0)
+  do {} while(0)
 
 #endif
 
-#endif							/* PG_NUMA_H */
+#endif              /* PG_NUMA_H */

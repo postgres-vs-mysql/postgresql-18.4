@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * proclist_types.h
- *		doubly-linked lists of pgprocnos
+ *    doubly-linked lists of pgprocnos
  *
  * See proclist.h for functions that operate on these types.
  *
  * Portions Copyright (c) 2016-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *		src/include/storage/proclist_types.h
+ *    src/include/storage/proclist_types.h
  *-------------------------------------------------------------------------
  */
 
@@ -27,8 +27,8 @@
  */
 typedef struct proclist_node
 {
-	ProcNumber	next;			/* pgprocno of the next PGPROC */
-	ProcNumber	prev;			/* pgprocno of the prev PGPROC */
+  ProcNumber  next;     /* pgprocno of the next PGPROC */
+  ProcNumber  prev;     /* pgprocno of the prev PGPROC */
 } proclist_node;
 
 /*
@@ -37,8 +37,8 @@ typedef struct proclist_node
  */
 typedef struct proclist_head
 {
-	ProcNumber	head;			/* pgprocno of the head PGPROC */
-	ProcNumber	tail;			/* pgprocno of the tail PGPROC */
+  ProcNumber  head;     /* pgprocno of the head PGPROC */
+  ProcNumber  tail;     /* pgprocno of the tail PGPROC */
 } proclist_head;
 
 /*
@@ -46,8 +46,8 @@ typedef struct proclist_head
  */
 typedef struct proclist_mutable_iter
 {
-	ProcNumber	cur;			/* pgprocno of the current PGPROC */
-	ProcNumber	next;			/* pgprocno of the next PGPROC */
+  ProcNumber  cur;      /* pgprocno of the current PGPROC */
+  ProcNumber  next;     /* pgprocno of the next PGPROC */
 } proclist_mutable_iter;
 
-#endif							/* PROCLIST_TYPES_H */
+#endif              /* PROCLIST_TYPES_H */

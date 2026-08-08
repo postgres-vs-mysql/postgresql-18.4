@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * value.h
- *	  interface for value nodes
+ *    interface for value nodes
  *
  *
  * Copyright (c) 2003-2025, PostgreSQL Global Development Group
@@ -27,10 +27,10 @@
 
 typedef struct Integer
 {
-	pg_node_attr(special_read_write)
+  pg_node_attr(special_read_write)
 
-	NodeTag		type;
-	int			ival;
+  NodeTag   type;
+  int     ival;
 } Integer;
 
 /*
@@ -46,40 +46,40 @@ typedef struct Integer
  */
 typedef struct Float
 {
-	pg_node_attr(special_read_write)
+  pg_node_attr(special_read_write)
 
-	NodeTag		type;
-	char	   *fval;
+  NodeTag   type;
+  char     *fval;
 } Float;
 
 typedef struct Boolean
 {
-	pg_node_attr(special_read_write)
+  pg_node_attr(special_read_write)
 
-	NodeTag		type;
-	bool		boolval;
+  NodeTag   type;
+  bool    boolval;
 } Boolean;
 
 typedef struct String
 {
-	pg_node_attr(special_read_write)
+  pg_node_attr(special_read_write)
 
-	NodeTag		type;
-	char	   *sval;
+  NodeTag   type;
+  char     *sval;
 } String;
 
 typedef struct BitString
 {
-	pg_node_attr(special_read_write)
+  pg_node_attr(special_read_write)
 
-	NodeTag		type;
-	char	   *bsval;
+  NodeTag   type;
+  char     *bsval;
 } BitString;
 
-#define intVal(v)		(castNode(Integer, v)->ival)
-#define floatVal(v)		atof(castNode(Float, v)->fval)
-#define boolVal(v)		(castNode(Boolean, v)->boolval)
-#define strVal(v)		(castNode(String, v)->sval)
+#define intVal(v)   (castNode(Integer, v)->ival)
+#define floatVal(v)   atof(castNode(Float, v)->fval)
+#define boolVal(v)    (castNode(Boolean, v)->boolval)
+#define strVal(v)   (castNode(String, v)->sval)
 
 extern Integer *makeInteger(int i);
 extern Float *makeFloat(char *numericStr);
@@ -87,4 +87,4 @@ extern Boolean *makeBoolean(bool val);
 extern String *makeString(char *str);
 extern BitString *makeBitString(char *str);
 
-#endif							/* VALUE_H */
+#endif              /* VALUE_H */

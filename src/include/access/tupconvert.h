@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * tupconvert.h
- *	  Tuple conversion support.
+ *    Tuple conversion support.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -23,32 +23,32 @@
 
 typedef struct TupleConversionMap
 {
-	TupleDesc	indesc;			/* tupdesc for source rowtype */
-	TupleDesc	outdesc;		/* tupdesc for result rowtype */
-	AttrMap    *attrMap;		/* indexes of input fields, or 0 for null */
-	Datum	   *invalues;		/* workspace for deconstructing source */
-	bool	   *inisnull;
-	Datum	   *outvalues;		/* workspace for constructing result */
-	bool	   *outisnull;
+  TupleDesc indesc;     /* tupdesc for source rowtype */
+  TupleDesc outdesc;    /* tupdesc for result rowtype */
+  AttrMap    *attrMap;    /* indexes of input fields, or 0 for null */
+  Datum    *invalues;   /* workspace for deconstructing source */
+  bool     *inisnull;
+  Datum    *outvalues;    /* workspace for constructing result */
+  bool     *outisnull;
 } TupleConversionMap;
 
 
 extern TupleConversionMap *convert_tuples_by_position(TupleDesc indesc,
-													  TupleDesc outdesc,
-													  const char *msg);
+    TupleDesc outdesc,
+    const char *msg);
 
 extern TupleConversionMap *convert_tuples_by_name(TupleDesc indesc,
-												  TupleDesc outdesc);
+    TupleDesc outdesc);
 extern TupleConversionMap *convert_tuples_by_name_attrmap(TupleDesc indesc,
-														  TupleDesc outdesc,
-														  AttrMap *attrMap);
+    TupleDesc outdesc,
+    AttrMap *attrMap);
 
 extern HeapTuple execute_attr_map_tuple(HeapTuple tuple, TupleConversionMap *map);
 extern TupleTableSlot *execute_attr_map_slot(AttrMap *attrMap,
-											 TupleTableSlot *in_slot,
-											 TupleTableSlot *out_slot);
+    TupleTableSlot *in_slot,
+    TupleTableSlot *out_slot);
 extern Bitmapset *execute_attr_map_cols(AttrMap *attrMap, Bitmapset *in_cols);
 
 extern void free_conversion_map(TupleConversionMap *map);
 
-#endif							/* TUPCONVERT_H */
+#endif              /* TUPCONVERT_H */

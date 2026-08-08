@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * basebackup_lz4.c
- *	  Basebackup sink implementing lz4 compression.
+ *    Basebackup sink implementing lz4 compression.
  *
  * Portions Copyright (c) 2010-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/backend/backup/basebackup_lz4.c
+ *    src/backend/backup/basebackup_lz4.c
  *
  *-------------------------------------------------------------------------
  */
@@ -20,19 +20,18 @@
 
 #ifdef USE_LZ4
 
-typedef struct bbsink_lz4
-{
-	/* Common information for all types of sink. */
-	bbsink		base;
+typedef struct bbsink_lz4 {
+  /* Common information for all types of sink. */
+  bbsink    base;
 
-	/* Compression level. */
-	int			compresslevel;
+  /* Compression level. */
+  int     compresslevel;
 
-	LZ4F_compressionContext_t ctx;
-	LZ4F_preferences_t prefs;
+  LZ4F_compressionContext_t ctx;
+  LZ4F_preferences_t prefs;
 
-	/* Number of bytes staged in output buffer. */
-	size_t		bytes_written;
+  /* Number of bytes staged in output buffer. */
+  size_t    bytes_written;
 } bbsink_lz4;
 
 static void bbsink_lz4_begin_backup(bbsink *sink);
@@ -43,15 +42,15 @@ static void bbsink_lz4_end_archive(bbsink *sink);
 static void bbsink_lz4_cleanup(bbsink *sink);
 
 static const bbsink_ops bbsink_lz4_ops = {
-	.begin_backup = bbsink_lz4_begin_backup,
-	.begin_archive = bbsink_lz4_begin_archive,
-	.archive_contents = bbsink_lz4_archive_contents,
-	.end_archive = bbsink_lz4_end_archive,
-	.begin_manifest = bbsink_forward_begin_manifest,
-	.manifest_contents = bbsink_lz4_manifest_contents,
-	.end_manifest = bbsink_forward_end_manifest,
-	.end_backup = bbsink_forward_end_backup,
-	.cleanup = bbsink_lz4_cleanup
+  .begin_backup = bbsink_lz4_begin_backup,
+  .begin_archive = bbsink_lz4_begin_archive,
+  .archive_contents = bbsink_lz4_archive_contents,
+  .end_archive = bbsink_lz4_end_archive,
+  .begin_manifest = bbsink_forward_begin_manifest,
+  .manifest_contents = bbsink_lz4_manifest_contents,
+  .end_manifest = bbsink_forward_end_manifest,
+  .end_backup = bbsink_forward_end_backup,
+  .cleanup = bbsink_lz4_cleanup
 };
 #endif
 
@@ -62,25 +61,25 @@ bbsink *
 bbsink_lz4_new(bbsink *next, pg_compress_specification *compress)
 {
 #ifndef USE_LZ4
-	ereport(ERROR,
-			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-			 errmsg("lz4 compression is not supported by this build")));
-	return NULL;				/* keep compiler quiet */
+  ereport(ERROR,
+          (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+           errmsg("lz4 compression is not supported by this build")));
+  return NULL;        /* keep compiler quiet */
 #else
-	bbsink_lz4 *sink;
-	int			compresslevel;
+  bbsink_lz4 *sink;
+  int     compresslevel;
 
-	Assert(next != NULL);
+  Assert(next != NULL);
 
-	compresslevel = compress->level;
-	Assert(compresslevel >= 0 && compresslevel <= 12);
+  compresslevel = compress->level;
+  Assert(compresslevel >= 0 && compresslevel <= 12);
 
-	sink = palloc0(sizeof(bbsink_lz4));
-	*((const bbsink_ops **) &sink->base.bbs_ops) = &bbsink_lz4_ops;
-	sink->base.bbs_next = next;
-	sink->compresslevel = compresslevel;
+  sink = palloc0(sizeof(bbsink_lz4));
+  *((const bbsink_ops **) &sink->base.bbs_ops) = &bbsink_lz4_ops;
+  sink->base.bbs_next = next;
+  sink->compresslevel = compresslevel;
 
-	return &sink->base;
+  return &sink->base;
 #endif
 }
 
@@ -92,37 +91,37 @@ bbsink_lz4_new(bbsink *next, pg_compress_specification *compress)
 static void
 bbsink_lz4_begin_backup(bbsink *sink)
 {
-	bbsink_lz4 *mysink = (bbsink_lz4 *) sink;
-	size_t		output_buffer_bound;
-	LZ4F_preferences_t *prefs = &mysink->prefs;
+  bbsink_lz4 *mysink = (bbsink_lz4 *) sink;
+  size_t    output_buffer_bound;
+  LZ4F_preferences_t *prefs = &mysink->prefs;
 
-	/* Initialize compressor object. */
-	memset(prefs, 0, sizeof(LZ4F_preferences_t));
-	prefs->frameInfo.blockSizeID = LZ4F_max256KB;
-	prefs->compressionLevel = mysink->compresslevel;
+  /* Initialize compressor object. */
+  memset(prefs, 0, sizeof(LZ4F_preferences_t));
+  prefs->frameInfo.blockSizeID = LZ4F_max256KB;
+  prefs->compressionLevel = mysink->compresslevel;
 
-	/*
-	 * We need our own buffer, because we're going to pass different data to
-	 * the next sink than what gets passed to us.
-	 */
-	mysink->base.bbs_buffer = palloc(mysink->base.bbs_buffer_length);
+  /*
+   * We need our own buffer, because we're going to pass different data to
+   * the next sink than what gets passed to us.
+   */
+  mysink->base.bbs_buffer = palloc(mysink->base.bbs_buffer_length);
 
-	/*
-	 * Since LZ4F_compressUpdate() requires the output buffer of size equal or
-	 * greater than that of LZ4F_compressBound(), make sure we have the next
-	 * sink's bbs_buffer of length that can accommodate the compressed input
-	 * buffer.
-	 */
-	output_buffer_bound = LZ4F_compressBound(mysink->base.bbs_buffer_length,
-											 &mysink->prefs);
+  /*
+   * Since LZ4F_compressUpdate() requires the output buffer of size equal or
+   * greater than that of LZ4F_compressBound(), make sure we have the next
+   * sink's bbs_buffer of length that can accommodate the compressed input
+   * buffer.
+   */
+  output_buffer_bound = LZ4F_compressBound(mysink->base.bbs_buffer_length,
+                        &mysink->prefs);
 
-	/*
-	 * The buffer length is expected to be a multiple of BLCKSZ, so round up.
-	 */
-	output_buffer_bound = output_buffer_bound + BLCKSZ -
-		(output_buffer_bound % BLCKSZ);
+  /*
+   * The buffer length is expected to be a multiple of BLCKSZ, so round up.
+   */
+  output_buffer_bound = output_buffer_bound + BLCKSZ -
+                        (output_buffer_bound % BLCKSZ);
 
-	bbsink_begin_backup(sink->bbs_next, sink->bbs_state, output_buffer_bound);
+  bbsink_begin_backup(sink->bbs_next, sink->bbs_state, output_buffer_bound);
 }
 
 /*
@@ -131,38 +130,39 @@ bbsink_lz4_begin_backup(bbsink *sink)
 static void
 bbsink_lz4_begin_archive(bbsink *sink, const char *archive_name)
 {
-	bbsink_lz4 *mysink = (bbsink_lz4 *) sink;
-	char	   *lz4_archive_name;
-	LZ4F_errorCode_t ctxError;
-	size_t		headerSize;
+  bbsink_lz4 *mysink = (bbsink_lz4 *) sink;
+  char     *lz4_archive_name;
+  LZ4F_errorCode_t ctxError;
+  size_t    headerSize;
 
-	ctxError = LZ4F_createCompressionContext(&mysink->ctx, LZ4F_VERSION);
-	if (LZ4F_isError(ctxError))
-		elog(ERROR, "could not create lz4 compression context: %s",
-			 LZ4F_getErrorName(ctxError));
+  ctxError = LZ4F_createCompressionContext(&mysink->ctx, LZ4F_VERSION);
 
-	/* First of all write the frame header to destination buffer. */
-	headerSize = LZ4F_compressBegin(mysink->ctx,
-									mysink->base.bbs_next->bbs_buffer,
-									mysink->base.bbs_next->bbs_buffer_length,
-									&mysink->prefs);
+  if (LZ4F_isError(ctxError))
+    elog(ERROR, "could not create lz4 compression context: %s",
+         LZ4F_getErrorName(ctxError));
 
-	if (LZ4F_isError(headerSize))
-		elog(ERROR, "could not write lz4 header: %s",
-			 LZ4F_getErrorName(headerSize));
+  /* First of all write the frame header to destination buffer. */
+  headerSize = LZ4F_compressBegin(mysink->ctx,
+                                  mysink->base.bbs_next->bbs_buffer,
+                                  mysink->base.bbs_next->bbs_buffer_length,
+                                  &mysink->prefs);
 
-	/*
-	 * We need to write the compressed data after the header in the output
-	 * buffer. So, make sure to update the notion of bytes written to output
-	 * buffer.
-	 */
-	mysink->bytes_written += headerSize;
+  if (LZ4F_isError(headerSize))
+    elog(ERROR, "could not write lz4 header: %s",
+         LZ4F_getErrorName(headerSize));
 
-	/* Add ".lz4" to the archive name. */
-	lz4_archive_name = psprintf("%s.lz4", archive_name);
-	Assert(sink->bbs_next != NULL);
-	bbsink_begin_archive(sink->bbs_next, lz4_archive_name);
-	pfree(lz4_archive_name);
+  /*
+   * We need to write the compressed data after the header in the output
+   * buffer. So, make sure to update the notion of bytes written to output
+   * buffer.
+   */
+  mysink->bytes_written += headerSize;
+
+  /* Add ".lz4" to the archive name. */
+  lz4_archive_name = psprintf("%s.lz4", archive_name);
+  Assert(sink->bbs_next != NULL);
+  bbsink_begin_archive(sink->bbs_next, lz4_archive_name);
+  pfree(lz4_archive_name);
 }
 
 /*
@@ -179,42 +179,41 @@ bbsink_lz4_begin_archive(bbsink *sink, const char *archive_name)
 static void
 bbsink_lz4_archive_contents(bbsink *sink, size_t avail_in)
 {
-	bbsink_lz4 *mysink = (bbsink_lz4 *) sink;
-	size_t		compressedSize;
-	size_t		avail_in_bound;
+  bbsink_lz4 *mysink = (bbsink_lz4 *) sink;
+  size_t    compressedSize;
+  size_t    avail_in_bound;
 
-	avail_in_bound = LZ4F_compressBound(avail_in, &mysink->prefs);
+  avail_in_bound = LZ4F_compressBound(avail_in, &mysink->prefs);
 
-	/*
-	 * If the number of available bytes has fallen below the value computed by
-	 * LZ4F_compressBound(), ask the next sink to process the data so that we
-	 * can empty the buffer.
-	 */
-	if ((mysink->base.bbs_next->bbs_buffer_length - mysink->bytes_written) <
-		avail_in_bound)
-	{
-		bbsink_archive_contents(sink->bbs_next, mysink->bytes_written);
-		mysink->bytes_written = 0;
-	}
+  /*
+   * If the number of available bytes has fallen below the value computed by
+   * LZ4F_compressBound(), ask the next sink to process the data so that we
+   * can empty the buffer.
+   */
+  if ((mysink->base.bbs_next->bbs_buffer_length - mysink->bytes_written) <
+      avail_in_bound) {
+    bbsink_archive_contents(sink->bbs_next, mysink->bytes_written);
+    mysink->bytes_written = 0;
+  }
 
-	/*
-	 * Compress the input buffer and write it into the output buffer.
-	 */
-	compressedSize = LZ4F_compressUpdate(mysink->ctx,
-										 mysink->base.bbs_next->bbs_buffer + mysink->bytes_written,
-										 mysink->base.bbs_next->bbs_buffer_length - mysink->bytes_written,
-										 (uint8 *) mysink->base.bbs_buffer,
-										 avail_in,
-										 NULL);
+  /*
+   * Compress the input buffer and write it into the output buffer.
+   */
+  compressedSize = LZ4F_compressUpdate(mysink->ctx,
+                                       mysink->base.bbs_next->bbs_buffer + mysink->bytes_written,
+                                       mysink->base.bbs_next->bbs_buffer_length - mysink->bytes_written,
+                                       (uint8 *) mysink->base.bbs_buffer,
+                                       avail_in,
+                                       NULL);
 
-	if (LZ4F_isError(compressedSize))
-		elog(ERROR, "could not compress data: %s",
-			 LZ4F_getErrorName(compressedSize));
+  if (LZ4F_isError(compressedSize))
+    elog(ERROR, "could not compress data: %s",
+         LZ4F_getErrorName(compressedSize));
 
-	/*
-	 * Update our notion of how many bytes we've written into output buffer.
-	 */
-	mysink->bytes_written += compressedSize;
+  /*
+   * Update our notion of how many bytes we've written into output buffer.
+   */
+  mysink->bytes_written += compressedSize;
 }
 
 /*
@@ -227,43 +226,42 @@ bbsink_lz4_archive_contents(bbsink *sink, size_t avail_in)
 static void
 bbsink_lz4_end_archive(bbsink *sink)
 {
-	bbsink_lz4 *mysink = (bbsink_lz4 *) sink;
-	size_t		compressedSize;
-	size_t		lz4_footer_bound;
+  bbsink_lz4 *mysink = (bbsink_lz4 *) sink;
+  size_t    compressedSize;
+  size_t    lz4_footer_bound;
 
-	lz4_footer_bound = LZ4F_compressBound(0, &mysink->prefs);
+  lz4_footer_bound = LZ4F_compressBound(0, &mysink->prefs);
 
-	Assert(mysink->base.bbs_next->bbs_buffer_length >= lz4_footer_bound);
+  Assert(mysink->base.bbs_next->bbs_buffer_length >= lz4_footer_bound);
 
-	if ((mysink->base.bbs_next->bbs_buffer_length - mysink->bytes_written) <
-		lz4_footer_bound)
-	{
-		bbsink_archive_contents(sink->bbs_next, mysink->bytes_written);
-		mysink->bytes_written = 0;
-	}
+  if ((mysink->base.bbs_next->bbs_buffer_length - mysink->bytes_written) <
+      lz4_footer_bound) {
+    bbsink_archive_contents(sink->bbs_next, mysink->bytes_written);
+    mysink->bytes_written = 0;
+  }
 
-	compressedSize = LZ4F_compressEnd(mysink->ctx,
-									  mysink->base.bbs_next->bbs_buffer + mysink->bytes_written,
-									  mysink->base.bbs_next->bbs_buffer_length - mysink->bytes_written,
-									  NULL);
+  compressedSize = LZ4F_compressEnd(mysink->ctx,
+                                    mysink->base.bbs_next->bbs_buffer + mysink->bytes_written,
+                                    mysink->base.bbs_next->bbs_buffer_length - mysink->bytes_written,
+                                    NULL);
 
-	if (LZ4F_isError(compressedSize))
-		elog(ERROR, "could not end lz4 compression: %s",
-			 LZ4F_getErrorName(compressedSize));
+  if (LZ4F_isError(compressedSize))
+    elog(ERROR, "could not end lz4 compression: %s",
+         LZ4F_getErrorName(compressedSize));
 
-	/* Update our notion of how many bytes we've written. */
-	mysink->bytes_written += compressedSize;
+  /* Update our notion of how many bytes we've written. */
+  mysink->bytes_written += compressedSize;
 
-	/* Send whatever accumulated output bytes we have. */
-	bbsink_archive_contents(sink->bbs_next, mysink->bytes_written);
-	mysink->bytes_written = 0;
+  /* Send whatever accumulated output bytes we have. */
+  bbsink_archive_contents(sink->bbs_next, mysink->bytes_written);
+  mysink->bytes_written = 0;
 
-	/* Release the resources. */
-	LZ4F_freeCompressionContext(mysink->ctx);
-	mysink->ctx = NULL;
+  /* Release the resources. */
+  LZ4F_freeCompressionContext(mysink->ctx);
+  mysink->ctx = NULL;
 
-	/* Pass on the information that this archive has ended. */
-	bbsink_forward_end_archive(sink);
+  /* Pass on the information that this archive has ended. */
+  bbsink_forward_end_archive(sink);
 }
 
 /*
@@ -273,8 +271,8 @@ bbsink_lz4_end_archive(bbsink *sink)
 static void
 bbsink_lz4_manifest_contents(bbsink *sink, size_t len)
 {
-	memcpy(sink->bbs_next->bbs_buffer, sink->bbs_buffer, len);
-	bbsink_manifest_contents(sink->bbs_next, len);
+  memcpy(sink->bbs_next->bbs_buffer, sink->bbs_buffer, len);
+  bbsink_manifest_contents(sink->bbs_next, len);
 }
 
 /*
@@ -284,13 +282,12 @@ bbsink_lz4_manifest_contents(bbsink *sink, size_t len)
 static void
 bbsink_lz4_cleanup(bbsink *sink)
 {
-	bbsink_lz4 *mysink = (bbsink_lz4 *) sink;
+  bbsink_lz4 *mysink = (bbsink_lz4 *) sink;
 
-	if (mysink->ctx)
-	{
-		LZ4F_freeCompressionContext(mysink->ctx);
-		mysink->ctx = NULL;
-	}
+  if (mysink->ctx) {
+    LZ4F_freeCompressionContext(mysink->ctx);
+    mysink->ctx = NULL;
+  }
 }
 
 #endif

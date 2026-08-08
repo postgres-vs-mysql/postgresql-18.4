@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * block.h
- *	  POSTGRES disk block definitions.
+ *    POSTGRES disk block definitions.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -30,9 +30,9 @@
  */
 typedef uint32 BlockNumber;
 
-#define InvalidBlockNumber		((BlockNumber) 0xFFFFFFFF)
+#define InvalidBlockNumber    ((BlockNumber) 0xFFFFFFFF)
 
-#define MaxBlockNumber			((BlockNumber) 0xFFFFFFFE)
+#define MaxBlockNumber      ((BlockNumber) 0xFFFFFFFE)
 
 /*
  * BlockId:
@@ -52,57 +52,57 @@ typedef uint32 BlockNumber;
  */
 typedef struct BlockIdData
 {
-	uint16		bi_hi;
-	uint16		bi_lo;
+  uint16    bi_hi;
+  uint16    bi_lo;
 } BlockIdData;
 
-typedef BlockIdData *BlockId;	/* block identifier */
+typedef BlockIdData *BlockId; /* block identifier */
 
 /* ----------------
- *		support functions
+ *    support functions
  * ----------------
  */
 
 /*
  * BlockNumberIsValid
- *		True iff blockNumber is valid.
+ *    True iff blockNumber is valid.
  */
 static inline bool
 BlockNumberIsValid(BlockNumber blockNumber)
 {
-	return blockNumber != InvalidBlockNumber;
+  return blockNumber != InvalidBlockNumber;
 }
 
 /*
  * BlockIdSet
- *		Sets a block identifier to the specified value.
+ *    Sets a block identifier to the specified value.
  */
 static inline void
 BlockIdSet(BlockIdData *blockId, BlockNumber blockNumber)
 {
-	blockId->bi_hi = blockNumber >> 16;
-	blockId->bi_lo = blockNumber & 0xffff;
+  blockId->bi_hi = blockNumber >> 16;
+  blockId->bi_lo = blockNumber & 0xffff;
 }
 
 /*
  * BlockIdEquals
- *		Check for block number equality.
+ *    Check for block number equality.
  */
 static inline bool
 BlockIdEquals(const BlockIdData *blockId1, const BlockIdData *blockId2)
 {
-	return (blockId1->bi_hi == blockId2->bi_hi &&
-			blockId1->bi_lo == blockId2->bi_lo);
+  return (blockId1->bi_hi == blockId2->bi_hi &&
+          blockId1->bi_lo == blockId2->bi_lo);
 }
 
 /*
  * BlockIdGetBlockNumber
- *		Retrieve the block number from a block identifier.
+ *    Retrieve the block number from a block identifier.
  */
 static inline BlockNumber
 BlockIdGetBlockNumber(const BlockIdData *blockId)
 {
-	return (((BlockNumber) blockId->bi_hi) << 16) | ((BlockNumber) blockId->bi_lo);
+  return (((BlockNumber) blockId->bi_hi) << 16) | ((BlockNumber) blockId->bi_lo);
 }
 
-#endif							/* BLOCK_H */
+#endif              /* BLOCK_H */

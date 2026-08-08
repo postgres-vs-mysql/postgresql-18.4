@@ -1,8 +1,8 @@
 /*-------------------------------------------------------------------------
  *
  * compress_io.c
- *	 Routines for archivers to write an uncompressed or compressed data
- *	 stream.
+ *   Routines for archivers to write an uncompressed or compressed data
+ *   stream.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -18,45 +18,45 @@
  * Compressor API
  * --------------
  *
- *	The interface for writing to an archive consists of three functions:
- *	AllocateCompressor, writeData, and EndCompressor. First you call
- *	AllocateCompressor, then write all the data by calling writeData as many
- *	times as needed, and finally EndCompressor. writeData will call the
- *	WriteFunc that was provided to AllocateCompressor for each chunk of
- *	compressed data.
+ *  The interface for writing to an archive consists of three functions:
+ *  AllocateCompressor, writeData, and EndCompressor. First you call
+ *  AllocateCompressor, then write all the data by calling writeData as many
+ *  times as needed, and finally EndCompressor. writeData will call the
+ *  WriteFunc that was provided to AllocateCompressor for each chunk of
+ *  compressed data.
  *
- *	The interface for reading an archive consists of the same three functions:
- *	AllocateCompressor, readData, and EndCompressor. First you call
- *	AllocateCompressor, then read all the data by calling readData to read the
- *	whole compressed stream which repeatedly calls the given ReadFunc. ReadFunc
- *	returns the compressed data one chunk at a time. Then readData decompresses
- *	it and passes the decompressed data to ahwrite(), until ReadFunc returns 0
- *	to signal EOF. The interface is the same for compressed and uncompressed
- *	streams.
+ *  The interface for reading an archive consists of the same three functions:
+ *  AllocateCompressor, readData, and EndCompressor. First you call
+ *  AllocateCompressor, then read all the data by calling readData to read the
+ *  whole compressed stream which repeatedly calls the given ReadFunc. ReadFunc
+ *  returns the compressed data one chunk at a time. Then readData decompresses
+ *  it and passes the decompressed data to ahwrite(), until ReadFunc returns 0
+ *  to signal EOF. The interface is the same for compressed and uncompressed
+ *  streams.
  *
  * Compressed stream API
  * ----------------------
  *
- *	The compressed stream API is providing a set of function pointers for
- *	opening, reading, writing, and finally closing files. The implemented
- *	function pointers are documented in the corresponding header file and are
- *	common for all streams. It allows the caller to use the same functions for
- *	both compressed and uncompressed streams.
+ *  The compressed stream API is providing a set of function pointers for
+ *  opening, reading, writing, and finally closing files. The implemented
+ *  function pointers are documented in the corresponding header file and are
+ *  common for all streams. It allows the caller to use the same functions for
+ *  both compressed and uncompressed streams.
  *
- *	The interface consists of three functions, InitCompressFileHandle,
- *	InitDiscoverCompressFileHandle, and EndCompressFileHandle. If the
- *	compression is known, then start by calling InitCompressFileHandle,
- *	otherwise discover it by using InitDiscoverCompressFileHandle. Then call
- *	the function pointers as required for the read/write operations. Finally
- *	call EndCompressFileHandle to end the stream.
+ *  The interface consists of three functions, InitCompressFileHandle,
+ *  InitDiscoverCompressFileHandle, and EndCompressFileHandle. If the
+ *  compression is known, then start by calling InitCompressFileHandle,
+ *  otherwise discover it by using InitDiscoverCompressFileHandle. Then call
+ *  the function pointers as required for the read/write operations. Finally
+ *  call EndCompressFileHandle to end the stream.
  *
- *	InitDiscoverCompressFileHandle tries to infer the compression by the
- *	filename suffix. If the suffix is not yet known then it tries to simply
- *	open the file and if it fails, it tries to open the same file with
- *	compressed suffixes (.gz, .lz4 and .zst, in this order).
+ *  InitDiscoverCompressFileHandle tries to infer the compression by the
+ *  filename suffix. If the suffix is not yet known then it tries to simply
+ *  open the file and if it fails, it tries to open the same file with
+ *  compressed suffixes (.gz, .lz4 and .zst, in this order).
  *
  * IDENTIFICATION
- *	   src/bin/pg_dump/compress_io.c
+ *     src/bin/pg_dump/compress_io.c
  *
  *-------------------------------------------------------------------------
  */
@@ -86,29 +86,36 @@
 char *
 supports_compression(const pg_compress_specification compression_spec)
 {
-	const pg_compress_algorithm algorithm = compression_spec.algorithm;
-	bool		supported = false;
+  const pg_compress_algorithm algorithm = compression_spec.algorithm;
+  bool    supported = false;
 
-	if (algorithm == PG_COMPRESSION_NONE)
-		supported = true;
+  if (algorithm == PG_COMPRESSION_NONE)
+    supported = true;
+
 #ifdef HAVE_LIBZ
-	if (algorithm == PG_COMPRESSION_GZIP)
-		supported = true;
+
+  if (algorithm == PG_COMPRESSION_GZIP)
+    supported = true;
+
 #endif
 #ifdef USE_LZ4
-	if (algorithm == PG_COMPRESSION_LZ4)
-		supported = true;
+
+  if (algorithm == PG_COMPRESSION_LZ4)
+    supported = true;
+
 #endif
 #ifdef USE_ZSTD
-	if (algorithm == PG_COMPRESSION_ZSTD)
-		supported = true;
+
+  if (algorithm == PG_COMPRESSION_ZSTD)
+    supported = true;
+
 #endif
 
-	if (!supported)
-		return psprintf(_("this build does not support compression with %s"),
-						get_compress_algorithm_name(algorithm));
+  if (!supported)
+    return psprintf(_("this build does not support compression with %s"),
+                    get_compress_algorithm_name(algorithm));
 
-	return NULL;
+  return NULL;
 }
 
 /*----------------------
@@ -121,24 +128,24 @@ supports_compression(const pg_compress_specification compression_spec)
  */
 CompressorState *
 AllocateCompressor(const pg_compress_specification compression_spec,
-				   ReadFunc readF, WriteFunc writeF)
+                   ReadFunc readF, WriteFunc writeF)
 {
-	CompressorState *cs;
+  CompressorState *cs;
 
-	cs = (CompressorState *) pg_malloc0(sizeof(CompressorState));
-	cs->readF = readF;
-	cs->writeF = writeF;
+  cs = (CompressorState *) pg_malloc0(sizeof(CompressorState));
+  cs->readF = readF;
+  cs->writeF = writeF;
 
-	if (compression_spec.algorithm == PG_COMPRESSION_NONE)
-		InitCompressorNone(cs, compression_spec);
-	else if (compression_spec.algorithm == PG_COMPRESSION_GZIP)
-		InitCompressorGzip(cs, compression_spec);
-	else if (compression_spec.algorithm == PG_COMPRESSION_LZ4)
-		InitCompressorLZ4(cs, compression_spec);
-	else if (compression_spec.algorithm == PG_COMPRESSION_ZSTD)
-		InitCompressorZstd(cs, compression_spec);
+  if (compression_spec.algorithm == PG_COMPRESSION_NONE)
+    InitCompressorNone(cs, compression_spec);
+  else if (compression_spec.algorithm == PG_COMPRESSION_GZIP)
+    InitCompressorGzip(cs, compression_spec);
+  else if (compression_spec.algorithm == PG_COMPRESSION_LZ4)
+    InitCompressorLZ4(cs, compression_spec);
+  else if (compression_spec.algorithm == PG_COMPRESSION_ZSTD)
+    InitCompressorZstd(cs, compression_spec);
 
-	return cs;
+  return cs;
 }
 
 /*
@@ -147,8 +154,8 @@ AllocateCompressor(const pg_compress_specification compression_spec,
 void
 EndCompressor(ArchiveHandle *AH, CompressorState *cs)
 {
-	cs->end(AH, cs);
-	pg_free(cs);
+  cs->end(AH, cs);
+  pg_free(cs);
 }
 
 /*----------------------
@@ -162,25 +169,25 @@ EndCompressor(ArchiveHandle *AH, CompressorState *cs)
 static int
 hasSuffix(const char *filename, const char *suffix)
 {
-	int			filenamelen = strlen(filename);
-	int			suffixlen = strlen(suffix);
+  int     filenamelen = strlen(filename);
+  int     suffixlen = strlen(suffix);
 
-	if (filenamelen < suffixlen)
-		return 0;
+  if (filenamelen < suffixlen)
+    return 0;
 
-	return memcmp(&filename[filenamelen - suffixlen],
-				  suffix,
-				  suffixlen) == 0;
+  return memcmp(&filename[filenamelen - suffixlen],
+                suffix,
+                suffixlen) == 0;
 }
 
 /* free() without changing errno; useful in several places below */
 static void
 free_keep_errno(void *p)
 {
-	int			save_errno = errno;
+  int     save_errno = errno;
 
-	free(p);
-	errno = save_errno;
+  free(p);
+  errno = save_errno;
 }
 
 /*
@@ -193,20 +200,20 @@ free_keep_errno(void *p)
 CompressFileHandle *
 InitCompressFileHandle(const pg_compress_specification compression_spec)
 {
-	CompressFileHandle *CFH;
+  CompressFileHandle *CFH;
 
-	CFH = pg_malloc0(sizeof(CompressFileHandle));
+  CFH = pg_malloc0(sizeof(CompressFileHandle));
 
-	if (compression_spec.algorithm == PG_COMPRESSION_NONE)
-		InitCompressFileHandleNone(CFH, compression_spec);
-	else if (compression_spec.algorithm == PG_COMPRESSION_GZIP)
-		InitCompressFileHandleGzip(CFH, compression_spec);
-	else if (compression_spec.algorithm == PG_COMPRESSION_LZ4)
-		InitCompressFileHandleLZ4(CFH, compression_spec);
-	else if (compression_spec.algorithm == PG_COMPRESSION_ZSTD)
-		InitCompressFileHandleZstd(CFH, compression_spec);
+  if (compression_spec.algorithm == PG_COMPRESSION_NONE)
+    InitCompressFileHandleNone(CFH, compression_spec);
+  else if (compression_spec.algorithm == PG_COMPRESSION_GZIP)
+    InitCompressFileHandleGzip(CFH, compression_spec);
+  else if (compression_spec.algorithm == PG_COMPRESSION_LZ4)
+    InitCompressFileHandleLZ4(CFH, compression_spec);
+  else if (compression_spec.algorithm == PG_COMPRESSION_ZSTD)
+    InitCompressFileHandleZstd(CFH, compression_spec);
 
-	return CFH;
+  return CFH;
 }
 
 /*
@@ -218,9 +225,9 @@ InitCompressFileHandle(const pg_compress_specification compression_spec)
 static bool
 check_compressed_file(const char *path, char **fname, char *ext)
 {
-	free_keep_errno(*fname);
-	*fname = psprintf("%s.%s", path, ext);
-	return (access(*fname, F_OK) == 0);
+  free_keep_errno(*fname);
+  *fname = psprintf("%s.%s", path, ext);
+  return (access(*fname, F_OK) == 0);
 }
 
 /*
@@ -239,45 +246,45 @@ check_compressed_file(const char *path, char **fname, char *ext)
 CompressFileHandle *
 InitDiscoverCompressFileHandle(const char *path, const char *mode)
 {
-	CompressFileHandle *CFH = NULL;
-	struct stat st;
-	char	   *fname;
-	pg_compress_specification compression_spec = {0};
+  CompressFileHandle *CFH = NULL;
+  struct stat st;
+  char     *fname;
+  pg_compress_specification compression_spec = {0};
 
-	compression_spec.algorithm = PG_COMPRESSION_NONE;
+  compression_spec.algorithm = PG_COMPRESSION_NONE;
 
-	Assert(strcmp(mode, PG_BINARY_R) == 0);
+  Assert(strcmp(mode, PG_BINARY_R) == 0);
 
-	fname = pg_strdup(path);
+  fname = pg_strdup(path);
 
-	if (hasSuffix(fname, ".gz"))
-		compression_spec.algorithm = PG_COMPRESSION_GZIP;
-	else if (hasSuffix(fname, ".lz4"))
-		compression_spec.algorithm = PG_COMPRESSION_LZ4;
-	else if (hasSuffix(fname, ".zst"))
-		compression_spec.algorithm = PG_COMPRESSION_ZSTD;
-	else
-	{
-		if (stat(path, &st) == 0)
-			compression_spec.algorithm = PG_COMPRESSION_NONE;
-		else if (check_compressed_file(path, &fname, "gz"))
-			compression_spec.algorithm = PG_COMPRESSION_GZIP;
-		else if (check_compressed_file(path, &fname, "lz4"))
-			compression_spec.algorithm = PG_COMPRESSION_LZ4;
-		else if (check_compressed_file(path, &fname, "zst"))
-			compression_spec.algorithm = PG_COMPRESSION_ZSTD;
-	}
+  if (hasSuffix(fname, ".gz"))
+    compression_spec.algorithm = PG_COMPRESSION_GZIP;
+  else if (hasSuffix(fname, ".lz4"))
+    compression_spec.algorithm = PG_COMPRESSION_LZ4;
+  else if (hasSuffix(fname, ".zst"))
+    compression_spec.algorithm = PG_COMPRESSION_ZSTD;
+  else {
+    if (stat(path, &st) == 0)
+      compression_spec.algorithm = PG_COMPRESSION_NONE;
+    else if (check_compressed_file(path, &fname, "gz"))
+      compression_spec.algorithm = PG_COMPRESSION_GZIP;
+    else if (check_compressed_file(path, &fname, "lz4"))
+      compression_spec.algorithm = PG_COMPRESSION_LZ4;
+    else if (check_compressed_file(path, &fname, "zst"))
+      compression_spec.algorithm = PG_COMPRESSION_ZSTD;
+  }
 
-	CFH = InitCompressFileHandle(compression_spec);
-	errno = 0;
-	if (!CFH->open_func(fname, -1, mode, CFH))
-	{
-		free_keep_errno(CFH);
-		CFH = NULL;
-	}
-	free_keep_errno(fname);
+  CFH = InitCompressFileHandle(compression_spec);
+  errno = 0;
 
-	return CFH;
+  if (!CFH->open_func(fname, -1, mode, CFH)) {
+    free_keep_errno(CFH);
+    CFH = NULL;
+  }
+
+  free_keep_errno(fname);
+
+  return CFH;
 }
 
 /*
@@ -288,13 +295,14 @@ InitDiscoverCompressFileHandle(const char *path, const char *mode)
 bool
 EndCompressFileHandle(CompressFileHandle *CFH)
 {
-	bool		ret = false;
+  bool    ret = false;
 
-	errno = 0;
-	if (CFH->private_data)
-		ret = CFH->close_func(CFH);
+  errno = 0;
 
-	free_keep_errno(CFH);
+  if (CFH->private_data)
+    ret = CFH->close_func(CFH);
 
-	return ret;
+  free_keep_errno(CFH);
+
+  return ret;
 }

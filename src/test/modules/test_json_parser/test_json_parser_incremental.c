@@ -48,11 +48,10 @@
 #define BUFSIZE 6000
 #define DEFAULT_CHUNK_SIZE 60
 
-typedef struct DoState
-{
-	JsonLexContext *lex;
-	bool		elem_is_first;
-	StringInfo	buf;
+typedef struct DoState {
+  JsonLexContext *lex;
+  bool    elem_is_first;
+  StringInfo  buf;
 } DoState;
 
 static void usage(const char *progname);
@@ -70,15 +69,15 @@ static JsonParseErrorType do_array_element_end(void *state, bool isnull);
 static JsonParseErrorType do_scalar(void *state, char *token, JsonTokenType tokentype);
 
 static JsonSemAction sem = {
-	.object_start = do_object_start,
-	.object_end = do_object_end,
-	.object_field_start = do_object_field_start,
-	.object_field_end = do_object_field_end,
-	.array_start = do_array_start,
-	.array_end = do_array_end,
-	.array_element_start = do_array_element_start,
-	.array_element_end = do_array_element_end,
-	.scalar = do_scalar
+  .object_start = do_object_start,
+  .object_end = do_object_end,
+  .object_field_start = do_object_field_start,
+  .object_field_end = do_object_field_end,
+  .array_start = do_array_start,
+  .array_end = do_array_end,
+  .array_element_start = do_array_element_start,
+  .array_element_end = do_array_element_end,
+  .scalar = do_scalar
 };
 
 static bool lex_owns_tokens = false;
@@ -86,157 +85,157 @@ static bool lex_owns_tokens = false;
 int
 main(int argc, char **argv)
 {
-	char		buff[BUFSIZE];
-	FILE	   *json_file;
-	JsonParseErrorType result;
-	JsonLexContext *lex;
-	StringInfoData json;
-	int			n_read;
-	size_t		chunk_size = DEFAULT_CHUNK_SIZE;
-	bool		run_chunk_ranges = false;
-	struct stat statbuf;
-	const JsonSemAction *testsem = &nullSemAction;
-	char	   *testfile;
-	int			c;
-	bool		need_strings = false;
-	int			ret = 0;
+  char    buff[BUFSIZE];
+  FILE     *json_file;
+  JsonParseErrorType result;
+  JsonLexContext *lex;
+  StringInfoData json;
+  int     n_read;
+  size_t    chunk_size = DEFAULT_CHUNK_SIZE;
+  bool    run_chunk_ranges = false;
+  struct stat statbuf;
+  const JsonSemAction *testsem = &nullSemAction;
+  char     *testfile;
+  int     c;
+  bool    need_strings = false;
+  int     ret = 0;
 
-	pg_logging_init(argv[0]);
+  pg_logging_init(argv[0]);
 
-	lex = calloc(1, sizeof(JsonLexContext));
-	if (!lex)
-		pg_fatal("out of memory");
+  lex = calloc(1, sizeof(JsonLexContext));
 
-	while ((c = getopt(argc, argv, "r:c:os")) != -1)
-	{
-		switch (c)
-		{
-			case 'r':			/* chunk range */
-				run_chunk_ranges = true;
-				/* fall through */
-			case 'c':			/* chunk size */
-				chunk_size = strtou64(optarg, NULL, 10);
-				if (chunk_size > BUFSIZE)
-					pg_fatal("chunk size cannot exceed %d", BUFSIZE);
-				break;
-			case 'o':			/* switch token ownership */
-				lex_owns_tokens = true;
-				break;
-			case 's':			/* do semantic processing */
-				testsem = &sem;
-				sem.semstate = palloc(sizeof(struct DoState));
-				((struct DoState *) sem.semstate)->lex = lex;
-				((struct DoState *) sem.semstate)->buf = makeStringInfo();
-				need_strings = true;
-				break;
-		}
-	}
+  if (!lex)
+    pg_fatal("out of memory");
 
-	if (optind < argc)
-	{
-		testfile = argv[optind];
-		optind++;
-	}
-	else
-	{
-		usage(argv[0]);
-		exit(1);
-	}
+  while ((c = getopt(argc, argv, "r:c:os")) != -1) {
+    switch (c) {
+      case 'r':     /* chunk range */
+        run_chunk_ranges = true;
 
-	initStringInfo(&json);
+      /* fall through */
+      case 'c':     /* chunk size */
+        chunk_size = strtou64(optarg, NULL, 10);
 
-	if ((json_file = fopen(testfile, PG_BINARY_R)) == NULL)
-		pg_fatal("error opening input: %m");
+        if (chunk_size > BUFSIZE)
+          pg_fatal("chunk size cannot exceed %d", BUFSIZE);
 
-	if (fstat(fileno(json_file), &statbuf) != 0)
-		pg_fatal("error statting input: %m");
+        break;
 
-	do
-	{
-		/*
-		 * This outer loop only repeats in -r mode. Reset the parse state and
-		 * our position in the input file for the inner loop, which performs
-		 * the incremental parsing.
-		 */
-		off_t		bytes_left = statbuf.st_size;
-		size_t		to_read = chunk_size;
+      case 'o':     /* switch token ownership */
+        lex_owns_tokens = true;
+        break;
 
-		makeJsonLexContextIncremental(lex, PG_UTF8, need_strings);
-		setJsonLexContextOwnsTokens(lex, lex_owns_tokens);
+      case 's':     /* do semantic processing */
+        testsem = &sem;
+        sem.semstate = palloc(sizeof(struct DoState));
+        ((struct DoState *) sem.semstate)->lex = lex;
+        ((struct DoState *) sem.semstate)->buf = makeStringInfo();
+        need_strings = true;
+        break;
+    }
+  }
 
-		rewind(json_file);
-		resetStringInfo(&json);
+  if (optind < argc) {
+    testfile = argv[optind];
+    optind++;
+  } else {
+    usage(argv[0]);
+    exit(1);
+  }
 
-		for (;;)
-		{
-			/* We will break when there's nothing left to read */
+  initStringInfo(&json);
 
-			if (bytes_left < to_read)
-				to_read = bytes_left;
+  if ((json_file = fopen(testfile, PG_BINARY_R)) == NULL)
+    pg_fatal("error opening input: %m");
 
-			n_read = fread(buff, 1, to_read, json_file);
-			if (n_read < to_read)
-				pg_fatal("error reading input file: %d", ferror(json_file));
+  if (fstat(fileno(json_file), &statbuf) != 0)
+    pg_fatal("error statting input: %m");
 
-			appendBinaryStringInfo(&json, buff, n_read);
+  do {
+    /*
+     * This outer loop only repeats in -r mode. Reset the parse state and
+     * our position in the input file for the inner loop, which performs
+     * the incremental parsing.
+     */
+    off_t   bytes_left = statbuf.st_size;
+    size_t    to_read = chunk_size;
 
-			/*
-			 * Append some trailing junk to the buffer passed to the parser.
-			 * This helps us ensure that the parser does the right thing even
-			 * if the chunk isn't terminated with a '\0'.
-			 */
-			appendStringInfoString(&json, "1+23 trailing junk");
-			bytes_left -= n_read;
-			if (bytes_left > 0)
-			{
-				result = pg_parse_json_incremental(lex, testsem,
-												   json.data, n_read,
-												   false);
-				if (result != JSON_INCOMPLETE)
-				{
-					fprintf(stderr, "%s\n", json_errdetail(result, lex));
-					ret = 1;
-					goto cleanup;
-				}
-				resetStringInfo(&json);
-			}
-			else
-			{
-				result = pg_parse_json_incremental(lex, testsem,
-												   json.data, n_read,
-												   true);
-				if (result != JSON_SUCCESS)
-				{
-					fprintf(stderr, "%s\n", json_errdetail(result, lex));
-					ret = 1;
-					goto cleanup;
-				}
-				if (!need_strings)
-					printf("SUCCESS!\n");
-				break;
-			}
-		}
+    makeJsonLexContextIncremental(lex, PG_UTF8, need_strings);
+    setJsonLexContextOwnsTokens(lex, lex_owns_tokens);
+
+    rewind(json_file);
+    resetStringInfo(&json);
+
+    for (;;) {
+      /* We will break when there's nothing left to read */
+
+      if (bytes_left < to_read)
+        to_read = bytes_left;
+
+      n_read = fread(buff, 1, to_read, json_file);
+
+      if (n_read < to_read)
+        pg_fatal("error reading input file: %d", ferror(json_file));
+
+      appendBinaryStringInfo(&json, buff, n_read);
+
+      /*
+       * Append some trailing junk to the buffer passed to the parser.
+       * This helps us ensure that the parser does the right thing even
+       * if the chunk isn't terminated with a '\0'.
+       */
+      appendStringInfoString(&json, "1+23 trailing junk");
+      bytes_left -= n_read;
+
+      if (bytes_left > 0) {
+        result = pg_parse_json_incremental(lex, testsem,
+                                           json.data, n_read,
+                                           false);
+
+        if (result != JSON_INCOMPLETE) {
+          fprintf(stderr, "%s\n", json_errdetail(result, lex));
+          ret = 1;
+          goto cleanup;
+        }
+
+        resetStringInfo(&json);
+      } else {
+        result = pg_parse_json_incremental(lex, testsem,
+                                           json.data, n_read,
+                                           true);
+
+        if (result != JSON_SUCCESS) {
+          fprintf(stderr, "%s\n", json_errdetail(result, lex));
+          ret = 1;
+          goto cleanup;
+        }
+
+        if (!need_strings)
+          printf("SUCCESS!\n");
+
+        break;
+      }
+    }
 
 cleanup:
-		freeJsonLexContext(lex);
+    freeJsonLexContext(lex);
 
-		/*
-		 * In -r mode, separate output with nulls so that the calling test can
-		 * split it up, decrement the chunk size, and loop back to the top.
-		 * All other modes immediately fall out of the loop and exit.
-		 */
-		if (run_chunk_ranges)
-		{
-			fputc('\0', stdout);
-			fputc('\0', stderr);
-		}
-	} while (run_chunk_ranges && (--chunk_size > 0));
+    /*
+     * In -r mode, separate output with nulls so that the calling test can
+     * split it up, decrement the chunk size, and loop back to the top.
+     * All other modes immediately fall out of the loop and exit.
+     */
+    if (run_chunk_ranges) {
+      fputc('\0', stdout);
+      fputc('\0', stderr);
+    }
+  } while (run_chunk_ranges && (--chunk_size > 0));
 
-	fclose(json_file);
-	free(json.data);
-	free(lex);
+  fclose(json_file);
+  free(json.data);
+  free(lex);
 
-	return ret;
+  return ret;
 }
 
 /*
@@ -249,109 +248,109 @@ cleanup:
 static JsonParseErrorType
 do_object_start(void *state)
 {
-	DoState    *_state = (DoState *) state;
+  DoState    *_state = (DoState *) state;
 
-	printf("{\n");
-	_state->elem_is_first = true;
+  printf("{\n");
+  _state->elem_is_first = true;
 
-	return JSON_SUCCESS;
+  return JSON_SUCCESS;
 }
 
 static JsonParseErrorType
 do_object_end(void *state)
 {
-	DoState    *_state = (DoState *) state;
+  DoState    *_state = (DoState *) state;
 
-	printf("\n}\n");
-	_state->elem_is_first = false;
+  printf("\n}\n");
+  _state->elem_is_first = false;
 
-	return JSON_SUCCESS;
+  return JSON_SUCCESS;
 }
 
 static JsonParseErrorType
 do_object_field_start(void *state, char *fname, bool isnull)
 {
-	DoState    *_state = (DoState *) state;
+  DoState    *_state = (DoState *) state;
 
-	if (!_state->elem_is_first)
-		printf(",\n");
-	resetStringInfo(_state->buf);
-	escape_json(_state->buf, fname);
-	printf("%s: ", _state->buf->data);
-	_state->elem_is_first = false;
+  if (!_state->elem_is_first)
+    printf(",\n");
 
-	return JSON_SUCCESS;
+  resetStringInfo(_state->buf);
+  escape_json(_state->buf, fname);
+  printf("%s: ", _state->buf->data);
+  _state->elem_is_first = false;
+
+  return JSON_SUCCESS;
 }
 
 static JsonParseErrorType
 do_object_field_end(void *state, char *fname, bool isnull)
 {
-	if (!lex_owns_tokens)
-		free(fname);
+  if (!lex_owns_tokens)
+    free(fname);
 
-	return JSON_SUCCESS;
+  return JSON_SUCCESS;
 }
 
 static JsonParseErrorType
 do_array_start(void *state)
 {
-	DoState    *_state = (DoState *) state;
+  DoState    *_state = (DoState *) state;
 
-	printf("[\n");
-	_state->elem_is_first = true;
+  printf("[\n");
+  _state->elem_is_first = true;
 
-	return JSON_SUCCESS;
+  return JSON_SUCCESS;
 }
 
 static JsonParseErrorType
 do_array_end(void *state)
 {
-	DoState    *_state = (DoState *) state;
+  DoState    *_state = (DoState *) state;
 
-	printf("\n]\n");
-	_state->elem_is_first = false;
+  printf("\n]\n");
+  _state->elem_is_first = false;
 
-	return JSON_SUCCESS;
+  return JSON_SUCCESS;
 }
 
 static JsonParseErrorType
 do_array_element_start(void *state, bool isnull)
 {
-	DoState    *_state = (DoState *) state;
+  DoState    *_state = (DoState *) state;
 
-	if (!_state->elem_is_first)
-		printf(",\n");
-	_state->elem_is_first = false;
+  if (!_state->elem_is_first)
+    printf(",\n");
 
-	return JSON_SUCCESS;
+  _state->elem_is_first = false;
+
+  return JSON_SUCCESS;
 }
 
 static JsonParseErrorType
 do_array_element_end(void *state, bool isnull)
 {
-	/* nothing to do */
+  /* nothing to do */
 
-	return JSON_SUCCESS;
+  return JSON_SUCCESS;
 }
 
 static JsonParseErrorType
 do_scalar(void *state, char *token, JsonTokenType tokentype)
 {
-	DoState    *_state = (DoState *) state;
+  DoState    *_state = (DoState *) state;
 
-	if (tokentype == JSON_TOKEN_STRING)
-	{
-		resetStringInfo(_state->buf);
-		escape_json(_state->buf, token);
-		printf("%s", _state->buf->data);
-	}
-	else
-		printf("%s", token);
+  if (tokentype == JSON_TOKEN_STRING) {
+    resetStringInfo(_state->buf);
+    escape_json(_state->buf, token);
+    printf("%s", _state->buf->data);
+  } else
+    printf("%s", token);
 
-	if (!lex_owns_tokens)
-		free(token);
+  if (!lex_owns_tokens)
+    free(token);
 
-	return JSON_SUCCESS;
+  return JSON_SUCCESS;
 }
 
 
@@ -359,52 +358,60 @@ do_scalar(void *state, char *token, JsonTokenType tokentype)
 static void
 escape_json(StringInfo buf, const char *str)
 {
-	const char *p;
+  const char *p;
 
-	appendStringInfoCharMacro(buf, '"');
-	for (p = str; *p; p++)
-	{
-		switch (*p)
-		{
-			case '\b':
-				appendStringInfoString(buf, "\\b");
-				break;
-			case '\f':
-				appendStringInfoString(buf, "\\f");
-				break;
-			case '\n':
-				appendStringInfoString(buf, "\\n");
-				break;
-			case '\r':
-				appendStringInfoString(buf, "\\r");
-				break;
-			case '\t':
-				appendStringInfoString(buf, "\\t");
-				break;
-			case '"':
-				appendStringInfoString(buf, "\\\"");
-				break;
-			case '\\':
-				appendStringInfoString(buf, "\\\\");
-				break;
-			default:
-				if ((unsigned char) *p < ' ')
-					appendStringInfo(buf, "\\u%04x", (int) *p);
-				else
-					appendStringInfoCharMacro(buf, *p);
-				break;
-		}
-	}
-	appendStringInfoCharMacro(buf, '"');
+  appendStringInfoCharMacro(buf, '"');
+
+  for (p = str; *p; p++) {
+    switch (*p) {
+      case '\b':
+        appendStringInfoString(buf, "\\b");
+        break;
+
+      case '\f':
+        appendStringInfoString(buf, "\\f");
+        break;
+
+      case '\n':
+        appendStringInfoString(buf, "\\n");
+        break;
+
+      case '\r':
+        appendStringInfoString(buf, "\\r");
+        break;
+
+      case '\t':
+        appendStringInfoString(buf, "\\t");
+        break;
+
+      case '"':
+        appendStringInfoString(buf, "\\\"");
+        break;
+
+      case '\\':
+        appendStringInfoString(buf, "\\\\");
+        break;
+
+      default:
+        if ((unsigned char) *p < ' ')
+          appendStringInfo(buf, "\\u%04x", (int) *p);
+        else
+          appendStringInfoCharMacro(buf, *p);
+
+        break;
+    }
+  }
+
+  appendStringInfoCharMacro(buf, '"');
 }
 
 static void
 usage(const char *progname)
 {
-	fprintf(stderr, "Usage: %s [OPTION ...] testfile\n", progname);
-	fprintf(stderr, "Options:\n");
-	fprintf(stderr, "  -c chunksize      size of piece fed to parser (default 64)\n");
-	fprintf(stderr, "  -o                set JSONLEX_CTX_OWNS_TOKENS for leak checking\n");
-	fprintf(stderr, "  -s                do semantic processing\n");
+  fprintf(stderr, "Usage: %s [OPTION ...] testfile\n", progname);
+  fprintf(stderr, "Options:\n");
+  fprintf(stderr, "  -c chunksize      size of piece fed to parser (default 64)\n");
+  fprintf(stderr, "  -o                set JSONLEX_CTX_OWNS_TOKENS for leak checking\n");
+  fprintf(stderr, "  -s                do semantic processing\n");
 
 }

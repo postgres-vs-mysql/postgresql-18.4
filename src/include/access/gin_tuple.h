@@ -1,10 +1,10 @@
 /*--------------------------------------------------------------------------
  * gin.h
- *	  Public header file for Generalized Inverted Index access method.
+ *    Public header file for Generalized Inverted Index access method.
  *
- *	Copyright (c) 2006-2025, PostgreSQL Global Development Group
+ *  Copyright (c) 2006-2025, PostgreSQL Global Development Group
  *
- *	src/include/access/gin.h
+ *  src/include/access/gin.h
  *--------------------------------------------------------------------------
  */
 #ifndef GIN_TUPLE_H
@@ -19,26 +19,26 @@
  */
 typedef struct GinTuple
 {
-	int			tuplen;			/* length of the whole tuple */
-	OffsetNumber attrnum;		/* attnum of index key */
-	uint16		keylen;			/* bytes in data for key value */
-	int16		typlen;			/* typlen for key */
-	bool		typbyval;		/* typbyval for key */
-	signed char category;		/* category: normal or NULL? */
-	int			nitems;			/* number of TIDs in the data */
-	char		data[FLEXIBLE_ARRAY_MEMBER];
+  int     tuplen;     /* length of the whole tuple */
+  OffsetNumber attrnum;   /* attnum of index key */
+  uint16    keylen;     /* bytes in data for key value */
+  int16   typlen;     /* typlen for key */
+  bool    typbyval;   /* typbyval for key */
+  signed char category;   /* category: normal or NULL? */
+  int     nitems;     /* number of TIDs in the data */
+  char    data[FLEXIBLE_ARRAY_MEMBER];
 } GinTuple;
 
 static inline ItemPointer
 GinTupleGetFirst(GinTuple *tup)
 {
-	GinPostingList *list;
+  GinPostingList *list;
 
-	list = (GinPostingList *) SHORTALIGN(tup->data + tup->keylen);
+  list = (GinPostingList *) SHORTALIGN(tup->data + tup->keylen);
 
-	return &list->first;
+  return &list->first;
 }
 
-extern int	_gin_compare_tuples(GinTuple *a, GinTuple *b, SortSupport ssup);
+extern int  _gin_compare_tuples(GinTuple *a, GinTuple *b, SortSupport ssup);
 
-#endif							/* GIN_TUPLE_H */
+#endif              /* GIN_TUPLE_H */

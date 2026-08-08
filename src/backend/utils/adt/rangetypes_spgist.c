@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * rangetypes_spgist.c
- *	  implementation of quad tree over ranges mapped to 2d-points for SP-GiST.
+ *    implementation of quad tree over ranges mapped to 2d-points for SP-GiST.
  *
  * Quad tree is a data structure similar to a binary tree, but is adapted to
  * 2d data. Each inner node of a quad tree contains a point (centroid) which
@@ -29,7 +29,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *			src/backend/utils/adt/rangetypes_spgist.c
+ *      src/backend/utils/adt/rangetypes_spgist.c
  *
  *-------------------------------------------------------------------------
  */
@@ -44,14 +44,14 @@
 #include "utils/rangetypes.h"
 
 static int16 getQuadrant(TypeCacheEntry *typcache, const RangeType *centroid,
-						 const RangeType *tst);
-static int	bound_cmp(const void *a, const void *b, void *arg);
+                         const RangeType *tst);
+static int  bound_cmp(const void *a, const void *b, void *arg);
 
-static int	adjacent_inner_consistent(TypeCacheEntry *typcache,
-									  const RangeBound *arg, const RangeBound *centroid,
-									  const RangeBound *prev);
-static int	adjacent_cmp_bounds(TypeCacheEntry *typcache, const RangeBound *arg,
-								const RangeBound *centroid);
+static int  adjacent_inner_consistent(TypeCacheEntry *typcache,
+                                      const RangeBound *arg, const RangeBound *centroid,
+                                      const RangeBound *prev);
+static int  adjacent_cmp_bounds(TypeCacheEntry *typcache, const RangeBound *arg,
+                                const RangeBound *centroid);
 
 /*
  * SP-GiST 'config' interface function.
@@ -59,14 +59,14 @@ static int	adjacent_cmp_bounds(TypeCacheEntry *typcache, const RangeBound *arg,
 Datum
 spg_range_quad_config(PG_FUNCTION_ARGS)
 {
-	/* spgConfigIn *cfgin = (spgConfigIn *) PG_GETARG_POINTER(0); */
-	spgConfigOut *cfg = (spgConfigOut *) PG_GETARG_POINTER(1);
+  /* spgConfigIn *cfgin = (spgConfigIn *) PG_GETARG_POINTER(0); */
+  spgConfigOut *cfg = (spgConfigOut *) PG_GETARG_POINTER(1);
 
-	cfg->prefixType = ANYRANGEOID;
-	cfg->labelType = VOIDOID;	/* we don't need node labels */
-	cfg->canReturnData = true;
-	cfg->longValuesOK = false;
-	PG_RETURN_VOID();
+  cfg->prefixType = ANYRANGEOID;
+  cfg->labelType = VOIDOID; /* we don't need node labels */
+  cfg->canReturnData = true;
+  cfg->longValuesOK = false;
+  PG_RETURN_VOID();
 }
 
 /*----------
@@ -75,9 +75,9 @@ spg_range_quad_config(PG_FUNCTION_ARGS)
  *
  * Quadrants are numbered like this:
  *
- *	 4	|  1
- *	----+----
- *	 3	|  2
+ *   4  |  1
+ *  ----+----
+ *   3  |  2
  *
  * Where the lower bound of range is the horizontal axis and upper bound the
  * vertical axis.
@@ -94,34 +94,31 @@ spg_range_quad_config(PG_FUNCTION_ARGS)
 static int16
 getQuadrant(TypeCacheEntry *typcache, const RangeType *centroid, const RangeType *tst)
 {
-	RangeBound	centroidLower,
-				centroidUpper;
-	bool		centroidEmpty;
-	RangeBound	lower,
-				upper;
-	bool		empty;
+  RangeBound  centroidLower,
+              centroidUpper;
+  bool    centroidEmpty;
+  RangeBound  lower,
+              upper;
+  bool    empty;
 
-	range_deserialize(typcache, centroid, &centroidLower, &centroidUpper,
-					  &centroidEmpty);
-	range_deserialize(typcache, tst, &lower, &upper, &empty);
+  range_deserialize(typcache, centroid, &centroidLower, &centroidUpper,
+                    &centroidEmpty);
+  range_deserialize(typcache, tst, &lower, &upper, &empty);
 
-	if (empty)
-		return 5;
+  if (empty)
+    return 5;
 
-	if (range_cmp_bounds(typcache, &lower, &centroidLower) >= 0)
-	{
-		if (range_cmp_bounds(typcache, &upper, &centroidUpper) >= 0)
-			return 1;
-		else
-			return 2;
-	}
-	else
-	{
-		if (range_cmp_bounds(typcache, &upper, &centroidUpper) >= 0)
-			return 4;
-		else
-			return 3;
-	}
+  if (range_cmp_bounds(typcache, &lower, &centroidLower) >= 0) {
+    if (range_cmp_bounds(typcache, &upper, &centroidUpper) >= 0)
+      return 1;
+    else
+      return 2;
+  } else {
+    if (range_cmp_bounds(typcache, &upper, &centroidUpper) >= 0)
+      return 4;
+    else
+      return 3;
+  }
 }
 
 /*
@@ -130,53 +127,53 @@ getQuadrant(TypeCacheEntry *typcache, const RangeType *centroid, const RangeType
 Datum
 spg_range_quad_choose(PG_FUNCTION_ARGS)
 {
-	spgChooseIn *in = (spgChooseIn *) PG_GETARG_POINTER(0);
-	spgChooseOut *out = (spgChooseOut *) PG_GETARG_POINTER(1);
-	RangeType  *inRange = DatumGetRangeTypeP(in->datum),
-			   *centroid;
-	int16		quadrant;
-	TypeCacheEntry *typcache;
+  spgChooseIn *in = (spgChooseIn *) PG_GETARG_POINTER(0);
+  spgChooseOut *out = (spgChooseOut *) PG_GETARG_POINTER(1);
+  RangeType  *inRange = DatumGetRangeTypeP(in->datum),
+              *centroid;
+  int16   quadrant;
+  TypeCacheEntry *typcache;
 
-	if (in->allTheSame)
-	{
-		out->resultType = spgMatchNode;
-		/* nodeN will be set by core */
-		out->result.matchNode.levelAdd = 0;
-		out->result.matchNode.restDatum = RangeTypePGetDatum(inRange);
-		PG_RETURN_VOID();
-	}
+  if (in->allTheSame) {
+    out->resultType = spgMatchNode;
+    /* nodeN will be set by core */
+    out->result.matchNode.levelAdd = 0;
+    out->result.matchNode.restDatum = RangeTypePGetDatum(inRange);
+    PG_RETURN_VOID();
+  }
 
-	typcache = range_get_typcache(fcinfo, RangeTypeGetOid(inRange));
+  typcache = range_get_typcache(fcinfo, RangeTypeGetOid(inRange));
 
-	/*
-	 * A node with no centroid divides ranges purely on whether they're empty
-	 * or not. All empty ranges go to child node 0, all non-empty ranges go to
-	 * node 1.
-	 */
-	if (!in->hasPrefix)
-	{
-		out->resultType = spgMatchNode;
-		if (RangeIsEmpty(inRange))
-			out->result.matchNode.nodeN = 0;
-		else
-			out->result.matchNode.nodeN = 1;
-		out->result.matchNode.levelAdd = 1;
-		out->result.matchNode.restDatum = RangeTypePGetDatum(inRange);
-		PG_RETURN_VOID();
-	}
+  /*
+   * A node with no centroid divides ranges purely on whether they're empty
+   * or not. All empty ranges go to child node 0, all non-empty ranges go to
+   * node 1.
+   */
+  if (!in->hasPrefix) {
+    out->resultType = spgMatchNode;
 
-	centroid = DatumGetRangeTypeP(in->prefixDatum);
-	quadrant = getQuadrant(typcache, centroid, inRange);
+    if (RangeIsEmpty(inRange))
+      out->result.matchNode.nodeN = 0;
+    else
+      out->result.matchNode.nodeN = 1;
 
-	Assert(quadrant <= in->nNodes);
+    out->result.matchNode.levelAdd = 1;
+    out->result.matchNode.restDatum = RangeTypePGetDatum(inRange);
+    PG_RETURN_VOID();
+  }
 
-	/* Select node matching to quadrant number */
-	out->resultType = spgMatchNode;
-	out->result.matchNode.nodeN = quadrant - 1;
-	out->result.matchNode.levelAdd = 1;
-	out->result.matchNode.restDatum = RangeTypePGetDatum(inRange);
+  centroid = DatumGetRangeTypeP(in->prefixDatum);
+  quadrant = getQuadrant(typcache, centroid, inRange);
 
-	PG_RETURN_VOID();
+  Assert(quadrant <= in->nNodes);
+
+  /* Select node matching to quadrant number */
+  out->resultType = spgMatchNode;
+  out->result.matchNode.nodeN = quadrant - 1;
+  out->result.matchNode.levelAdd = 1;
+  out->result.matchNode.restDatum = RangeTypePGetDatum(inRange);
+
+  PG_RETURN_VOID();
 }
 
 /*
@@ -185,11 +182,11 @@ spg_range_quad_choose(PG_FUNCTION_ARGS)
 static int
 bound_cmp(const void *a, const void *b, void *arg)
 {
-	RangeBound *ba = (RangeBound *) a;
-	RangeBound *bb = (RangeBound *) b;
-	TypeCacheEntry *typcache = (TypeCacheEntry *) arg;
+  RangeBound *ba = (RangeBound *) a;
+  RangeBound *bb = (RangeBound *) b;
+  TypeCacheEntry *typcache = (TypeCacheEntry *) arg;
 
-	return range_cmp_bounds(typcache, ba, bb);
+  return range_cmp_bounds(typcache, ba, bb);
 }
 
 /*
@@ -199,97 +196,96 @@ bound_cmp(const void *a, const void *b, void *arg)
 Datum
 spg_range_quad_picksplit(PG_FUNCTION_ARGS)
 {
-	spgPickSplitIn *in = (spgPickSplitIn *) PG_GETARG_POINTER(0);
-	spgPickSplitOut *out = (spgPickSplitOut *) PG_GETARG_POINTER(1);
-	int			i;
-	int			j;
-	int			nonEmptyCount;
-	RangeType  *centroid;
-	bool		empty;
-	TypeCacheEntry *typcache;
+  spgPickSplitIn *in = (spgPickSplitIn *) PG_GETARG_POINTER(0);
+  spgPickSplitOut *out = (spgPickSplitOut *) PG_GETARG_POINTER(1);
+  int     i;
+  int     j;
+  int     nonEmptyCount;
+  RangeType  *centroid;
+  bool    empty;
+  TypeCacheEntry *typcache;
 
-	/* Use the median values of lower and upper bounds as the centroid range */
-	RangeBound *lowerBounds,
-			   *upperBounds;
+  /* Use the median values of lower and upper bounds as the centroid range */
+  RangeBound *lowerBounds,
+             *upperBounds;
 
-	typcache = range_get_typcache(fcinfo,
-								  RangeTypeGetOid(DatumGetRangeTypeP(in->datums[0])));
+  typcache = range_get_typcache(fcinfo,
+                                RangeTypeGetOid(DatumGetRangeTypeP(in->datums[0])));
 
-	/* Allocate memory for bounds */
-	lowerBounds = palloc(sizeof(RangeBound) * in->nTuples);
-	upperBounds = palloc(sizeof(RangeBound) * in->nTuples);
-	j = 0;
+  /* Allocate memory for bounds */
+  lowerBounds = palloc(sizeof(RangeBound) * in->nTuples);
+  upperBounds = palloc(sizeof(RangeBound) * in->nTuples);
+  j = 0;
 
-	/* Deserialize bounds of ranges, count non-empty ranges */
-	for (i = 0; i < in->nTuples; i++)
-	{
-		range_deserialize(typcache, DatumGetRangeTypeP(in->datums[i]),
-						  &lowerBounds[j], &upperBounds[j], &empty);
-		if (!empty)
-			j++;
-	}
-	nonEmptyCount = j;
+  /* Deserialize bounds of ranges, count non-empty ranges */
+  for (i = 0; i < in->nTuples; i++) {
+    range_deserialize(typcache, DatumGetRangeTypeP(in->datums[i]),
+                      &lowerBounds[j], &upperBounds[j], &empty);
 
-	/*
-	 * All the ranges are empty. The best we can do is to construct an inner
-	 * node with no centroid, and put all ranges into node 0. If non-empty
-	 * ranges are added later, they will be routed to node 1.
-	 */
-	if (nonEmptyCount == 0)
-	{
-		out->nNodes = 2;
-		out->hasPrefix = false;
-		/* Prefix is empty */
-		out->prefixDatum = PointerGetDatum(NULL);
-		out->nodeLabels = NULL;
+    if (!empty)
+      j++;
+  }
 
-		out->mapTuplesToNodes = palloc(sizeof(int) * in->nTuples);
-		out->leafTupleDatums = palloc(sizeof(Datum) * in->nTuples);
+  nonEmptyCount = j;
 
-		/* Place all ranges into node 0 */
-		for (i = 0; i < in->nTuples; i++)
-		{
-			RangeType  *range = DatumGetRangeTypeP(in->datums[i]);
+  /*
+   * All the ranges are empty. The best we can do is to construct an inner
+   * node with no centroid, and put all ranges into node 0. If non-empty
+   * ranges are added later, they will be routed to node 1.
+   */
+  if (nonEmptyCount == 0) {
+    out->nNodes = 2;
+    out->hasPrefix = false;
+    /* Prefix is empty */
+    out->prefixDatum = PointerGetDatum(NULL);
+    out->nodeLabels = NULL;
 
-			out->leafTupleDatums[i] = RangeTypePGetDatum(range);
-			out->mapTuplesToNodes[i] = 0;
-		}
-		PG_RETURN_VOID();
-	}
+    out->mapTuplesToNodes = palloc(sizeof(int) * in->nTuples);
+    out->leafTupleDatums = palloc(sizeof(Datum) * in->nTuples);
 
-	/* Sort range bounds in order to find medians */
-	qsort_arg(lowerBounds, nonEmptyCount, sizeof(RangeBound),
-			  bound_cmp, typcache);
-	qsort_arg(upperBounds, nonEmptyCount, sizeof(RangeBound),
-			  bound_cmp, typcache);
+    /* Place all ranges into node 0 */
+    for (i = 0; i < in->nTuples; i++) {
+      RangeType  *range = DatumGetRangeTypeP(in->datums[i]);
 
-	/* Construct "centroid" range from medians of lower and upper bounds */
-	centroid = range_serialize(typcache, &lowerBounds[nonEmptyCount / 2],
-							   &upperBounds[nonEmptyCount / 2], false, NULL);
-	out->hasPrefix = true;
-	out->prefixDatum = RangeTypePGetDatum(centroid);
+      out->leafTupleDatums[i] = RangeTypePGetDatum(range);
+      out->mapTuplesToNodes[i] = 0;
+    }
 
-	/* Create node for empty ranges only if it is a root node */
-	out->nNodes = (in->level == 0) ? 5 : 4;
-	out->nodeLabels = NULL;		/* we don't need node labels */
+    PG_RETURN_VOID();
+  }
 
-	out->mapTuplesToNodes = palloc(sizeof(int) * in->nTuples);
-	out->leafTupleDatums = palloc(sizeof(Datum) * in->nTuples);
+  /* Sort range bounds in order to find medians */
+  qsort_arg(lowerBounds, nonEmptyCount, sizeof(RangeBound),
+            bound_cmp, typcache);
+  qsort_arg(upperBounds, nonEmptyCount, sizeof(RangeBound),
+            bound_cmp, typcache);
 
-	/*
-	 * Assign ranges to corresponding nodes according to quadrants relative to
-	 * "centroid" range.
-	 */
-	for (i = 0; i < in->nTuples; i++)
-	{
-		RangeType  *range = DatumGetRangeTypeP(in->datums[i]);
-		int16		quadrant = getQuadrant(typcache, centroid, range);
+  /* Construct "centroid" range from medians of lower and upper bounds */
+  centroid = range_serialize(typcache, &lowerBounds[nonEmptyCount / 2],
+                             &upperBounds[nonEmptyCount / 2], false, NULL);
+  out->hasPrefix = true;
+  out->prefixDatum = RangeTypePGetDatum(centroid);
 
-		out->leafTupleDatums[i] = RangeTypePGetDatum(range);
-		out->mapTuplesToNodes[i] = quadrant - 1;
-	}
+  /* Create node for empty ranges only if it is a root node */
+  out->nNodes = (in->level == 0) ? 5 : 4;
+  out->nodeLabels = NULL;   /* we don't need node labels */
 
-	PG_RETURN_VOID();
+  out->mapTuplesToNodes = palloc(sizeof(int) * in->nTuples);
+  out->leafTupleDatums = palloc(sizeof(Datum) * in->nTuples);
+
+  /*
+   * Assign ranges to corresponding nodes according to quadrants relative to
+   * "centroid" range.
+   */
+  for (i = 0; i < in->nTuples; i++) {
+    RangeType  *range = DatumGetRangeTypeP(in->datums[i]);
+    int16   quadrant = getQuadrant(typcache, centroid, range);
+
+    out->leafTupleDatums[i] = RangeTypePGetDatum(range);
+    out->mapTuplesToNodes[i] = quadrant - 1;
+  }
+
+  PG_RETURN_VOID();
 }
 
 /*
@@ -299,474 +295,470 @@ spg_range_quad_picksplit(PG_FUNCTION_ARGS)
 Datum
 spg_range_quad_inner_consistent(PG_FUNCTION_ARGS)
 {
-	spgInnerConsistentIn *in = (spgInnerConsistentIn *) PG_GETARG_POINTER(0);
-	spgInnerConsistentOut *out = (spgInnerConsistentOut *) PG_GETARG_POINTER(1);
-	int			which;
-	int			i;
-	MemoryContext oldCtx;
+  spgInnerConsistentIn *in = (spgInnerConsistentIn *) PG_GETARG_POINTER(0);
+  spgInnerConsistentOut *out = (spgInnerConsistentOut *) PG_GETARG_POINTER(1);
+  int     which;
+  int     i;
+  MemoryContext oldCtx;
 
-	/*
-	 * For adjacent search we need also previous centroid (if any) to improve
-	 * the precision of the consistent check. In this case needPrevious flag
-	 * is set and centroid is passed into traversalValue.
-	 */
-	bool		needPrevious = false;
+  /*
+   * For adjacent search we need also previous centroid (if any) to improve
+   * the precision of the consistent check. In this case needPrevious flag
+   * is set and centroid is passed into traversalValue.
+   */
+  bool    needPrevious = false;
 
-	if (in->allTheSame)
-	{
-		/* Report that all nodes should be visited */
-		out->nNodes = in->nNodes;
-		out->nodeNumbers = (int *) palloc(sizeof(int) * in->nNodes);
-		for (i = 0; i < in->nNodes; i++)
-			out->nodeNumbers[i] = i;
-		PG_RETURN_VOID();
-	}
+  if (in->allTheSame) {
+    /* Report that all nodes should be visited */
+    out->nNodes = in->nNodes;
+    out->nodeNumbers = (int *) palloc(sizeof(int) * in->nNodes);
 
-	if (!in->hasPrefix)
-	{
-		/*
-		 * No centroid on this inner node. Such a node has two child nodes,
-		 * the first for empty ranges, and the second for non-empty ones.
-		 */
-		Assert(in->nNodes == 2);
+    for (i = 0; i < in->nNodes; i++)
+      out->nodeNumbers[i] = i;
 
-		/*
-		 * Nth bit of which variable means that (N - 1)th node should be
-		 * visited. Initially all bits are set. Bits of nodes which should be
-		 * skipped will be unset.
-		 */
-		which = (1 << 1) | (1 << 2);
-		for (i = 0; i < in->nkeys; i++)
-		{
-			StrategyNumber strategy = in->scankeys[i].sk_strategy;
-			bool		empty;
+    PG_RETURN_VOID();
+  }
 
-			/*
-			 * The only strategy when second argument of operator is not range
-			 * is RANGESTRAT_CONTAINS_ELEM.
-			 */
-			if (strategy != RANGESTRAT_CONTAINS_ELEM)
-				empty = RangeIsEmpty(DatumGetRangeTypeP(in->scankeys[i].sk_argument));
-			else
-				empty = false;
+  if (!in->hasPrefix) {
+    /*
+     * No centroid on this inner node. Such a node has two child nodes,
+     * the first for empty ranges, and the second for non-empty ones.
+     */
+    Assert(in->nNodes == 2);
 
-			switch (strategy)
-			{
-				case RANGESTRAT_BEFORE:
-				case RANGESTRAT_OVERLEFT:
-				case RANGESTRAT_OVERLAPS:
-				case RANGESTRAT_OVERRIGHT:
-				case RANGESTRAT_AFTER:
-				case RANGESTRAT_ADJACENT:
-					/* These strategies return false if any argument is empty */
-					if (empty)
-						which = 0;
-					else
-						which &= (1 << 2);
-					break;
+    /*
+     * Nth bit of which variable means that (N - 1)th node should be
+     * visited. Initially all bits are set. Bits of nodes which should be
+     * skipped will be unset.
+     */
+    which = (1 << 1) | (1 << 2);
 
-				case RANGESTRAT_CONTAINS:
+    for (i = 0; i < in->nkeys; i++) {
+      StrategyNumber strategy = in->scankeys[i].sk_strategy;
+      bool    empty;
 
-					/*
-					 * All ranges contain an empty range. Only non-empty
-					 * ranges can contain a non-empty range.
-					 */
-					if (!empty)
-						which &= (1 << 2);
-					break;
+      /*
+       * The only strategy when second argument of operator is not range
+       * is RANGESTRAT_CONTAINS_ELEM.
+       */
+      if (strategy != RANGESTRAT_CONTAINS_ELEM)
+        empty = RangeIsEmpty(DatumGetRangeTypeP(in->scankeys[i].sk_argument));
+      else
+        empty = false;
 
-				case RANGESTRAT_CONTAINED_BY:
+      switch (strategy) {
+        case RANGESTRAT_BEFORE:
+        case RANGESTRAT_OVERLEFT:
+        case RANGESTRAT_OVERLAPS:
+        case RANGESTRAT_OVERRIGHT:
+        case RANGESTRAT_AFTER:
+        case RANGESTRAT_ADJACENT:
 
-					/*
-					 * Only an empty range is contained by an empty range.
-					 * Both empty and non-empty ranges can be contained by a
-					 * non-empty range.
-					 */
-					if (empty)
-						which &= (1 << 1);
-					break;
+          /* These strategies return false if any argument is empty */
+          if (empty)
+            which = 0;
+          else
+            which &= (1 << 2);
 
-				case RANGESTRAT_CONTAINS_ELEM:
-					which &= (1 << 2);
-					break;
+          break;
 
-				case RANGESTRAT_EQ:
-					if (empty)
-						which &= (1 << 1);
-					else
-						which &= (1 << 2);
-					break;
+        case RANGESTRAT_CONTAINS:
 
-				default:
-					elog(ERROR, "unrecognized range strategy: %d", strategy);
-					break;
-			}
-			if (which == 0)
-				break;			/* no need to consider remaining conditions */
-		}
-	}
-	else
-	{
-		RangeBound	centroidLower,
-					centroidUpper;
-		bool		centroidEmpty;
-		TypeCacheEntry *typcache;
-		RangeType  *centroid;
+          /*
+           * All ranges contain an empty range. Only non-empty
+           * ranges can contain a non-empty range.
+           */
+          if (!empty)
+            which &= (1 << 2);
 
-		/* This node has a centroid. Fetch it. */
-		centroid = DatumGetRangeTypeP(in->prefixDatum);
-		typcache = range_get_typcache(fcinfo,
-									  RangeTypeGetOid(centroid));
-		range_deserialize(typcache, centroid, &centroidLower, &centroidUpper,
-						  &centroidEmpty);
+          break;
 
-		Assert(in->nNodes == 4 || in->nNodes == 5);
+        case RANGESTRAT_CONTAINED_BY:
 
-		/*
-		 * Nth bit of which variable means that (N - 1)th node (Nth quadrant)
-		 * should be visited. Initially all bits are set. Bits of nodes which
-		 * can be skipped will be unset.
-		 */
-		which = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5);
+          /*
+           * Only an empty range is contained by an empty range.
+           * Both empty and non-empty ranges can be contained by a
+           * non-empty range.
+           */
+          if (empty)
+            which &= (1 << 1);
 
-		for (i = 0; i < in->nkeys; i++)
-		{
-			StrategyNumber strategy;
-			RangeBound	lower,
-						upper;
-			bool		empty;
-			RangeType  *range = NULL;
+          break;
 
-			RangeType  *prevCentroid = NULL;
-			RangeBound	prevLower,
-						prevUpper;
-			bool		prevEmpty;
+        case RANGESTRAT_CONTAINS_ELEM:
+          which &= (1 << 2);
+          break;
 
-			/* Restrictions on range bounds according to scan strategy */
-			RangeBound *minLower = NULL,
-					   *maxLower = NULL,
-					   *minUpper = NULL,
-					   *maxUpper = NULL;
+        case RANGESTRAT_EQ:
+          if (empty)
+            which &= (1 << 1);
+          else
+            which &= (1 << 2);
 
-			/* Are the restrictions on range bounds inclusive? */
-			bool		inclusive = true;
-			bool		strictEmpty = true;
-			int			cmp,
-						which1,
-						which2;
+          break;
 
-			strategy = in->scankeys[i].sk_strategy;
+        default:
+          elog(ERROR, "unrecognized range strategy: %d", strategy);
+          break;
+      }
 
-			/*
-			 * RANGESTRAT_CONTAINS_ELEM is just like RANGESTRAT_CONTAINS, but
-			 * the argument is a single element. Expand the single element to
-			 * a range containing only the element, and treat it like
-			 * RANGESTRAT_CONTAINS.
-			 */
-			if (strategy == RANGESTRAT_CONTAINS_ELEM)
-			{
-				lower.inclusive = true;
-				lower.infinite = false;
-				lower.lower = true;
-				lower.val = in->scankeys[i].sk_argument;
+      if (which == 0)
+        break;      /* no need to consider remaining conditions */
+    }
+  } else {
+    RangeBound  centroidLower,
+                centroidUpper;
+    bool    centroidEmpty;
+    TypeCacheEntry *typcache;
+    RangeType  *centroid;
 
-				upper.inclusive = true;
-				upper.infinite = false;
-				upper.lower = false;
-				upper.val = in->scankeys[i].sk_argument;
+    /* This node has a centroid. Fetch it. */
+    centroid = DatumGetRangeTypeP(in->prefixDatum);
+    typcache = range_get_typcache(fcinfo,
+                                  RangeTypeGetOid(centroid));
+    range_deserialize(typcache, centroid, &centroidLower, &centroidUpper,
+                      &centroidEmpty);
 
-				empty = false;
+    Assert(in->nNodes == 4 || in->nNodes == 5);
 
-				strategy = RANGESTRAT_CONTAINS;
-			}
-			else
-			{
-				range = DatumGetRangeTypeP(in->scankeys[i].sk_argument);
-				range_deserialize(typcache, range, &lower, &upper, &empty);
-			}
+    /*
+     * Nth bit of which variable means that (N - 1)th node (Nth quadrant)
+     * should be visited. Initially all bits are set. Bits of nodes which
+     * can be skipped will be unset.
+     */
+    which = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5);
 
-			/*
-			 * Most strategies are handled by forming a bounding box from the
-			 * search key, defined by a minLower, maxLower, minUpper,
-			 * maxUpper. Some modify 'which' directly, to specify exactly
-			 * which quadrants need to be visited.
-			 *
-			 * For most strategies, nothing matches an empty search key, and
-			 * an empty range never matches a non-empty key. If a strategy
-			 * does not behave like that wrt. empty ranges, set strictEmpty to
-			 * false.
-			 */
-			switch (strategy)
-			{
-				case RANGESTRAT_BEFORE:
+    for (i = 0; i < in->nkeys; i++) {
+      StrategyNumber strategy;
+      RangeBound  lower,
+                  upper;
+      bool    empty;
+      RangeType  *range = NULL;
 
-					/*
-					 * Range A is before range B if upper bound of A is lower
-					 * than lower bound of B.
-					 */
-					maxUpper = &lower;
-					inclusive = false;
-					break;
+      RangeType  *prevCentroid = NULL;
+      RangeBound  prevLower,
+                  prevUpper;
+      bool    prevEmpty;
 
-				case RANGESTRAT_OVERLEFT:
+      /* Restrictions on range bounds according to scan strategy */
+      RangeBound *minLower = NULL,
+                  *maxLower = NULL,
+                   *minUpper = NULL,
+                    *maxUpper = NULL;
 
-					/*
-					 * Range A is overleft to range B if upper bound of A is
-					 * less than or equal to upper bound of B.
-					 */
-					maxUpper = &upper;
-					break;
+      /* Are the restrictions on range bounds inclusive? */
+      bool    inclusive = true;
+      bool    strictEmpty = true;
+      int     cmp,
+              which1,
+              which2;
 
-				case RANGESTRAT_OVERLAPS:
+      strategy = in->scankeys[i].sk_strategy;
 
-					/*
-					 * Non-empty ranges overlap, if lower bound of each range
-					 * is lower or equal to upper bound of the other range.
-					 */
-					maxLower = &upper;
-					minUpper = &lower;
-					break;
+      /*
+       * RANGESTRAT_CONTAINS_ELEM is just like RANGESTRAT_CONTAINS, but
+       * the argument is a single element. Expand the single element to
+       * a range containing only the element, and treat it like
+       * RANGESTRAT_CONTAINS.
+       */
+      if (strategy == RANGESTRAT_CONTAINS_ELEM) {
+        lower.inclusive = true;
+        lower.infinite = false;
+        lower.lower = true;
+        lower.val = in->scankeys[i].sk_argument;
 
-				case RANGESTRAT_OVERRIGHT:
+        upper.inclusive = true;
+        upper.infinite = false;
+        upper.lower = false;
+        upper.val = in->scankeys[i].sk_argument;
 
-					/*
-					 * Range A is overright to range B if lower bound of A is
-					 * greater than or equal to lower bound of B.
-					 */
-					minLower = &lower;
-					break;
+        empty = false;
 
-				case RANGESTRAT_AFTER:
+        strategy = RANGESTRAT_CONTAINS;
+      } else {
+        range = DatumGetRangeTypeP(in->scankeys[i].sk_argument);
+        range_deserialize(typcache, range, &lower, &upper, &empty);
+      }
 
-					/*
-					 * Range A is after range B if lower bound of A is greater
-					 * than upper bound of B.
-					 */
-					minLower = &upper;
-					inclusive = false;
-					break;
+      /*
+       * Most strategies are handled by forming a bounding box from the
+       * search key, defined by a minLower, maxLower, minUpper,
+       * maxUpper. Some modify 'which' directly, to specify exactly
+       * which quadrants need to be visited.
+       *
+       * For most strategies, nothing matches an empty search key, and
+       * an empty range never matches a non-empty key. If a strategy
+       * does not behave like that wrt. empty ranges, set strictEmpty to
+       * false.
+       */
+      switch (strategy) {
+        case RANGESTRAT_BEFORE:
 
-				case RANGESTRAT_ADJACENT:
-					if (empty)
-						break;	/* Skip to strictEmpty check. */
+          /*
+           * Range A is before range B if upper bound of A is lower
+           * than lower bound of B.
+           */
+          maxUpper = &lower;
+          inclusive = false;
+          break;
 
-					/*
-					 * Previously selected quadrant could exclude possibility
-					 * for lower or upper bounds to be adjacent. Deserialize
-					 * previous centroid range if present for checking this.
-					 */
-					if (in->traversalValue)
-					{
-						prevCentroid = in->traversalValue;
-						range_deserialize(typcache, prevCentroid,
-										  &prevLower, &prevUpper, &prevEmpty);
-					}
+        case RANGESTRAT_OVERLEFT:
 
-					/*
-					 * For a range's upper bound to be adjacent to the
-					 * argument's lower bound, it will be found along the line
-					 * adjacent to (and just below) Y=lower. Therefore, if the
-					 * argument's lower bound is less than the centroid's
-					 * upper bound, the line falls in quadrants 2 and 3; if
-					 * greater, the line falls in quadrants 1 and 4. (see
-					 * adjacent_cmp_bounds for description of edge cases).
-					 */
-					cmp = adjacent_inner_consistent(typcache, &lower,
-													&centroidUpper,
-													prevCentroid ? &prevUpper : NULL);
-					if (cmp > 0)
-						which1 = (1 << 1) | (1 << 4);
-					else if (cmp < 0)
-						which1 = (1 << 2) | (1 << 3);
-					else
-						which1 = 0;
+          /*
+           * Range A is overleft to range B if upper bound of A is
+           * less than or equal to upper bound of B.
+           */
+          maxUpper = &upper;
+          break;
 
-					/*
-					 * Also search for ranges's adjacent to argument's upper
-					 * bound. They will be found along the line adjacent to
-					 * (and just right of) X=upper, which falls in quadrants 3
-					 * and 4, or 1 and 2.
-					 */
-					cmp = adjacent_inner_consistent(typcache, &upper,
-													&centroidLower,
-													prevCentroid ? &prevLower : NULL);
-					if (cmp > 0)
-						which2 = (1 << 1) | (1 << 2);
-					else if (cmp < 0)
-						which2 = (1 << 3) | (1 << 4);
-					else
-						which2 = 0;
+        case RANGESTRAT_OVERLAPS:
 
-					/* We must chase down ranges adjacent to either bound. */
-					which &= which1 | which2;
+          /*
+           * Non-empty ranges overlap, if lower bound of each range
+           * is lower or equal to upper bound of the other range.
+           */
+          maxLower = &upper;
+          minUpper = &lower;
+          break;
 
-					needPrevious = true;
-					break;
+        case RANGESTRAT_OVERRIGHT:
 
-				case RANGESTRAT_CONTAINS:
+          /*
+           * Range A is overright to range B if lower bound of A is
+           * greater than or equal to lower bound of B.
+           */
+          minLower = &lower;
+          break;
 
-					/*
-					 * Non-empty range A contains non-empty range B if lower
-					 * bound of A is lower or equal to lower bound of range B
-					 * and upper bound of range A is greater than or equal to
-					 * upper bound of range A.
-					 *
-					 * All non-empty ranges contain an empty range.
-					 */
-					strictEmpty = false;
-					if (!empty)
-					{
-						which &= (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4);
-						maxLower = &lower;
-						minUpper = &upper;
-					}
-					break;
+        case RANGESTRAT_AFTER:
 
-				case RANGESTRAT_CONTAINED_BY:
-					/* The opposite of contains. */
-					strictEmpty = false;
-					if (empty)
-					{
-						/* An empty range is only contained by an empty range */
-						which &= (1 << 5);
-					}
-					else
-					{
-						minLower = &lower;
-						maxUpper = &upper;
-					}
-					break;
+          /*
+           * Range A is after range B if lower bound of A is greater
+           * than upper bound of B.
+           */
+          minLower = &upper;
+          inclusive = false;
+          break;
 
-				case RANGESTRAT_EQ:
+        case RANGESTRAT_ADJACENT:
+          if (empty)
+            break;  /* Skip to strictEmpty check. */
 
-					/*
-					 * Equal range can be only in the same quadrant where
-					 * argument would be placed to.
-					 */
-					strictEmpty = false;
-					which &= (1 << getQuadrant(typcache, centroid, range));
-					break;
+          /*
+           * Previously selected quadrant could exclude possibility
+           * for lower or upper bounds to be adjacent. Deserialize
+           * previous centroid range if present for checking this.
+           */
+          if (in->traversalValue) {
+            prevCentroid = in->traversalValue;
+            range_deserialize(typcache, prevCentroid,
+                              &prevLower, &prevUpper, &prevEmpty);
+          }
 
-				default:
-					elog(ERROR, "unrecognized range strategy: %d", strategy);
-					break;
-			}
+          /*
+           * For a range's upper bound to be adjacent to the
+           * argument's lower bound, it will be found along the line
+           * adjacent to (and just below) Y=lower. Therefore, if the
+           * argument's lower bound is less than the centroid's
+           * upper bound, the line falls in quadrants 2 and 3; if
+           * greater, the line falls in quadrants 1 and 4. (see
+           * adjacent_cmp_bounds for description of edge cases).
+           */
+          cmp = adjacent_inner_consistent(typcache, &lower,
+                                          &centroidUpper,
+                                          prevCentroid ? &prevUpper : NULL);
 
-			if (strictEmpty)
-			{
-				if (empty)
-				{
-					/* Scan key is empty, no branches are satisfying */
-					which = 0;
-					break;
-				}
-				else
-				{
-					/* Shouldn't visit tree branch with empty ranges */
-					which &= (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4);
-				}
-			}
+          if (cmp > 0)
+            which1 = (1 << 1) | (1 << 4);
+          else if (cmp < 0)
+            which1 = (1 << 2) | (1 << 3);
+          else
+            which1 = 0;
 
-			/*
-			 * Using the bounding box, see which quadrants we have to descend
-			 * into.
-			 */
-			if (minLower)
-			{
-				/*
-				 * If the centroid's lower bound is less than or equal to the
-				 * minimum lower bound, anything in the 3rd and 4th quadrants
-				 * will have an even smaller lower bound, and thus can't
-				 * match.
-				 */
-				if (range_cmp_bounds(typcache, &centroidLower, minLower) <= 0)
-					which &= (1 << 1) | (1 << 2) | (1 << 5);
-			}
-			if (maxLower)
-			{
-				/*
-				 * If the centroid's lower bound is greater than the maximum
-				 * lower bound, anything in the 1st and 2nd quadrants will
-				 * also have a greater than or equal lower bound, and thus
-				 * can't match. If the centroid's lower bound is equal to the
-				 * maximum lower bound, we can still exclude the 1st and 2nd
-				 * quadrants if we're looking for a value strictly greater
-				 * than the maximum.
-				 */
+          /*
+           * Also search for ranges's adjacent to argument's upper
+           * bound. They will be found along the line adjacent to
+           * (and just right of) X=upper, which falls in quadrants 3
+           * and 4, or 1 and 2.
+           */
+          cmp = adjacent_inner_consistent(typcache, &upper,
+                                          &centroidLower,
+                                          prevCentroid ? &prevLower : NULL);
 
-				cmp = range_cmp_bounds(typcache, &centroidLower, maxLower);
-				if (cmp > 0 || (!inclusive && cmp == 0))
-					which &= (1 << 3) | (1 << 4) | (1 << 5);
-			}
-			if (minUpper)
-			{
-				/*
-				 * If the centroid's upper bound is less than or equal to the
-				 * minimum upper bound, anything in the 2nd and 3rd quadrants
-				 * will have an even smaller upper bound, and thus can't
-				 * match.
-				 */
-				if (range_cmp_bounds(typcache, &centroidUpper, minUpper) <= 0)
-					which &= (1 << 1) | (1 << 4) | (1 << 5);
-			}
-			if (maxUpper)
-			{
-				/*
-				 * If the centroid's upper bound is greater than the maximum
-				 * upper bound, anything in the 1st and 4th quadrants will
-				 * also have a greater than or equal upper bound, and thus
-				 * can't match. If the centroid's upper bound is equal to the
-				 * maximum upper bound, we can still exclude the 1st and 4th
-				 * quadrants if we're looking for a value strictly greater
-				 * than the maximum.
-				 */
+          if (cmp > 0)
+            which2 = (1 << 1) | (1 << 2);
+          else if (cmp < 0)
+            which2 = (1 << 3) | (1 << 4);
+          else
+            which2 = 0;
 
-				cmp = range_cmp_bounds(typcache, &centroidUpper, maxUpper);
-				if (cmp > 0 || (!inclusive && cmp == 0))
-					which &= (1 << 2) | (1 << 3) | (1 << 5);
-			}
+          /* We must chase down ranges adjacent to either bound. */
+          which &= which1 | which2;
 
-			if (which == 0)
-				break;			/* no need to consider remaining conditions */
-		}
-	}
+          needPrevious = true;
+          break;
 
-	/* We must descend into the quadrant(s) identified by 'which' */
-	out->nodeNumbers = (int *) palloc(sizeof(int) * in->nNodes);
-	if (needPrevious)
-		out->traversalValues = (void **) palloc(sizeof(void *) * in->nNodes);
-	out->nNodes = 0;
+        case RANGESTRAT_CONTAINS:
 
-	/*
-	 * Elements of traversalValues should be allocated in
-	 * traversalMemoryContext
-	 */
-	oldCtx = MemoryContextSwitchTo(in->traversalMemoryContext);
+          /*
+           * Non-empty range A contains non-empty range B if lower
+           * bound of A is lower or equal to lower bound of range B
+           * and upper bound of range A is greater than or equal to
+           * upper bound of range A.
+           *
+           * All non-empty ranges contain an empty range.
+           */
+          strictEmpty = false;
 
-	for (i = 1; i <= in->nNodes; i++)
-	{
-		if (which & (1 << i))
-		{
-			/* Save previous prefix if needed */
-			if (needPrevious)
-			{
-				Datum		previousCentroid;
+          if (!empty) {
+            which &= (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4);
+            maxLower = &lower;
+            minUpper = &upper;
+          }
 
-				/*
-				 * We know, that in->prefixDatum in this place is varlena,
-				 * because it's range
-				 */
-				previousCentroid = datumCopy(in->prefixDatum, false, -1);
-				out->traversalValues[out->nNodes] = (void *) previousCentroid;
-			}
-			out->nodeNumbers[out->nNodes] = i - 1;
-			out->nNodes++;
-		}
-	}
+          break;
 
-	MemoryContextSwitchTo(oldCtx);
+        case RANGESTRAT_CONTAINED_BY:
+          /* The opposite of contains. */
+          strictEmpty = false;
 
-	PG_RETURN_VOID();
+          if (empty) {
+            /* An empty range is only contained by an empty range */
+            which &= (1 << 5);
+          } else {
+            minLower = &lower;
+            maxUpper = &upper;
+          }
+
+          break;
+
+        case RANGESTRAT_EQ:
+
+          /*
+           * Equal range can be only in the same quadrant where
+           * argument would be placed to.
+           */
+          strictEmpty = false;
+          which &= (1 << getQuadrant(typcache, centroid, range));
+          break;
+
+        default:
+          elog(ERROR, "unrecognized range strategy: %d", strategy);
+          break;
+      }
+
+      if (strictEmpty) {
+        if (empty) {
+          /* Scan key is empty, no branches are satisfying */
+          which = 0;
+          break;
+        } else {
+          /* Shouldn't visit tree branch with empty ranges */
+          which &= (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4);
+        }
+      }
+
+      /*
+       * Using the bounding box, see which quadrants we have to descend
+       * into.
+       */
+      if (minLower) {
+        /*
+         * If the centroid's lower bound is less than or equal to the
+         * minimum lower bound, anything in the 3rd and 4th quadrants
+         * will have an even smaller lower bound, and thus can't
+         * match.
+         */
+        if (range_cmp_bounds(typcache, &centroidLower, minLower) <= 0)
+          which &= (1 << 1) | (1 << 2) | (1 << 5);
+      }
+
+      if (maxLower) {
+        /*
+         * If the centroid's lower bound is greater than the maximum
+         * lower bound, anything in the 1st and 2nd quadrants will
+         * also have a greater than or equal lower bound, and thus
+         * can't match. If the centroid's lower bound is equal to the
+         * maximum lower bound, we can still exclude the 1st and 2nd
+         * quadrants if we're looking for a value strictly greater
+         * than the maximum.
+         */
+
+        cmp = range_cmp_bounds(typcache, &centroidLower, maxLower);
+
+        if (cmp > 0 || (!inclusive && cmp == 0))
+          which &= (1 << 3) | (1 << 4) | (1 << 5);
+      }
+
+      if (minUpper) {
+        /*
+         * If the centroid's upper bound is less than or equal to the
+         * minimum upper bound, anything in the 2nd and 3rd quadrants
+         * will have an even smaller upper bound, and thus can't
+         * match.
+         */
+        if (range_cmp_bounds(typcache, &centroidUpper, minUpper) <= 0)
+          which &= (1 << 1) | (1 << 4) | (1 << 5);
+      }
+
+      if (maxUpper) {
+        /*
+         * If the centroid's upper bound is greater than the maximum
+         * upper bound, anything in the 1st and 4th quadrants will
+         * also have a greater than or equal upper bound, and thus
+         * can't match. If the centroid's upper bound is equal to the
+         * maximum upper bound, we can still exclude the 1st and 4th
+         * quadrants if we're looking for a value strictly greater
+         * than the maximum.
+         */
+
+        cmp = range_cmp_bounds(typcache, &centroidUpper, maxUpper);
+
+        if (cmp > 0 || (!inclusive && cmp == 0))
+          which &= (1 << 2) | (1 << 3) | (1 << 5);
+      }
+
+      if (which == 0)
+        break;      /* no need to consider remaining conditions */
+    }
+  }
+
+  /* We must descend into the quadrant(s) identified by 'which' */
+  out->nodeNumbers = (int *) palloc(sizeof(int) * in->nNodes);
+
+  if (needPrevious)
+    out->traversalValues = (void **) palloc(sizeof(void *) * in->nNodes);
+
+  out->nNodes = 0;
+
+  /*
+   * Elements of traversalValues should be allocated in
+   * traversalMemoryContext
+   */
+  oldCtx = MemoryContextSwitchTo(in->traversalMemoryContext);
+
+  for (i = 1; i <= in->nNodes; i++) {
+    if (which & (1 << i)) {
+      /* Save previous prefix if needed */
+      if (needPrevious) {
+        Datum   previousCentroid;
+
+        /*
+         * We know, that in->prefixDatum in this place is varlena,
+         * because it's range
+         */
+        previousCentroid = datumCopy(in->prefixDatum, false, -1);
+        out->traversalValues[out->nNodes] = (void *) previousCentroid;
+      }
+
+      out->nodeNumbers[out->nNodes] = i - 1;
+      out->nNodes++;
+    }
+  }
+
+  MemoryContextSwitchTo(oldCtx);
+
+  PG_RETURN_VOID();
 }
 
 /*
@@ -783,68 +775,65 @@ spg_range_quad_inner_consistent(PG_FUNCTION_ARGS)
  */
 static int
 adjacent_cmp_bounds(TypeCacheEntry *typcache, const RangeBound *arg,
-					const RangeBound *centroid)
+                    const RangeBound *centroid)
 {
-	int			cmp;
+  int     cmp;
 
-	Assert(arg->lower != centroid->lower);
+  Assert(arg->lower != centroid->lower);
 
-	cmp = range_cmp_bounds(typcache, arg, centroid);
+  cmp = range_cmp_bounds(typcache, arg, centroid);
 
-	if (centroid->lower)
-	{
-		/*------
-		 * The argument is an upper bound, we are searching for adjacent lower
-		 * bounds. A matching adjacent lower bound must be *larger* than the
-		 * argument, but only just.
-		 *
-		 * The following table illustrates the desired result with a fixed
-		 * argument bound, and different centroids. The CMP column shows
-		 * the value of 'cmp' variable, and ADJ shows whether the argument
-		 * and centroid are adjacent, per bounds_adjacent(). (N) means we
-		 * don't need to check for that case, because it's implied by CMP.
-		 * With the argument range [..., 500), the adjacent range we're
-		 * searching for is [500, ...):
-		 *
-		 *	ARGUMENT   CENTROID		CMP   ADJ
-		 *	[..., 500) [498, ...)	 >	  (N)	[500, ...) is to the right
-		 *	[..., 500) [499, ...)	 =	  (N)	[500, ...) is to the right
-		 *	[..., 500) [500, ...)	 <	   Y	[500, ...) is to the right
-		 *	[..., 500) [501, ...)	 <	   N	[500, ...) is to the left
-		 *
-		 * So, we must search left when the argument is smaller than, and not
-		 * adjacent, to the centroid. Otherwise search right.
-		 *------
-		 */
-		if (cmp < 0 && !bounds_adjacent(typcache, *arg, *centroid))
-			return -1;
-		else
-			return 1;
-	}
-	else
-	{
-		/*------
-		 * The argument is a lower bound, we are searching for adjacent upper
-		 * bounds. A matching adjacent upper bound must be *smaller* than the
-		 * argument, but only just.
-		 *
-		 *	ARGUMENT   CENTROID		CMP   ADJ
-		 *	[500, ...) [..., 499)	 >	  (N)	[..., 500) is to the right
-		 *	[500, ...) [..., 500)	 >	  (Y)	[..., 500) is to the right
-		 *	[500, ...) [..., 501)	 =	  (N)	[..., 500) is to the left
-		 *	[500, ...) [..., 502)	 <	  (N)	[..., 500) is to the left
-		 *
-		 * We must search left when the argument is smaller than or equal to
-		 * the centroid. Otherwise search right. We don't need to check
-		 * whether the argument is adjacent with the centroid, because it
-		 * doesn't matter.
-		 *------
-		 */
-		if (cmp <= 0)
-			return -1;
-		else
-			return 1;
-	}
+  if (centroid->lower) {
+    /*------
+     * The argument is an upper bound, we are searching for adjacent lower
+     * bounds. A matching adjacent lower bound must be *larger* than the
+     * argument, but only just.
+     *
+     * The following table illustrates the desired result with a fixed
+     * argument bound, and different centroids. The CMP column shows
+     * the value of 'cmp' variable, and ADJ shows whether the argument
+     * and centroid are adjacent, per bounds_adjacent(). (N) means we
+     * don't need to check for that case, because it's implied by CMP.
+     * With the argument range [..., 500), the adjacent range we're
+     * searching for is [500, ...):
+     *
+     *  ARGUMENT   CENTROID   CMP   ADJ
+     *  [..., 500) [498, ...)  >    (N) [500, ...) is to the right
+     *  [..., 500) [499, ...)  =    (N) [500, ...) is to the right
+     *  [..., 500) [500, ...)  <     Y  [500, ...) is to the right
+     *  [..., 500) [501, ...)  <     N  [500, ...) is to the left
+     *
+     * So, we must search left when the argument is smaller than, and not
+     * adjacent, to the centroid. Otherwise search right.
+     *------
+     */
+    if (cmp < 0 && !bounds_adjacent(typcache, *arg, *centroid))
+      return -1;
+    else
+      return 1;
+  } else {
+    /*------
+     * The argument is a lower bound, we are searching for adjacent upper
+     * bounds. A matching adjacent upper bound must be *smaller* than the
+     * argument, but only just.
+     *
+     *  ARGUMENT   CENTROID   CMP   ADJ
+     *  [500, ...) [..., 499)  >    (N) [..., 500) is to the right
+     *  [500, ...) [..., 500)  >    (Y) [..., 500) is to the right
+     *  [500, ...) [..., 501)  =    (N) [..., 500) is to the left
+     *  [500, ...) [..., 502)  <    (N) [..., 500) is to the left
+     *
+     * We must search left when the argument is smaller than or equal to
+     * the centroid. Otherwise search right. We don't need to check
+     * whether the argument is adjacent with the centroid, because it
+     * doesn't matter.
+     *------
+     */
+    if (cmp <= 0)
+      return -1;
+    else
+      return 1;
+  }
 }
 
 /*----------
@@ -885,28 +874,27 @@ adjacent_cmp_bounds(TypeCacheEntry *typcache, const RangeBound *arg,
  */
 static int
 adjacent_inner_consistent(TypeCacheEntry *typcache, const RangeBound *arg,
-						  const RangeBound *centroid, const RangeBound *prev)
+                          const RangeBound *centroid, const RangeBound *prev)
 {
-	if (prev)
-	{
-		int			prevcmp;
-		int			cmp;
+  if (prev) {
+    int     prevcmp;
+    int     cmp;
 
-		/*
-		 * Which direction were we supposed to traverse at previous level,
-		 * left or right?
-		 */
-		prevcmp = adjacent_cmp_bounds(typcache, arg, prev);
+    /*
+     * Which direction were we supposed to traverse at previous level,
+     * left or right?
+     */
+    prevcmp = adjacent_cmp_bounds(typcache, arg, prev);
 
-		/* and which direction did we actually go? */
-		cmp = range_cmp_bounds(typcache, centroid, prev);
+    /* and which direction did we actually go? */
+    cmp = range_cmp_bounds(typcache, centroid, prev);
 
-		/* if the two don't agree, there's nothing to see here */
-		if ((prevcmp < 0 && cmp >= 0) || (prevcmp > 0 && cmp < 0))
-			return 0;
-	}
+    /* if the two don't agree, there's nothing to see here */
+    if ((prevcmp < 0 && cmp >= 0) || (prevcmp > 0 && cmp < 0))
+      return 0;
+  }
 
-	return adjacent_cmp_bounds(typcache, arg, centroid);
+  return adjacent_cmp_bounds(typcache, arg, centroid);
 }
 
 /*
@@ -916,83 +904,92 @@ adjacent_inner_consistent(TypeCacheEntry *typcache, const RangeBound *arg,
 Datum
 spg_range_quad_leaf_consistent(PG_FUNCTION_ARGS)
 {
-	spgLeafConsistentIn *in = (spgLeafConsistentIn *) PG_GETARG_POINTER(0);
-	spgLeafConsistentOut *out = (spgLeafConsistentOut *) PG_GETARG_POINTER(1);
-	RangeType  *leafRange = DatumGetRangeTypeP(in->leafDatum);
-	TypeCacheEntry *typcache;
-	bool		res;
-	int			i;
+  spgLeafConsistentIn *in = (spgLeafConsistentIn *) PG_GETARG_POINTER(0);
+  spgLeafConsistentOut *out = (spgLeafConsistentOut *) PG_GETARG_POINTER(1);
+  RangeType  *leafRange = DatumGetRangeTypeP(in->leafDatum);
+  TypeCacheEntry *typcache;
+  bool    res;
+  int     i;
 
-	/* all tests are exact */
-	out->recheck = false;
+  /* all tests are exact */
+  out->recheck = false;
 
-	/* leafDatum is what it is... */
-	out->leafValue = in->leafDatum;
+  /* leafDatum is what it is... */
+  out->leafValue = in->leafDatum;
 
-	typcache = range_get_typcache(fcinfo, RangeTypeGetOid(leafRange));
+  typcache = range_get_typcache(fcinfo, RangeTypeGetOid(leafRange));
 
-	/* Perform the required comparison(s) */
-	res = true;
-	for (i = 0; i < in->nkeys; i++)
-	{
-		Datum		keyDatum = in->scankeys[i].sk_argument;
+  /* Perform the required comparison(s) */
+  res = true;
 
-		/* Call the function corresponding to the scan strategy */
-		switch (in->scankeys[i].sk_strategy)
-		{
-			case RANGESTRAT_BEFORE:
-				res = range_before_internal(typcache, leafRange,
-											DatumGetRangeTypeP(keyDatum));
-				break;
-			case RANGESTRAT_OVERLEFT:
-				res = range_overleft_internal(typcache, leafRange,
-											  DatumGetRangeTypeP(keyDatum));
-				break;
-			case RANGESTRAT_OVERLAPS:
-				res = range_overlaps_internal(typcache, leafRange,
-											  DatumGetRangeTypeP(keyDatum));
-				break;
-			case RANGESTRAT_OVERRIGHT:
-				res = range_overright_internal(typcache, leafRange,
-											   DatumGetRangeTypeP(keyDatum));
-				break;
-			case RANGESTRAT_AFTER:
-				res = range_after_internal(typcache, leafRange,
-										   DatumGetRangeTypeP(keyDatum));
-				break;
-			case RANGESTRAT_ADJACENT:
-				res = range_adjacent_internal(typcache, leafRange,
-											  DatumGetRangeTypeP(keyDatum));
-				break;
-			case RANGESTRAT_CONTAINS:
-				res = range_contains_internal(typcache, leafRange,
-											  DatumGetRangeTypeP(keyDatum));
-				break;
-			case RANGESTRAT_CONTAINED_BY:
-				res = range_contained_by_internal(typcache, leafRange,
-												  DatumGetRangeTypeP(keyDatum));
-				break;
-			case RANGESTRAT_CONTAINS_ELEM:
-				res = range_contains_elem_internal(typcache, leafRange,
-												   keyDatum);
-				break;
-			case RANGESTRAT_EQ:
-				res = range_eq_internal(typcache, leafRange,
-										DatumGetRangeTypeP(keyDatum));
-				break;
-			default:
-				elog(ERROR, "unrecognized range strategy: %d",
-					 in->scankeys[i].sk_strategy);
-				break;
-		}
+  for (i = 0; i < in->nkeys; i++) {
+    Datum   keyDatum = in->scankeys[i].sk_argument;
 
-		/*
-		 * If leaf datum doesn't match to a query key, no need to check
-		 * subsequent keys.
-		 */
-		if (!res)
-			break;
-	}
+    /* Call the function corresponding to the scan strategy */
+    switch (in->scankeys[i].sk_strategy) {
+      case RANGESTRAT_BEFORE:
+        res = range_before_internal(typcache, leafRange,
+                                    DatumGetRangeTypeP(keyDatum));
+        break;
 
-	PG_RETURN_BOOL(res);
+      case RANGESTRAT_OVERLEFT:
+        res = range_overleft_internal(typcache, leafRange,
+                                      DatumGetRangeTypeP(keyDatum));
+        break;
+
+      case RANGESTRAT_OVERLAPS:
+        res = range_overlaps_internal(typcache, leafRange,
+                                      DatumGetRangeTypeP(keyDatum));
+        break;
+
+      case RANGESTRAT_OVERRIGHT:
+        res = range_overright_internal(typcache, leafRange,
+                                       DatumGetRangeTypeP(keyDatum));
+        break;
+
+      case RANGESTRAT_AFTER:
+        res = range_after_internal(typcache, leafRange,
+                                   DatumGetRangeTypeP(keyDatum));
+        break;
+
+      case RANGESTRAT_ADJACENT:
+        res = range_adjacent_internal(typcache, leafRange,
+                                      DatumGetRangeTypeP(keyDatum));
+        break;
+
+      case RANGESTRAT_CONTAINS:
+        res = range_contains_internal(typcache, leafRange,
+                                      DatumGetRangeTypeP(keyDatum));
+        break;
+
+      case RANGESTRAT_CONTAINED_BY:
+        res = range_contained_by_internal(typcache, leafRange,
+                                          DatumGetRangeTypeP(keyDatum));
+        break;
+
+      case RANGESTRAT_CONTAINS_ELEM:
+        res = range_contains_elem_internal(typcache, leafRange,
+                                           keyDatum);
+        break;
+
+      case RANGESTRAT_EQ:
+        res = range_eq_internal(typcache, leafRange,
+                                DatumGetRangeTypeP(keyDatum));
+        break;
+
+      default:
+        elog(ERROR, "unrecognized range strategy: %d",
+             in->scankeys[i].sk_strategy);
+        break;
+    }
+
+    /*
+     * If leaf datum doesn't match to a query key, no need to check
+     * subsequent keys.
+     */
+    if (!res)
+      break;
+  }
+
+  PG_RETURN_BOOL(res);
 }

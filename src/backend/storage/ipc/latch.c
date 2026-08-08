@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * latch.c
- *	  Routines for inter-process latches
+ *    Routines for inter-process latches
  *
  * The latch interface is a reliable replacement for the common pattern of
  * using pg_usleep() or select() to wait until a signal arrives, where the
@@ -12,7 +12,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/storage/ipc/latch.c
+ *    src/backend/storage/ipc/latch.c
  *
  *-------------------------------------------------------------------------
  */
@@ -34,26 +34,25 @@ static WaitEventSet *LatchWaitSet;
 void
 InitializeLatchWaitSet(void)
 {
-	int			latch_pos PG_USED_FOR_ASSERTS_ONLY;
+  int     latch_pos PG_USED_FOR_ASSERTS_ONLY;
 
-	Assert(LatchWaitSet == NULL);
+  Assert(LatchWaitSet == NULL);
 
-	/* Set up the WaitEventSet used by WaitLatch(). */
-	LatchWaitSet = CreateWaitEventSet(NULL, 2);
-	latch_pos = AddWaitEventToSet(LatchWaitSet, WL_LATCH_SET, PGINVALID_SOCKET,
-								  MyLatch, NULL);
-	Assert(latch_pos == LatchWaitSetLatchPos);
+  /* Set up the WaitEventSet used by WaitLatch(). */
+  LatchWaitSet = CreateWaitEventSet(NULL, 2);
+  latch_pos = AddWaitEventToSet(LatchWaitSet, WL_LATCH_SET, PGINVALID_SOCKET,
+                                MyLatch, NULL);
+  Assert(latch_pos == LatchWaitSetLatchPos);
 
-	/*
-	 * WaitLatch will modify this to WL_EXIT_ON_PM_DEATH or
-	 * WL_POSTMASTER_DEATH on each call.
-	 */
-	if (IsUnderPostmaster)
-	{
-		latch_pos = AddWaitEventToSet(LatchWaitSet, WL_EXIT_ON_PM_DEATH,
-									  PGINVALID_SOCKET, NULL, NULL);
-		Assert(latch_pos == LatchWaitSetPostmasterDeathPos);
-	}
+  /*
+   * WaitLatch will modify this to WL_EXIT_ON_PM_DEATH or
+   * WL_POSTMASTER_DEATH on each call.
+   */
+  if (IsUnderPostmaster) {
+    latch_pos = AddWaitEventToSet(LatchWaitSet, WL_EXIT_ON_PM_DEATH,
+                                  PGINVALID_SOCKET, NULL, NULL);
+    Assert(latch_pos == LatchWaitSetPostmasterDeathPos);
+  }
 }
 
 /*
@@ -62,16 +61,18 @@ InitializeLatchWaitSet(void)
 void
 InitLatch(Latch *latch)
 {
-	latch->is_set = false;
-	latch->maybe_sleeping = false;
-	latch->owner_pid = MyProcPid;
-	latch->is_shared = false;
+  latch->is_set = false;
+  latch->maybe_sleeping = false;
+  latch->owner_pid = MyProcPid;
+  latch->is_shared = false;
 
 #ifdef WIN32
-	latch->event = CreateEvent(NULL, TRUE, FALSE, NULL);
-	if (latch->event == NULL)
-		elog(ERROR, "CreateEvent failed: error code %lu", GetLastError());
-#endif							/* WIN32 */
+  latch->event = CreateEvent(NULL, TRUE, FALSE, NULL);
+
+  if (latch->event == NULL)
+    elog(ERROR, "CreateEvent failed: error code %lu", GetLastError());
+
+#endif              /* WIN32 */
 }
 
 /*
@@ -93,24 +94,26 @@ void
 InitSharedLatch(Latch *latch)
 {
 #ifdef WIN32
-	SECURITY_ATTRIBUTES sa;
+  SECURITY_ATTRIBUTES sa;
 
-	/*
-	 * Set up security attributes to specify that the events are inherited.
-	 */
-	ZeroMemory(&sa, sizeof(sa));
-	sa.nLength = sizeof(sa);
-	sa.bInheritHandle = TRUE;
+  /*
+   * Set up security attributes to specify that the events are inherited.
+   */
+  ZeroMemory(&sa, sizeof(sa));
+  sa.nLength = sizeof(sa);
+  sa.bInheritHandle = TRUE;
 
-	latch->event = CreateEvent(&sa, TRUE, FALSE, NULL);
-	if (latch->event == NULL)
-		elog(ERROR, "CreateEvent failed: error code %lu", GetLastError());
+  latch->event = CreateEvent(&sa, TRUE, FALSE, NULL);
+
+  if (latch->event == NULL)
+    elog(ERROR, "CreateEvent failed: error code %lu", GetLastError());
+
 #endif
 
-	latch->is_set = false;
-	latch->maybe_sleeping = false;
-	latch->owner_pid = 0;
-	latch->is_shared = true;
+  latch->is_set = false;
+  latch->maybe_sleeping = false;
+  latch->owner_pid = 0;
+  latch->is_shared = true;
 }
 
 /*
@@ -125,16 +128,17 @@ InitSharedLatch(Latch *latch)
 void
 OwnLatch(Latch *latch)
 {
-	int			owner_pid;
+  int     owner_pid;
 
-	/* Sanity checks */
-	Assert(latch->is_shared);
+  /* Sanity checks */
+  Assert(latch->is_shared);
 
-	owner_pid = latch->owner_pid;
-	if (owner_pid != 0)
-		elog(PANIC, "latch already owned by PID %d", owner_pid);
+  owner_pid = latch->owner_pid;
 
-	latch->owner_pid = MyProcPid;
+  if (owner_pid != 0)
+    elog(PANIC, "latch already owned by PID %d", owner_pid);
+
+  latch->owner_pid = MyProcPid;
 }
 
 /*
@@ -143,10 +147,10 @@ OwnLatch(Latch *latch)
 void
 DisownLatch(Latch *latch)
 {
-	Assert(latch->is_shared);
-	Assert(latch->owner_pid == MyProcPid);
+  Assert(latch->is_shared);
+  Assert(latch->owner_pid == MyProcPid);
 
-	latch->owner_pid = 0;
+  latch->owner_pid = 0;
 }
 
 /*
@@ -170,36 +174,37 @@ DisownLatch(Latch *latch)
  */
 int
 WaitLatch(Latch *latch, int wakeEvents, long timeout,
-		  uint32 wait_event_info)
+          uint32 wait_event_info)
 {
-	WaitEvent	event;
+  WaitEvent event;
 
-	/* Postmaster-managed callers must handle postmaster death somehow. */
-	Assert(!IsUnderPostmaster ||
-		   (wakeEvents & WL_EXIT_ON_PM_DEATH) ||
-		   (wakeEvents & WL_POSTMASTER_DEATH));
+  /* Postmaster-managed callers must handle postmaster death somehow. */
+  Assert(!IsUnderPostmaster ||
+         (wakeEvents & WL_EXIT_ON_PM_DEATH) ||
+         (wakeEvents & WL_POSTMASTER_DEATH));
 
-	/*
-	 * Some callers may have a latch other than MyLatch, or no latch at all,
-	 * or want to handle postmaster death differently.  It's cheap to assign
-	 * those, so just do it every time.
-	 */
-	if (!(wakeEvents & WL_LATCH_SET))
-		latch = NULL;
-	ModifyWaitEvent(LatchWaitSet, LatchWaitSetLatchPos, WL_LATCH_SET, latch);
+  /*
+   * Some callers may have a latch other than MyLatch, or no latch at all,
+   * or want to handle postmaster death differently.  It's cheap to assign
+   * those, so just do it every time.
+   */
+  if (!(wakeEvents & WL_LATCH_SET))
+    latch = NULL;
 
-	if (IsUnderPostmaster)
-		ModifyWaitEvent(LatchWaitSet, LatchWaitSetPostmasterDeathPos,
-						(wakeEvents & (WL_EXIT_ON_PM_DEATH | WL_POSTMASTER_DEATH)),
-						NULL);
+  ModifyWaitEvent(LatchWaitSet, LatchWaitSetLatchPos, WL_LATCH_SET, latch);
 
-	if (WaitEventSetWait(LatchWaitSet,
-						 (wakeEvents & WL_TIMEOUT) ? timeout : -1,
-						 &event, 1,
-						 wait_event_info) == 0)
-		return WL_TIMEOUT;
-	else
-		return event.events;
+  if (IsUnderPostmaster)
+    ModifyWaitEvent(LatchWaitSet, LatchWaitSetPostmasterDeathPos,
+                    (wakeEvents & (WL_EXIT_ON_PM_DEATH | WL_POSTMASTER_DEATH)),
+                    NULL);
+
+  if (WaitEventSetWait(LatchWaitSet,
+                       (wakeEvents & WL_TIMEOUT) ? timeout : -1,
+                       &event, 1,
+                       wait_event_info) == 0)
+    return WL_TIMEOUT;
+  else
+    return event.events;
 }
 
 /*
@@ -221,57 +226,55 @@ WaitLatch(Latch *latch, int wakeEvents, long timeout,
  */
 int
 WaitLatchOrSocket(Latch *latch, int wakeEvents, pgsocket sock,
-				  long timeout, uint32 wait_event_info)
+                  long timeout, uint32 wait_event_info)
 {
-	int			ret = 0;
-	int			rc;
-	WaitEvent	event;
-	WaitEventSet *set = CreateWaitEventSet(CurrentResourceOwner, 3);
+  int     ret = 0;
+  int     rc;
+  WaitEvent event;
+  WaitEventSet *set = CreateWaitEventSet(CurrentResourceOwner, 3);
 
-	if (wakeEvents & WL_TIMEOUT)
-		Assert(timeout >= 0);
-	else
-		timeout = -1;
+  if (wakeEvents & WL_TIMEOUT)
+    Assert(timeout >= 0);
+  else
+    timeout = -1;
 
-	if (wakeEvents & WL_LATCH_SET)
-		AddWaitEventToSet(set, WL_LATCH_SET, PGINVALID_SOCKET,
-						  latch, NULL);
+  if (wakeEvents & WL_LATCH_SET)
+    AddWaitEventToSet(set, WL_LATCH_SET, PGINVALID_SOCKET,
+                      latch, NULL);
 
-	/* Postmaster-managed callers must handle postmaster death somehow. */
-	Assert(!IsUnderPostmaster ||
-		   (wakeEvents & WL_EXIT_ON_PM_DEATH) ||
-		   (wakeEvents & WL_POSTMASTER_DEATH));
+  /* Postmaster-managed callers must handle postmaster death somehow. */
+  Assert(!IsUnderPostmaster ||
+         (wakeEvents & WL_EXIT_ON_PM_DEATH) ||
+         (wakeEvents & WL_POSTMASTER_DEATH));
 
-	if ((wakeEvents & WL_POSTMASTER_DEATH) && IsUnderPostmaster)
-		AddWaitEventToSet(set, WL_POSTMASTER_DEATH, PGINVALID_SOCKET,
-						  NULL, NULL);
+  if ((wakeEvents & WL_POSTMASTER_DEATH) && IsUnderPostmaster)
+    AddWaitEventToSet(set, WL_POSTMASTER_DEATH, PGINVALID_SOCKET,
+                      NULL, NULL);
 
-	if ((wakeEvents & WL_EXIT_ON_PM_DEATH) && IsUnderPostmaster)
-		AddWaitEventToSet(set, WL_EXIT_ON_PM_DEATH, PGINVALID_SOCKET,
-						  NULL, NULL);
+  if ((wakeEvents & WL_EXIT_ON_PM_DEATH) && IsUnderPostmaster)
+    AddWaitEventToSet(set, WL_EXIT_ON_PM_DEATH, PGINVALID_SOCKET,
+                      NULL, NULL);
 
-	if (wakeEvents & WL_SOCKET_MASK)
-	{
-		int			ev;
+  if (wakeEvents & WL_SOCKET_MASK) {
+    int     ev;
 
-		ev = wakeEvents & WL_SOCKET_MASK;
-		AddWaitEventToSet(set, ev, sock, NULL, NULL);
-	}
+    ev = wakeEvents & WL_SOCKET_MASK;
+    AddWaitEventToSet(set, ev, sock, NULL, NULL);
+  }
 
-	rc = WaitEventSetWait(set, timeout, &event, 1, wait_event_info);
+  rc = WaitEventSetWait(set, timeout, &event, 1, wait_event_info);
 
-	if (rc == 0)
-		ret |= WL_TIMEOUT;
-	else
-	{
-		ret |= event.events & (WL_LATCH_SET |
-							   WL_POSTMASTER_DEATH |
-							   WL_SOCKET_MASK);
-	}
+  if (rc == 0)
+    ret |= WL_TIMEOUT;
+  else {
+    ret |= event.events & (WL_LATCH_SET |
+                           WL_POSTMASTER_DEATH |
+                           WL_SOCKET_MASK);
+  }
 
-	FreeWaitEventSet(set);
+  FreeWaitEventSet(set);
 
-	return ret;
+  return ret;
 }
 
 /*
@@ -290,79 +293,82 @@ void
 SetLatch(Latch *latch)
 {
 #ifndef WIN32
-	pid_t		owner_pid;
+  pid_t   owner_pid;
 #else
-	HANDLE		handle;
+  HANDLE    handle;
 #endif
 
-	/*
-	 * The memory barrier has to be placed here to ensure that any flag
-	 * variables possibly changed by this process have been flushed to main
-	 * memory, before we check/set is_set.
-	 */
-	pg_memory_barrier();
+  /*
+   * The memory barrier has to be placed here to ensure that any flag
+   * variables possibly changed by this process have been flushed to main
+   * memory, before we check/set is_set.
+   */
+  pg_memory_barrier();
 
-	/* Quick exit if already set */
-	if (latch->is_set)
-		return;
+  /* Quick exit if already set */
+  if (latch->is_set)
+    return;
 
-	latch->is_set = true;
+  latch->is_set = true;
 
-	pg_memory_barrier();
-	if (!latch->maybe_sleeping)
-		return;
+  pg_memory_barrier();
+
+  if (!latch->maybe_sleeping)
+    return;
 
 #ifndef WIN32
 
-	/*
-	 * See if anyone's waiting for the latch. It can be the current process if
-	 * we're in a signal handler. We use the self-pipe or SIGURG to ourselves
-	 * to wake up WaitEventSetWaitBlock() without races in that case. If it's
-	 * another process, send a signal.
-	 *
-	 * Fetch owner_pid only once, in case the latch is concurrently getting
-	 * owned or disowned. XXX: This assumes that pid_t is atomic, which isn't
-	 * guaranteed to be true! In practice, the effective range of pid_t fits
-	 * in a 32 bit integer, and so should be atomic. In the worst case, we
-	 * might end up signaling the wrong process. Even then, you're very
-	 * unlucky if a process with that bogus pid exists and belongs to
-	 * Postgres; and PG database processes should handle excess SIGUSR1
-	 * interrupts without a problem anyhow.
-	 *
-	 * Another sort of race condition that's possible here is for a new
-	 * process to own the latch immediately after we look, so we don't signal
-	 * it. This is okay so long as all callers of ResetLatch/WaitLatch follow
-	 * the standard coding convention of waiting at the bottom of their loops,
-	 * not the top, so that they'll correctly process latch-setting events
-	 * that happen before they enter the loop.
-	 */
-	owner_pid = latch->owner_pid;
-	if (owner_pid == 0)
-		return;
-	else if (owner_pid == MyProcPid)
-		WakeupMyProc();
-	else
-		WakeupOtherProc(owner_pid);
+  /*
+   * See if anyone's waiting for the latch. It can be the current process if
+   * we're in a signal handler. We use the self-pipe or SIGURG to ourselves
+   * to wake up WaitEventSetWaitBlock() without races in that case. If it's
+   * another process, send a signal.
+   *
+   * Fetch owner_pid only once, in case the latch is concurrently getting
+   * owned or disowned. XXX: This assumes that pid_t is atomic, which isn't
+   * guaranteed to be true! In practice, the effective range of pid_t fits
+   * in a 32 bit integer, and so should be atomic. In the worst case, we
+   * might end up signaling the wrong process. Even then, you're very
+   * unlucky if a process with that bogus pid exists and belongs to
+   * Postgres; and PG database processes should handle excess SIGUSR1
+   * interrupts without a problem anyhow.
+   *
+   * Another sort of race condition that's possible here is for a new
+   * process to own the latch immediately after we look, so we don't signal
+   * it. This is okay so long as all callers of ResetLatch/WaitLatch follow
+   * the standard coding convention of waiting at the bottom of their loops,
+   * not the top, so that they'll correctly process latch-setting events
+   * that happen before they enter the loop.
+   */
+  owner_pid = latch->owner_pid;
+
+  if (owner_pid == 0)
+    return;
+  else if (owner_pid == MyProcPid)
+    WakeupMyProc();
+  else
+    WakeupOtherProc(owner_pid);
 
 #else
 
-	/*
-	 * See if anyone's waiting for the latch. It can be the current process if
-	 * we're in a signal handler.
-	 *
-	 * Use a local variable here just in case somebody changes the event field
-	 * concurrently (which really should not happen).
-	 */
-	handle = latch->event;
-	if (handle)
-	{
-		SetEvent(handle);
+  /*
+   * See if anyone's waiting for the latch. It can be the current process if
+   * we're in a signal handler.
+   *
+   * Use a local variable here just in case somebody changes the event field
+   * concurrently (which really should not happen).
+   */
+  handle = latch->event;
 
-		/*
-		 * Note that we silently ignore any errors. We might be in a signal
-		 * handler or other critical path where it's not safe to call elog().
-		 */
-	}
+  if (handle) {
+    SetEvent(handle);
+
+    /*
+     * Note that we silently ignore any errors. We might be in a signal
+     * handler or other critical path where it's not safe to call elog().
+     */
+  }
+
 #endif
 }
 
@@ -373,17 +379,17 @@ SetLatch(Latch *latch)
 void
 ResetLatch(Latch *latch)
 {
-	/* Only the owner should reset the latch */
-	Assert(latch->owner_pid == MyProcPid);
-	Assert(latch->maybe_sleeping == false);
+  /* Only the owner should reset the latch */
+  Assert(latch->owner_pid == MyProcPid);
+  Assert(latch->maybe_sleeping == false);
 
-	latch->is_set = false;
+  latch->is_set = false;
 
-	/*
-	 * Ensure that the write to is_set gets flushed to main memory before we
-	 * examine any flag variables.  Otherwise a concurrent SetLatch might
-	 * falsely conclude that it needn't signal us, even though we have missed
-	 * seeing some flag updates that SetLatch was supposed to inform us of.
-	 */
-	pg_memory_barrier();
+  /*
+   * Ensure that the write to is_set gets flushed to main memory before we
+   * examine any flag variables.  Otherwise a concurrent SetLatch might
+   * falsely conclude that it needn't signal us, even though we have missed
+   * seeing some flag updates that SetLatch was supposed to inform us of.
+   */
+  pg_memory_barrier();
 }

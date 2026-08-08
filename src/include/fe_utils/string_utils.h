@@ -31,17 +31,17 @@ extern const char *fmtQualifiedIdEnc(const char *schema, const char *id, int enc
 extern void setFmtEncoding(int encoding);
 
 extern char *formatPGVersionNumber(int version_number, bool include_minor,
-								   char *buf, size_t buflen);
+                                   char *buf, size_t buflen);
 
 extern void appendStringLiteral(PQExpBuffer buf, const char *str,
-								int encoding, bool std_strings);
+                                int encoding, bool std_strings);
 extern void appendStringLiteralConn(PQExpBuffer buf, const char *str,
-									PGconn *conn);
+                                    PGconn *conn);
 extern void appendStringLiteralDQ(PQExpBuffer buf, const char *str,
-								  const char *dqprefix);
+                                  const char *dqprefix);
 extern void appendByteaLiteral(PQExpBuffer buf,
-							   const unsigned char *str, size_t length,
-							   bool std_strings);
+                               const unsigned char *str, size_t length,
+                               bool std_strings);
 
 extern void appendShellString(PQExpBuffer buf, const char *str);
 extern bool appendShellStringNoError(PQExpBuffer buf, const char *str);
@@ -52,18 +52,18 @@ extern bool parsePGArray(const char *atext, char ***itemarray, int *nitems);
 extern void appendPGArray(PQExpBuffer buffer, const char *value);
 
 extern bool appendReloptionsArray(PQExpBuffer buffer, const char *reloptions,
-								  const char *prefix, int encoding, bool std_strings);
+                                  const char *prefix, int encoding, bool std_strings);
 
 extern bool processSQLNamePattern(PGconn *conn, PQExpBuffer buf,
-								  const char *pattern,
-								  bool have_where, bool force_escape,
-								  const char *schemavar, const char *namevar,
-								  const char *altnamevar, const char *visibilityrule,
-								  PQExpBuffer dbnamebuf, int *dotcnt);
+                                  const char *pattern,
+                                  bool have_where, bool force_escape,
+                                  const char *schemavar, const char *namevar,
+                                  const char *altnamevar, const char *visibilityrule,
+                                  PQExpBuffer dbnamebuf, int *dotcnt);
 
 extern void patternToSQLRegex(int encoding, PQExpBuffer dbnamebuf,
-							  PQExpBuffer schemabuf, PQExpBuffer namebuf,
-							  const char *pattern, bool force_escape,
-							  bool want_literal_dbname, int *dotcnt);
+                              PQExpBuffer schemabuf, PQExpBuffer namebuf,
+                              const char *pattern, bool force_escape,
+                              bool want_literal_dbname, int *dotcnt);
 
-#endif							/* STRING_UTILS_H */
+#endif              /* STRING_UTILS_H */

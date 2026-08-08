@@ -1,11 +1,11 @@
 /*-------------------------------------------------------------------------
  * unicode_case.c
- *		Unicode case mapping and case conversion.
+ *    Unicode case mapping and case conversion.
  *
  * Portions Copyright (c) 2017-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/common/unicode_case.c
+ *    src/common/unicode_case.c
  *
  *-------------------------------------------------------------------------
  */
@@ -20,62 +20,60 @@
 #include "common/unicode_category.h"
 #include "mb/pg_wchar.h"
 
-enum CaseMapResult
-{
-	CASEMAP_SELF,
-	CASEMAP_SIMPLE,
-	CASEMAP_SPECIAL,
+enum CaseMapResult {
+  CASEMAP_SELF,
+  CASEMAP_SIMPLE,
+  CASEMAP_SPECIAL,
 };
 
 /*
  * Map for each case kind.
  */
-static const pg_wchar *const casekind_map[NCaseKind] =
-{
-	[CaseLower] = case_map_lower,
-	[CaseTitle] = case_map_title,
-	[CaseUpper] = case_map_upper,
-	[CaseFold] = case_map_fold,
+static const pg_wchar *const casekind_map[NCaseKind] = {
+  [CaseLower] = case_map_lower,
+  [CaseTitle] = case_map_title,
+  [CaseUpper] = case_map_upper,
+  [CaseFold] = case_map_fold,
 };
 
 static pg_wchar find_case_map(pg_wchar ucs, const pg_wchar *map);
 static size_t convert_case(char *dst, size_t dstsize, const char *src, ssize_t srclen,
-						   CaseKind str_casekind, bool full, WordBoundaryNext wbnext,
-						   void *wbstate);
+                           CaseKind str_casekind, bool full, WordBoundaryNext wbnext,
+                           void *wbstate);
 static enum CaseMapResult casemap(pg_wchar u1, CaseKind casekind, bool full,
-								  const char *src, size_t srclen, size_t srcoff,
-								  pg_wchar *simple, const pg_wchar **special);
+                                  const char *src, size_t srclen, size_t srcoff,
+                                  pg_wchar *simple, const pg_wchar **special);
 
 pg_wchar
 unicode_lowercase_simple(pg_wchar code)
 {
-	pg_wchar	cp = find_case_map(code, case_map_lower);
+  pg_wchar  cp = find_case_map(code, case_map_lower);
 
-	return cp != 0 ? cp : code;
+  return cp != 0 ? cp : code;
 }
 
 pg_wchar
 unicode_titlecase_simple(pg_wchar code)
 {
-	pg_wchar	cp = find_case_map(code, case_map_title);
+  pg_wchar  cp = find_case_map(code, case_map_title);
 
-	return cp != 0 ? cp : code;
+  return cp != 0 ? cp : code;
 }
 
 pg_wchar
 unicode_uppercase_simple(pg_wchar code)
 {
-	pg_wchar	cp = find_case_map(code, case_map_upper);
+  pg_wchar  cp = find_case_map(code, case_map_upper);
 
-	return cp != 0 ? cp : code;
+  return cp != 0 ? cp : code;
 }
 
 pg_wchar
 unicode_casefold_simple(pg_wchar code)
 {
-	pg_wchar	cp = find_case_map(code, case_map_fold);
+  pg_wchar  cp = find_case_map(code, case_map_fold);
 
-	return cp != 0 ? cp : code;
+  return cp != 0 ? cp : code;
 }
 
 /*
@@ -99,10 +97,10 @@ unicode_casefold_simple(pg_wchar code)
  */
 size_t
 unicode_strlower(char *dst, size_t dstsize, const char *src, ssize_t srclen,
-				 bool full)
+                 bool full)
 {
-	return convert_case(dst, dstsize, src, srclen, CaseLower, full, NULL,
-						NULL);
+  return convert_case(dst, dstsize, src, srclen, CaseLower, full, NULL,
+                      NULL);
 }
 
 /*
@@ -136,10 +134,10 @@ unicode_strlower(char *dst, size_t dstsize, const char *src, ssize_t srclen,
  */
 size_t
 unicode_strtitle(char *dst, size_t dstsize, const char *src, ssize_t srclen,
-				 bool full, WordBoundaryNext wbnext, void *wbstate)
+                 bool full, WordBoundaryNext wbnext, void *wbstate)
 {
-	return convert_case(dst, dstsize, src, srclen, CaseTitle, full, wbnext,
-						wbstate);
+  return convert_case(dst, dstsize, src, srclen, CaseTitle, full, wbnext,
+                      wbstate);
 }
 
 /*
@@ -163,10 +161,10 @@ unicode_strtitle(char *dst, size_t dstsize, const char *src, ssize_t srclen,
  */
 size_t
 unicode_strupper(char *dst, size_t dstsize, const char *src, ssize_t srclen,
-				 bool full)
+                 bool full)
 {
-	return convert_case(dst, dstsize, src, srclen, CaseUpper, full, NULL,
-						NULL);
+  return convert_case(dst, dstsize, src, srclen, CaseUpper, full, NULL,
+                      NULL);
 }
 
 /*
@@ -187,10 +185,10 @@ unicode_strupper(char *dst, size_t dstsize, const char *src, ssize_t srclen,
  */
 size_t
 unicode_strfold(char *dst, size_t dstsize, const char *src, ssize_t srclen,
-				bool full)
+                bool full)
 {
-	return convert_case(dst, dstsize, src, srclen, CaseFold, full, NULL,
-						NULL);
+  return convert_case(dst, dstsize, src, srclen, CaseFold, full, NULL,
+                      NULL);
 }
 
 /*
@@ -211,93 +209,91 @@ unicode_strfold(char *dst, size_t dstsize, const char *src, ssize_t srclen,
  */
 static size_t
 convert_case(char *dst, size_t dstsize, const char *src, ssize_t srclen,
-			 CaseKind str_casekind, bool full, WordBoundaryNext wbnext,
-			 void *wbstate)
+             CaseKind str_casekind, bool full, WordBoundaryNext wbnext,
+             void *wbstate)
 {
-	/* character CaseKind varies while titlecasing */
-	CaseKind	chr_casekind = str_casekind;
-	size_t		srcoff = 0;
-	size_t		result_len = 0;
-	size_t		boundary = 0;
+  /* character CaseKind varies while titlecasing */
+  CaseKind  chr_casekind = str_casekind;
+  size_t    srcoff = 0;
+  size_t    result_len = 0;
+  size_t    boundary = 0;
 
-	Assert((str_casekind == CaseTitle && wbnext && wbstate) ||
-		   (str_casekind != CaseTitle && !wbnext && !wbstate));
+  Assert((str_casekind == CaseTitle && wbnext && wbstate) ||
+         (str_casekind != CaseTitle && !wbnext && !wbstate));
 
-	if (str_casekind == CaseTitle)
-	{
-		boundary = wbnext(wbstate);
-		Assert(boundary == 0);	/* start of text is always a boundary */
-	}
+  if (str_casekind == CaseTitle) {
+    boundary = wbnext(wbstate);
+    Assert(boundary == 0);  /* start of text is always a boundary */
+  }
 
-	while ((srclen < 0 || srcoff < srclen) && src[srcoff] != '\0')
-	{
-		pg_wchar	u1 = utf8_to_unicode((unsigned char *) src + srcoff);
-		int			u1len = unicode_utf8len(u1);
-		pg_wchar	simple = 0;
-		const pg_wchar *special = NULL;
-		enum CaseMapResult casemap_result;
+  while ((srclen < 0 || srcoff < srclen) && src[srcoff] != '\0') {
+    pg_wchar  u1 = utf8_to_unicode((unsigned char *) src + srcoff);
+    int     u1len = unicode_utf8len(u1);
+    pg_wchar  simple = 0;
+    const pg_wchar *special = NULL;
+    enum CaseMapResult casemap_result;
 
-		if (str_casekind == CaseTitle)
-		{
-			if (srcoff == boundary)
-			{
-				chr_casekind = full ? CaseTitle : CaseUpper;
-				boundary = wbnext(wbstate);
-			}
-			else
-				chr_casekind = CaseLower;
-		}
+    if (str_casekind == CaseTitle) {
+      if (srcoff == boundary) {
+        chr_casekind = full ? CaseTitle : CaseUpper;
+        boundary = wbnext(wbstate);
+      } else
+        chr_casekind = CaseLower;
+    }
 
-		casemap_result = casemap(u1, chr_casekind, full, src, srclen, srcoff,
-								 &simple, &special);
+    casemap_result = casemap(u1, chr_casekind, full, src, srclen, srcoff,
+                             &simple, &special);
 
-		switch (casemap_result)
-		{
-			case CASEMAP_SELF:
-				/* no mapping; copy bytes from src */
-				Assert(simple == 0);
-				Assert(special == NULL);
-				if (result_len + u1len <= dstsize)
-					memcpy(dst + result_len, src + srcoff, u1len);
+    switch (casemap_result) {
+      case CASEMAP_SELF:
+        /* no mapping; copy bytes from src */
+        Assert(simple == 0);
+        Assert(special == NULL);
 
-				result_len += u1len;
-				break;
-			case CASEMAP_SIMPLE:
-				{
-					/* replace with single character */
-					pg_wchar	u2 = simple;
-					pg_wchar	u2len = unicode_utf8len(u2);
+        if (result_len + u1len <= dstsize)
+          memcpy(dst + result_len, src + srcoff, u1len);
 
-					Assert(special == NULL);
-					if (result_len + u2len <= dstsize)
-						unicode_to_utf8(u2, (unsigned char *) dst + result_len);
+        result_len += u1len;
+        break;
 
-					result_len += u2len;
-				}
-				break;
-			case CASEMAP_SPECIAL:
-				/* replace with up to MAX_CASE_EXPANSION characters */
-				Assert(simple == 0);
-				for (int i = 0; i < MAX_CASE_EXPANSION && special[i]; i++)
-				{
-					pg_wchar	u2 = special[i];
-					size_t		u2len = unicode_utf8len(u2);
+      case CASEMAP_SIMPLE: {
+        /* replace with single character */
+        pg_wchar  u2 = simple;
+        pg_wchar  u2len = unicode_utf8len(u2);
 
-					if (result_len + u2len <= dstsize)
-						unicode_to_utf8(u2, (unsigned char *) dst + result_len);
+        Assert(special == NULL);
 
-					result_len += u2len;
-				}
-				break;
-		}
+        if (result_len + u2len <= dstsize)
+          unicode_to_utf8(u2, (unsigned char *) dst + result_len);
 
-		srcoff += u1len;
-	}
+        result_len += u2len;
+      }
+      break;
 
-	if (result_len < dstsize)
-		dst[result_len] = '\0';
+      case CASEMAP_SPECIAL:
+        /* replace with up to MAX_CASE_EXPANSION characters */
+        Assert(simple == 0);
 
-	return result_len;
+        for (int i = 0; i < MAX_CASE_EXPANSION && special[i]; i++) {
+          pg_wchar  u2 = special[i];
+          size_t    u2len = unicode_utf8len(u2);
+
+          if (result_len + u2len <= dstsize)
+            unicode_to_utf8(u2, (unsigned char *) dst + result_len);
+
+          result_len += u2len;
+        }
+
+        break;
+    }
+
+    srcoff += u1len;
+  }
+
+  if (result_len < dstsize)
+    dst[result_len] = '\0';
+
+  return result_len;
 }
 
 /*
@@ -311,55 +307,49 @@ convert_case(char *dst, size_t dstsize, const char *src, ssize_t srclen,
 static bool
 check_final_sigma(const unsigned char *str, size_t len, size_t offset)
 {
-	/* the start of the string is not preceded by a Cased character */
-	if (offset == 0)
-		return false;
+  /* the start of the string is not preceded by a Cased character */
+  if (offset == 0)
+    return false;
 
-	/* iterate backwards, looking for Cased character */
-	for (int i = offset - 1; i >= 0; i--)
-	{
-		if ((str[i] & 0x80) == 0 || (str[i] & 0xC0) == 0xC0)
-		{
-			pg_wchar	curr = utf8_to_unicode(str + i);
+  /* iterate backwards, looking for Cased character */
+  for (int i = offset - 1; i >= 0; i--) {
+    if ((str[i] & 0x80) == 0 || (str[i] & 0xC0) == 0xC0) {
+      pg_wchar  curr = utf8_to_unicode(str + i);
 
-			if (pg_u_prop_case_ignorable(curr))
-				continue;
-			else if (pg_u_prop_cased(curr))
-				break;
-			else
-				return false;
-		}
-		else if ((str[i] & 0xC0) == 0x80)
-			continue;
+      if (pg_u_prop_case_ignorable(curr))
+        continue;
+      else if (pg_u_prop_cased(curr))
+        break;
+      else
+        return false;
+    } else if ((str[i] & 0xC0) == 0x80)
+      continue;
 
-		Assert(false);			/* invalid UTF-8 */
-	}
+    Assert(false);      /* invalid UTF-8 */
+  }
 
-	/* end of string is not followed by a Cased character */
-	if (offset == len)
-		return true;
+  /* end of string is not followed by a Cased character */
+  if (offset == len)
+    return true;
 
-	/* iterate forwards, looking for Cased character */
-	for (int i = offset + 1; i < len && str[i] != '\0'; i++)
-	{
-		if ((str[i] & 0x80) == 0 || (str[i] & 0xC0) == 0xC0)
-		{
-			pg_wchar	curr = utf8_to_unicode(str + i);
+  /* iterate forwards, looking for Cased character */
+  for (int i = offset + 1; i < len && str[i] != '\0'; i++) {
+    if ((str[i] & 0x80) == 0 || (str[i] & 0xC0) == 0xC0) {
+      pg_wchar  curr = utf8_to_unicode(str + i);
 
-			if (pg_u_prop_case_ignorable(curr))
-				continue;
-			else if (pg_u_prop_cased(curr))
-				return false;
-			else
-				break;
-		}
-		else if ((str[i] & 0xC0) == 0x80)
-			continue;
+      if (pg_u_prop_case_ignorable(curr))
+        continue;
+      else if (pg_u_prop_cased(curr))
+        return false;
+      else
+        break;
+    } else if ((str[i] & 0xC0) == 0x80)
+      continue;
 
-		Assert(false);			/* invalid UTF-8 */
-	}
+    Assert(false);      /* invalid UTF-8 */
+  }
 
-	return true;
+  return true;
 }
 
 /*
@@ -368,16 +358,16 @@ check_final_sigma(const unsigned char *str, size_t len, size_t offset)
  */
 static bool
 check_special_conditions(int conditions, const char *str, size_t len,
-						 size_t offset)
+                         size_t offset)
 {
-	if (conditions == 0)
-		return true;
-	else if (conditions == PG_U_FINAL_SIGMA)
-		return check_final_sigma((unsigned char *) str, len, offset);
+  if (conditions == 0)
+    return true;
+  else if (conditions == PG_U_FINAL_SIGMA)
+    return check_final_sigma((unsigned char *) str, len, offset);
 
-	/* no other conditions supported */
-	Assert(false);
-	return false;
+  /* no other conditions supported */
+  Assert(false);
+  return false;
 }
 
 /*
@@ -395,39 +385,38 @@ check_special_conditions(int conditions, const char *str, size_t len,
  */
 static enum CaseMapResult
 casemap(pg_wchar u1, CaseKind casekind, bool full,
-		const char *src, size_t srclen, size_t srcoff,
-		pg_wchar *simple, const pg_wchar **special)
-{
-	uint16		idx;
+        const char *src, size_t srclen, size_t srcoff,
+        pg_wchar *simple, const pg_wchar **special) {
+  uint16    idx;
 
-	/* Fast path for codepoints < 0x80 */
-	if (u1 < 0x80)
-	{
-		/*
-		 * The first elements in all tables are reserved as 0 (as NULL). The
-		 * data starts at index 1, not 0.
-		 */
-		*simple = casekind_map[casekind][u1 + 1];
+  /* Fast path for codepoints < 0x80 */
+  if (u1 < 0x80)
+  {
+    /*
+     * The first elements in all tables are reserved as 0 (as NULL). The
+     * data starts at index 1, not 0.
+     */
+    *simple = casekind_map[casekind][u1 + 1];
 
-		return CASEMAP_SIMPLE;
-	}
+    return CASEMAP_SIMPLE;
+  }
 
-	idx = case_index(u1);
+  idx = case_index(u1);
 
-	if (idx == 0)
-		return CASEMAP_SELF;
+  if (idx == 0)
+    return CASEMAP_SELF;
 
-	if (full && case_map_special[idx] &&
-		check_special_conditions(special_case[case_map_special[idx]].conditions,
-								 src, srclen, srcoff))
-	{
-		*special = special_case[case_map_special[idx]].map[casekind];
-		return CASEMAP_SPECIAL;
-	}
+  if (full && case_map_special[idx] &&
+      check_special_conditions(special_case[case_map_special[idx]].conditions,
+                               src, srclen, srcoff))
+  {
+    *special = special_case[case_map_special[idx]].map[casekind];
+    return CASEMAP_SPECIAL;
+  }
 
-	*simple = casekind_map[casekind][idx];
+  *simple = casekind_map[casekind][idx];
 
-	return CASEMAP_SIMPLE;
+  return CASEMAP_SIMPLE;
 }
 
 /*
@@ -437,9 +426,10 @@ casemap(pg_wchar u1, CaseKind casekind, bool full,
 static pg_wchar
 find_case_map(pg_wchar ucs, const pg_wchar *map)
 {
-	/* Fast path for codepoints < 0x80 */
-	if (ucs < 0x80)
-		/* The first elements in all tables are reserved as 0 (as NULL). */
-		return map[ucs + 1];
-	return map[case_index(ucs)];
+  /* Fast path for codepoints < 0x80 */
+  if (ucs < 0x80)
+    /* The first elements in all tables are reserved as 0 (as NULL). */
+    return map[ucs + 1];
+
+  return map[case_index(ucs)];
 }

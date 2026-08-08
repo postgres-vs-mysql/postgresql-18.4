@@ -1,8 +1,8 @@
 /*-------------------------------------------------------------------------
  *
  * aio_callback.c
- *	  AIO - Functionality related to callbacks that can be registered on IO
- *	  Handles
+ *    AIO - Functionality related to callbacks that can be registered on IO
+ *    Handles
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -25,10 +25,9 @@
 /* just to have something to put into aio_handle_cbs */
 static const PgAioHandleCallbacks aio_invalid_cb = {0};
 
-typedef struct PgAioHandleCallbacksEntry
-{
-	const PgAioHandleCallbacks *const cb;
-	const char *const name;
+typedef struct PgAioHandleCallbacksEntry {
+  const PgAioHandleCallbacks *const cb;
+  const char *const name;
 } PgAioHandleCallbacksEntry;
 
 /*
@@ -38,13 +37,13 @@ typedef struct PgAioHandleCallbacksEntry
  */
 static const PgAioHandleCallbacksEntry aio_handle_cbs[] = {
 #define CALLBACK_ENTRY(id, callback)  [id] = {.cb = &callback, .name = #callback}
-	CALLBACK_ENTRY(PGAIO_HCB_INVALID, aio_invalid_cb),
+  CALLBACK_ENTRY(PGAIO_HCB_INVALID, aio_invalid_cb),
 
-	CALLBACK_ENTRY(PGAIO_HCB_MD_READV, aio_md_readv_cb),
+  CALLBACK_ENTRY(PGAIO_HCB_MD_READV, aio_md_readv_cb),
 
-	CALLBACK_ENTRY(PGAIO_HCB_SHARED_BUFFER_READV, aio_shared_buffer_readv_cb),
+  CALLBACK_ENTRY(PGAIO_HCB_SHARED_BUFFER_READV, aio_shared_buffer_readv_cb),
 
-	CALLBACK_ENTRY(PGAIO_HCB_LOCAL_BUFFER_READV, aio_local_buffer_readv_cb),
+  CALLBACK_ENTRY(PGAIO_HCB_LOCAL_BUFFER_READV, aio_local_buffer_readv_cb),
 #undef CALLBACK_ENTRY
 };
 
@@ -84,28 +83,32 @@ static const PgAioHandleCallbacksEntry aio_handle_cbs[] = {
  */
 void
 pgaio_io_register_callbacks(PgAioHandle *ioh, PgAioHandleCallbackID cb_id,
-							uint8 cb_data)
+                            uint8 cb_data)
 {
-	const PgAioHandleCallbacksEntry *ce = &aio_handle_cbs[cb_id];
+  const PgAioHandleCallbacksEntry *ce = &aio_handle_cbs[cb_id];
 
-	Assert(cb_id <= PGAIO_HCB_MAX);
-	if (cb_id >= lengthof(aio_handle_cbs))
-		elog(ERROR, "callback %d is out of range", cb_id);
-	if (aio_handle_cbs[cb_id].cb->complete_shared == NULL &&
-		aio_handle_cbs[cb_id].cb->complete_local == NULL)
-		elog(ERROR, "callback %d does not have a completion callback", cb_id);
-	if (ioh->num_callbacks >= PGAIO_HANDLE_MAX_CALLBACKS)
-		elog(PANIC, "too many callbacks, the max is %d",
-			 PGAIO_HANDLE_MAX_CALLBACKS);
-	ioh->callbacks[ioh->num_callbacks] = cb_id;
-	ioh->callbacks_data[ioh->num_callbacks] = cb_data;
+  Assert(cb_id <= PGAIO_HCB_MAX);
 
-	pgaio_debug_io(DEBUG3, ioh,
-				   "adding cb #%d, id %d/%s",
-				   ioh->num_callbacks + 1,
-				   cb_id, ce->name);
+  if (cb_id >= lengthof(aio_handle_cbs))
+    elog(ERROR, "callback %d is out of range", cb_id);
 
-	ioh->num_callbacks++;
+  if (aio_handle_cbs[cb_id].cb->complete_shared == NULL &&
+      aio_handle_cbs[cb_id].cb->complete_local == NULL)
+    elog(ERROR, "callback %d does not have a completion callback", cb_id);
+
+  if (ioh->num_callbacks >= PGAIO_HANDLE_MAX_CALLBACKS)
+    elog(PANIC, "too many callbacks, the max is %d",
+         PGAIO_HANDLE_MAX_CALLBACKS);
+
+  ioh->callbacks[ioh->num_callbacks] = cb_id;
+  ioh->callbacks_data[ioh->num_callbacks] = cb_data;
+
+  pgaio_debug_io(DEBUG3, ioh,
+                 "adding cb #%d, id %d/%s",
+                 ioh->num_callbacks + 1,
+                 cb_id, ce->name);
+
+  ioh->num_callbacks++;
 }
 
 /*
@@ -121,14 +124,15 @@ pgaio_io_register_callbacks(PgAioHandle *ioh, PgAioHandleCallbackID cb_id,
 void
 pgaio_io_set_handle_data_64(PgAioHandle *ioh, uint64 *data, uint8 len)
 {
-	Assert(ioh->state == PGAIO_HS_HANDED_OUT);
-	Assert(ioh->handle_data_len == 0);
-	Assert(len <= PG_IOV_MAX);
-	Assert(len <= io_max_combine_limit);
+  Assert(ioh->state == PGAIO_HS_HANDED_OUT);
+  Assert(ioh->handle_data_len == 0);
+  Assert(len <= PG_IOV_MAX);
+  Assert(len <= io_max_combine_limit);
 
-	for (int i = 0; i < len; i++)
-		pgaio_ctl->handle_data[ioh->iovec_off + i] = data[i];
-	ioh->handle_data_len = len;
+  for (int i = 0; i < len; i++)
+    pgaio_ctl->handle_data[ioh->iovec_off + i] = data[i];
+
+  ioh->handle_data_len = len;
 }
 
 /*
@@ -139,14 +143,15 @@ pgaio_io_set_handle_data_64(PgAioHandle *ioh, uint64 *data, uint8 len)
 void
 pgaio_io_set_handle_data_32(PgAioHandle *ioh, uint32 *data, uint8 len)
 {
-	Assert(ioh->state == PGAIO_HS_HANDED_OUT);
-	Assert(ioh->handle_data_len == 0);
-	Assert(len <= PG_IOV_MAX);
-	Assert(len <= io_max_combine_limit);
+  Assert(ioh->state == PGAIO_HS_HANDED_OUT);
+  Assert(ioh->handle_data_len == 0);
+  Assert(len <= PG_IOV_MAX);
+  Assert(len <= io_max_combine_limit);
 
-	for (int i = 0; i < len; i++)
-		pgaio_ctl->handle_data[ioh->iovec_off + i] = data[i];
-	ioh->handle_data_len = len;
+  for (int i = 0; i < len; i++)
+    pgaio_ctl->handle_data[ioh->iovec_off + i] = data[i];
+
+  ioh->handle_data_len = len;
 }
 
 /*
@@ -155,11 +160,11 @@ pgaio_io_set_handle_data_32(PgAioHandle *ioh, uint32 *data, uint8 len)
 uint64 *
 pgaio_io_get_handle_data(PgAioHandle *ioh, uint8 *len)
 {
-	Assert(ioh->handle_data_len > 0);
+  Assert(ioh->handle_data_len > 0);
 
-	*len = ioh->handle_data_len;
+  *len = ioh->handle_data_len;
 
-	return &pgaio_ctl->handle_data[ioh->iovec_off];
+  return &pgaio_ctl->handle_data[ioh->iovec_off];
 }
 
 
@@ -172,17 +177,17 @@ pgaio_io_get_handle_data(PgAioHandle *ioh, uint8 *len)
 void
 pgaio_result_report(PgAioResult result, const PgAioTargetData *target_data, int elevel)
 {
-	PgAioHandleCallbackID cb_id = result.id;
-	const PgAioHandleCallbacksEntry *ce = &aio_handle_cbs[cb_id];
+  PgAioHandleCallbackID cb_id = result.id;
+  const PgAioHandleCallbacksEntry *ce = &aio_handle_cbs[cb_id];
 
-	Assert(result.status != PGAIO_RS_UNKNOWN);
-	Assert(result.status != PGAIO_RS_OK);
+  Assert(result.status != PGAIO_RS_UNKNOWN);
+  Assert(result.status != PGAIO_RS_OK);
 
-	if (ce->cb->report == NULL)
-		elog(ERROR, "callback %d/%s does not have report callback",
-			 result.id, ce->name);
+  if (ce->cb->report == NULL)
+    elog(ERROR, "callback %d/%s does not have report callback",
+         result.id, ce->name);
 
-	ce->cb->report(result, target_data, elevel);
+  ce->cb->report(result, target_data, elevel);
 }
 
 
@@ -198,23 +203,22 @@ pgaio_result_report(PgAioResult result, const PgAioTargetData *target_data, int 
 void
 pgaio_io_call_stage(PgAioHandle *ioh)
 {
-	Assert(ioh->target > PGAIO_TID_INVALID && ioh->target < PGAIO_TID_COUNT);
-	Assert(ioh->op > PGAIO_OP_INVALID && ioh->op < PGAIO_OP_COUNT);
+  Assert(ioh->target > PGAIO_TID_INVALID && ioh->target < PGAIO_TID_COUNT);
+  Assert(ioh->op > PGAIO_OP_INVALID && ioh->op < PGAIO_OP_COUNT);
 
-	for (int i = ioh->num_callbacks; i > 0; i--)
-	{
-		PgAioHandleCallbackID cb_id = ioh->callbacks[i - 1];
-		uint8		cb_data = ioh->callbacks_data[i - 1];
-		const PgAioHandleCallbacksEntry *ce = &aio_handle_cbs[cb_id];
+  for (int i = ioh->num_callbacks; i > 0; i--) {
+    PgAioHandleCallbackID cb_id = ioh->callbacks[i - 1];
+    uint8   cb_data = ioh->callbacks_data[i - 1];
+    const PgAioHandleCallbacksEntry *ce = &aio_handle_cbs[cb_id];
 
-		if (!ce->cb->stage)
-			continue;
+    if (!ce->cb->stage)
+      continue;
 
-		pgaio_debug_io(DEBUG3, ioh,
-					   "calling cb #%d %d/%s->stage(%u)",
-					   i, cb_id, ce->name, cb_data);
-		ce->cb->stage(ioh, cb_data);
-	}
+    pgaio_debug_io(DEBUG3, ioh,
+                   "calling cb #%d %d/%s->stage(%u)",
+                   i, cb_id, ce->name, cb_data);
+    ce->cb->stage(ioh, cb_data);
+  }
 }
 
 /*
@@ -224,52 +228,51 @@ pgaio_io_call_stage(PgAioHandle *ioh)
 void
 pgaio_io_call_complete_shared(PgAioHandle *ioh)
 {
-	PgAioResult result;
+  PgAioResult result;
 
-	START_CRIT_SECTION();
+  START_CRIT_SECTION();
 
-	Assert(ioh->target > PGAIO_TID_INVALID && ioh->target < PGAIO_TID_COUNT);
-	Assert(ioh->op > PGAIO_OP_INVALID && ioh->op < PGAIO_OP_COUNT);
+  Assert(ioh->target > PGAIO_TID_INVALID && ioh->target < PGAIO_TID_COUNT);
+  Assert(ioh->op > PGAIO_OP_INVALID && ioh->op < PGAIO_OP_COUNT);
 
-	result.status = PGAIO_RS_OK;	/* low level IO is always considered OK */
-	result.result = ioh->result;
-	result.id = PGAIO_HCB_INVALID;
-	result.error_data = 0;
+  result.status = PGAIO_RS_OK;  /* low level IO is always considered OK */
+  result.result = ioh->result;
+  result.id = PGAIO_HCB_INVALID;
+  result.error_data = 0;
 
-	/*
-	 * Call callbacks with the last registered (innermost) callback first.
-	 * Each callback can modify the result forwarded to the next callback.
-	 */
-	for (int i = ioh->num_callbacks; i > 0; i--)
-	{
-		PgAioHandleCallbackID cb_id = ioh->callbacks[i - 1];
-		uint8		cb_data = ioh->callbacks_data[i - 1];
-		const PgAioHandleCallbacksEntry *ce = &aio_handle_cbs[cb_id];
+  /*
+   * Call callbacks with the last registered (innermost) callback first.
+   * Each callback can modify the result forwarded to the next callback.
+   */
+  for (int i = ioh->num_callbacks; i > 0; i--) {
+    PgAioHandleCallbackID cb_id = ioh->callbacks[i - 1];
+    uint8   cb_data = ioh->callbacks_data[i - 1];
+    const PgAioHandleCallbacksEntry *ce = &aio_handle_cbs[cb_id];
 
-		if (!ce->cb->complete_shared)
-			continue;
+    if (!ce->cb->complete_shared)
+      continue;
 
-		pgaio_debug_io(DEBUG4, ioh,
-					   "calling cb #%d, id %d/%s->complete_shared(%u) with distilled result: (status %s, id %u, error_data %d, result %d)",
-					   i, cb_id, ce->name,
-					   cb_data,
-					   pgaio_result_status_string(result.status),
-					   result.id, result.error_data, result.result);
-		result = ce->cb->complete_shared(ioh, result, cb_data);
+    pgaio_debug_io(DEBUG4, ioh,
+                   "calling cb #%d, id %d/%s->complete_shared(%u) with distilled result: (status %s, id %u, error_data %d, result %d)",
+                   i, cb_id, ce->name,
+                   cb_data,
+                   pgaio_result_status_string(result.status),
+                   result.id, result.error_data, result.result);
+    result = ce->cb->complete_shared(ioh, result, cb_data);
 
-		/* the callback should never transition to unknown */
-		Assert(result.status != PGAIO_RS_UNKNOWN);
-	}
+    /* the callback should never transition to unknown */
+    Assert(result.status != PGAIO_RS_UNKNOWN);
+  }
 
-	ioh->distilled_result = result;
+  ioh->distilled_result = result;
 
-	pgaio_debug_io(DEBUG3, ioh,
-				   "after shared completion: distilled result: (status %s, id %u, error_data: %d, result %d), raw_result: %d",
-				   pgaio_result_status_string(result.status),
-				   result.id, result.error_data, result.result,
-				   ioh->result);
+  pgaio_debug_io(DEBUG3, ioh,
+                 "after shared completion: distilled result: (status %s, id %u, error_data: %d, result %d), raw_result: %d",
+                 pgaio_result_status_string(result.status),
+                 result.id, result.error_data, result.result,
+                 ioh->result);
 
-	END_CRIT_SECTION();
+  END_CRIT_SECTION();
 }
 
 /*
@@ -284,50 +287,49 @@ pgaio_io_call_complete_shared(PgAioHandle *ioh)
 PgAioResult
 pgaio_io_call_complete_local(PgAioHandle *ioh)
 {
-	PgAioResult result;
+  PgAioResult result;
 
-	START_CRIT_SECTION();
+  START_CRIT_SECTION();
 
-	Assert(ioh->target > PGAIO_TID_INVALID && ioh->target < PGAIO_TID_COUNT);
-	Assert(ioh->op > PGAIO_OP_INVALID && ioh->op < PGAIO_OP_COUNT);
+  Assert(ioh->target > PGAIO_TID_INVALID && ioh->target < PGAIO_TID_COUNT);
+  Assert(ioh->op > PGAIO_OP_INVALID && ioh->op < PGAIO_OP_COUNT);
 
-	/* start with distilled result from shared callback */
-	result = ioh->distilled_result;
-	Assert(result.status != PGAIO_RS_UNKNOWN);
+  /* start with distilled result from shared callback */
+  result = ioh->distilled_result;
+  Assert(result.status != PGAIO_RS_UNKNOWN);
 
-	for (int i = ioh->num_callbacks; i > 0; i--)
-	{
-		PgAioHandleCallbackID cb_id = ioh->callbacks[i - 1];
-		uint8		cb_data = ioh->callbacks_data[i - 1];
-		const PgAioHandleCallbacksEntry *ce = &aio_handle_cbs[cb_id];
+  for (int i = ioh->num_callbacks; i > 0; i--) {
+    PgAioHandleCallbackID cb_id = ioh->callbacks[i - 1];
+    uint8   cb_data = ioh->callbacks_data[i - 1];
+    const PgAioHandleCallbacksEntry *ce = &aio_handle_cbs[cb_id];
 
-		if (!ce->cb->complete_local)
-			continue;
+    if (!ce->cb->complete_local)
+      continue;
 
-		pgaio_debug_io(DEBUG4, ioh,
-					   "calling cb #%d, id %d/%s->complete_local(%u) with distilled result: status %s, id %u, error_data %d, result %d",
-					   i, cb_id, ce->name, cb_data,
-					   pgaio_result_status_string(result.status),
-					   result.id, result.error_data, result.result);
-		result = ce->cb->complete_local(ioh, result, cb_data);
+    pgaio_debug_io(DEBUG4, ioh,
+                   "calling cb #%d, id %d/%s->complete_local(%u) with distilled result: status %s, id %u, error_data %d, result %d",
+                   i, cb_id, ce->name, cb_data,
+                   pgaio_result_status_string(result.status),
+                   result.id, result.error_data, result.result);
+    result = ce->cb->complete_local(ioh, result, cb_data);
 
-		/* the callback should never transition to unknown */
-		Assert(result.status != PGAIO_RS_UNKNOWN);
-	}
+    /* the callback should never transition to unknown */
+    Assert(result.status != PGAIO_RS_UNKNOWN);
+  }
 
-	/*
-	 * Note that we don't save the result in ioh->distilled_result, the local
-	 * callback's result should not ever matter to other waiters. However, the
-	 * local backend does care, so we return the result as modified by local
-	 * callbacks, which then can be passed to ioh->report_return->result.
-	 */
-	pgaio_debug_io(DEBUG3, ioh,
-				   "after local completion: result: (status %s, id %u, error_data %d, result %d), raw_result: %d",
-				   pgaio_result_status_string(result.status),
-				   result.id, result.error_data, result.result,
-				   ioh->result);
+  /*
+   * Note that we don't save the result in ioh->distilled_result, the local
+   * callback's result should not ever matter to other waiters. However, the
+   * local backend does care, so we return the result as modified by local
+   * callbacks, which then can be passed to ioh->report_return->result.
+   */
+  pgaio_debug_io(DEBUG3, ioh,
+                 "after local completion: result: (status %s, id %u, error_data %d, result %d), raw_result: %d",
+                 pgaio_result_status_string(result.status),
+                 result.id, result.error_data, result.result,
+                 ioh->result);
 
-	END_CRIT_SECTION();
+  END_CRIT_SECTION();
 
-	return result;
+  return result;
 }

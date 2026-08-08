@@ -41,23 +41,23 @@ static void pgaio_io_before_start(PgAioHandle *ioh);
 int
 pgaio_io_get_iovec(PgAioHandle *ioh, struct iovec **iov)
 {
-	Assert(ioh->state == PGAIO_HS_HANDED_OUT);
+  Assert(ioh->state == PGAIO_HS_HANDED_OUT);
 
-	*iov = &pgaio_ctl->iovecs[ioh->iovec_off];
+  *iov = &pgaio_ctl->iovecs[ioh->iovec_off];
 
-	return PG_IOV_MAX;
+  return PG_IOV_MAX;
 }
 
 PgAioOp
 pgaio_io_get_op(PgAioHandle *ioh)
 {
-	return ioh->op;
+  return ioh->op;
 }
 
 PgAioOpData *
 pgaio_io_get_op_data(PgAioHandle *ioh)
 {
-	return &ioh->op_data;
+  return &ioh->op_data;
 }
 
 
@@ -76,28 +76,28 @@ pgaio_io_get_op_data(PgAioHandle *ioh)
 
 void
 pgaio_io_start_readv(PgAioHandle *ioh,
-					 int fd, int iovcnt, uint64 offset)
+                     int fd, int iovcnt, uint64 offset)
 {
-	pgaio_io_before_start(ioh);
+  pgaio_io_before_start(ioh);
 
-	ioh->op_data.read.fd = fd;
-	ioh->op_data.read.offset = offset;
-	ioh->op_data.read.iov_length = iovcnt;
+  ioh->op_data.read.fd = fd;
+  ioh->op_data.read.offset = offset;
+  ioh->op_data.read.iov_length = iovcnt;
 
-	pgaio_io_stage(ioh, PGAIO_OP_READV);
+  pgaio_io_stage(ioh, PGAIO_OP_READV);
 }
 
 void
 pgaio_io_start_writev(PgAioHandle *ioh,
-					  int fd, int iovcnt, uint64 offset)
+                      int fd, int iovcnt, uint64 offset)
 {
-	pgaio_io_before_start(ioh);
+  pgaio_io_before_start(ioh);
 
-	ioh->op_data.write.fd = fd;
-	ioh->op_data.write.offset = offset;
-	ioh->op_data.write.iov_length = iovcnt;
+  ioh->op_data.write.fd = fd;
+  ioh->op_data.write.offset = offset;
+  ioh->op_data.write.iov_length = iovcnt;
 
-	pgaio_io_stage(ioh, PGAIO_OP_WRITEV);
+  pgaio_io_stage(ioh, PGAIO_OP_WRITEV);
 }
 
 
@@ -115,37 +115,38 @@ pgaio_io_start_writev(PgAioHandle *ioh,
 void
 pgaio_io_perform_synchronously(PgAioHandle *ioh)
 {
-	ssize_t		result = 0;
-	struct iovec *iov = &pgaio_ctl->iovecs[ioh->iovec_off];
+  ssize_t   result = 0;
+  struct iovec *iov = &pgaio_ctl->iovecs[ioh->iovec_off];
 
-	START_CRIT_SECTION();
+  START_CRIT_SECTION();
 
-	/* Perform IO. */
-	switch ((PgAioOp) ioh->op)
-	{
-		case PGAIO_OP_READV:
-			pgstat_report_wait_start(WAIT_EVENT_DATA_FILE_READ);
-			result = pg_preadv(ioh->op_data.read.fd, iov,
-							   ioh->op_data.read.iov_length,
-							   ioh->op_data.read.offset);
-			pgstat_report_wait_end();
-			break;
-		case PGAIO_OP_WRITEV:
-			pgstat_report_wait_start(WAIT_EVENT_DATA_FILE_WRITE);
-			result = pg_pwritev(ioh->op_data.write.fd, iov,
-								ioh->op_data.write.iov_length,
-								ioh->op_data.write.offset);
-			pgstat_report_wait_end();
-			break;
-		case PGAIO_OP_INVALID:
-			elog(ERROR, "trying to execute invalid IO operation");
-	}
+  /* Perform IO. */
+  switch ((PgAioOp) ioh->op) {
+    case PGAIO_OP_READV:
+      pgstat_report_wait_start(WAIT_EVENT_DATA_FILE_READ);
+      result = pg_preadv(ioh->op_data.read.fd, iov,
+                         ioh->op_data.read.iov_length,
+                         ioh->op_data.read.offset);
+      pgstat_report_wait_end();
+      break;
 
-	ioh->result = result < 0 ? -errno : result;
+    case PGAIO_OP_WRITEV:
+      pgstat_report_wait_start(WAIT_EVENT_DATA_FILE_WRITE);
+      result = pg_pwritev(ioh->op_data.write.fd, iov,
+                          ioh->op_data.write.iov_length,
+                          ioh->op_data.write.offset);
+      pgstat_report_wait_end();
+      break;
 
-	pgaio_io_process_completion(ioh, ioh->result);
+    case PGAIO_OP_INVALID:
+      elog(ERROR, "trying to execute invalid IO operation");
+  }
 
-	END_CRIT_SECTION();
+  ioh->result = result < 0 ? -errno : result;
+
+  pgaio_io_process_completion(ioh, ioh->result);
+
+  END_CRIT_SECTION();
 }
 
 /*
@@ -155,16 +156,16 @@ pgaio_io_perform_synchronously(PgAioHandle *ioh)
 static void
 pgaio_io_before_start(PgAioHandle *ioh)
 {
-	Assert(ioh->state == PGAIO_HS_HANDED_OUT);
-	Assert(pgaio_my_backend->handed_out_io == ioh);
-	Assert(pgaio_io_has_target(ioh));
-	Assert(ioh->op == PGAIO_OP_INVALID);
+  Assert(ioh->state == PGAIO_HS_HANDED_OUT);
+  Assert(pgaio_my_backend->handed_out_io == ioh);
+  Assert(pgaio_io_has_target(ioh));
+  Assert(ioh->op == PGAIO_OP_INVALID);
 
-	/*
-	 * Otherwise the FDs referenced by the IO could be closed due to interrupt
-	 * processing.
-	 */
-	Assert(!INTERRUPTS_CAN_BE_PROCESSED());
+  /*
+   * Otherwise the FDs referenced by the IO could be closed due to interrupt
+   * processing.
+   */
+  Assert(!INTERRUPTS_CAN_BE_PROCESSED());
 }
 
 /*
@@ -174,19 +175,20 @@ pgaio_io_before_start(PgAioHandle *ioh)
 const char *
 pgaio_io_get_op_name(PgAioHandle *ioh)
 {
-	Assert(ioh->op >= 0 && ioh->op < PGAIO_OP_COUNT);
+  Assert(ioh->op >= 0 && ioh->op < PGAIO_OP_COUNT);
 
-	switch ((PgAioOp) ioh->op)
-	{
-		case PGAIO_OP_INVALID:
-			return "invalid";
-		case PGAIO_OP_READV:
-			return "readv";
-		case PGAIO_OP_WRITEV:
-			return "writev";
-	}
+  switch ((PgAioOp) ioh->op) {
+    case PGAIO_OP_INVALID:
+      return "invalid";
 
-	return NULL;				/* silence compiler */
+    case PGAIO_OP_READV:
+      return "readv";
+
+    case PGAIO_OP_WRITEV:
+      return "writev";
+  }
+
+  return NULL;        /* silence compiler */
 }
 
 /*
@@ -196,19 +198,20 @@ pgaio_io_get_op_name(PgAioHandle *ioh)
 bool
 pgaio_io_uses_fd(PgAioHandle *ioh, int fd)
 {
-	Assert(ioh->state >= PGAIO_HS_DEFINED);
+  Assert(ioh->state >= PGAIO_HS_DEFINED);
 
-	switch ((PgAioOp) ioh->op)
-	{
-		case PGAIO_OP_READV:
-			return ioh->op_data.read.fd == fd;
-		case PGAIO_OP_WRITEV:
-			return ioh->op_data.write.fd == fd;
-		case PGAIO_OP_INVALID:
-			return false;
-	}
+  switch ((PgAioOp) ioh->op) {
+    case PGAIO_OP_READV:
+      return ioh->op_data.read.fd == fd;
 
-	return false;				/* silence compiler */
+    case PGAIO_OP_WRITEV:
+      return ioh->op_data.write.fd == fd;
+
+    case PGAIO_OP_INVALID:
+      return false;
+  }
+
+  return false;       /* silence compiler */
 }
 
 /*
@@ -218,18 +221,19 @@ pgaio_io_uses_fd(PgAioHandle *ioh, int fd)
 int
 pgaio_io_get_iovec_length(PgAioHandle *ioh, struct iovec **iov)
 {
-	Assert(ioh->state >= PGAIO_HS_DEFINED);
+  Assert(ioh->state >= PGAIO_HS_DEFINED);
 
-	*iov = &pgaio_ctl->iovecs[ioh->iovec_off];
+  *iov = &pgaio_ctl->iovecs[ioh->iovec_off];
 
-	switch ((PgAioOp) ioh->op)
-	{
-		case PGAIO_OP_READV:
-			return ioh->op_data.read.iov_length;
-		case PGAIO_OP_WRITEV:
-			return ioh->op_data.write.iov_length;
-		default:
-			pg_unreachable();
-			return 0;
-	}
+  switch ((PgAioOp) ioh->op) {
+    case PGAIO_OP_READV:
+      return ioh->op_data.read.iov_length;
+
+    case PGAIO_OP_WRITEV:
+      return ioh->op_data.write.iov_length;
+
+    default:
+      pg_unreachable();
+      return 0;
+  }
 }

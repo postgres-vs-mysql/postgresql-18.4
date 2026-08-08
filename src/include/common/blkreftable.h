@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * blkreftable.h
- *	  Block reference tables.
+ *    Block reference tables.
  *
  * A block reference table is used to keep track of which blocks have
  * been modified by WAL records within a certain LSN range.
@@ -27,7 +27,7 @@
 #include "storage/relfilelocator.h"
 
 /* Magic number for serialization file format. */
-#define BLOCKREFTABLE_MAGIC			0x652b137b
+#define BLOCKREFTABLE_MAGIC     0x652b137b
 
 typedef struct BlockRefTable BlockRefTable;
 typedef struct BlockRefTableEntry BlockRefTableEntry;
@@ -44,7 +44,7 @@ typedef struct BlockRefTableWriter BlockRefTableWriter;
  * report_error_fn should not return.
  */
 typedef int (*io_callback_fn) (void *callback_arg, void *data, int length);
-typedef void (*report_error_fn) (void *callback_arg, char *msg,...) pg_attribute_printf(2, 3);
+typedef void (*report_error_fn) (void *callback_arg, char *msg, ...) pg_attribute_printf(2, 3);
 
 
 /*
@@ -52,42 +52,42 @@ typedef void (*report_error_fn) (void *callback_arg, char *msg,...) pg_attribute
  */
 extern BlockRefTable *CreateEmptyBlockRefTable(void);
 extern void BlockRefTableSetLimitBlock(BlockRefTable *brtab,
-									   const RelFileLocator *rlocator,
-									   ForkNumber forknum,
-									   BlockNumber limit_block);
+                                       const RelFileLocator *rlocator,
+                                       ForkNumber forknum,
+                                       BlockNumber limit_block);
 extern void BlockRefTableMarkBlockModified(BlockRefTable *brtab,
-										   const RelFileLocator *rlocator,
-										   ForkNumber forknum,
-										   BlockNumber blknum);
+    const RelFileLocator *rlocator,
+    ForkNumber forknum,
+    BlockNumber blknum);
 extern void WriteBlockRefTable(BlockRefTable *brtab,
-							   io_callback_fn write_callback,
-							   void *write_callback_arg);
+                               io_callback_fn write_callback,
+                               void *write_callback_arg);
 
 extern BlockRefTableEntry *BlockRefTableGetEntry(BlockRefTable *brtab,
-												 const RelFileLocator *rlocator,
-												 ForkNumber forknum,
-												 BlockNumber *limit_block);
-extern int	BlockRefTableEntryGetBlocks(BlockRefTableEntry *entry,
-										BlockNumber start_blkno,
-										BlockNumber stop_blkno,
-										BlockNumber *blocks,
-										int nblocks);
+    const RelFileLocator *rlocator,
+    ForkNumber forknum,
+    BlockNumber *limit_block);
+extern int  BlockRefTableEntryGetBlocks(BlockRefTableEntry *entry,
+                                        BlockNumber start_blkno,
+                                        BlockNumber stop_blkno,
+                                        BlockNumber *blocks,
+                                        int nblocks);
 
 /*
  * Functions for reading a block reference table incrementally from disk.
  */
 extern BlockRefTableReader *CreateBlockRefTableReader(io_callback_fn read_callback,
-													  void *read_callback_arg,
-													  char *error_filename,
-													  report_error_fn error_callback,
-													  void *error_callback_arg);
+    void *read_callback_arg,
+    char *error_filename,
+    report_error_fn error_callback,
+    void *error_callback_arg);
 extern bool BlockRefTableReaderNextRelation(BlockRefTableReader *reader,
-											RelFileLocator *rlocator,
-											ForkNumber *forknum,
-											BlockNumber *limit_block);
+    RelFileLocator *rlocator,
+    ForkNumber *forknum,
+    BlockNumber *limit_block);
 extern unsigned BlockRefTableReaderGetBlocks(BlockRefTableReader *reader,
-											 BlockNumber *blocks,
-											 int nblocks);
+    BlockNumber *blocks,
+    int nblocks);
 extern void DestroyBlockRefTableReader(BlockRefTableReader *reader);
 
 /*
@@ -99,18 +99,18 @@ extern void DestroyBlockRefTableReader(BlockRefTableReader *reader);
  * use an in-memory BlockRefTable instead.
  */
 extern BlockRefTableWriter *CreateBlockRefTableWriter(io_callback_fn write_callback,
-													  void *write_callback_arg);
+    void *write_callback_arg);
 extern void BlockRefTableWriteEntry(BlockRefTableWriter *writer,
-									BlockRefTableEntry *entry);
+                                    BlockRefTableEntry *entry);
 extern void DestroyBlockRefTableWriter(BlockRefTableWriter *writer);
 
 extern BlockRefTableEntry *CreateBlockRefTableEntry(RelFileLocator rlocator,
-													ForkNumber forknum);
+    ForkNumber forknum);
 extern void BlockRefTableEntrySetLimitBlock(BlockRefTableEntry *entry,
-											BlockNumber limit_block);
+    BlockNumber limit_block);
 extern void BlockRefTableEntryMarkBlockModified(BlockRefTableEntry *entry,
-												ForkNumber forknum,
-												BlockNumber blknum);
+    ForkNumber forknum,
+    BlockNumber blknum);
 extern void BlockRefTableFreeEntry(BlockRefTableEntry *entry);
 
-#endif							/* BLKREFTABLE_H */
+#endif              /* BLKREFTABLE_H */

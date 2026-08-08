@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * rls.c
- *		  RLS-related utility functions.
+ *      RLS-related utility functions.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *		  src/backend/utils/misc/rls.c
+ *      src/backend/utils/misc/rls.c
  *
  *-------------------------------------------------------------------------
 */
@@ -51,85 +51,87 @@
 int
 check_enable_rls(Oid relid, Oid checkAsUser, bool noError)
 {
-	Oid			user_id = OidIsValid(checkAsUser) ? checkAsUser : GetUserId();
-	HeapTuple	tuple;
-	Form_pg_class classform;
-	bool		relrowsecurity;
-	bool		relforcerowsecurity;
-	bool		amowner;
+  Oid     user_id = OidIsValid(checkAsUser) ? checkAsUser : GetUserId();
+  HeapTuple tuple;
+  Form_pg_class classform;
+  bool    relrowsecurity;
+  bool    relforcerowsecurity;
+  bool    amowner;
 
-	/* Nothing to do for built-in relations */
-	if (relid < (Oid) FirstNormalObjectId)
-		return RLS_NONE;
+  /* Nothing to do for built-in relations */
+  if (relid < (Oid) FirstNormalObjectId)
+    return RLS_NONE;
 
-	/* Fetch relation's relrowsecurity and relforcerowsecurity flags */
-	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
-	if (!HeapTupleIsValid(tuple))
-		return RLS_NONE;
-	classform = (Form_pg_class) GETSTRUCT(tuple);
+  /* Fetch relation's relrowsecurity and relforcerowsecurity flags */
+  tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
 
-	relrowsecurity = classform->relrowsecurity;
-	relforcerowsecurity = classform->relforcerowsecurity;
+  if (!HeapTupleIsValid(tuple))
+    return RLS_NONE;
 
-	ReleaseSysCache(tuple);
+  classform = (Form_pg_class) GETSTRUCT(tuple);
 
-	/* Nothing to do if the relation does not have RLS */
-	if (!relrowsecurity)
-		return RLS_NONE;
+  relrowsecurity = classform->relrowsecurity;
+  relforcerowsecurity = classform->relforcerowsecurity;
 
-	/*
-	 * BYPASSRLS users always bypass RLS.  Note that superusers are always
-	 * considered to have BYPASSRLS.
-	 *
-	 * Return RLS_NONE_ENV to indicate that this decision depends on the
-	 * environment (in this case, the user_id).
-	 */
-	if (has_bypassrls_privilege(user_id))
-		return RLS_NONE_ENV;
+  ReleaseSysCache(tuple);
 
-	/*
-	 * Table owners generally bypass RLS, except if the table has been set (by
-	 * an owner) to FORCE ROW SECURITY, and this is not a referential
-	 * integrity check.
-	 *
-	 * Return RLS_NONE_ENV to indicate that this decision depends on the
-	 * environment (in this case, the user_id).
-	 */
-	amowner = object_ownercheck(RelationRelationId, relid, user_id);
-	if (amowner)
-	{
-		/*
-		 * If FORCE ROW LEVEL SECURITY has been set on the relation then we
-		 * should return RLS_ENABLED to indicate that RLS should be applied.
-		 * If not, or if we are in an InNoForceRLSOperation context, we return
-		 * RLS_NONE_ENV.
-		 *
-		 * InNoForceRLSOperation indicates that we should not apply RLS even
-		 * if the table has FORCE RLS set - IF the current user is the owner.
-		 * This is specifically to ensure that referential integrity checks
-		 * are able to still run correctly.
-		 *
-		 * This is intentionally only done after we have checked that the user
-		 * is the table owner, which should always be the case for referential
-		 * integrity checks.
-		 */
-		if (!relforcerowsecurity || InNoForceRLSOperation())
-			return RLS_NONE_ENV;
-	}
+  /* Nothing to do if the relation does not have RLS */
+  if (!relrowsecurity)
+    return RLS_NONE;
 
-	/*
-	 * We should apply RLS.  However, the user may turn off the row_security
-	 * GUC to get a forced error instead.
-	 */
-	if (!row_security && !noError)
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("query would be affected by row-level security policy for table \"%s\"",
-						get_rel_name(relid)),
-				 amowner ? errhint("To disable the policy for the table's owner, use ALTER TABLE NO FORCE ROW LEVEL SECURITY.") : 0));
+  /*
+   * BYPASSRLS users always bypass RLS.  Note that superusers are always
+   * considered to have BYPASSRLS.
+   *
+   * Return RLS_NONE_ENV to indicate that this decision depends on the
+   * environment (in this case, the user_id).
+   */
+  if (has_bypassrls_privilege(user_id))
+    return RLS_NONE_ENV;
 
-	/* RLS should be fully enabled for this relation. */
-	return RLS_ENABLED;
+  /*
+   * Table owners generally bypass RLS, except if the table has been set (by
+   * an owner) to FORCE ROW SECURITY, and this is not a referential
+   * integrity check.
+   *
+   * Return RLS_NONE_ENV to indicate that this decision depends on the
+   * environment (in this case, the user_id).
+   */
+  amowner = object_ownercheck(RelationRelationId, relid, user_id);
+
+  if (amowner) {
+    /*
+     * If FORCE ROW LEVEL SECURITY has been set on the relation then we
+     * should return RLS_ENABLED to indicate that RLS should be applied.
+     * If not, or if we are in an InNoForceRLSOperation context, we return
+     * RLS_NONE_ENV.
+     *
+     * InNoForceRLSOperation indicates that we should not apply RLS even
+     * if the table has FORCE RLS set - IF the current user is the owner.
+     * This is specifically to ensure that referential integrity checks
+     * are able to still run correctly.
+     *
+     * This is intentionally only done after we have checked that the user
+     * is the table owner, which should always be the case for referential
+     * integrity checks.
+     */
+    if (!relforcerowsecurity || InNoForceRLSOperation())
+      return RLS_NONE_ENV;
+  }
+
+  /*
+   * We should apply RLS.  However, the user may turn off the row_security
+   * GUC to get a forced error instead.
+   */
+  if (!row_security && !noError)
+    ereport(ERROR,
+            (errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+             errmsg("query would be affected by row-level security policy for table \"%s\"",
+                    get_rel_name(relid)),
+             amowner ? errhint("To disable the policy for the table's owner, use ALTER TABLE NO FORCE ROW LEVEL SECURITY.") : 0));
+
+  /* RLS should be fully enabled for this relation. */
+  return RLS_ENABLED;
 }
 
 /*
@@ -141,27 +143,27 @@ check_enable_rls(Oid relid, Oid checkAsUser, bool noError)
 Datum
 row_security_active(PG_FUNCTION_ARGS)
 {
-	/* By OID */
-	Oid			tableoid = PG_GETARG_OID(0);
-	int			rls_status;
+  /* By OID */
+  Oid     tableoid = PG_GETARG_OID(0);
+  int     rls_status;
 
-	rls_status = check_enable_rls(tableoid, InvalidOid, true);
-	PG_RETURN_BOOL(rls_status == RLS_ENABLED);
+  rls_status = check_enable_rls(tableoid, InvalidOid, true);
+  PG_RETURN_BOOL(rls_status == RLS_ENABLED);
 }
 
 Datum
 row_security_active_name(PG_FUNCTION_ARGS)
 {
-	/* By qualified name */
-	text	   *tablename = PG_GETARG_TEXT_PP(0);
-	RangeVar   *tablerel;
-	Oid			tableoid;
-	int			rls_status;
+  /* By qualified name */
+  text     *tablename = PG_GETARG_TEXT_PP(0);
+  RangeVar   *tablerel;
+  Oid     tableoid;
+  int     rls_status;
 
-	/* Look up table name.  Can't lock it - we might not have privileges. */
-	tablerel = makeRangeVarFromNameList(textToQualifiedNameList(tablename));
-	tableoid = RangeVarGetRelid(tablerel, NoLock, false);
+  /* Look up table name.  Can't lock it - we might not have privileges. */
+  tablerel = makeRangeVarFromNameList(textToQualifiedNameList(tablename));
+  tableoid = RangeVarGetRelid(tablerel, NoLock, false);
 
-	rls_status = check_enable_rls(tableoid, InvalidOid, true);
-	PG_RETURN_BOOL(rls_status == RLS_ENABLED);
+  rls_status = check_enable_rls(tableoid, InvalidOid, true);
+  PG_RETURN_BOOL(rls_status == RLS_ENABLED);
 }

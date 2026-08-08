@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * latch.h
- *	  Routines for interprocess latches
+ *    Routines for interprocess latches
  *
  * A latch is a boolean variable, with operations that let processes sleep
  * until it is set. A latch can be set from another process, or a signal
@@ -29,9 +29,9 @@
  *
  * There are three basic operations on a latch:
  *
- * SetLatch		- Sets the latch
- * ResetLatch	- Clears the latch, allowing it to be set again
- * WaitLatch	- Waits for the latch to become set
+ * SetLatch   - Sets the latch
+ * ResetLatch - Clears the latch, allowing it to be set again
+ * WaitLatch  - Waits for the latch to become set
  *
  * WaitLatch includes a provision for timeouts (which should be avoided
  * when possible, as they incur extra overhead) and a provision for
@@ -42,10 +42,10 @@
  *
  * for (;;)
  * {
- *	   ResetLatch();
- *	   if (work to do)
- *		   Do Stuff();
- *	   WaitLatch();
+ *     ResetLatch();
+ *     if (work to do)
+ *       Do Stuff();
+ *     WaitLatch();
  * }
  *
  * It's important to reset the latch *before* checking if there's work to
@@ -56,10 +56,10 @@
  *
  * for (;;)
  * {
- *	   if (work to do)
- *		   Do Stuff(); // in particular, exit loop if some condition satisfied
- *	   WaitLatch();
- *	   ResetLatch();
+ *     if (work to do)
+ *       Do Stuff(); // in particular, exit loop if some condition satisfied
+ *     WaitLatch();
+ *     ResetLatch();
  * }
  *
  * This is useful to reduce latch traffic if it's expected that the loop's
@@ -103,7 +103,7 @@
 
 #include <signal.h>
 
-#include "storage/waiteventset.h"	/* for WL_* arguments to WaitLatch */
+#include "storage/waiteventset.h" /* for WL_* arguments to WaitLatch */
 
 /*
  * Latch structure should be treated as opaque and only accessed through
@@ -112,12 +112,12 @@
  */
 typedef struct Latch
 {
-	sig_atomic_t is_set;
-	sig_atomic_t maybe_sleeping;
-	bool		is_shared;
-	int			owner_pid;
+  sig_atomic_t is_set;
+  sig_atomic_t maybe_sleeping;
+  bool    is_shared;
+  int     owner_pid;
 #ifdef WIN32
-	HANDLE		event;
+  HANDLE    event;
 #endif
 } Latch;
 
@@ -131,10 +131,10 @@ extern void DisownLatch(Latch *latch);
 extern void SetLatch(Latch *latch);
 extern void ResetLatch(Latch *latch);
 
-extern int	WaitLatch(Latch *latch, int wakeEvents, long timeout,
-					  uint32 wait_event_info);
-extern int	WaitLatchOrSocket(Latch *latch, int wakeEvents,
-							  pgsocket sock, long timeout, uint32 wait_event_info);
+extern int  WaitLatch(Latch *latch, int wakeEvents, long timeout,
+                      uint32 wait_event_info);
+extern int  WaitLatchOrSocket(Latch *latch, int wakeEvents,
+                              pgsocket sock, long timeout, uint32 wait_event_info);
 extern void InitializeLatchWaitSet(void);
 
-#endif							/* LATCH_H */
+#endif              /* LATCH_H */

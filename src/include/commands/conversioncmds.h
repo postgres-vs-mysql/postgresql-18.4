@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * conversioncmds.h
- *	  prototypes for conversioncmds.c.
+ *    prototypes for conversioncmds.c.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -20,4 +20,4 @@
 
 extern ObjectAddress CreateConversionCommand(CreateConversionStmt *stmt);
 
-#endif							/* CONVERSIONCMDS_H */
+#endif              /* CONVERSIONCMDS_H */

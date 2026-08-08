@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * tidstore.h
- *	  TidStore interface.
+ *    TidStore interface.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -26,8 +26,8 @@ typedef struct TidStoreIter TidStoreIter;
  */
 typedef struct TidStoreIterResult
 {
-	BlockNumber blkno;
-	void	   *internal_page;
+  BlockNumber blkno;
+  void     *internal_page;
 } TidStoreIterResult;
 
 extern TidStore *TidStoreCreateLocal(size_t max_bytes, bool insert_only);
@@ -39,16 +39,16 @@ extern void TidStoreLockShare(TidStore *ts);
 extern void TidStoreUnlock(TidStore *ts);
 extern void TidStoreDestroy(TidStore *ts);
 extern void TidStoreSetBlockOffsets(TidStore *ts, BlockNumber blkno, OffsetNumber *offsets,
-									int num_offsets);
+                                    int num_offsets);
 extern bool TidStoreIsMember(TidStore *ts, ItemPointer tid);
 extern TidStoreIter *TidStoreBeginIterate(TidStore *ts);
 extern TidStoreIterResult *TidStoreIterateNext(TidStoreIter *iter);
-extern int	TidStoreGetBlockOffsets(TidStoreIterResult *result,
-									OffsetNumber *offsets,
-									int max_offsets);
+extern int  TidStoreGetBlockOffsets(TidStoreIterResult *result,
+                                    OffsetNumber *offsets,
+                                    int max_offsets);
 extern void TidStoreEndIterate(TidStoreIter *iter);
 extern size_t TidStoreMemoryUsage(TidStore *ts);
 extern dsa_pointer TidStoreGetHandle(TidStore *ts);
 extern dsa_area *TidStoreGetDSA(TidStore *ts);
 
-#endif							/* TIDSTORE_H */
+#endif              /* TIDSTORE_H */

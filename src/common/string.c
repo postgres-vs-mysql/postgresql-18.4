@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * string.c
- *		string handling helpers
+ *    string handling helpers
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -9,7 +9,7 @@
  *
  *
  * IDENTIFICATION
- *	  src/common/string.c
+ *    src/common/string.c
  *
  *-------------------------------------------------------------------------
  */
@@ -30,16 +30,16 @@
 bool
 pg_str_endswith(const char *str, const char *end)
 {
-	size_t		slen = strlen(str);
-	size_t		elen = strlen(end);
+  size_t    slen = strlen(str);
+  size_t    elen = strlen(end);
 
-	/* can't be a postfix if longer */
-	if (elen > slen)
-		return false;
+  /* can't be a postfix if longer */
+  if (elen > slen)
+    return false;
 
-	/* compare the end of the strings */
-	str += slen - elen;
-	return strcmp(str, end) == 0;
+  /* compare the end of the strings */
+  str += slen - elen;
+  return strcmp(str, end) == 0;
 }
 
 
@@ -49,12 +49,14 @@ pg_str_endswith(const char *str, const char *end)
 int
 strtoint(const char *pg_restrict str, char **pg_restrict endptr, int base)
 {
-	long		val;
+  long    val;
 
-	val = strtol(str, endptr, base);
-	if (val != (int) val)
-		errno = ERANGE;
-	return (int) val;
+  val = strtol(str, endptr, base);
+
+  if (val != (int) val)
+    errno = ERANGE;
+
+  return (int) val;
 }
 
 
@@ -84,44 +86,40 @@ strtoint(const char *pg_restrict str, char **pg_restrict endptr, int base)
 char *
 pg_clean_ascii(const char *str, int alloc_flags)
 {
-	size_t		dstlen;
-	char	   *dst;
-	const char *p;
-	size_t		i = 0;
+  size_t    dstlen;
+  char     *dst;
+  const char *p;
+  size_t    i = 0;
 
-	/* Worst case, each byte can become four bytes, plus a null terminator. */
-	dstlen = strlen(str) * 4 + 1;
+  /* Worst case, each byte can become four bytes, plus a null terminator. */
+  dstlen = strlen(str) * 4 + 1;
 
 #ifdef FRONTEND
-	dst = malloc(dstlen);
+  dst = malloc(dstlen);
 #else
-	dst = palloc_extended(dstlen, alloc_flags);
+  dst = palloc_extended(dstlen, alloc_flags);
 #endif
 
-	if (!dst)
-		return NULL;
+  if (!dst)
+    return NULL;
 
-	for (p = str; *p != '\0'; p++)
-	{
+  for (p = str; *p != '\0'; p++) {
 
-		/* Only allow clean ASCII chars in the string */
-		if (*p < 32 || *p > 126)
-		{
-			Assert(i < (dstlen - 3));
-			snprintf(&dst[i], dstlen - i, "\\x%02x", (unsigned char) *p);
-			i += 4;
-		}
-		else
-		{
-			Assert(i < dstlen);
-			dst[i] = *p;
-			i++;
-		}
-	}
+    /* Only allow clean ASCII chars in the string */
+    if (*p < 32 || *p > 126) {
+      Assert(i < (dstlen - 3));
+      snprintf(&dst[i], dstlen - i, "\\x%02x", (unsigned char) *p);
+      i += 4;
+    } else {
+      Assert(i < dstlen);
+      dst[i] = *p;
+      i++;
+    }
+  }
 
-	Assert(i < dstlen);
-	dst[i] = '\0';
-	return dst;
+  Assert(i < dstlen);
+  dst[i] = '\0';
+  return dst;
 }
 
 
@@ -131,13 +129,14 @@ pg_clean_ascii(const char *str, int alloc_flags)
 bool
 pg_is_ascii(const char *str)
 {
-	while (*str)
-	{
-		if (IS_HIGHBIT_SET(*str))
-			return false;
-		str++;
-	}
-	return true;
+  while (*str) {
+    if (IS_HIGHBIT_SET(*str))
+      return false;
+
+    str++;
+  }
+
+  return true;
 }
 
 
@@ -153,11 +152,11 @@ pg_is_ascii(const char *str)
 int
 pg_strip_crlf(char *str)
 {
-	int			len = strlen(str);
+  int     len = strlen(str);
 
-	while (len > 0 && (str[len - 1] == '\n' ||
-					   str[len - 1] == '\r'))
-		str[--len] = '\0';
+  while (len > 0 && (str[len - 1] == '\n' ||
+                     str[len - 1] == '\r'))
+    str[--len] = '\0';
 
-	return len;
+  return len;
 }

@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * checksum_helper.h
- *	  Compute a checksum of any of various types using common routines
+ *    Compute a checksum of any of various types using common routines
  *
  * Portions Copyright (c) 2016-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *		  src/include/common/checksum_helper.h
+ *      src/include/common/checksum_helper.h
  *
  *-------------------------------------------------------------------------
  */
@@ -28,12 +28,12 @@
  */
 typedef enum pg_checksum_type
 {
-	CHECKSUM_TYPE_NONE,
-	CHECKSUM_TYPE_CRC32C,
-	CHECKSUM_TYPE_SHA224,
-	CHECKSUM_TYPE_SHA256,
-	CHECKSUM_TYPE_SHA384,
-	CHECKSUM_TYPE_SHA512,
+  CHECKSUM_TYPE_NONE,
+  CHECKSUM_TYPE_CRC32C,
+  CHECKSUM_TYPE_SHA224,
+  CHECKSUM_TYPE_SHA256,
+  CHECKSUM_TYPE_SHA384,
+  CHECKSUM_TYPE_SHA512,
 } pg_checksum_type;
 
 /*
@@ -41,8 +41,8 @@ typedef enum pg_checksum_type
  */
 typedef union pg_checksum_raw_context
 {
-	pg_crc32c	c_crc32c;
-	pg_cryptohash_ctx *c_sha2;
+  pg_crc32c c_crc32c;
+  pg_cryptohash_ctx *c_sha2;
 } pg_checksum_raw_context;
 
 /*
@@ -51,22 +51,22 @@ typedef union pg_checksum_raw_context
  */
 typedef struct pg_checksum_context
 {
-	pg_checksum_type type;
-	pg_checksum_raw_context raw_context;
+  pg_checksum_type type;
+  pg_checksum_raw_context raw_context;
 } pg_checksum_context;
 
 /*
  * This is the longest possible output for any checksum algorithm supported
  * by this file.
  */
-#define PG_CHECKSUM_MAX_LENGTH		PG_SHA512_DIGEST_LENGTH
+#define PG_CHECKSUM_MAX_LENGTH    PG_SHA512_DIGEST_LENGTH
 
 extern bool pg_checksum_parse_type(char *name, pg_checksum_type *);
 extern char *pg_checksum_type_name(pg_checksum_type);
 
-extern int	pg_checksum_init(pg_checksum_context *, pg_checksum_type);
-extern int	pg_checksum_update(pg_checksum_context *, const uint8 *input,
-							   size_t len);
-extern int	pg_checksum_final(pg_checksum_context *, uint8 *output);
+extern int  pg_checksum_init(pg_checksum_context *, pg_checksum_type);
+extern int  pg_checksum_update(pg_checksum_context *, const uint8 *input,
+                               size_t len);
+extern int  pg_checksum_final(pg_checksum_context *, uint8 *output);
 
 #endif

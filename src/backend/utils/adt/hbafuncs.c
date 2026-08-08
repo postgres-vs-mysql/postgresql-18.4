@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * hbafuncs.c
- *	  Support functions for SQL views of authentication files.
+ *    Support functions for SQL views of authentication files.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/backend/utils/adt/hbafuncs.c
+ *    src/backend/utils/adt/hbafuncs.c
  *
  *-------------------------------------------------------------------------
  */
@@ -25,12 +25,12 @@
 
 static ArrayType *get_hba_options(HbaLine *hba);
 static void fill_hba_line(Tuplestorestate *tuple_store, TupleDesc tupdesc,
-						  int rule_number, char *filename, int lineno,
-						  HbaLine *hba, const char *err_msg);
+                          int rule_number, char *filename, int lineno,
+                          HbaLine *hba, const char *err_msg);
 static void fill_hba_view(Tuplestorestate *tuple_store, TupleDesc tupdesc);
 static void fill_ident_line(Tuplestorestate *tuple_store, TupleDesc tupdesc,
-							int map_number, char *filename, int lineno,
-							IdentLine *ident, const char *err_msg);
+                            int map_number, char *filename, int lineno,
+                            IdentLine *ident, const char *err_msg);
 static void fill_ident_view(Tuplestorestate *tuple_store, TupleDesc tupdesc);
 
 
@@ -51,141 +51,137 @@ static void fill_ident_view(Tuplestorestate *tuple_store, TupleDesc tupdesc);
 static ArrayType *
 get_hba_options(HbaLine *hba)
 {
-	int			noptions;
-	Datum		options[MAX_HBA_OPTIONS];
+  int     noptions;
+  Datum   options[MAX_HBA_OPTIONS];
 
-	noptions = 0;
+  noptions = 0;
 
-	if (hba->auth_method == uaGSS || hba->auth_method == uaSSPI)
-	{
-		if (hba->include_realm)
-			options[noptions++] =
-				CStringGetTextDatum("include_realm=true");
+  if (hba->auth_method == uaGSS || hba->auth_method == uaSSPI) {
+    if (hba->include_realm)
+      options[noptions++] =
+        CStringGetTextDatum("include_realm=true");
 
-		if (hba->krb_realm)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("krb_realm=%s", hba->krb_realm));
-	}
+    if (hba->krb_realm)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("krb_realm=%s", hba->krb_realm));
+  }
 
-	if (hba->usermap)
-		options[noptions++] =
-			CStringGetTextDatum(psprintf("map=%s", hba->usermap));
+  if (hba->usermap)
+    options[noptions++] =
+      CStringGetTextDatum(psprintf("map=%s", hba->usermap));
 
-	if (hba->clientcert != clientCertOff)
-		options[noptions++] =
-			CStringGetTextDatum(psprintf("clientcert=%s", (hba->clientcert == clientCertCA) ? "verify-ca" : "verify-full"));
+  if (hba->clientcert != clientCertOff)
+    options[noptions++] =
+      CStringGetTextDatum(psprintf("clientcert=%s", (hba->clientcert == clientCertCA) ? "verify-ca" : "verify-full"));
 
-	if (hba->pamservice)
-		options[noptions++] =
-			CStringGetTextDatum(psprintf("pamservice=%s", hba->pamservice));
+  if (hba->pamservice)
+    options[noptions++] =
+      CStringGetTextDatum(psprintf("pamservice=%s", hba->pamservice));
 
-	if (hba->auth_method == uaLDAP)
-	{
-		if (hba->ldapserver)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("ldapserver=%s", hba->ldapserver));
+  if (hba->auth_method == uaLDAP) {
+    if (hba->ldapserver)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("ldapserver=%s", hba->ldapserver));
 
-		if (hba->ldapport)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("ldapport=%d", hba->ldapport));
+    if (hba->ldapport)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("ldapport=%d", hba->ldapport));
 
-		if (hba->ldapscheme)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("ldapscheme=%s", hba->ldapscheme));
+    if (hba->ldapscheme)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("ldapscheme=%s", hba->ldapscheme));
 
-		if (hba->ldaptls)
-			options[noptions++] =
-				CStringGetTextDatum("ldaptls=true");
+    if (hba->ldaptls)
+      options[noptions++] =
+        CStringGetTextDatum("ldaptls=true");
 
-		if (hba->ldapprefix)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("ldapprefix=%s", hba->ldapprefix));
+    if (hba->ldapprefix)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("ldapprefix=%s", hba->ldapprefix));
 
-		if (hba->ldapsuffix)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("ldapsuffix=%s", hba->ldapsuffix));
+    if (hba->ldapsuffix)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("ldapsuffix=%s", hba->ldapsuffix));
 
-		if (hba->ldapbasedn)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("ldapbasedn=%s", hba->ldapbasedn));
+    if (hba->ldapbasedn)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("ldapbasedn=%s", hba->ldapbasedn));
 
-		if (hba->ldapbinddn)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("ldapbinddn=%s", hba->ldapbinddn));
+    if (hba->ldapbinddn)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("ldapbinddn=%s", hba->ldapbinddn));
 
-		if (hba->ldapbindpasswd)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("ldapbindpasswd=%s",
-											 hba->ldapbindpasswd));
+    if (hba->ldapbindpasswd)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("ldapbindpasswd=%s",
+                                     hba->ldapbindpasswd));
 
-		if (hba->ldapsearchattribute)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("ldapsearchattribute=%s",
-											 hba->ldapsearchattribute));
+    if (hba->ldapsearchattribute)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("ldapsearchattribute=%s",
+                                     hba->ldapsearchattribute));
 
-		if (hba->ldapsearchfilter)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("ldapsearchfilter=%s",
-											 hba->ldapsearchfilter));
+    if (hba->ldapsearchfilter)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("ldapsearchfilter=%s",
+                                     hba->ldapsearchfilter));
 
-		if (hba->ldapscope)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("ldapscope=%d", hba->ldapscope));
-	}
+    if (hba->ldapscope)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("ldapscope=%d", hba->ldapscope));
+  }
 
-	if (hba->auth_method == uaRADIUS)
-	{
-		if (hba->radiusservers_s)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("radiusservers=%s", hba->radiusservers_s));
+  if (hba->auth_method == uaRADIUS) {
+    if (hba->radiusservers_s)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("radiusservers=%s", hba->radiusservers_s));
 
-		if (hba->radiussecrets_s)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("radiussecrets=%s", hba->radiussecrets_s));
+    if (hba->radiussecrets_s)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("radiussecrets=%s", hba->radiussecrets_s));
 
-		if (hba->radiusidentifiers_s)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("radiusidentifiers=%s", hba->radiusidentifiers_s));
+    if (hba->radiusidentifiers_s)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("radiusidentifiers=%s", hba->radiusidentifiers_s));
 
-		if (hba->radiusports_s)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("radiusports=%s", hba->radiusports_s));
-	}
+    if (hba->radiusports_s)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("radiusports=%s", hba->radiusports_s));
+  }
 
-	if (hba->auth_method == uaOAuth)
-	{
-		if (hba->oauth_issuer)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("issuer=%s", hba->oauth_issuer));
+  if (hba->auth_method == uaOAuth) {
+    if (hba->oauth_issuer)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("issuer=%s", hba->oauth_issuer));
 
-		if (hba->oauth_scope)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("scope=%s", hba->oauth_scope));
+    if (hba->oauth_scope)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("scope=%s", hba->oauth_scope));
 
-		if (hba->oauth_validator)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("validator=%s", hba->oauth_validator));
+    if (hba->oauth_validator)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("validator=%s", hba->oauth_validator));
 
-		if (hba->oauth_skip_usermap)
-			options[noptions++] =
-				CStringGetTextDatum(psprintf("delegate_ident_mapping=true"));
-	}
+    if (hba->oauth_skip_usermap)
+      options[noptions++] =
+        CStringGetTextDatum(psprintf("delegate_ident_mapping=true"));
+  }
 
-	/* If you add more options, consider increasing MAX_HBA_OPTIONS. */
-	Assert(noptions <= MAX_HBA_OPTIONS);
+  /* If you add more options, consider increasing MAX_HBA_OPTIONS. */
+  Assert(noptions <= MAX_HBA_OPTIONS);
 
-	if (noptions > 0)
-		return construct_array_builtin(options, noptions, TEXTOID);
-	else
-		return NULL;
+  if (noptions > 0)
+    return construct_array_builtin(options, noptions, TEXTOID);
+  else
+    return NULL;
 }
 
 /* Number of columns in pg_hba_file_rules view */
-#define NUM_PG_HBA_FILE_RULES_ATTS	 11
+#define NUM_PG_HBA_FILE_RULES_ATTS   11
 
 /*
  * fill_hba_line
- *		Build one row of pg_hba_file_rules view, add it to tuplestore.
+ *    Build one row of pg_hba_file_rules view, add it to tuplestore.
  *
  * tuple_store: where to store data
  * tupdesc: tuple descriptor for the view
@@ -200,243 +196,247 @@ get_hba_options(HbaLine *hba)
  */
 static void
 fill_hba_line(Tuplestorestate *tuple_store, TupleDesc tupdesc,
-			  int rule_number, char *filename, int lineno, HbaLine *hba,
-			  const char *err_msg)
+              int rule_number, char *filename, int lineno, HbaLine *hba,
+              const char *err_msg)
 {
-	Datum		values[NUM_PG_HBA_FILE_RULES_ATTS];
-	bool		nulls[NUM_PG_HBA_FILE_RULES_ATTS];
-	char		buffer[NI_MAXHOST];
-	HeapTuple	tuple;
-	int			index;
-	ListCell   *lc;
-	const char *typestr;
-	const char *addrstr;
-	const char *maskstr;
-	ArrayType  *options;
+  Datum   values[NUM_PG_HBA_FILE_RULES_ATTS];
+  bool    nulls[NUM_PG_HBA_FILE_RULES_ATTS];
+  char    buffer[NI_MAXHOST];
+  HeapTuple tuple;
+  int     index;
+  ListCell   *lc;
+  const char *typestr;
+  const char *addrstr;
+  const char *maskstr;
+  ArrayType  *options;
 
-	Assert(tupdesc->natts == NUM_PG_HBA_FILE_RULES_ATTS);
+  Assert(tupdesc->natts == NUM_PG_HBA_FILE_RULES_ATTS);
 
-	memset(values, 0, sizeof(values));
-	memset(nulls, 0, sizeof(nulls));
-	index = 0;
+  memset(values, 0, sizeof(values));
+  memset(nulls, 0, sizeof(nulls));
+  index = 0;
 
-	/* rule_number, nothing on error */
-	if (err_msg)
-		nulls[index++] = true;
-	else
-		values[index++] = Int32GetDatum(rule_number);
+  /* rule_number, nothing on error */
+  if (err_msg)
+    nulls[index++] = true;
+  else
+    values[index++] = Int32GetDatum(rule_number);
 
-	/* file_name */
-	values[index++] = CStringGetTextDatum(filename);
+  /* file_name */
+  values[index++] = CStringGetTextDatum(filename);
 
-	/* line_number */
-	values[index++] = Int32GetDatum(lineno);
+  /* line_number */
+  values[index++] = Int32GetDatum(lineno);
 
-	if (hba != NULL)
-	{
-		/* type */
-		/* Avoid a default: case so compiler will warn about missing cases */
-		typestr = NULL;
-		switch (hba->conntype)
-		{
-			case ctLocal:
-				typestr = "local";
-				break;
-			case ctHost:
-				typestr = "host";
-				break;
-			case ctHostSSL:
-				typestr = "hostssl";
-				break;
-			case ctHostNoSSL:
-				typestr = "hostnossl";
-				break;
-			case ctHostGSS:
-				typestr = "hostgssenc";
-				break;
-			case ctHostNoGSS:
-				typestr = "hostnogssenc";
-				break;
-		}
-		if (typestr)
-			values[index++] = CStringGetTextDatum(typestr);
-		else
-			nulls[index++] = true;
+  if (hba != NULL) {
+    /* type */
+    /* Avoid a default: case so compiler will warn about missing cases */
+    typestr = NULL;
 
-		/* database */
-		if (hba->databases)
-		{
-			/*
-			 * Flatten AuthToken list to string list.  It might seem that we
-			 * should re-quote any quoted tokens, but that has been rejected
-			 * on the grounds that it makes it harder to compare the array
-			 * elements to other system catalogs.  That makes entries like
-			 * "all" or "samerole" formally ambiguous ... but users who name
-			 * databases/roles that way are inflicting their own pain.
-			 */
-			List	   *names = NIL;
+    switch (hba->conntype) {
+      case ctLocal:
+        typestr = "local";
+        break;
 
-			foreach(lc, hba->databases)
-			{
-				AuthToken  *tok = lfirst(lc);
+      case ctHost:
+        typestr = "host";
+        break;
 
-				names = lappend(names, tok->string);
-			}
-			values[index++] = PointerGetDatum(strlist_to_textarray(names));
-		}
-		else
-			nulls[index++] = true;
+      case ctHostSSL:
+        typestr = "hostssl";
+        break;
 
-		/* user */
-		if (hba->roles)
-		{
-			/* Flatten AuthToken list to string list; see comment above */
-			List	   *roles = NIL;
+      case ctHostNoSSL:
+        typestr = "hostnossl";
+        break;
 
-			foreach(lc, hba->roles)
-			{
-				AuthToken  *tok = lfirst(lc);
+      case ctHostGSS:
+        typestr = "hostgssenc";
+        break;
 
-				roles = lappend(roles, tok->string);
-			}
-			values[index++] = PointerGetDatum(strlist_to_textarray(roles));
-		}
-		else
-			nulls[index++] = true;
+      case ctHostNoGSS:
+        typestr = "hostnogssenc";
+        break;
+    }
 
-		/* address and netmask */
-		/* Avoid a default: case so compiler will warn about missing cases */
-		addrstr = maskstr = NULL;
-		switch (hba->ip_cmp_method)
-		{
-			case ipCmpMask:
-				if (hba->hostname)
-				{
-					addrstr = hba->hostname;
-				}
-				else
-				{
-					/*
-					 * Note: if pg_getnameinfo_all fails, it'll set buffer to
-					 * "???", which we want to return.
-					 */
-					if (hba->addrlen > 0)
-					{
-						if (pg_getnameinfo_all(&hba->addr, hba->addrlen,
-											   buffer, sizeof(buffer),
-											   NULL, 0,
-											   NI_NUMERICHOST) == 0)
-							clean_ipv6_addr(hba->addr.ss_family, buffer);
-						addrstr = pstrdup(buffer);
-					}
-					if (hba->masklen > 0)
-					{
-						if (pg_getnameinfo_all(&hba->mask, hba->masklen,
-											   buffer, sizeof(buffer),
-											   NULL, 0,
-											   NI_NUMERICHOST) == 0)
-							clean_ipv6_addr(hba->mask.ss_family, buffer);
-						maskstr = pstrdup(buffer);
-					}
-				}
-				break;
-			case ipCmpAll:
-				addrstr = "all";
-				break;
-			case ipCmpSameHost:
-				addrstr = "samehost";
-				break;
-			case ipCmpSameNet:
-				addrstr = "samenet";
-				break;
-		}
-		if (addrstr)
-			values[index++] = CStringGetTextDatum(addrstr);
-		else
-			nulls[index++] = true;
-		if (maskstr)
-			values[index++] = CStringGetTextDatum(maskstr);
-		else
-			nulls[index++] = true;
+    if (typestr)
+      values[index++] = CStringGetTextDatum(typestr);
+    else
+      nulls[index++] = true;
 
-		/* auth_method */
-		values[index++] = CStringGetTextDatum(hba_authname(hba->auth_method));
+    /* database */
+    if (hba->databases) {
+      /*
+       * Flatten AuthToken list to string list.  It might seem that we
+       * should re-quote any quoted tokens, but that has been rejected
+       * on the grounds that it makes it harder to compare the array
+       * elements to other system catalogs.  That makes entries like
+       * "all" or "samerole" formally ambiguous ... but users who name
+       * databases/roles that way are inflicting their own pain.
+       */
+      List     *names = NIL;
 
-		/* options */
-		options = get_hba_options(hba);
-		if (options)
-			values[index++] = PointerGetDatum(options);
-		else
-			nulls[index++] = true;
-	}
-	else
-	{
-		/* no parsing result, so set relevant fields to nulls */
-		memset(&nulls[3], true, (NUM_PG_HBA_FILE_RULES_ATTS - 4) * sizeof(bool));
-	}
+      foreach(lc, hba->databases) {
+        AuthToken  *tok = lfirst(lc);
 
-	/* error */
-	if (err_msg)
-		values[NUM_PG_HBA_FILE_RULES_ATTS - 1] = CStringGetTextDatum(err_msg);
-	else
-		nulls[NUM_PG_HBA_FILE_RULES_ATTS - 1] = true;
+        names = lappend(names, tok->string);
+      }
 
-	tuple = heap_form_tuple(tupdesc, values, nulls);
-	tuplestore_puttuple(tuple_store, tuple);
+      values[index++] = PointerGetDatum(strlist_to_textarray(names));
+    } else
+      nulls[index++] = true;
+
+    /* user */
+    if (hba->roles) {
+      /* Flatten AuthToken list to string list; see comment above */
+      List     *roles = NIL;
+
+      foreach(lc, hba->roles) {
+        AuthToken  *tok = lfirst(lc);
+
+        roles = lappend(roles, tok->string);
+      }
+
+      values[index++] = PointerGetDatum(strlist_to_textarray(roles));
+    } else
+      nulls[index++] = true;
+
+    /* address and netmask */
+    /* Avoid a default: case so compiler will warn about missing cases */
+    addrstr = maskstr = NULL;
+
+    switch (hba->ip_cmp_method) {
+      case ipCmpMask:
+        if (hba->hostname) {
+          addrstr = hba->hostname;
+        } else {
+          /*
+           * Note: if pg_getnameinfo_all fails, it'll set buffer to
+           * "???", which we want to return.
+           */
+          if (hba->addrlen > 0) {
+            if (pg_getnameinfo_all(&hba->addr, hba->addrlen,
+                                   buffer, sizeof(buffer),
+                                   NULL, 0,
+                                   NI_NUMERICHOST) == 0)
+              clean_ipv6_addr(hba->addr.ss_family, buffer);
+
+            addrstr = pstrdup(buffer);
+          }
+
+          if (hba->masklen > 0) {
+            if (pg_getnameinfo_all(&hba->mask, hba->masklen,
+                                   buffer, sizeof(buffer),
+                                   NULL, 0,
+                                   NI_NUMERICHOST) == 0)
+              clean_ipv6_addr(hba->mask.ss_family, buffer);
+
+            maskstr = pstrdup(buffer);
+          }
+        }
+
+        break;
+
+      case ipCmpAll:
+        addrstr = "all";
+        break;
+
+      case ipCmpSameHost:
+        addrstr = "samehost";
+        break;
+
+      case ipCmpSameNet:
+        addrstr = "samenet";
+        break;
+    }
+
+    if (addrstr)
+      values[index++] = CStringGetTextDatum(addrstr);
+    else
+      nulls[index++] = true;
+
+    if (maskstr)
+      values[index++] = CStringGetTextDatum(maskstr);
+    else
+      nulls[index++] = true;
+
+    /* auth_method */
+    values[index++] = CStringGetTextDatum(hba_authname(hba->auth_method));
+
+    /* options */
+    options = get_hba_options(hba);
+
+    if (options)
+      values[index++] = PointerGetDatum(options);
+    else
+      nulls[index++] = true;
+  } else {
+    /* no parsing result, so set relevant fields to nulls */
+    memset(&nulls[3], true, (NUM_PG_HBA_FILE_RULES_ATTS - 4) * sizeof(bool));
+  }
+
+  /* error */
+  if (err_msg)
+    values[NUM_PG_HBA_FILE_RULES_ATTS - 1] = CStringGetTextDatum(err_msg);
+  else
+    nulls[NUM_PG_HBA_FILE_RULES_ATTS - 1] = true;
+
+  tuple = heap_form_tuple(tupdesc, values, nulls);
+  tuplestore_puttuple(tuple_store, tuple);
 }
 
 /*
  * fill_hba_view
- *		Read the pg_hba.conf file and fill the tuplestore with view records.
+ *    Read the pg_hba.conf file and fill the tuplestore with view records.
  */
 static void
 fill_hba_view(Tuplestorestate *tuple_store, TupleDesc tupdesc)
 {
-	FILE	   *file;
-	List	   *hba_lines = NIL;
-	ListCell   *line;
-	int			rule_number = 0;
-	MemoryContext hbacxt;
-	MemoryContext oldcxt;
+  FILE     *file;
+  List     *hba_lines = NIL;
+  ListCell   *line;
+  int     rule_number = 0;
+  MemoryContext hbacxt;
+  MemoryContext oldcxt;
 
-	/*
-	 * In the unlikely event that we can't open pg_hba.conf, we throw an
-	 * error, rather than trying to report it via some sort of view entry.
-	 * (Most other error conditions should result in a message in a view
-	 * entry.)
-	 */
-	file = open_auth_file(HbaFileName, ERROR, 0, NULL);
+  /*
+   * In the unlikely event that we can't open pg_hba.conf, we throw an
+   * error, rather than trying to report it via some sort of view entry.
+   * (Most other error conditions should result in a message in a view
+   * entry.)
+   */
+  file = open_auth_file(HbaFileName, ERROR, 0, NULL);
 
-	tokenize_auth_file(HbaFileName, file, &hba_lines, DEBUG3, 0);
+  tokenize_auth_file(HbaFileName, file, &hba_lines, DEBUG3, 0);
 
-	/* Now parse all the lines */
-	hbacxt = AllocSetContextCreate(CurrentMemoryContext,
-								   "hba parser context",
-								   ALLOCSET_SMALL_SIZES);
-	oldcxt = MemoryContextSwitchTo(hbacxt);
-	foreach(line, hba_lines)
-	{
-		TokenizedAuthLine *tok_line = (TokenizedAuthLine *) lfirst(line);
-		HbaLine    *hbaline = NULL;
+  /* Now parse all the lines */
+  hbacxt = AllocSetContextCreate(CurrentMemoryContext,
+                                 "hba parser context",
+                                 ALLOCSET_SMALL_SIZES);
+  oldcxt = MemoryContextSwitchTo(hbacxt);
 
-		/* don't parse lines that already have errors */
-		if (tok_line->err_msg == NULL)
-			hbaline = parse_hba_line(tok_line, DEBUG3);
+  foreach(line, hba_lines) {
+    TokenizedAuthLine *tok_line = (TokenizedAuthLine *) lfirst(line);
+    HbaLine    *hbaline = NULL;
 
-		/* No error, set a new rule number */
-		if (tok_line->err_msg == NULL)
-			rule_number++;
+    /* don't parse lines that already have errors */
+    if (tok_line->err_msg == NULL)
+      hbaline = parse_hba_line(tok_line, DEBUG3);
 
-		fill_hba_line(tuple_store, tupdesc, rule_number,
-					  tok_line->file_name, tok_line->line_num, hbaline,
-					  tok_line->err_msg);
-	}
+    /* No error, set a new rule number */
+    if (tok_line->err_msg == NULL)
+      rule_number++;
 
-	/* Free tokenizer memory */
-	free_auth_file(file, 0);
-	/* Free parse_hba_line memory */
-	MemoryContextSwitchTo(oldcxt);
-	MemoryContextDelete(hbacxt);
+    fill_hba_line(tuple_store, tupdesc, rule_number,
+                  tok_line->file_name, tok_line->line_num, hbaline,
+                  tok_line->err_msg);
+  }
+
+  /* Free tokenizer memory */
+  free_auth_file(file, 0);
+  /* Free parse_hba_line memory */
+  MemoryContextSwitchTo(oldcxt);
+  MemoryContextDelete(hbacxt);
 }
 
 /*
@@ -448,25 +448,25 @@ fill_hba_view(Tuplestorestate *tuple_store, TupleDesc tupdesc)
 Datum
 pg_hba_file_rules(PG_FUNCTION_ARGS)
 {
-	ReturnSetInfo *rsi;
+  ReturnSetInfo *rsi;
 
-	/*
-	 * Build tuplestore to hold the result rows.  We must use the Materialize
-	 * mode to be safe against HBA file changes while the cursor is open. It's
-	 * also more efficient than having to look up our current position in the
-	 * parsed list every time.
-	 */
-	InitMaterializedSRF(fcinfo, 0);
+  /*
+   * Build tuplestore to hold the result rows.  We must use the Materialize
+   * mode to be safe against HBA file changes while the cursor is open. It's
+   * also more efficient than having to look up our current position in the
+   * parsed list every time.
+   */
+  InitMaterializedSRF(fcinfo, 0);
 
-	/* Fill the tuplestore */
-	rsi = (ReturnSetInfo *) fcinfo->resultinfo;
-	fill_hba_view(rsi->setResult, rsi->setDesc);
+  /* Fill the tuplestore */
+  rsi = (ReturnSetInfo *) fcinfo->resultinfo;
+  fill_hba_view(rsi->setResult, rsi->setDesc);
 
-	PG_RETURN_NULL();
+  PG_RETURN_NULL();
 }
 
 /* Number of columns in pg_ident_file_mappings view */
-#define NUM_PG_IDENT_FILE_MAPPINGS_ATTS	 7
+#define NUM_PG_IDENT_FILE_MAPPINGS_ATTS  7
 
 /*
  * fill_ident_line: build one row of pg_ident_file_mappings view, add it to
@@ -485,52 +485,49 @@ pg_hba_file_rules(PG_FUNCTION_ARGS)
  */
 static void
 fill_ident_line(Tuplestorestate *tuple_store, TupleDesc tupdesc,
-				int map_number, char *filename, int lineno, IdentLine *ident,
-				const char *err_msg)
+                int map_number, char *filename, int lineno, IdentLine *ident,
+                const char *err_msg)
 {
-	Datum		values[NUM_PG_IDENT_FILE_MAPPINGS_ATTS];
-	bool		nulls[NUM_PG_IDENT_FILE_MAPPINGS_ATTS];
-	HeapTuple	tuple;
-	int			index;
+  Datum   values[NUM_PG_IDENT_FILE_MAPPINGS_ATTS];
+  bool    nulls[NUM_PG_IDENT_FILE_MAPPINGS_ATTS];
+  HeapTuple tuple;
+  int     index;
 
-	Assert(tupdesc->natts == NUM_PG_IDENT_FILE_MAPPINGS_ATTS);
+  Assert(tupdesc->natts == NUM_PG_IDENT_FILE_MAPPINGS_ATTS);
 
-	memset(values, 0, sizeof(values));
-	memset(nulls, 0, sizeof(nulls));
-	index = 0;
+  memset(values, 0, sizeof(values));
+  memset(nulls, 0, sizeof(nulls));
+  index = 0;
 
-	/* map_number, nothing on error */
-	if (err_msg)
-		nulls[index++] = true;
-	else
-		values[index++] = Int32GetDatum(map_number);
+  /* map_number, nothing on error */
+  if (err_msg)
+    nulls[index++] = true;
+  else
+    values[index++] = Int32GetDatum(map_number);
 
-	/* file_name */
-	values[index++] = CStringGetTextDatum(filename);
+  /* file_name */
+  values[index++] = CStringGetTextDatum(filename);
 
-	/* line_number */
-	values[index++] = Int32GetDatum(lineno);
+  /* line_number */
+  values[index++] = Int32GetDatum(lineno);
 
-	if (ident != NULL)
-	{
-		values[index++] = CStringGetTextDatum(ident->usermap);
-		values[index++] = CStringGetTextDatum(ident->system_user->string);
-		values[index++] = CStringGetTextDatum(ident->pg_user->string);
-	}
-	else
-	{
-		/* no parsing result, so set relevant fields to nulls */
-		memset(&nulls[3], true, (NUM_PG_IDENT_FILE_MAPPINGS_ATTS - 4) * sizeof(bool));
-	}
+  if (ident != NULL) {
+    values[index++] = CStringGetTextDatum(ident->usermap);
+    values[index++] = CStringGetTextDatum(ident->system_user->string);
+    values[index++] = CStringGetTextDatum(ident->pg_user->string);
+  } else {
+    /* no parsing result, so set relevant fields to nulls */
+    memset(&nulls[3], true, (NUM_PG_IDENT_FILE_MAPPINGS_ATTS - 4) * sizeof(bool));
+  }
 
-	/* error */
-	if (err_msg)
-		values[NUM_PG_IDENT_FILE_MAPPINGS_ATTS - 1] = CStringGetTextDatum(err_msg);
-	else
-		nulls[NUM_PG_IDENT_FILE_MAPPINGS_ATTS - 1] = true;
+  /* error */
+  if (err_msg)
+    values[NUM_PG_IDENT_FILE_MAPPINGS_ATTS - 1] = CStringGetTextDatum(err_msg);
+  else
+    nulls[NUM_PG_IDENT_FILE_MAPPINGS_ATTS - 1] = true;
 
-	tuple = heap_form_tuple(tupdesc, values, nulls);
-	tuplestore_puttuple(tuple_store, tuple);
+  tuple = heap_form_tuple(tupdesc, values, nulls);
+  tuplestore_puttuple(tuple_store, tuple);
 }
 
 /*
@@ -539,51 +536,51 @@ fill_ident_line(Tuplestorestate *tuple_store, TupleDesc tupdesc,
 static void
 fill_ident_view(Tuplestorestate *tuple_store, TupleDesc tupdesc)
 {
-	FILE	   *file;
-	List	   *ident_lines = NIL;
-	ListCell   *line;
-	int			map_number = 0;
-	MemoryContext identcxt;
-	MemoryContext oldcxt;
+  FILE     *file;
+  List     *ident_lines = NIL;
+  ListCell   *line;
+  int     map_number = 0;
+  MemoryContext identcxt;
+  MemoryContext oldcxt;
 
-	/*
-	 * In the unlikely event that we can't open pg_ident.conf, we throw an
-	 * error, rather than trying to report it via some sort of view entry.
-	 * (Most other error conditions should result in a message in a view
-	 * entry.)
-	 */
-	file = open_auth_file(IdentFileName, ERROR, 0, NULL);
+  /*
+   * In the unlikely event that we can't open pg_ident.conf, we throw an
+   * error, rather than trying to report it via some sort of view entry.
+   * (Most other error conditions should result in a message in a view
+   * entry.)
+   */
+  file = open_auth_file(IdentFileName, ERROR, 0, NULL);
 
-	tokenize_auth_file(IdentFileName, file, &ident_lines, DEBUG3, 0);
+  tokenize_auth_file(IdentFileName, file, &ident_lines, DEBUG3, 0);
 
-	/* Now parse all the lines */
-	identcxt = AllocSetContextCreate(CurrentMemoryContext,
-									 "ident parser context",
-									 ALLOCSET_SMALL_SIZES);
-	oldcxt = MemoryContextSwitchTo(identcxt);
-	foreach(line, ident_lines)
-	{
-		TokenizedAuthLine *tok_line = (TokenizedAuthLine *) lfirst(line);
-		IdentLine  *identline = NULL;
+  /* Now parse all the lines */
+  identcxt = AllocSetContextCreate(CurrentMemoryContext,
+                                   "ident parser context",
+                                   ALLOCSET_SMALL_SIZES);
+  oldcxt = MemoryContextSwitchTo(identcxt);
 
-		/* don't parse lines that already have errors */
-		if (tok_line->err_msg == NULL)
-			identline = parse_ident_line(tok_line, DEBUG3);
+  foreach(line, ident_lines) {
+    TokenizedAuthLine *tok_line = (TokenizedAuthLine *) lfirst(line);
+    IdentLine  *identline = NULL;
 
-		/* no error, set a new mapping number */
-		if (tok_line->err_msg == NULL)
-			map_number++;
+    /* don't parse lines that already have errors */
+    if (tok_line->err_msg == NULL)
+      identline = parse_ident_line(tok_line, DEBUG3);
 
-		fill_ident_line(tuple_store, tupdesc, map_number,
-						tok_line->file_name, tok_line->line_num,
-						identline, tok_line->err_msg);
-	}
+    /* no error, set a new mapping number */
+    if (tok_line->err_msg == NULL)
+      map_number++;
 
-	/* Free tokenizer memory */
-	free_auth_file(file, 0);
-	/* Free parse_ident_line memory */
-	MemoryContextSwitchTo(oldcxt);
-	MemoryContextDelete(identcxt);
+    fill_ident_line(tuple_store, tupdesc, map_number,
+                    tok_line->file_name, tok_line->line_num,
+                    identline, tok_line->err_msg);
+  }
+
+  /* Free tokenizer memory */
+  free_auth_file(file, 0);
+  /* Free parse_ident_line memory */
+  MemoryContextSwitchTo(oldcxt);
+  MemoryContextDelete(identcxt);
 }
 
 /*
@@ -592,19 +589,19 @@ fill_ident_view(Tuplestorestate *tuple_store, TupleDesc tupdesc)
 Datum
 pg_ident_file_mappings(PG_FUNCTION_ARGS)
 {
-	ReturnSetInfo *rsi;
+  ReturnSetInfo *rsi;
 
-	/*
-	 * Build tuplestore to hold the result rows.  We must use the Materialize
-	 * mode to be safe against HBA file changes while the cursor is open. It's
-	 * also more efficient than having to look up our current position in the
-	 * parsed list every time.
-	 */
-	InitMaterializedSRF(fcinfo, 0);
+  /*
+   * Build tuplestore to hold the result rows.  We must use the Materialize
+   * mode to be safe against HBA file changes while the cursor is open. It's
+   * also more efficient than having to look up our current position in the
+   * parsed list every time.
+   */
+  InitMaterializedSRF(fcinfo, 0);
 
-	/* Fill the tuplestore */
-	rsi = (ReturnSetInfo *) fcinfo->resultinfo;
-	fill_ident_view(rsi->setResult, rsi->setDesc);
+  /* Fill the tuplestore */
+  rsi = (ReturnSetInfo *) fcinfo->resultinfo;
+  fill_ident_view(rsi->setResult, rsi->setDesc);
 
-	PG_RETURN_NULL();
+  PG_RETURN_NULL();
 }

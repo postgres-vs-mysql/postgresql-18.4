@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * schemacmds.h
- *	  prototypes for schemacmds.c.
+ *    prototypes for schemacmds.c.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -18,12 +18,12 @@
 #include "catalog/objectaddress.h"
 #include "nodes/parsenodes.h"
 
-extern Oid	CreateSchemaCommand(CreateSchemaStmt *stmt,
-								const char *queryString,
-								int stmt_location, int stmt_len);
+extern Oid  CreateSchemaCommand(CreateSchemaStmt *stmt,
+                                const char *queryString,
+                                int stmt_location, int stmt_len);
 
 extern ObjectAddress RenameSchema(const char *oldname, const char *newname);
 extern ObjectAddress AlterSchemaOwner(const char *name, Oid newOwnerId);
 extern void AlterSchemaOwner_oid(Oid schemaoid, Oid newOwnerId);
 
-#endif							/* SCHEMACMDS_H */
+#endif              /* SCHEMACMDS_H */

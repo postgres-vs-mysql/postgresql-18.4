@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * parse_merge.h
- *		handle MERGE statement in parser
+ *    handle MERGE statement in parser
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -18,4 +18,4 @@
 
 extern Query *transformMergeStmt(ParseState *pstate, MergeStmt *stmt);
 
-#endif							/* PARSE_MERGE_H */
+#endif              /* PARSE_MERGE_H */

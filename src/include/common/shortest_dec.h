@@ -5,7 +5,7 @@
  * Portions Copyright (c) 2018-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/include/common/shortest_dec.h
+ *    src/include/common/shortest_dec.h
  *
  * This is a modification of code taken from github.com/ulfjack/ryu under the
  * terms of the Boost license (not the Apache license). The original copyright
@@ -43,9 +43,9 @@
  */
 #define DOUBLE_SHORTEST_DECIMAL_LEN 25
 
-int			double_to_shortest_decimal_bufn(double f, char *result);
-int			double_to_shortest_decimal_buf(double f, char *result);
-char	   *double_to_shortest_decimal(double f);
+int     double_to_shortest_decimal_bufn(double f, char *result);
+int     double_to_shortest_decimal_buf(double f, char *result);
+char     *double_to_shortest_decimal(double f);
 
 /*
  * The length of 16 comes from:
@@ -56,8 +56,8 @@ char	   *double_to_shortest_decimal(double f);
  */
 #define FLOAT_SHORTEST_DECIMAL_LEN 16
 
-int			float_to_shortest_decimal_bufn(float f, char *result);
-int			float_to_shortest_decimal_buf(float f, char *result);
-char	   *float_to_shortest_decimal(float f);
+int     float_to_shortest_decimal_bufn(float f, char *result);
+int     float_to_shortest_decimal_buf(float f, char *result);
+char     *float_to_shortest_decimal(float f);
 
-#endif							/* SHORTEST_DEC_H */
+#endif              /* SHORTEST_DEC_H */

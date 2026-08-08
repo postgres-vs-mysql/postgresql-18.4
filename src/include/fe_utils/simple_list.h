@@ -19,40 +19,40 @@
 
 typedef struct SimpleOidListCell
 {
-	struct SimpleOidListCell *next;
-	Oid			val;
+  struct SimpleOidListCell *next;
+  Oid     val;
 } SimpleOidListCell;
 
 typedef struct SimpleOidList
 {
-	SimpleOidListCell *head;
-	SimpleOidListCell *tail;
+  SimpleOidListCell *head;
+  SimpleOidListCell *tail;
 } SimpleOidList;
 
 typedef struct SimpleStringListCell
 {
-	struct SimpleStringListCell *next;
-	bool		touched;		/* true, when this string was searched and
-								 * touched */
-	char		val[FLEXIBLE_ARRAY_MEMBER]; /* null-terminated string here */
+  struct SimpleStringListCell *next;
+  bool    touched;    /* true, when this string was searched and
+                 * touched */
+  char    val[FLEXIBLE_ARRAY_MEMBER]; /* null-terminated string here */
 } SimpleStringListCell;
 
 typedef struct SimpleStringList
 {
-	SimpleStringListCell *head;
-	SimpleStringListCell *tail;
+  SimpleStringListCell *head;
+  SimpleStringListCell *tail;
 } SimpleStringList;
 
 typedef struct SimplePtrListCell
 {
-	struct SimplePtrListCell *next;
-	void	   *ptr;
+  struct SimplePtrListCell *next;
+  void     *ptr;
 } SimplePtrListCell;
 
 typedef struct SimplePtrList
 {
-	SimplePtrListCell *head;
-	SimplePtrListCell *tail;
+  SimplePtrListCell *head;
+  SimplePtrListCell *tail;
 } SimplePtrList;
 
 extern void simple_oid_list_append(SimpleOidList *list, Oid val);
@@ -68,4 +68,4 @@ extern const char *simple_string_list_not_touched(SimpleStringList *list);
 extern void simple_ptr_list_append(SimplePtrList *list, void *ptr);
 extern void simple_ptr_list_destroy(SimplePtrList *list);
 
-#endif							/* SIMPLE_LIST_H */
+#endif              /* SIMPLE_LIST_H */

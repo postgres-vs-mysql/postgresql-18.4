@@ -1,12 +1,12 @@
 /*-------------------------------------------------------------------------
  *
  * basebackup_zstd.c
- *	  Basebackup sink implementing zstd compression.
+ *    Basebackup sink implementing zstd compression.
  *
  * Portions Copyright (c) 2010-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/backend/backup/basebackup_zstd.c
+ *    src/backend/backup/basebackup_zstd.c
  *
  *-------------------------------------------------------------------------
  */
@@ -20,16 +20,15 @@
 
 #ifdef USE_ZSTD
 
-typedef struct bbsink_zstd
-{
-	/* Common information for all types of sink. */
-	bbsink		base;
+typedef struct bbsink_zstd {
+  /* Common information for all types of sink. */
+  bbsink    base;
 
-	/* Compression options */
-	pg_compress_specification *compress;
+  /* Compression options */
+  pg_compress_specification *compress;
 
-	ZSTD_CCtx  *cctx;
-	ZSTD_outBuffer zstd_outBuf;
+  ZSTD_CCtx  *cctx;
+  ZSTD_outBuffer zstd_outBuf;
 } bbsink_zstd;
 
 static void bbsink_zstd_begin_backup(bbsink *sink);
@@ -39,18 +38,18 @@ static void bbsink_zstd_manifest_contents(bbsink *sink, size_t len);
 static void bbsink_zstd_end_archive(bbsink *sink);
 static void bbsink_zstd_cleanup(bbsink *sink);
 static void bbsink_zstd_end_backup(bbsink *sink, XLogRecPtr endptr,
-								   TimeLineID endtli);
+                                   TimeLineID endtli);
 
 static const bbsink_ops bbsink_zstd_ops = {
-	.begin_backup = bbsink_zstd_begin_backup,
-	.begin_archive = bbsink_zstd_begin_archive,
-	.archive_contents = bbsink_zstd_archive_contents,
-	.end_archive = bbsink_zstd_end_archive,
-	.begin_manifest = bbsink_forward_begin_manifest,
-	.manifest_contents = bbsink_zstd_manifest_contents,
-	.end_manifest = bbsink_forward_end_manifest,
-	.end_backup = bbsink_zstd_end_backup,
-	.cleanup = bbsink_zstd_cleanup
+  .begin_backup = bbsink_zstd_begin_backup,
+  .begin_archive = bbsink_zstd_begin_archive,
+  .archive_contents = bbsink_zstd_archive_contents,
+  .end_archive = bbsink_zstd_end_archive,
+  .begin_manifest = bbsink_forward_begin_manifest,
+  .manifest_contents = bbsink_zstd_manifest_contents,
+  .end_manifest = bbsink_forward_end_manifest,
+  .end_backup = bbsink_zstd_end_backup,
+  .cleanup = bbsink_zstd_cleanup
 };
 #endif
 
@@ -61,21 +60,21 @@ bbsink *
 bbsink_zstd_new(bbsink *next, pg_compress_specification *compress)
 {
 #ifndef USE_ZSTD
-	ereport(ERROR,
-			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-			 errmsg("zstd compression is not supported by this build")));
-	return NULL;				/* keep compiler quiet */
+  ereport(ERROR,
+          (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+           errmsg("zstd compression is not supported by this build")));
+  return NULL;        /* keep compiler quiet */
 #else
-	bbsink_zstd *sink;
+  bbsink_zstd *sink;
 
-	Assert(next != NULL);
+  Assert(next != NULL);
 
-	sink = palloc0(sizeof(bbsink_zstd));
-	*((const bbsink_ops **) &sink->base.bbs_ops) = &bbsink_zstd_ops;
-	sink->base.bbs_next = next;
-	sink->compress = compress;
+  sink = palloc0(sizeof(bbsink_zstd));
+  *((const bbsink_ops **) &sink->base.bbs_ops) = &bbsink_zstd_ops;
+  sink->base.bbs_next = next;
+  sink->compress = compress;
 
-	return &sink->base;
+  return &sink->base;
 #endif
 }
 
@@ -87,68 +86,70 @@ bbsink_zstd_new(bbsink *next, pg_compress_specification *compress)
 static void
 bbsink_zstd_begin_backup(bbsink *sink)
 {
-	bbsink_zstd *mysink = (bbsink_zstd *) sink;
-	size_t		output_buffer_bound;
-	size_t		ret;
-	pg_compress_specification *compress = mysink->compress;
+  bbsink_zstd *mysink = (bbsink_zstd *) sink;
+  size_t    output_buffer_bound;
+  size_t    ret;
+  pg_compress_specification *compress = mysink->compress;
 
-	mysink->cctx = ZSTD_createCCtx();
-	if (!mysink->cctx)
-		elog(ERROR, "could not create zstd compression context");
+  mysink->cctx = ZSTD_createCCtx();
 
-	ret = ZSTD_CCtx_setParameter(mysink->cctx, ZSTD_c_compressionLevel,
-								 compress->level);
-	if (ZSTD_isError(ret))
-		elog(ERROR, "could not set zstd compression level to %d: %s",
-			 compress->level, ZSTD_getErrorName(ret));
+  if (!mysink->cctx)
+    elog(ERROR, "could not create zstd compression context");
 
-	if ((compress->options & PG_COMPRESSION_OPTION_WORKERS) != 0)
-	{
-		/*
-		 * On older versions of libzstd, this option does not exist, and
-		 * trying to set it will fail. Similarly for newer versions if they
-		 * are compiled without threading support.
-		 */
-		ret = ZSTD_CCtx_setParameter(mysink->cctx, ZSTD_c_nbWorkers,
-									 compress->workers);
-		if (ZSTD_isError(ret))
-			ereport(ERROR,
-					errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					errmsg("could not set compression worker count to %d: %s",
-						   compress->workers, ZSTD_getErrorName(ret)));
-	}
+  ret = ZSTD_CCtx_setParameter(mysink->cctx, ZSTD_c_compressionLevel,
+                               compress->level);
 
-	if ((compress->options & PG_COMPRESSION_OPTION_LONG_DISTANCE) != 0)
-	{
-		ret = ZSTD_CCtx_setParameter(mysink->cctx,
-									 ZSTD_c_enableLongDistanceMatching,
-									 compress->long_distance);
-		if (ZSTD_isError(ret))
-			ereport(ERROR,
-					errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					errmsg("could not enable long-distance mode: %s",
-						   ZSTD_getErrorName(ret)));
-	}
+  if (ZSTD_isError(ret))
+    elog(ERROR, "could not set zstd compression level to %d: %s",
+         compress->level, ZSTD_getErrorName(ret));
 
-	/*
-	 * We need our own buffer, because we're going to pass different data to
-	 * the next sink than what gets passed to us.
-	 */
-	mysink->base.bbs_buffer = palloc(mysink->base.bbs_buffer_length);
+  if ((compress->options & PG_COMPRESSION_OPTION_WORKERS) != 0) {
+    /*
+     * On older versions of libzstd, this option does not exist, and
+     * trying to set it will fail. Similarly for newer versions if they
+     * are compiled without threading support.
+     */
+    ret = ZSTD_CCtx_setParameter(mysink->cctx, ZSTD_c_nbWorkers,
+                                 compress->workers);
 
-	/*
-	 * Make sure that the next sink's bbs_buffer is big enough to accommodate
-	 * the compressed input buffer.
-	 */
-	output_buffer_bound = ZSTD_compressBound(mysink->base.bbs_buffer_length);
+    if (ZSTD_isError(ret))
+      ereport(ERROR,
+              errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+              errmsg("could not set compression worker count to %d: %s",
+                     compress->workers, ZSTD_getErrorName(ret)));
+  }
 
-	/*
-	 * The buffer length is expected to be a multiple of BLCKSZ, so round up.
-	 */
-	output_buffer_bound = output_buffer_bound + BLCKSZ -
-		(output_buffer_bound % BLCKSZ);
+  if ((compress->options & PG_COMPRESSION_OPTION_LONG_DISTANCE) != 0) {
+    ret = ZSTD_CCtx_setParameter(mysink->cctx,
+                                 ZSTD_c_enableLongDistanceMatching,
+                                 compress->long_distance);
 
-	bbsink_begin_backup(sink->bbs_next, sink->bbs_state, output_buffer_bound);
+    if (ZSTD_isError(ret))
+      ereport(ERROR,
+              errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+              errmsg("could not enable long-distance mode: %s",
+                     ZSTD_getErrorName(ret)));
+  }
+
+  /*
+   * We need our own buffer, because we're going to pass different data to
+   * the next sink than what gets passed to us.
+   */
+  mysink->base.bbs_buffer = palloc(mysink->base.bbs_buffer_length);
+
+  /*
+   * Make sure that the next sink's bbs_buffer is big enough to accommodate
+   * the compressed input buffer.
+   */
+  output_buffer_bound = ZSTD_compressBound(mysink->base.bbs_buffer_length);
+
+  /*
+   * The buffer length is expected to be a multiple of BLCKSZ, so round up.
+   */
+  output_buffer_bound = output_buffer_bound + BLCKSZ -
+                        (output_buffer_bound % BLCKSZ);
+
+  bbsink_begin_backup(sink->bbs_next, sink->bbs_state, output_buffer_bound);
 }
 
 /*
@@ -157,25 +158,25 @@ bbsink_zstd_begin_backup(bbsink *sink)
 static void
 bbsink_zstd_begin_archive(bbsink *sink, const char *archive_name)
 {
-	bbsink_zstd *mysink = (bbsink_zstd *) sink;
-	char	   *zstd_archive_name;
+  bbsink_zstd *mysink = (bbsink_zstd *) sink;
+  char     *zstd_archive_name;
 
-	/*
-	 * At the start of each archive we reset the state to start a new
-	 * compression operation. The parameters are sticky and they will stick
-	 * around as we are resetting with option ZSTD_reset_session_only.
-	 */
-	ZSTD_CCtx_reset(mysink->cctx, ZSTD_reset_session_only);
+  /*
+   * At the start of each archive we reset the state to start a new
+   * compression operation. The parameters are sticky and they will stick
+   * around as we are resetting with option ZSTD_reset_session_only.
+   */
+  ZSTD_CCtx_reset(mysink->cctx, ZSTD_reset_session_only);
 
-	mysink->zstd_outBuf.dst = mysink->base.bbs_next->bbs_buffer;
-	mysink->zstd_outBuf.size = mysink->base.bbs_next->bbs_buffer_length;
-	mysink->zstd_outBuf.pos = 0;
+  mysink->zstd_outBuf.dst = mysink->base.bbs_next->bbs_buffer;
+  mysink->zstd_outBuf.size = mysink->base.bbs_next->bbs_buffer_length;
+  mysink->zstd_outBuf.pos = 0;
 
-	/* Add ".zst" to the archive name. */
-	zstd_archive_name = psprintf("%s.zst", archive_name);
-	Assert(sink->bbs_next != NULL);
-	bbsink_begin_archive(sink->bbs_next, zstd_archive_name);
-	pfree(zstd_archive_name);
+  /* Add ".zst" to the archive name. */
+  zstd_archive_name = psprintf("%s.zst", archive_name);
+  Assert(sink->bbs_next != NULL);
+  bbsink_begin_archive(sink->bbs_next, zstd_archive_name);
+  pfree(zstd_archive_name);
 }
 
 /*
@@ -192,36 +193,34 @@ bbsink_zstd_begin_archive(bbsink *sink, const char *archive_name)
 static void
 bbsink_zstd_archive_contents(bbsink *sink, size_t len)
 {
-	bbsink_zstd *mysink = (bbsink_zstd *) sink;
-	ZSTD_inBuffer inBuf = {mysink->base.bbs_buffer, len, 0};
+  bbsink_zstd *mysink = (bbsink_zstd *) sink;
+  ZSTD_inBuffer inBuf = {mysink->base.bbs_buffer, len, 0};
 
-	while (inBuf.pos < inBuf.size)
-	{
-		size_t		yet_to_flush;
-		size_t		max_needed = ZSTD_compressBound(inBuf.size - inBuf.pos);
+  while (inBuf.pos < inBuf.size) {
+    size_t    yet_to_flush;
+    size_t    max_needed = ZSTD_compressBound(inBuf.size - inBuf.pos);
 
-		/*
-		 * If the out buffer is not left with enough space, send the output
-		 * buffer to the next sink, and reset it.
-		 */
-		if (mysink->zstd_outBuf.size - mysink->zstd_outBuf.pos < max_needed)
-		{
-			bbsink_archive_contents(mysink->base.bbs_next,
-									mysink->zstd_outBuf.pos);
-			mysink->zstd_outBuf.dst = mysink->base.bbs_next->bbs_buffer;
-			mysink->zstd_outBuf.size =
-				mysink->base.bbs_next->bbs_buffer_length;
-			mysink->zstd_outBuf.pos = 0;
-		}
+    /*
+     * If the out buffer is not left with enough space, send the output
+     * buffer to the next sink, and reset it.
+     */
+    if (mysink->zstd_outBuf.size - mysink->zstd_outBuf.pos < max_needed) {
+      bbsink_archive_contents(mysink->base.bbs_next,
+                              mysink->zstd_outBuf.pos);
+      mysink->zstd_outBuf.dst = mysink->base.bbs_next->bbs_buffer;
+      mysink->zstd_outBuf.size =
+        mysink->base.bbs_next->bbs_buffer_length;
+      mysink->zstd_outBuf.pos = 0;
+    }
 
-		yet_to_flush = ZSTD_compressStream2(mysink->cctx, &mysink->zstd_outBuf,
-											&inBuf, ZSTD_e_continue);
+    yet_to_flush = ZSTD_compressStream2(mysink->cctx, &mysink->zstd_outBuf,
+                                        &inBuf, ZSTD_e_continue);
 
-		if (ZSTD_isError(yet_to_flush))
-			elog(ERROR,
-				 "could not compress data: %s",
-				 ZSTD_getErrorName(yet_to_flush));
-	}
+    if (ZSTD_isError(yet_to_flush))
+      elog(ERROR,
+           "could not compress data: %s",
+           ZSTD_getErrorName(yet_to_flush));
+  }
 }
 
 /*
@@ -234,45 +233,43 @@ bbsink_zstd_archive_contents(bbsink *sink, size_t len)
 static void
 bbsink_zstd_end_archive(bbsink *sink)
 {
-	bbsink_zstd *mysink = (bbsink_zstd *) sink;
-	size_t		yet_to_flush;
+  bbsink_zstd *mysink = (bbsink_zstd *) sink;
+  size_t    yet_to_flush;
 
-	do
-	{
-		ZSTD_inBuffer in = {NULL, 0, 0};
-		size_t		max_needed = ZSTD_compressBound(0);
+  do {
+    ZSTD_inBuffer in = {NULL, 0, 0};
+    size_t    max_needed = ZSTD_compressBound(0);
 
-		/*
-		 * If the out buffer is not left with enough space, send the output
-		 * buffer to the next sink, and reset it.
-		 */
-		if (mysink->zstd_outBuf.size - mysink->zstd_outBuf.pos < max_needed)
-		{
-			bbsink_archive_contents(mysink->base.bbs_next,
-									mysink->zstd_outBuf.pos);
-			mysink->zstd_outBuf.dst = mysink->base.bbs_next->bbs_buffer;
-			mysink->zstd_outBuf.size =
-				mysink->base.bbs_next->bbs_buffer_length;
-			mysink->zstd_outBuf.pos = 0;
-		}
+    /*
+     * If the out buffer is not left with enough space, send the output
+     * buffer to the next sink, and reset it.
+     */
+    if (mysink->zstd_outBuf.size - mysink->zstd_outBuf.pos < max_needed) {
+      bbsink_archive_contents(mysink->base.bbs_next,
+                              mysink->zstd_outBuf.pos);
+      mysink->zstd_outBuf.dst = mysink->base.bbs_next->bbs_buffer;
+      mysink->zstd_outBuf.size =
+        mysink->base.bbs_next->bbs_buffer_length;
+      mysink->zstd_outBuf.pos = 0;
+    }
 
-		yet_to_flush = ZSTD_compressStream2(mysink->cctx,
-											&mysink->zstd_outBuf,
-											&in, ZSTD_e_end);
+    yet_to_flush = ZSTD_compressStream2(mysink->cctx,
+                                        &mysink->zstd_outBuf,
+                                        &in, ZSTD_e_end);
 
-		if (ZSTD_isError(yet_to_flush))
-			elog(ERROR, "could not compress data: %s",
-				 ZSTD_getErrorName(yet_to_flush));
+    if (ZSTD_isError(yet_to_flush))
+      elog(ERROR, "could not compress data: %s",
+           ZSTD_getErrorName(yet_to_flush));
 
-	} while (yet_to_flush > 0);
+  } while (yet_to_flush > 0);
 
-	/* Make sure to pass any remaining bytes to the next sink. */
-	if (mysink->zstd_outBuf.pos > 0)
-		bbsink_archive_contents(mysink->base.bbs_next,
-								mysink->zstd_outBuf.pos);
+  /* Make sure to pass any remaining bytes to the next sink. */
+  if (mysink->zstd_outBuf.pos > 0)
+    bbsink_archive_contents(mysink->base.bbs_next,
+                            mysink->zstd_outBuf.pos);
 
-	/* Pass on the information that this archive has ended. */
-	bbsink_forward_end_archive(sink);
+  /* Pass on the information that this archive has ended. */
+  bbsink_forward_end_archive(sink);
 }
 
 /*
@@ -280,18 +277,17 @@ bbsink_zstd_end_archive(bbsink *sink)
  */
 static void
 bbsink_zstd_end_backup(bbsink *sink, XLogRecPtr endptr,
-					   TimeLineID endtli)
+                       TimeLineID endtli)
 {
-	bbsink_zstd *mysink = (bbsink_zstd *) sink;
+  bbsink_zstd *mysink = (bbsink_zstd *) sink;
 
-	/* Release the context. */
-	if (mysink->cctx)
-	{
-		ZSTD_freeCCtx(mysink->cctx);
-		mysink->cctx = NULL;
-	}
+  /* Release the context. */
+  if (mysink->cctx) {
+    ZSTD_freeCCtx(mysink->cctx);
+    mysink->cctx = NULL;
+  }
 
-	bbsink_forward_end_backup(sink, endptr, endtli);
+  bbsink_forward_end_backup(sink, endptr, endtli);
 }
 
 /*
@@ -301,8 +297,8 @@ bbsink_zstd_end_backup(bbsink *sink, XLogRecPtr endptr,
 static void
 bbsink_zstd_manifest_contents(bbsink *sink, size_t len)
 {
-	memcpy(sink->bbs_next->bbs_buffer, sink->bbs_buffer, len);
-	bbsink_manifest_contents(sink->bbs_next, len);
+  memcpy(sink->bbs_next->bbs_buffer, sink->bbs_buffer, len);
+  bbsink_manifest_contents(sink->bbs_next, len);
 }
 
 /*
@@ -312,14 +308,13 @@ bbsink_zstd_manifest_contents(bbsink *sink, size_t len)
 static void
 bbsink_zstd_cleanup(bbsink *sink)
 {
-	bbsink_zstd *mysink = (bbsink_zstd *) sink;
+  bbsink_zstd *mysink = (bbsink_zstd *) sink;
 
-	/* Release the context if not already released. */
-	if (mysink->cctx)
-	{
-		ZSTD_freeCCtx(mysink->cctx);
-		mysink->cctx = NULL;
-	}
+  /* Release the context if not already released. */
+  if (mysink->cctx) {
+    ZSTD_freeCCtx(mysink->cctx);
+    mysink->cctx = NULL;
+  }
 }
 
 #endif

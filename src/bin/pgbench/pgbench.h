@@ -33,74 +33,74 @@ union YYSTYPE;
  */
 typedef enum
 {
-	PGBT_NO_VALUE = 0,
-	PGBT_NULL,
-	PGBT_INT,
-	PGBT_DOUBLE,
-	PGBT_BOOLEAN,
-	/* add other types here */
+  PGBT_NO_VALUE = 0,
+  PGBT_NULL,
+  PGBT_INT,
+  PGBT_DOUBLE,
+  PGBT_BOOLEAN,
+  /* add other types here */
 } PgBenchValueType;
 
 typedef struct
 {
-	PgBenchValueType type;
-	union
-	{
-		int64		ival;
-		double		dval;
-		bool		bval;
-		/* add other types here */
-	}			u;
+  PgBenchValueType type;
+  union
+  {
+    int64   ival;
+    double    dval;
+    bool    bval;
+    /* add other types here */
+  }     u;
 } PgBenchValue;
 
 /* Types of expression nodes */
 typedef enum PgBenchExprType
 {
-	ENODE_CONSTANT,
-	ENODE_VARIABLE,
-	ENODE_FUNCTION,
+  ENODE_CONSTANT,
+  ENODE_VARIABLE,
+  ENODE_FUNCTION,
 } PgBenchExprType;
 
 /* List of operators and callable functions */
 typedef enum PgBenchFunction
 {
-	PGBENCH_ADD,
-	PGBENCH_SUB,
-	PGBENCH_MUL,
-	PGBENCH_DIV,
-	PGBENCH_MOD,
-	PGBENCH_DEBUG,
-	PGBENCH_ABS,
-	PGBENCH_LEAST,
-	PGBENCH_GREATEST,
-	PGBENCH_INT,
-	PGBENCH_DOUBLE,
-	PGBENCH_PI,
-	PGBENCH_SQRT,
-	PGBENCH_LN,
-	PGBENCH_EXP,
-	PGBENCH_RANDOM,
-	PGBENCH_RANDOM_GAUSSIAN,
-	PGBENCH_RANDOM_EXPONENTIAL,
-	PGBENCH_RANDOM_ZIPFIAN,
-	PGBENCH_POW,
-	PGBENCH_AND,
-	PGBENCH_OR,
-	PGBENCH_NOT,
-	PGBENCH_BITAND,
-	PGBENCH_BITOR,
-	PGBENCH_BITXOR,
-	PGBENCH_LSHIFT,
-	PGBENCH_RSHIFT,
-	PGBENCH_EQ,
-	PGBENCH_NE,
-	PGBENCH_LE,
-	PGBENCH_LT,
-	PGBENCH_IS,
-	PGBENCH_CASE,
-	PGBENCH_HASH_FNV1A,
-	PGBENCH_HASH_MURMUR2,
-	PGBENCH_PERMUTE,
+  PGBENCH_ADD,
+  PGBENCH_SUB,
+  PGBENCH_MUL,
+  PGBENCH_DIV,
+  PGBENCH_MOD,
+  PGBENCH_DEBUG,
+  PGBENCH_ABS,
+  PGBENCH_LEAST,
+  PGBENCH_GREATEST,
+  PGBENCH_INT,
+  PGBENCH_DOUBLE,
+  PGBENCH_PI,
+  PGBENCH_SQRT,
+  PGBENCH_LN,
+  PGBENCH_EXP,
+  PGBENCH_RANDOM,
+  PGBENCH_RANDOM_GAUSSIAN,
+  PGBENCH_RANDOM_EXPONENTIAL,
+  PGBENCH_RANDOM_ZIPFIAN,
+  PGBENCH_POW,
+  PGBENCH_AND,
+  PGBENCH_OR,
+  PGBENCH_NOT,
+  PGBENCH_BITAND,
+  PGBENCH_BITOR,
+  PGBENCH_BITXOR,
+  PGBENCH_LSHIFT,
+  PGBENCH_RSHIFT,
+  PGBENCH_EQ,
+  PGBENCH_NE,
+  PGBENCH_LE,
+  PGBENCH_LT,
+  PGBENCH_IS,
+  PGBENCH_CASE,
+  PGBENCH_HASH_FNV1A,
+  PGBENCH_HASH_MURMUR2,
+  PGBENCH_PERMUTE,
 } PgBenchFunction;
 
 typedef struct PgBenchExpr PgBenchExpr;
@@ -109,55 +109,55 @@ typedef struct PgBenchExprList PgBenchExprList;
 
 struct PgBenchExpr
 {
-	PgBenchExprType etype;
-	union
-	{
-		PgBenchValue constant;
-		struct
-		{
-			char	   *varname;
-		}			variable;
-		struct
-		{
-			PgBenchFunction function;
-			PgBenchExprLink *args;
-		}			function;
-	}			u;
+  PgBenchExprType etype;
+  union
+  {
+    PgBenchValue constant;
+    struct
+    {
+      char     *varname;
+    }     variable;
+    struct
+    {
+      PgBenchFunction function;
+      PgBenchExprLink *args;
+    }     function;
+  }     u;
 };
 
 /* List of expression nodes */
 struct PgBenchExprLink
 {
-	PgBenchExpr *expr;
-	PgBenchExprLink *next;
+  PgBenchExpr *expr;
+  PgBenchExprLink *next;
 };
 
 struct PgBenchExprList
 {
-	PgBenchExprLink *head;
-	PgBenchExprLink *tail;
+  PgBenchExprLink *head;
+  PgBenchExprLink *tail;
 };
 
-extern int	expr_yyparse(PgBenchExpr **expr_parse_result_p, yyscan_t yyscanner);
-extern int	expr_yylex(union YYSTYPE *yylval_param, yyscan_t yyscanner);
+extern int  expr_yyparse(PgBenchExpr **expr_parse_result_p, yyscan_t yyscanner);
+extern int  expr_yylex(union YYSTYPE *yylval_param, yyscan_t yyscanner);
 pg_noreturn extern void expr_yyerror(PgBenchExpr **expr_parse_result_p, yyscan_t yyscanner, const char *message);
 pg_noreturn extern void expr_yyerror_more(yyscan_t yyscanner, const char *message,
-										  const char *more);
+    const char *more);
 extern bool expr_lex_one_word(PsqlScanState state, PQExpBuffer word_buf,
-							  int *offset);
+                              int *offset);
 extern yyscan_t expr_scanner_init(PsqlScanState state,
-								  const char *source, int lineno, int start_offset,
-								  const char *command);
+                                  const char *source, int lineno, int start_offset,
+                                  const char *command);
 extern void expr_scanner_finish(yyscan_t yyscanner);
 extern char *expr_scanner_get_substring(PsqlScanState state,
-										int start_offset,
-										bool chomp);
+                                        int start_offset,
+                                        bool chomp);
 
 pg_noreturn extern void syntax_error(const char *source, int lineno, const char *line,
-									 const char *command, const char *msg,
-									 const char *more, int column);
+                                     const char *command, const char *msg,
+                                     const char *more, int column);
 
 extern bool strtoint64(const char *str, bool errorOK, int64 *result);
 extern bool strtodouble(const char *str, bool errorOK, double *dv);
 
-#endif							/* PGBENCH_H */
+#endif              /* PGBENCH_H */

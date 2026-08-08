@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * schemacmds.c
- *	  schema creation/manipulation commands
+ *    schema creation/manipulation commands
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *	  src/backend/commands/schemacmds.c
+ *    src/backend/commands/schemacmds.c
  *
  *-------------------------------------------------------------------------
  */
@@ -50,195 +50,195 @@ static void AlterSchemaOwner_internal(HeapTuple tup, Relation rel, Oid newOwnerI
  */
 Oid
 CreateSchemaCommand(CreateSchemaStmt *stmt, const char *queryString,
-					int stmt_location, int stmt_len)
+                    int stmt_location, int stmt_len)
 {
-	const char *schemaName = stmt->schemaname;
-	Oid			namespaceId;
-	List	   *parsetree_list;
-	ListCell   *parsetree_item;
-	Oid			owner_uid;
-	Oid			saved_uid;
-	int			save_sec_context;
-	int			save_nestlevel;
-	char	   *nsp = namespace_search_path;
-	AclResult	aclresult;
-	ObjectAddress address;
-	StringInfoData pathbuf;
+  const char *schemaName = stmt->schemaname;
+  Oid     namespaceId;
+  List     *parsetree_list;
+  ListCell   *parsetree_item;
+  Oid     owner_uid;
+  Oid     saved_uid;
+  int     save_sec_context;
+  int     save_nestlevel;
+  char     *nsp = namespace_search_path;
+  AclResult aclresult;
+  ObjectAddress address;
+  StringInfoData pathbuf;
 
-	GetUserIdAndSecContext(&saved_uid, &save_sec_context);
+  GetUserIdAndSecContext(&saved_uid, &save_sec_context);
 
-	/*
-	 * Who is supposed to own the new schema?
-	 */
-	if (stmt->authrole)
-		owner_uid = get_rolespec_oid(stmt->authrole, false);
-	else
-		owner_uid = saved_uid;
+  /*
+   * Who is supposed to own the new schema?
+   */
+  if (stmt->authrole)
+    owner_uid = get_rolespec_oid(stmt->authrole, false);
+  else
+    owner_uid = saved_uid;
 
-	/* fill schema name with the user name if not specified */
-	if (!schemaName)
-	{
-		HeapTuple	tuple;
+  /* fill schema name with the user name if not specified */
+  if (!schemaName) {
+    HeapTuple tuple;
 
-		tuple = SearchSysCache1(AUTHOID, ObjectIdGetDatum(owner_uid));
-		if (!HeapTupleIsValid(tuple))
-			elog(ERROR, "cache lookup failed for role %u", owner_uid);
-		schemaName =
-			pstrdup(NameStr(((Form_pg_authid) GETSTRUCT(tuple))->rolname));
-		ReleaseSysCache(tuple);
-	}
+    tuple = SearchSysCache1(AUTHOID, ObjectIdGetDatum(owner_uid));
 
-	/*
-	 * To create a schema, must have schema-create privilege on the current
-	 * database and must be able to become the target role (this does not
-	 * imply that the target role itself must have create-schema privilege).
-	 * The latter provision guards against "giveaway" attacks.  Note that a
-	 * superuser will always have both of these privileges a fortiori.
-	 */
-	aclresult = object_aclcheck(DatabaseRelationId, MyDatabaseId, saved_uid, ACL_CREATE);
-	if (aclresult != ACLCHECK_OK)
-		aclcheck_error(aclresult, OBJECT_DATABASE,
-					   get_database_name(MyDatabaseId));
+    if (!HeapTupleIsValid(tuple))
+      elog(ERROR, "cache lookup failed for role %u", owner_uid);
 
-	check_can_set_role(saved_uid, owner_uid);
+    schemaName =
+      pstrdup(NameStr(((Form_pg_authid) GETSTRUCT(tuple))->rolname));
+    ReleaseSysCache(tuple);
+  }
 
-	/* Additional check to protect reserved schema names */
-	if (!allowSystemTableMods && IsReservedName(schemaName))
-		ereport(ERROR,
-				(errcode(ERRCODE_RESERVED_NAME),
-				 errmsg("unacceptable schema name \"%s\"", schemaName),
-				 errdetail("The prefix \"pg_\" is reserved for system schemas.")));
+  /*
+   * To create a schema, must have schema-create privilege on the current
+   * database and must be able to become the target role (this does not
+   * imply that the target role itself must have create-schema privilege).
+   * The latter provision guards against "giveaway" attacks.  Note that a
+   * superuser will always have both of these privileges a fortiori.
+   */
+  aclresult = object_aclcheck(DatabaseRelationId, MyDatabaseId, saved_uid, ACL_CREATE);
 
-	/*
-	 * If if_not_exists was given and the schema already exists, bail out.
-	 * (Note: we needn't check this when not if_not_exists, because
-	 * NamespaceCreate will complain anyway.)  We could do this before making
-	 * the permissions checks, but since CREATE TABLE IF NOT EXISTS makes its
-	 * creation-permission check first, we do likewise.
-	 */
-	if (stmt->if_not_exists)
-	{
-		namespaceId = get_namespace_oid(schemaName, true);
-		if (OidIsValid(namespaceId))
-		{
-			/*
-			 * If we are in an extension script, insist that the pre-existing
-			 * object be a member of the extension, to avoid security risks.
-			 */
-			ObjectAddressSet(address, NamespaceRelationId, namespaceId);
-			checkMembershipInCurrentExtension(&address);
+  if (aclresult != ACLCHECK_OK)
+    aclcheck_error(aclresult, OBJECT_DATABASE,
+                   get_database_name(MyDatabaseId));
 
-			/* OK to skip */
-			ereport(NOTICE,
-					(errcode(ERRCODE_DUPLICATE_SCHEMA),
-					 errmsg("schema \"%s\" already exists, skipping",
-							schemaName)));
-			return InvalidOid;
-		}
-	}
+  check_can_set_role(saved_uid, owner_uid);
 
-	/*
-	 * If the requested authorization is different from the current user,
-	 * temporarily set the current user so that the object(s) will be created
-	 * with the correct ownership.
-	 *
-	 * (The setting will be restored at the end of this routine, or in case of
-	 * error, transaction abort will clean things up.)
-	 */
-	if (saved_uid != owner_uid)
-		SetUserIdAndSecContext(owner_uid,
-							   save_sec_context | SECURITY_LOCAL_USERID_CHANGE);
+  /* Additional check to protect reserved schema names */
+  if (!allowSystemTableMods && IsReservedName(schemaName))
+    ereport(ERROR,
+            (errcode(ERRCODE_RESERVED_NAME),
+             errmsg("unacceptable schema name \"%s\"", schemaName),
+             errdetail("The prefix \"pg_\" is reserved for system schemas.")));
 
-	/* Create the schema's namespace */
-	namespaceId = NamespaceCreate(schemaName, owner_uid, false);
+  /*
+   * If if_not_exists was given and the schema already exists, bail out.
+   * (Note: we needn't check this when not if_not_exists, because
+   * NamespaceCreate will complain anyway.)  We could do this before making
+   * the permissions checks, but since CREATE TABLE IF NOT EXISTS makes its
+   * creation-permission check first, we do likewise.
+   */
+  if (stmt->if_not_exists) {
+    namespaceId = get_namespace_oid(schemaName, true);
 
-	/* Advance cmd counter to make the namespace visible */
-	CommandCounterIncrement();
+    if (OidIsValid(namespaceId)) {
+      /*
+       * If we are in an extension script, insist that the pre-existing
+       * object be a member of the extension, to avoid security risks.
+       */
+      ObjectAddressSet(address, NamespaceRelationId, namespaceId);
+      checkMembershipInCurrentExtension(&address);
 
-	/*
-	 * Prepend the new schema to the current search path.
-	 *
-	 * We use the equivalent of a function SET option to allow the setting to
-	 * persist for exactly the duration of the schema creation.  guc.c also
-	 * takes care of undoing the setting on error.
-	 */
-	save_nestlevel = NewGUCNestLevel();
+      /* OK to skip */
+      ereport(NOTICE,
+              (errcode(ERRCODE_DUPLICATE_SCHEMA),
+               errmsg("schema \"%s\" already exists, skipping",
+                      schemaName)));
+      return InvalidOid;
+    }
+  }
 
-	initStringInfo(&pathbuf);
-	appendStringInfoString(&pathbuf, quote_identifier(schemaName));
+  /*
+   * If the requested authorization is different from the current user,
+   * temporarily set the current user so that the object(s) will be created
+   * with the correct ownership.
+   *
+   * (The setting will be restored at the end of this routine, or in case of
+   * error, transaction abort will clean things up.)
+   */
+  if (saved_uid != owner_uid)
+    SetUserIdAndSecContext(owner_uid,
+                           save_sec_context | SECURITY_LOCAL_USERID_CHANGE);
 
-	while (scanner_isspace(*nsp))
-		nsp++;
+  /* Create the schema's namespace */
+  namespaceId = NamespaceCreate(schemaName, owner_uid, false);
 
-	if (*nsp != '\0')
-		appendStringInfo(&pathbuf, ", %s", nsp);
+  /* Advance cmd counter to make the namespace visible */
+  CommandCounterIncrement();
 
-	(void) set_config_option("search_path", pathbuf.data,
-							 PGC_USERSET, PGC_S_SESSION,
-							 GUC_ACTION_SAVE, true, 0, false);
+  /*
+   * Prepend the new schema to the current search path.
+   *
+   * We use the equivalent of a function SET option to allow the setting to
+   * persist for exactly the duration of the schema creation.  guc.c also
+   * takes care of undoing the setting on error.
+   */
+  save_nestlevel = NewGUCNestLevel();
 
-	/*
-	 * Report the new schema to possibly interested event triggers.  Note we
-	 * must do this here and not in ProcessUtilitySlow because otherwise the
-	 * objects created below are reported before the schema, which would be
-	 * wrong.
-	 */
-	ObjectAddressSet(address, NamespaceRelationId, namespaceId);
-	EventTriggerCollectSimpleCommand(address, InvalidObjectAddress,
-									 (Node *) stmt);
+  initStringInfo(&pathbuf);
+  appendStringInfoString(&pathbuf, quote_identifier(schemaName));
 
-	/*
-	 * Examine the list of commands embedded in the CREATE SCHEMA command, and
-	 * reorganize them into a sequentially executable order with no forward
-	 * references.  Note that the result is still a list of raw parsetrees ---
-	 * we cannot, in general, run parse analysis on one statement until we
-	 * have actually executed the prior ones.
-	 */
-	parsetree_list = transformCreateSchemaStmtElements(stmt->schemaElts,
-													   schemaName);
+  while (scanner_isspace(*nsp))
+    nsp++;
 
-	/*
-	 * Execute each command contained in the CREATE SCHEMA.  Since the grammar
-	 * allows only utility commands in CREATE SCHEMA, there is no need to pass
-	 * them through parse_analyze_*() or the rewriter; we can just hand them
-	 * straight to ProcessUtility.
-	 */
-	foreach(parsetree_item, parsetree_list)
-	{
-		Node	   *stmt = (Node *) lfirst(parsetree_item);
-		PlannedStmt *wrapper;
+  if (*nsp != '\0')
+    appendStringInfo(&pathbuf, ", %s", nsp);
 
-		/* need to make a wrapper PlannedStmt */
-		wrapper = makeNode(PlannedStmt);
-		wrapper->commandType = CMD_UTILITY;
-		wrapper->canSetTag = false;
-		wrapper->utilityStmt = stmt;
-		wrapper->stmt_location = stmt_location;
-		wrapper->stmt_len = stmt_len;
+  (void) set_config_option("search_path", pathbuf.data,
+                           PGC_USERSET, PGC_S_SESSION,
+                           GUC_ACTION_SAVE, true, 0, false);
 
-		/* do this step */
-		ProcessUtility(wrapper,
-					   queryString,
-					   false,
-					   PROCESS_UTILITY_SUBCOMMAND,
-					   NULL,
-					   NULL,
-					   None_Receiver,
-					   NULL);
+  /*
+   * Report the new schema to possibly interested event triggers.  Note we
+   * must do this here and not in ProcessUtilitySlow because otherwise the
+   * objects created below are reported before the schema, which would be
+   * wrong.
+   */
+  ObjectAddressSet(address, NamespaceRelationId, namespaceId);
+  EventTriggerCollectSimpleCommand(address, InvalidObjectAddress,
+                                   (Node *) stmt);
 
-		/* make sure later steps can see the object created here */
-		CommandCounterIncrement();
-	}
+  /*
+   * Examine the list of commands embedded in the CREATE SCHEMA command, and
+   * reorganize them into a sequentially executable order with no forward
+   * references.  Note that the result is still a list of raw parsetrees ---
+   * we cannot, in general, run parse analysis on one statement until we
+   * have actually executed the prior ones.
+   */
+  parsetree_list = transformCreateSchemaStmtElements(stmt->schemaElts,
+                   schemaName);
 
-	/*
-	 * Restore the GUC variable search_path we set above.
-	 */
-	AtEOXact_GUC(true, save_nestlevel);
+  /*
+   * Execute each command contained in the CREATE SCHEMA.  Since the grammar
+   * allows only utility commands in CREATE SCHEMA, there is no need to pass
+   * them through parse_analyze_*() or the rewriter; we can just hand them
+   * straight to ProcessUtility.
+   */
+  foreach(parsetree_item, parsetree_list) {
+    Node     *stmt = (Node *) lfirst(parsetree_item);
+    PlannedStmt *wrapper;
 
-	/* Reset current user and security context */
-	SetUserIdAndSecContext(saved_uid, save_sec_context);
+    /* need to make a wrapper PlannedStmt */
+    wrapper = makeNode(PlannedStmt);
+    wrapper->commandType = CMD_UTILITY;
+    wrapper->canSetTag = false;
+    wrapper->utilityStmt = stmt;
+    wrapper->stmt_location = stmt_location;
+    wrapper->stmt_len = stmt_len;
 
-	return namespaceId;
+    /* do this step */
+    ProcessUtility(wrapper,
+                   queryString,
+                   false,
+                   PROCESS_UTILITY_SUBCOMMAND,
+                   NULL,
+                   NULL,
+                   None_Receiver,
+                   NULL);
+
+    /* make sure later steps can see the object created here */
+    CommandCounterIncrement();
+  }
+
+  /*
+   * Restore the GUC variable search_path we set above.
+   */
+  AtEOXact_GUC(true, save_nestlevel);
+
+  /* Reset current user and security context */
+  SetUserIdAndSecContext(saved_uid, save_sec_context);
+
+  return namespaceId;
 }
 
 
@@ -248,78 +248,81 @@ CreateSchemaCommand(CreateSchemaStmt *stmt, const char *queryString,
 ObjectAddress
 RenameSchema(const char *oldname, const char *newname)
 {
-	Oid			nspOid;
-	HeapTuple	tup;
-	Relation	rel;
-	AclResult	aclresult;
-	ObjectAddress address;
-	Form_pg_namespace nspform;
+  Oid     nspOid;
+  HeapTuple tup;
+  Relation  rel;
+  AclResult aclresult;
+  ObjectAddress address;
+  Form_pg_namespace nspform;
 
-	rel = table_open(NamespaceRelationId, RowExclusiveLock);
+  rel = table_open(NamespaceRelationId, RowExclusiveLock);
 
-	tup = SearchSysCacheCopy1(NAMESPACENAME, CStringGetDatum(oldname));
-	if (!HeapTupleIsValid(tup))
-		ereport(ERROR,
-				(errcode(ERRCODE_UNDEFINED_SCHEMA),
-				 errmsg("schema \"%s\" does not exist", oldname)));
+  tup = SearchSysCacheCopy1(NAMESPACENAME, CStringGetDatum(oldname));
 
-	nspform = (Form_pg_namespace) GETSTRUCT(tup);
-	nspOid = nspform->oid;
+  if (!HeapTupleIsValid(tup))
+    ereport(ERROR,
+            (errcode(ERRCODE_UNDEFINED_SCHEMA),
+             errmsg("schema \"%s\" does not exist", oldname)));
 
-	/* make sure the new name doesn't exist */
-	if (OidIsValid(get_namespace_oid(newname, true)))
-		ereport(ERROR,
-				(errcode(ERRCODE_DUPLICATE_SCHEMA),
-				 errmsg("schema \"%s\" already exists", newname)));
+  nspform = (Form_pg_namespace) GETSTRUCT(tup);
+  nspOid = nspform->oid;
 
-	/* must be owner */
-	if (!object_ownercheck(NamespaceRelationId, nspOid, GetUserId()))
-		aclcheck_error(ACLCHECK_NOT_OWNER, OBJECT_SCHEMA,
-					   oldname);
+  /* make sure the new name doesn't exist */
+  if (OidIsValid(get_namespace_oid(newname, true)))
+    ereport(ERROR,
+            (errcode(ERRCODE_DUPLICATE_SCHEMA),
+             errmsg("schema \"%s\" already exists", newname)));
 
-	/* must have CREATE privilege on database */
-	aclresult = object_aclcheck(DatabaseRelationId, MyDatabaseId, GetUserId(), ACL_CREATE);
-	if (aclresult != ACLCHECK_OK)
-		aclcheck_error(aclresult, OBJECT_DATABASE,
-					   get_database_name(MyDatabaseId));
+  /* must be owner */
+  if (!object_ownercheck(NamespaceRelationId, nspOid, GetUserId()))
+    aclcheck_error(ACLCHECK_NOT_OWNER, OBJECT_SCHEMA,
+                   oldname);
 
-	if (!allowSystemTableMods && IsReservedName(newname))
-		ereport(ERROR,
-				(errcode(ERRCODE_RESERVED_NAME),
-				 errmsg("unacceptable schema name \"%s\"", newname),
-				 errdetail("The prefix \"pg_\" is reserved for system schemas.")));
+  /* must have CREATE privilege on database */
+  aclresult = object_aclcheck(DatabaseRelationId, MyDatabaseId, GetUserId(), ACL_CREATE);
 
-	/* rename */
-	namestrcpy(&nspform->nspname, newname);
-	CatalogTupleUpdate(rel, &tup->t_self, tup);
+  if (aclresult != ACLCHECK_OK)
+    aclcheck_error(aclresult, OBJECT_DATABASE,
+                   get_database_name(MyDatabaseId));
 
-	InvokeObjectPostAlterHook(NamespaceRelationId, nspOid, 0);
+  if (!allowSystemTableMods && IsReservedName(newname))
+    ereport(ERROR,
+            (errcode(ERRCODE_RESERVED_NAME),
+             errmsg("unacceptable schema name \"%s\"", newname),
+             errdetail("The prefix \"pg_\" is reserved for system schemas.")));
 
-	ObjectAddressSet(address, NamespaceRelationId, nspOid);
+  /* rename */
+  namestrcpy(&nspform->nspname, newname);
+  CatalogTupleUpdate(rel, &tup->t_self, tup);
 
-	table_close(rel, NoLock);
-	heap_freetuple(tup);
+  InvokeObjectPostAlterHook(NamespaceRelationId, nspOid, 0);
 
-	return address;
+  ObjectAddressSet(address, NamespaceRelationId, nspOid);
+
+  table_close(rel, NoLock);
+  heap_freetuple(tup);
+
+  return address;
 }
 
 void
 AlterSchemaOwner_oid(Oid schemaoid, Oid newOwnerId)
 {
-	HeapTuple	tup;
-	Relation	rel;
+  HeapTuple tup;
+  Relation  rel;
 
-	rel = table_open(NamespaceRelationId, RowExclusiveLock);
+  rel = table_open(NamespaceRelationId, RowExclusiveLock);
 
-	tup = SearchSysCache1(NAMESPACEOID, ObjectIdGetDatum(schemaoid));
-	if (!HeapTupleIsValid(tup))
-		elog(ERROR, "cache lookup failed for schema %u", schemaoid);
+  tup = SearchSysCache1(NAMESPACEOID, ObjectIdGetDatum(schemaoid));
 
-	AlterSchemaOwner_internal(tup, rel, newOwnerId);
+  if (!HeapTupleIsValid(tup))
+    elog(ERROR, "cache lookup failed for schema %u", schemaoid);
 
-	ReleaseSysCache(tup);
+  AlterSchemaOwner_internal(tup, rel, newOwnerId);
 
-	table_close(rel, RowExclusiveLock);
+  ReleaseSysCache(tup);
+
+  table_close(rel, RowExclusiveLock);
 }
 
 
@@ -329,114 +332,115 @@ AlterSchemaOwner_oid(Oid schemaoid, Oid newOwnerId)
 ObjectAddress
 AlterSchemaOwner(const char *name, Oid newOwnerId)
 {
-	Oid			nspOid;
-	HeapTuple	tup;
-	Relation	rel;
-	ObjectAddress address;
-	Form_pg_namespace nspform;
+  Oid     nspOid;
+  HeapTuple tup;
+  Relation  rel;
+  ObjectAddress address;
+  Form_pg_namespace nspform;
 
-	rel = table_open(NamespaceRelationId, RowExclusiveLock);
+  rel = table_open(NamespaceRelationId, RowExclusiveLock);
 
-	tup = SearchSysCache1(NAMESPACENAME, CStringGetDatum(name));
-	if (!HeapTupleIsValid(tup))
-		ereport(ERROR,
-				(errcode(ERRCODE_UNDEFINED_SCHEMA),
-				 errmsg("schema \"%s\" does not exist", name)));
+  tup = SearchSysCache1(NAMESPACENAME, CStringGetDatum(name));
 
-	nspform = (Form_pg_namespace) GETSTRUCT(tup);
-	nspOid = nspform->oid;
+  if (!HeapTupleIsValid(tup))
+    ereport(ERROR,
+            (errcode(ERRCODE_UNDEFINED_SCHEMA),
+             errmsg("schema \"%s\" does not exist", name)));
 
-	AlterSchemaOwner_internal(tup, rel, newOwnerId);
+  nspform = (Form_pg_namespace) GETSTRUCT(tup);
+  nspOid = nspform->oid;
 
-	ObjectAddressSet(address, NamespaceRelationId, nspOid);
+  AlterSchemaOwner_internal(tup, rel, newOwnerId);
 
-	ReleaseSysCache(tup);
+  ObjectAddressSet(address, NamespaceRelationId, nspOid);
 
-	table_close(rel, RowExclusiveLock);
+  ReleaseSysCache(tup);
 
-	return address;
+  table_close(rel, RowExclusiveLock);
+
+  return address;
 }
 
 static void
 AlterSchemaOwner_internal(HeapTuple tup, Relation rel, Oid newOwnerId)
 {
-	Form_pg_namespace nspForm;
+  Form_pg_namespace nspForm;
 
-	Assert(tup->t_tableOid == NamespaceRelationId);
-	Assert(RelationGetRelid(rel) == NamespaceRelationId);
+  Assert(tup->t_tableOid == NamespaceRelationId);
+  Assert(RelationGetRelid(rel) == NamespaceRelationId);
 
-	nspForm = (Form_pg_namespace) GETSTRUCT(tup);
+  nspForm = (Form_pg_namespace) GETSTRUCT(tup);
 
-	/*
-	 * If the new owner is the same as the existing owner, consider the
-	 * command to have succeeded.  This is for dump restoration purposes.
-	 */
-	if (nspForm->nspowner != newOwnerId)
-	{
-		Datum		repl_val[Natts_pg_namespace];
-		bool		repl_null[Natts_pg_namespace];
-		bool		repl_repl[Natts_pg_namespace];
-		Acl		   *newAcl;
-		Datum		aclDatum;
-		bool		isNull;
-		HeapTuple	newtuple;
-		AclResult	aclresult;
+  /*
+   * If the new owner is the same as the existing owner, consider the
+   * command to have succeeded.  This is for dump restoration purposes.
+   */
+  if (nspForm->nspowner != newOwnerId) {
+    Datum   repl_val[Natts_pg_namespace];
+    bool    repl_null[Natts_pg_namespace];
+    bool    repl_repl[Natts_pg_namespace];
+    Acl      *newAcl;
+    Datum   aclDatum;
+    bool    isNull;
+    HeapTuple newtuple;
+    AclResult aclresult;
 
-		/* Otherwise, must be owner of the existing object */
-		if (!object_ownercheck(NamespaceRelationId, nspForm->oid, GetUserId()))
-			aclcheck_error(ACLCHECK_NOT_OWNER, OBJECT_SCHEMA,
-						   NameStr(nspForm->nspname));
+    /* Otherwise, must be owner of the existing object */
+    if (!object_ownercheck(NamespaceRelationId, nspForm->oid, GetUserId()))
+      aclcheck_error(ACLCHECK_NOT_OWNER, OBJECT_SCHEMA,
+                     NameStr(nspForm->nspname));
 
-		/* Must be able to become new owner */
-		check_can_set_role(GetUserId(), newOwnerId);
+    /* Must be able to become new owner */
+    check_can_set_role(GetUserId(), newOwnerId);
 
-		/*
-		 * must have create-schema rights
-		 *
-		 * NOTE: This is different from other alter-owner checks in that the
-		 * current user is checked for create privileges instead of the
-		 * destination owner.  This is consistent with the CREATE case for
-		 * schemas.  Because superusers will always have this right, we need
-		 * no special case for them.
-		 */
-		aclresult = object_aclcheck(DatabaseRelationId, MyDatabaseId, GetUserId(),
-									ACL_CREATE);
-		if (aclresult != ACLCHECK_OK)
-			aclcheck_error(aclresult, OBJECT_DATABASE,
-						   get_database_name(MyDatabaseId));
+    /*
+     * must have create-schema rights
+     *
+     * NOTE: This is different from other alter-owner checks in that the
+     * current user is checked for create privileges instead of the
+     * destination owner.  This is consistent with the CREATE case for
+     * schemas.  Because superusers will always have this right, we need
+     * no special case for them.
+     */
+    aclresult = object_aclcheck(DatabaseRelationId, MyDatabaseId, GetUserId(),
+                                ACL_CREATE);
 
-		memset(repl_null, false, sizeof(repl_null));
-		memset(repl_repl, false, sizeof(repl_repl));
+    if (aclresult != ACLCHECK_OK)
+      aclcheck_error(aclresult, OBJECT_DATABASE,
+                     get_database_name(MyDatabaseId));
 
-		repl_repl[Anum_pg_namespace_nspowner - 1] = true;
-		repl_val[Anum_pg_namespace_nspowner - 1] = ObjectIdGetDatum(newOwnerId);
+    memset(repl_null, false, sizeof(repl_null));
+    memset(repl_repl, false, sizeof(repl_repl));
 
-		/*
-		 * Determine the modified ACL for the new owner.  This is only
-		 * necessary when the ACL is non-null.
-		 */
-		aclDatum = SysCacheGetAttr(NAMESPACENAME, tup,
-								   Anum_pg_namespace_nspacl,
-								   &isNull);
-		if (!isNull)
-		{
-			newAcl = aclnewowner(DatumGetAclP(aclDatum),
-								 nspForm->nspowner, newOwnerId);
-			repl_repl[Anum_pg_namespace_nspacl - 1] = true;
-			repl_val[Anum_pg_namespace_nspacl - 1] = PointerGetDatum(newAcl);
-		}
+    repl_repl[Anum_pg_namespace_nspowner - 1] = true;
+    repl_val[Anum_pg_namespace_nspowner - 1] = ObjectIdGetDatum(newOwnerId);
 
-		newtuple = heap_modify_tuple(tup, RelationGetDescr(rel), repl_val, repl_null, repl_repl);
+    /*
+     * Determine the modified ACL for the new owner.  This is only
+     * necessary when the ACL is non-null.
+     */
+    aclDatum = SysCacheGetAttr(NAMESPACENAME, tup,
+                               Anum_pg_namespace_nspacl,
+                               &isNull);
 
-		CatalogTupleUpdate(rel, &newtuple->t_self, newtuple);
+    if (!isNull) {
+      newAcl = aclnewowner(DatumGetAclP(aclDatum),
+                           nspForm->nspowner, newOwnerId);
+      repl_repl[Anum_pg_namespace_nspacl - 1] = true;
+      repl_val[Anum_pg_namespace_nspacl - 1] = PointerGetDatum(newAcl);
+    }
 
-		heap_freetuple(newtuple);
+    newtuple = heap_modify_tuple(tup, RelationGetDescr(rel), repl_val, repl_null, repl_repl);
 
-		/* Update owner dependency reference */
-		changeDependencyOnOwner(NamespaceRelationId, nspForm->oid,
-								newOwnerId);
-	}
+    CatalogTupleUpdate(rel, &newtuple->t_self, newtuple);
 
-	InvokeObjectPostAlterHook(NamespaceRelationId,
-							  nspForm->oid, 0);
+    heap_freetuple(newtuple);
+
+    /* Update owner dependency reference */
+    changeDependencyOnOwner(NamespaceRelationId, nspForm->oid,
+                            newOwnerId);
+  }
+
+  InvokeObjectPostAlterHook(NamespaceRelationId,
+                            nspForm->oid, 0);
 }

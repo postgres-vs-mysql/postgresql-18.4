@@ -29,12 +29,12 @@
  * Certain compilers make that harder than it ought to be.
  */
 #define write_stderr(str) \
-	do { \
-		const char *str_ = (str); \
-		int		rc_; \
-		rc_ = write(fileno(stderr), str_, strlen(str_)); \
-		(void) rc_; \
-	} while (0)
+  do { \
+    const char *str_ = (str); \
+    int   rc_; \
+    rc_ = write(fileno(stderr), str_, strlen(str_)); \
+    (void) rc_; \
+  } while (0)
 
 /*
  * Contains all the information needed to cancel a query issued from
@@ -76,25 +76,25 @@ static void (*cancel_callback) (void) = NULL;
 void
 SetCancelConn(PGconn *conn)
 {
-	PGcancel   *oldCancelConn;
+  PGcancel   *oldCancelConn;
 
 #ifdef WIN32
-	EnterCriticalSection(&cancelConnLock);
+  EnterCriticalSection(&cancelConnLock);
 #endif
 
-	/* Free the old one if we have one */
-	oldCancelConn = cancelConn;
+  /* Free the old one if we have one */
+  oldCancelConn = cancelConn;
 
-	/* be sure handle_sigint doesn't use pointer while freeing */
-	cancelConn = NULL;
+  /* be sure handle_sigint doesn't use pointer while freeing */
+  cancelConn = NULL;
 
-	if (oldCancelConn != NULL)
-		PQfreeCancel(oldCancelConn);
+  if (oldCancelConn != NULL)
+    PQfreeCancel(oldCancelConn);
 
-	cancelConn = PQgetCancel(conn);
+  cancelConn = PQgetCancel(conn);
 
 #ifdef WIN32
-	LeaveCriticalSection(&cancelConnLock);
+  LeaveCriticalSection(&cancelConnLock);
 #endif
 }
 
@@ -106,22 +106,22 @@ SetCancelConn(PGconn *conn)
 void
 ResetCancelConn(void)
 {
-	PGcancel   *oldCancelConn;
+  PGcancel   *oldCancelConn;
 
 #ifdef WIN32
-	EnterCriticalSection(&cancelConnLock);
+  EnterCriticalSection(&cancelConnLock);
 #endif
 
-	oldCancelConn = cancelConn;
+  oldCancelConn = cancelConn;
 
-	/* be sure handle_sigint doesn't use pointer while freeing */
-	cancelConn = NULL;
+  /* be sure handle_sigint doesn't use pointer while freeing */
+  cancelConn = NULL;
 
-	if (oldCancelConn != NULL)
-		PQfreeCancel(oldCancelConn);
+  if (oldCancelConn != NULL)
+    PQfreeCancel(oldCancelConn);
 
 #ifdef WIN32
-	LeaveCriticalSection(&cancelConnLock);
+  LeaveCriticalSection(&cancelConnLock);
 #endif
 }
 
@@ -152,26 +152,22 @@ ResetCancelConn(void)
 static void
 handle_sigint(SIGNAL_ARGS)
 {
-	char		errbuf[256];
+  char    errbuf[256];
 
-	CancelRequested = true;
+  CancelRequested = true;
 
-	if (cancel_callback != NULL)
-		cancel_callback();
+  if (cancel_callback != NULL)
+    cancel_callback();
 
-	/* Send QueryCancel if we are processing a database query */
-	if (cancelConn != NULL)
-	{
-		if (PQcancel(cancelConn, errbuf, sizeof(errbuf)))
-		{
-			write_stderr(cancel_sent_msg);
-		}
-		else
-		{
-			write_stderr(cancel_not_sent_msg);
-			write_stderr(errbuf);
-		}
-	}
+  /* Send QueryCancel if we are processing a database query */
+  if (cancelConn != NULL) {
+    if (PQcancel(cancelConn, errbuf, sizeof(errbuf))) {
+      write_stderr(cancel_sent_msg);
+    } else {
+      write_stderr(cancel_not_sent_msg);
+      write_stderr(errbuf);
+    }
+  }
 }
 
 /*
@@ -182,62 +178,57 @@ handle_sigint(SIGNAL_ARGS)
 void
 setup_cancel_handler(void (*query_cancel_callback) (void))
 {
-	cancel_callback = query_cancel_callback;
-	cancel_sent_msg = _("Cancel request sent\n");
-	cancel_not_sent_msg = _("Could not send cancel request: ");
+  cancel_callback = query_cancel_callback;
+  cancel_sent_msg = _("Cancel request sent\n");
+  cancel_not_sent_msg = _("Could not send cancel request: ");
 
-	pqsignal(SIGINT, handle_sigint);
+  pqsignal(SIGINT, handle_sigint);
 }
 
-#else							/* WIN32 */
+#else             /* WIN32 */
 
 static BOOL WINAPI
 consoleHandler(DWORD dwCtrlType)
 {
-	char		errbuf[256];
+  char    errbuf[256];
 
-	if (dwCtrlType == CTRL_C_EVENT ||
-		dwCtrlType == CTRL_BREAK_EVENT)
-	{
-		CancelRequested = true;
+  if (dwCtrlType == CTRL_C_EVENT ||
+      dwCtrlType == CTRL_BREAK_EVENT) {
+    CancelRequested = true;
 
-		if (cancel_callback != NULL)
-			cancel_callback();
+    if (cancel_callback != NULL)
+      cancel_callback();
 
-		/* Send QueryCancel if we are processing a database query */
-		EnterCriticalSection(&cancelConnLock);
-		if (cancelConn != NULL)
-		{
-			if (PQcancel(cancelConn, errbuf, sizeof(errbuf)))
-			{
-				write_stderr(cancel_sent_msg);
-			}
-			else
-			{
-				write_stderr(cancel_not_sent_msg);
-				write_stderr(errbuf);
-			}
-		}
+    /* Send QueryCancel if we are processing a database query */
+    EnterCriticalSection(&cancelConnLock);
 
-		LeaveCriticalSection(&cancelConnLock);
+    if (cancelConn != NULL) {
+      if (PQcancel(cancelConn, errbuf, sizeof(errbuf))) {
+        write_stderr(cancel_sent_msg);
+      } else {
+        write_stderr(cancel_not_sent_msg);
+        write_stderr(errbuf);
+      }
+    }
 
-		return TRUE;
-	}
-	else
-		/* Return FALSE for any signals not being handled */
-		return FALSE;
+    LeaveCriticalSection(&cancelConnLock);
+
+    return TRUE;
+  } else
+    /* Return FALSE for any signals not being handled */
+    return FALSE;
 }
 
 void
 setup_cancel_handler(void (*callback) (void))
 {
-	cancel_callback = callback;
-	cancel_sent_msg = _("Cancel request sent\n");
-	cancel_not_sent_msg = _("Could not send cancel request: ");
+  cancel_callback = callback;
+  cancel_sent_msg = _("Cancel request sent\n");
+  cancel_not_sent_msg = _("Could not send cancel request: ");
 
-	InitializeCriticalSection(&cancelConnLock);
+  InitializeCriticalSection(&cancelConnLock);
 
-	SetConsoleCtrlHandler(consoleHandler, TRUE);
+  SetConsoleCtrlHandler(consoleHandler, TRUE);
 }
 
-#endif							/* WIN32 */
+#endif              /* WIN32 */

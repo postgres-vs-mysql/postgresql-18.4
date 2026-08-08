@@ -24,7 +24,7 @@
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *		  src/include/fe_utils/astreamer.h
+ *      src/include/fe_utils/astreamer.h
  *-------------------------------------------------------------------------
  */
 
@@ -61,11 +61,11 @@ typedef struct astreamer_ops astreamer_ops;
  */
 typedef enum
 {
-	ASTREAMER_UNKNOWN,
-	ASTREAMER_MEMBER_HEADER,
-	ASTREAMER_MEMBER_CONTENTS,
-	ASTREAMER_MEMBER_TRAILER,
-	ASTREAMER_ARCHIVE_TRAILER,
+  ASTREAMER_UNKNOWN,
+  ASTREAMER_MEMBER_HEADER,
+  ASTREAMER_MEMBER_CONTENTS,
+  ASTREAMER_MEMBER_TRAILER,
+  ASTREAMER_ARCHIVE_TRAILER,
 } astreamer_archive_context;
 
 /*
@@ -78,16 +78,16 @@ typedef enum
  */
 typedef struct
 {
-	char		pathname[MAXPGPATH];
-	pgoff_t		size;
-	mode_t		mode;
-	uid_t		uid;
-	gid_t		gid;
-	/* note: special filetypes will set none of these flags */
-	bool		is_regular;
-	bool		is_directory;
-	bool		is_symlink;
-	char		linktarget[MAXPGPATH];
+  char    pathname[MAXPGPATH];
+  pgoff_t   size;
+  mode_t    mode;
+  uid_t   uid;
+  gid_t   gid;
+  /* note: special filetypes will set none of these flags */
+  bool    is_regular;
+  bool    is_directory;
+  bool    is_symlink;
+  char    linktarget[MAXPGPATH];
 } astreamer_member;
 
 /*
@@ -108,9 +108,9 @@ typedef struct
  */
 struct astreamer
 {
-	const astreamer_ops *bbs_ops;
-	astreamer  *bbs_next;
-	StringInfoData bbs_buffer;
+  const astreamer_ops *bbs_ops;
+  astreamer  *bbs_next;
+  StringInfoData bbs_buffer;
 };
 
 /*
@@ -125,37 +125,37 @@ struct astreamer
  */
 struct astreamer_ops
 {
-	void		(*content) (astreamer *streamer, astreamer_member *member,
-							const char *data, int len,
-							astreamer_archive_context context);
-	void		(*finalize) (astreamer *streamer);
-	void		(*free) (astreamer *streamer);
+  void    (*content) (astreamer *streamer, astreamer_member *member,
+                      const char *data, int len,
+                      astreamer_archive_context context);
+  void    (*finalize) (astreamer *streamer);
+  void    (*free) (astreamer *streamer);
 };
 
 /* Send some content to a astreamer. */
 static inline void
 astreamer_content(astreamer *streamer, astreamer_member *member,
-				  const char *data, int len,
-				  astreamer_archive_context context)
+                  const char *data, int len,
+                  astreamer_archive_context context)
 {
-	Assert(streamer != NULL);
-	streamer->bbs_ops->content(streamer, member, data, len, context);
+  Assert(streamer != NULL);
+  streamer->bbs_ops->content(streamer, member, data, len, context);
 }
 
 /* Finalize a astreamer. */
 static inline void
 astreamer_finalize(astreamer *streamer)
 {
-	Assert(streamer != NULL);
-	streamer->bbs_ops->finalize(streamer);
+  Assert(streamer != NULL);
+  streamer->bbs_ops->finalize(streamer);
 }
 
 /* Free a astreamer. */
 static inline void
 astreamer_free(astreamer *streamer)
 {
-	Assert(streamer != NULL);
-	streamer->bbs_ops->free(streamer);
+  Assert(streamer != NULL);
+  streamer->bbs_ops->free(streamer);
 }
 
 /*
@@ -166,13 +166,13 @@ astreamer_free(astreamer *streamer)
  */
 static inline void
 astreamer_buffer_bytes(astreamer *streamer, const char **data, int *len,
-					   int nbytes)
+                       int nbytes)
 {
-	Assert(nbytes <= *len);
+  Assert(nbytes <= *len);
 
-	appendBinaryStringInfo(&streamer->bbs_buffer, *data, nbytes);
-	*len -= nbytes;
-	*data += nbytes;
+  appendBinaryStringInfo(&streamer->bbs_buffer, *data, nbytes);
+  *len -= nbytes;
+  *data += nbytes;
 }
 
 /*
@@ -184,26 +184,26 @@ astreamer_buffer_bytes(astreamer *streamer, const char **data, int *len,
  */
 static inline bool
 astreamer_buffer_until(astreamer *streamer, const char **data, int *len,
-					   int target_bytes)
+                       int target_bytes)
 {
-	int			buflen = streamer->bbs_buffer.len;
+  int     buflen = streamer->bbs_buffer.len;
 
-	if (buflen >= target_bytes)
-	{
-		/* Target length already reached; nothing to do. */
-		return true;
-	}
+  if (buflen >= target_bytes)
+  {
+    /* Target length already reached; nothing to do. */
+    return true;
+  }
 
-	if (buflen + *len < target_bytes)
-	{
-		/* Not enough data to reach target length; buffer all of it. */
-		astreamer_buffer_bytes(streamer, data, len, *len);
-		return false;
-	}
+  if (buflen + *len < target_bytes)
+  {
+    /* Not enough data to reach target length; buffer all of it. */
+    astreamer_buffer_bytes(streamer, data, len, *len);
+    return false;
+  }
 
-	/* Buffer just enough to reach the target length. */
-	astreamer_buffer_bytes(streamer, data, len, target_bytes - buflen);
-	return true;
+  /* Buffer just enough to reach the target length. */
+  astreamer_buffer_bytes(streamer, data, len, target_bytes - buflen);
+  return true;
 }
 
 /*
@@ -212,17 +212,17 @@ astreamer_buffer_until(astreamer *streamer, const char **data, int *len,
  */
 extern astreamer *astreamer_plain_writer_new(char *pathname, FILE *file);
 extern astreamer *astreamer_gzip_writer_new(char *pathname, FILE *file,
-											pg_compress_specification *compress);
+    pg_compress_specification *compress);
 extern astreamer *astreamer_extractor_new(const char *basepath,
-										  const char *(*link_map) (const char *),
-										  void (*report_output_file) (const char *));
+    const char *(*link_map) (const char *),
+    void (*report_output_file) (const char *));
 
 extern astreamer *astreamer_gzip_decompressor_new(astreamer *next);
 extern astreamer *astreamer_lz4_compressor_new(astreamer *next,
-											   pg_compress_specification *compress);
+    pg_compress_specification *compress);
 extern astreamer *astreamer_lz4_decompressor_new(astreamer *next);
 extern astreamer *astreamer_zstd_compressor_new(astreamer *next,
-												pg_compress_specification *compress);
+    pg_compress_specification *compress);
 extern astreamer *astreamer_zstd_decompressor_new(astreamer *next);
 extern astreamer *astreamer_tar_parser_new(astreamer *next);
 extern astreamer *astreamer_tar_terminator_new(astreamer *next);

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * tablecmds.h
- *	  prototypes for tablecmds.c.
+ *    prototypes for tablecmds.c.
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -21,20 +21,20 @@
 #include "storage/lock.h"
 #include "utils/relcache.h"
 
-struct AlterTableUtilityContext;	/* avoid including tcop/utility.h here */
+struct AlterTableUtilityContext;  /* avoid including tcop/utility.h here */
 
 
 extern ObjectAddress DefineRelation(CreateStmt *stmt, char relkind, Oid ownerId,
-									ObjectAddress *typaddress, const char *queryString);
+                                    ObjectAddress *typaddress, const char *queryString);
 
 extern TupleDesc BuildDescForRelation(const List *columns);
 
 extern void RemoveRelations(DropStmt *drop);
 
-extern Oid	AlterTableLookupRelation(AlterTableStmt *stmt, LOCKMODE lockmode);
+extern Oid  AlterTableLookupRelation(AlterTableStmt *stmt, LOCKMODE lockmode);
 
 extern void AlterTable(AlterTableStmt *stmt, LOCKMODE lockmode,
-					   struct AlterTableUtilityContext *context);
+                       struct AlterTableUtilityContext *context);
 
 extern LOCKMODE AlterTableGetLockLevel(List *cmds);
 
@@ -42,34 +42,34 @@ extern void ATExecChangeOwner(Oid relationOid, Oid newOwnerId, bool recursing, L
 
 extern void AlterTableInternal(Oid relid, List *cmds, bool recurse);
 
-extern Oid	AlterTableMoveAll(AlterTableMoveAllStmt *stmt);
+extern Oid  AlterTableMoveAll(AlterTableMoveAllStmt *stmt);
 
 extern ObjectAddress AlterTableNamespace(AlterObjectSchemaStmt *stmt,
-										 Oid *oldschema);
+    Oid *oldschema);
 
 extern void AlterTableNamespaceInternal(Relation rel, Oid oldNspOid,
-										Oid nspOid, ObjectAddresses *objsMoved);
+                                        Oid nspOid, ObjectAddresses *objsMoved);
 
 extern void AlterRelationNamespaceInternal(Relation classRel, Oid relOid,
-										   Oid oldNspOid, Oid newNspOid,
-										   bool hasDependEntry,
-										   ObjectAddresses *objsMoved);
+    Oid oldNspOid, Oid newNspOid,
+    bool hasDependEntry,
+    ObjectAddresses *objsMoved);
 
 extern void CheckTableNotInUse(Relation rel, const char *stmt);
 
 extern void ExecuteTruncate(TruncateStmt *stmt);
 extern void ExecuteTruncateGuts(List *explicit_rels,
-								List *relids,
-								List *relids_logged,
-								DropBehavior behavior,
-								bool restart_seqs,
-								bool run_as_table_owner);
+                                List *relids,
+                                List *relids_logged,
+                                DropBehavior behavior,
+                                bool restart_seqs,
+                                bool run_as_table_owner);
 
 extern void SetRelationHasSubclass(Oid relationId, bool relhassubclass);
 
 extern bool CheckRelationTableSpaceMove(Relation rel, Oid newTableSpaceId);
 extern void SetRelationTableSpace(Relation rel, Oid newTableSpaceId,
-								  RelFileNumber newRelFilenumber);
+                                  RelFileNumber newRelFilenumber);
 
 extern ObjectAddress renameatt(RenameStmt *stmt);
 
@@ -78,14 +78,14 @@ extern ObjectAddress RenameConstraint(RenameStmt *stmt);
 extern ObjectAddress RenameRelation(RenameStmt *stmt);
 
 extern void RenameRelationInternal(Oid myrelid,
-								   const char *newrelname, bool is_internal,
-								   bool is_index);
+                                   const char *newrelname, bool is_internal,
+                                   bool is_index);
 
 extern void ResetRelRewrite(Oid myrelid);
 
 extern void find_composite_type_dependencies(Oid typeOid,
-											 Relation origRelation,
-											 const char *origTypeName);
+    Relation origRelation,
+    const char *origTypeName);
 
 extern void check_of_type(HeapTuple typetuple);
 
@@ -95,16 +95,16 @@ extern void remove_on_commit_action(Oid relid);
 extern void PreCommit_on_commit_actions(void);
 extern void AtEOXact_on_commit_actions(bool isCommit);
 extern void AtEOSubXact_on_commit_actions(bool isCommit,
-										  SubTransactionId mySubid,
-										  SubTransactionId parentSubid);
+    SubTransactionId mySubid,
+    SubTransactionId parentSubid);
 
 extern void RangeVarCallbackMaintainsTable(const RangeVar *relation,
-										   Oid relId, Oid oldRelId,
-										   void *arg);
+    Oid relId, Oid oldRelId,
+    void *arg);
 
 extern void RangeVarCallbackOwnsRelation(const RangeVar *relation,
-										 Oid relId, Oid oldRelId, void *arg);
+    Oid relId, Oid oldRelId, void *arg);
 extern bool PartConstraintImpliedByRelConstraint(Relation scanrel,
-												 List *partConstraint);
+    List *partConstraint);
 
-#endif							/* TABLECMDS_H */
+#endif              /* TABLECMDS_H */

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * combocid.c
- *	  Combo command ID support routines
+ *    Combo command ID support routines
  *
  * Before version 8.3, HeapTupleHeaderData had separate fields for cmin
  * and cmax.  To reduce the header size, cmin and cmax are now overlaid
@@ -34,7 +34,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/utils/time/combocid.c
+ *    src/backend/utils/time/combocid.c
  *
  *-------------------------------------------------------------------------
  */
@@ -53,24 +53,22 @@
 static HTAB *comboHash = NULL;
 
 /* Key and entry structures for the hash table */
-typedef struct
-{
-	CommandId	cmin;
-	CommandId	cmax;
+typedef struct {
+  CommandId cmin;
+  CommandId cmax;
 } ComboCidKeyData;
 
 typedef ComboCidKeyData *ComboCidKey;
 
-typedef struct
-{
-	ComboCidKeyData key;
-	CommandId	combocid;
+typedef struct {
+  ComboCidKeyData key;
+  CommandId combocid;
 } ComboCidEntryData;
 
 typedef ComboCidEntryData *ComboCidEntry;
 
 /* Initial size of the hash table */
-#define CCID_HASH_SIZE			100
+#define CCID_HASH_SIZE      100
 
 
 /*
@@ -78,11 +76,11 @@ typedef ComboCidEntryData *ComboCidEntry;
  * To convert a combo CID to cmin and cmax, you do a simple array lookup.
  */
 static ComboCidKey comboCids = NULL;
-static int	usedComboCids = 0;	/* number of elements in comboCids */
-static int	sizeComboCids = 0;	/* allocated size of array */
+static int  usedComboCids = 0;  /* number of elements in comboCids */
+static int  sizeComboCids = 0;  /* allocated size of array */
 
 /* Initial size of the array */
-#define CCID_ARRAY_SIZE			100
+#define CCID_ARRAY_SIZE     100
 
 
 /* prototypes for internal functions */
@@ -103,37 +101,37 @@ static CommandId GetRealCmax(CommandId combocid);
 CommandId
 HeapTupleHeaderGetCmin(const HeapTupleHeaderData *tup)
 {
-	CommandId	cid = HeapTupleHeaderGetRawCommandId(tup);
+  CommandId cid = HeapTupleHeaderGetRawCommandId(tup);
 
-	Assert(!(tup->t_infomask & HEAP_MOVED));
-	Assert(TransactionIdIsCurrentTransactionId(HeapTupleHeaderGetXmin(tup)));
+  Assert(!(tup->t_infomask & HEAP_MOVED));
+  Assert(TransactionIdIsCurrentTransactionId(HeapTupleHeaderGetXmin(tup)));
 
-	if (tup->t_infomask & HEAP_COMBOCID)
-		return GetRealCmin(cid);
-	else
-		return cid;
+  if (tup->t_infomask & HEAP_COMBOCID)
+    return GetRealCmin(cid);
+  else
+    return cid;
 }
 
 CommandId
 HeapTupleHeaderGetCmax(const HeapTupleHeaderData *tup)
 {
-	CommandId	cid = HeapTupleHeaderGetRawCommandId(tup);
+  CommandId cid = HeapTupleHeaderGetRawCommandId(tup);
 
-	Assert(!(tup->t_infomask & HEAP_MOVED));
+  Assert(!(tup->t_infomask & HEAP_MOVED));
 
-	/*
-	 * Because GetUpdateXid() performs memory allocations if xmax is a
-	 * multixact we can't Assert() if we're inside a critical section. This
-	 * weakens the check, but not using GetCmax() inside one would complicate
-	 * things too much.
-	 */
-	Assert(CritSectionCount > 0 ||
-		   TransactionIdIsCurrentTransactionId(HeapTupleHeaderGetUpdateXid(tup)));
+  /*
+   * Because GetUpdateXid() performs memory allocations if xmax is a
+   * multixact we can't Assert() if we're inside a critical section. This
+   * weakens the check, but not using GetCmax() inside one would complicate
+   * things too much.
+   */
+  Assert(CritSectionCount > 0 ||
+         TransactionIdIsCurrentTransactionId(HeapTupleHeaderGetUpdateXid(tup)));
 
-	if (tup->t_infomask & HEAP_COMBOCID)
-		return GetRealCmax(cid);
-	else
-		return cid;
+  if (tup->t_infomask & HEAP_COMBOCID)
+    return GetRealCmax(cid);
+  else
+    return cid;
 }
 
 /*
@@ -151,27 +149,24 @@ HeapTupleHeaderGetCmax(const HeapTupleHeaderData *tup)
  */
 void
 HeapTupleHeaderAdjustCmax(const HeapTupleHeaderData *tup,
-						  CommandId *cmax,
-						  bool *iscombo)
+                          CommandId *cmax,
+                          bool *iscombo)
 {
-	/*
-	 * If we're marking a tuple deleted that was inserted by (any
-	 * subtransaction of) our transaction, we need to use a combo command id.
-	 * Test for HeapTupleHeaderXminCommitted() first, because it's cheaper
-	 * than a TransactionIdIsCurrentTransactionId call.
-	 */
-	if (!HeapTupleHeaderXminCommitted(tup) &&
-		TransactionIdIsCurrentTransactionId(HeapTupleHeaderGetRawXmin(tup)))
-	{
-		CommandId	cmin = HeapTupleHeaderGetCmin(tup);
+  /*
+   * If we're marking a tuple deleted that was inserted by (any
+   * subtransaction of) our transaction, we need to use a combo command id.
+   * Test for HeapTupleHeaderXminCommitted() first, because it's cheaper
+   * than a TransactionIdIsCurrentTransactionId call.
+   */
+  if (!HeapTupleHeaderXminCommitted(tup) &&
+      TransactionIdIsCurrentTransactionId(HeapTupleHeaderGetRawXmin(tup))) {
+    CommandId cmin = HeapTupleHeaderGetCmin(tup);
 
-		*cmax = GetComboCommandId(cmin, *cmax);
-		*iscombo = true;
-	}
-	else
-	{
-		*iscombo = false;
-	}
+    *cmax = GetComboCommandId(cmin, *cmax);
+    *iscombo = true;
+  } else {
+    *iscombo = false;
+  }
 }
 
 /*
@@ -181,15 +176,15 @@ HeapTupleHeaderAdjustCmax(const HeapTupleHeaderData *tup,
 void
 AtEOXact_ComboCid(void)
 {
-	/*
-	 * Don't bother to pfree. These are allocated in TopTransactionContext, so
-	 * they're going to go away at the end of transaction anyway.
-	 */
-	comboHash = NULL;
+  /*
+   * Don't bother to pfree. These are allocated in TopTransactionContext, so
+   * they're going to go away at the end of transaction anyway.
+   */
+  comboHash = NULL;
 
-	comboCids = NULL;
-	usedComboCids = 0;
-	sizeComboCids = 0;
+  comboCids = NULL;
+  usedComboCids = 0;
+  sizeComboCids = 0;
 }
 
 
@@ -203,90 +198,87 @@ AtEOXact_ComboCid(void)
 static CommandId
 GetComboCommandId(CommandId cmin, CommandId cmax)
 {
-	CommandId	combocid;
-	ComboCidKeyData key;
-	ComboCidEntry entry;
-	bool		found;
+  CommandId combocid;
+  ComboCidKeyData key;
+  ComboCidEntry entry;
+  bool    found;
 
-	/*
-	 * Create the hash table and array the first time we need to use combo
-	 * cids in the transaction.
-	 */
-	if (comboHash == NULL)
-	{
-		HASHCTL		hash_ctl;
+  /*
+   * Create the hash table and array the first time we need to use combo
+   * cids in the transaction.
+   */
+  if (comboHash == NULL) {
+    HASHCTL   hash_ctl;
 
-		/* Make array first; existence of hash table asserts array exists */
-		comboCids = (ComboCidKeyData *)
-			MemoryContextAlloc(TopTransactionContext,
-							   sizeof(ComboCidKeyData) * CCID_ARRAY_SIZE);
-		sizeComboCids = CCID_ARRAY_SIZE;
-		usedComboCids = 0;
+    /* Make array first; existence of hash table asserts array exists */
+    comboCids = (ComboCidKeyData *)
+                MemoryContextAlloc(TopTransactionContext,
+                                   sizeof(ComboCidKeyData) * CCID_ARRAY_SIZE);
+    sizeComboCids = CCID_ARRAY_SIZE;
+    usedComboCids = 0;
 
-		hash_ctl.keysize = sizeof(ComboCidKeyData);
-		hash_ctl.entrysize = sizeof(ComboCidEntryData);
-		hash_ctl.hcxt = TopTransactionContext;
+    hash_ctl.keysize = sizeof(ComboCidKeyData);
+    hash_ctl.entrysize = sizeof(ComboCidEntryData);
+    hash_ctl.hcxt = TopTransactionContext;
 
-		comboHash = hash_create("Combo CIDs",
-								CCID_HASH_SIZE,
-								&hash_ctl,
-								HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
-	}
+    comboHash = hash_create("Combo CIDs",
+                            CCID_HASH_SIZE,
+                            &hash_ctl,
+                            HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+  }
 
-	/*
-	 * Grow the array if there's not at least one free slot.  We must do this
-	 * before possibly entering a new hashtable entry, else failure to
-	 * repalloc would leave a corrupt hashtable entry behind.
-	 */
-	if (usedComboCids >= sizeComboCids)
-	{
-		int			newsize = sizeComboCids * 2;
+  /*
+   * Grow the array if there's not at least one free slot.  We must do this
+   * before possibly entering a new hashtable entry, else failure to
+   * repalloc would leave a corrupt hashtable entry behind.
+   */
+  if (usedComboCids >= sizeComboCids) {
+    int     newsize = sizeComboCids * 2;
 
-		comboCids = (ComboCidKeyData *)
-			repalloc(comboCids, sizeof(ComboCidKeyData) * newsize);
-		sizeComboCids = newsize;
-	}
+    comboCids = (ComboCidKeyData *)
+                repalloc(comboCids, sizeof(ComboCidKeyData) * newsize);
+    sizeComboCids = newsize;
+  }
 
-	/* Lookup or create a hash entry with the desired cmin/cmax */
+  /* Lookup or create a hash entry with the desired cmin/cmax */
 
-	/* We assume there is no struct padding in ComboCidKeyData! */
-	key.cmin = cmin;
-	key.cmax = cmax;
-	entry = (ComboCidEntry) hash_search(comboHash,
-										&key,
-										HASH_ENTER,
-										&found);
+  /* We assume there is no struct padding in ComboCidKeyData! */
+  key.cmin = cmin;
+  key.cmax = cmax;
+  entry = (ComboCidEntry) hash_search(comboHash,
+                                      &key,
+                                      HASH_ENTER,
+                                      &found);
 
-	if (found)
-	{
-		/* Reuse an existing combo CID */
-		return entry->combocid;
-	}
+  if (found) {
+    /* Reuse an existing combo CID */
+    return entry->combocid;
+  }
 
-	/* We have to create a new combo CID; we already made room in the array */
-	combocid = usedComboCids;
+  /* We have to create a new combo CID; we already made room in the array */
+  combocid = usedComboCids;
 
-	comboCids[combocid].cmin = cmin;
-	comboCids[combocid].cmax = cmax;
-	usedComboCids++;
+  comboCids[combocid].cmin = cmin;
+  comboCids[combocid].cmax = cmax;
+  usedComboCids++;
 
-	entry->combocid = combocid;
+  entry->combocid = combocid;
 
-	return combocid;
+  return combocid;
 }
 
 static CommandId
 GetRealCmin(CommandId combocid)
 {
-	Assert(combocid < usedComboCids);
-	return comboCids[combocid].cmin;
+  Assert(combocid < usedComboCids);
+  return comboCids[combocid].cmin;
 }
 
 static CommandId
 GetRealCmax(CommandId combocid)
 {
-	Assert(combocid < usedComboCids);
-	return comboCids[combocid].cmax;
+  Assert(combocid < usedComboCids);
+  return comboCids[combocid].cmax;
 }
 
 /*
@@ -296,15 +288,15 @@ GetRealCmax(CommandId combocid)
 Size
 EstimateComboCIDStateSpace(void)
 {
-	Size		size;
+  Size    size;
 
-	/* Add space required for saving usedComboCids */
-	size = sizeof(int);
+  /* Add space required for saving usedComboCids */
+  size = sizeof(int);
 
-	/* Add space required for saving ComboCidKeyData */
-	size = add_size(size, mul_size(sizeof(ComboCidKeyData), usedComboCids));
+  /* Add space required for saving ComboCidKeyData */
+  size = add_size(size, mul_size(sizeof(ComboCidKeyData), usedComboCids));
 
-	return size;
+  return size;
 }
 
 /*
@@ -315,21 +307,22 @@ EstimateComboCIDStateSpace(void)
 void
 SerializeComboCIDState(Size maxsize, char *start_address)
 {
-	char	   *endptr;
+  char     *endptr;
 
-	/* First, we store the number of currently-existing combo CIDs. */
-	*(int *) start_address = usedComboCids;
+  /* First, we store the number of currently-existing combo CIDs. */
+  *(int *) start_address = usedComboCids;
 
-	/* If maxsize is too small, throw an error. */
-	endptr = start_address + sizeof(int) +
-		(sizeof(ComboCidKeyData) * usedComboCids);
-	if (endptr < start_address || endptr > start_address + maxsize)
-		elog(ERROR, "not enough space to serialize ComboCID state");
+  /* If maxsize is too small, throw an error. */
+  endptr = start_address + sizeof(int) +
+           (sizeof(ComboCidKeyData) * usedComboCids);
 
-	/* Now, copy the actual cmin/cmax pairs. */
-	if (usedComboCids > 0)
-		memcpy(start_address + sizeof(int), comboCids,
-			   (sizeof(ComboCidKeyData) * usedComboCids));
+  if (endptr < start_address || endptr > start_address + maxsize)
+    elog(ERROR, "not enough space to serialize ComboCID state");
+
+  /* Now, copy the actual cmin/cmax pairs. */
+  if (usedComboCids > 0)
+    memcpy(start_address + sizeof(int), comboCids,
+           (sizeof(ComboCidKeyData) * usedComboCids));
 }
 
 /*
@@ -341,24 +334,23 @@ SerializeComboCIDState(Size maxsize, char *start_address)
 void
 RestoreComboCIDState(char *comboCIDstate)
 {
-	int			num_elements;
-	ComboCidKeyData *keydata;
-	int			i;
-	CommandId	cid;
+  int     num_elements;
+  ComboCidKeyData *keydata;
+  int     i;
+  CommandId cid;
 
-	Assert(!comboCids && !comboHash);
+  Assert(!comboCids && !comboHash);
 
-	/* First, we retrieve the number of combo CIDs that were serialized. */
-	num_elements = *(int *) comboCIDstate;
-	keydata = (ComboCidKeyData *) (comboCIDstate + sizeof(int));
+  /* First, we retrieve the number of combo CIDs that were serialized. */
+  num_elements = *(int *) comboCIDstate;
+  keydata = (ComboCidKeyData *) (comboCIDstate + sizeof(int));
 
-	/* Use GetComboCommandId to restore each combo CID. */
-	for (i = 0; i < num_elements; i++)
-	{
-		cid = GetComboCommandId(keydata[i].cmin, keydata[i].cmax);
+  /* Use GetComboCommandId to restore each combo CID. */
+  for (i = 0; i < num_elements; i++) {
+    cid = GetComboCommandId(keydata[i].cmin, keydata[i].cmax);
 
-		/* Verify that we got the expected answer. */
-		if (cid != i)
-			elog(ERROR, "unexpected command ID while restoring combo CIDs");
-	}
+    /* Verify that we got the expected answer. */
+    if (cid != i)
+      elog(ERROR, "unexpected command ID while restoring combo CIDs");
+  }
 }

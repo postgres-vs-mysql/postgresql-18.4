@@ -27,91 +27,92 @@
  */
 static PID_TYPE
 psql_start_test(const char *testname,
-				_stringlist **resultfiles,
-				_stringlist **expectfiles,
-				_stringlist **tags)
+                _stringlist **resultfiles,
+                _stringlist **expectfiles,
+                _stringlist **tags)
 {
-	PID_TYPE	pid;
-	char		infile[MAXPGPATH];
-	char		outfile[MAXPGPATH];
-	char		expectfile[MAXPGPATH];
-	StringInfoData psql_cmd;
-	char	   *appnameenv;
+  PID_TYPE  pid;
+  char    infile[MAXPGPATH];
+  char    outfile[MAXPGPATH];
+  char    expectfile[MAXPGPATH];
+  StringInfoData psql_cmd;
+  char     *appnameenv;
 
-	/*
-	 * Look for files in the output dir first, consistent with a vpath search.
-	 * This is mainly to create more reasonable error messages if the file is
-	 * not found.  It also allows local test overrides when running pg_regress
-	 * outside of the source tree.
-	 */
-	snprintf(infile, sizeof(infile), "%s/sql/%s.sql",
-			 outputdir, testname);
-	if (!file_exists(infile))
-		snprintf(infile, sizeof(infile), "%s/sql/%s.sql",
-				 inputdir, testname);
+  /*
+   * Look for files in the output dir first, consistent with a vpath search.
+   * This is mainly to create more reasonable error messages if the file is
+   * not found.  It also allows local test overrides when running pg_regress
+   * outside of the source tree.
+   */
+  snprintf(infile, sizeof(infile), "%s/sql/%s.sql",
+           outputdir, testname);
 
-	snprintf(outfile, sizeof(outfile), "%s/results/%s.out",
-			 outputdir, testname);
+  if (!file_exists(infile))
+    snprintf(infile, sizeof(infile), "%s/sql/%s.sql",
+             inputdir, testname);
 
-	snprintf(expectfile, sizeof(expectfile), "%s/expected/%s.out",
-			 expecteddir, testname);
-	if (!file_exists(expectfile))
-		snprintf(expectfile, sizeof(expectfile), "%s/expected/%s.out",
-				 inputdir, testname);
+  snprintf(outfile, sizeof(outfile), "%s/results/%s.out",
+           outputdir, testname);
 
-	add_stringlist_item(resultfiles, outfile);
-	add_stringlist_item(expectfiles, expectfile);
+  snprintf(expectfile, sizeof(expectfile), "%s/expected/%s.out",
+           expecteddir, testname);
 
-	initStringInfo(&psql_cmd);
+  if (!file_exists(expectfile))
+    snprintf(expectfile, sizeof(expectfile), "%s/expected/%s.out",
+             inputdir, testname);
 
-	if (launcher)
-		appendStringInfo(&psql_cmd, "%s ", launcher);
+  add_stringlist_item(resultfiles, outfile);
+  add_stringlist_item(expectfiles, expectfile);
 
-	/*
-	 * Use HIDE_TABLEAM to hide different AMs to allow to use regression tests
-	 * against different AMs without unnecessary differences.
-	 */
-	appendStringInfo(&psql_cmd,
-					 "\"%s%spsql\" -X -a -q -d \"%s\" %s < \"%s\" > \"%s\" 2>&1",
-					 bindir ? bindir : "",
-					 bindir ? "/" : "",
-					 dblist->str,
-					 "-v HIDE_TABLEAM=on -v HIDE_TOAST_COMPRESSION=on",
-					 infile,
-					 outfile);
+  initStringInfo(&psql_cmd);
 
-	appnameenv = psprintf("pg_regress/%s", testname);
-	setenv("PGAPPNAME", appnameenv, 1);
-	free(appnameenv);
+  if (launcher)
+    appendStringInfo(&psql_cmd, "%s ", launcher);
 
-	pid = spawn_process(psql_cmd.data);
+  /*
+   * Use HIDE_TABLEAM to hide different AMs to allow to use regression tests
+   * against different AMs without unnecessary differences.
+   */
+  appendStringInfo(&psql_cmd,
+                   "\"%s%spsql\" -X -a -q -d \"%s\" %s < \"%s\" > \"%s\" 2>&1",
+                   bindir ? bindir : "",
+                   bindir ? "/" : "",
+                   dblist->str,
+                   "-v HIDE_TABLEAM=on -v HIDE_TOAST_COMPRESSION=on",
+                   infile,
+                   outfile);
 
-	if (pid == INVALID_PID)
-	{
-		fprintf(stderr, _("could not start process for test %s\n"),
-				testname);
-		exit(2);
-	}
+  appnameenv = psprintf("pg_regress/%s", testname);
+  setenv("PGAPPNAME", appnameenv, 1);
+  free(appnameenv);
 
-	unsetenv("PGAPPNAME");
+  pid = spawn_process(psql_cmd.data);
 
-	pfree(psql_cmd.data);
+  if (pid == INVALID_PID) {
+    fprintf(stderr, _("could not start process for test %s\n"),
+            testname);
+    exit(2);
+  }
 
-	return pid;
+  unsetenv("PGAPPNAME");
+
+  pfree(psql_cmd.data);
+
+  return pid;
 }
 
 static void
 psql_init(int argc, char **argv)
 {
-	/* set default regression database name */
-	add_stringlist_item(&dblist, "regression");
+  /* set default regression database name */
+  add_stringlist_item(&dblist, "regression");
 }
 
 int
 main(int argc, char *argv[])
 {
-	return regression_main(argc, argv,
-						   psql_init,
-						   psql_start_test,
-						   NULL /* no postfunc needed */ );
+  return regression_main(argc, argv,
+                         psql_init,
+                         psql_start_test,
+                         NULL /* no postfunc needed */ );
 }

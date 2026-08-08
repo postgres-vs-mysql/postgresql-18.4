@@ -14,7 +14,7 @@
 
 /* intentionally no include guards, should only be included by atomics.h */
 #ifndef INSIDE_ATOMICS_H
-#	error "should be included via atomics.h"
+# error "should be included via atomics.h"
 #endif
 
 
@@ -25,8 +25,8 @@
 #define PG_HAVE_ATOMIC_U64_SUPPORT
 typedef struct pg_atomic_uint64
 {
-	int			sema;
-	volatile uint64 value;
+  int     sema;
+  volatile uint64 value;
 } pg_atomic_uint64;
 
 #define PG_HAVE_ATOMIC_INIT_U64
@@ -34,7 +34,7 @@ extern void pg_atomic_init_u64_impl(volatile pg_atomic_uint64 *ptr, uint64 val_)
 
 #define PG_HAVE_ATOMIC_COMPARE_EXCHANGE_U64
 extern bool pg_atomic_compare_exchange_u64_impl(volatile pg_atomic_uint64 *ptr,
-												uint64 *expected, uint64 newval);
+    uint64 *expected, uint64 newval);
 
 #define PG_HAVE_ATOMIC_FETCH_ADD_U64
 extern uint64 pg_atomic_fetch_add_u64_impl(volatile pg_atomic_uint64 *ptr, int64 add_);

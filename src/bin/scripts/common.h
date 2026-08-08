@@ -1,10 +1,10 @@
 /*
- *	common.h
- *		Common support routines for bin/scripts/
+ *  common.h
+ *    Common support routines for bin/scripts/
  *
- *	Copyright (c) 2003-2025, PostgreSQL Global Development Group
+ *  Copyright (c) 2003-2025, PostgreSQL Global Development Group
  *
- *	src/bin/scripts/common.h
+ *  src/bin/scripts/common.h
  */
 #ifndef COMMON_H
 #define COMMON_H
@@ -16,11 +16,11 @@
 #include "pqexpbuffer.h"
 
 extern void splitTableColumnsSpec(const char *spec, int encoding,
-								  char **table, const char **columns);
+                                  char **table, const char **columns);
 
 extern void appendQualifiedRelation(PQExpBuffer buf, const char *spec,
-									PGconn *conn, bool echo);
+                                    PGconn *conn, bool echo);
 
 extern bool yesno_prompt(const char *question);
 
-#endif							/* COMMON_H */
+#endif              /* COMMON_H */

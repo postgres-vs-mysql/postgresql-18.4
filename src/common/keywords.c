@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * keywords.c
- *	  PostgreSQL's list of SQL keywords
+ *    PostgreSQL's list of SQL keywords
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -9,7 +9,7 @@
  *
  *
  * IDENTIFICATION
- *	  src/common/keywords.c
+ *    src/common/keywords.c
  *
  *-------------------------------------------------------------------------
  */
@@ -39,7 +39,7 @@ const uint8 ScanKeywordCategories[SCANKEYWORDS_NUM_KEYWORDS] = {
 #define BARE_LABEL true
 #define AS_LABEL false
 
-const bool	ScanKeywordBareLabel[SCANKEYWORDS_NUM_KEYWORDS] = {
+const bool  ScanKeywordBareLabel[SCANKEYWORDS_NUM_KEYWORDS] = {
 #include "parser/kwlist.h"
 };
 

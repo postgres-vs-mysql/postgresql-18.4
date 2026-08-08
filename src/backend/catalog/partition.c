@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * partition.c
- *		  Partitioning related data structures and functions.
+ *      Partitioning related data structures and functions.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  *
  * IDENTIFICATION
- *		  src/backend/catalog/partition.c
+ *      src/backend/catalog/partition.c
  *
  *-------------------------------------------------------------------------
 */
@@ -31,14 +31,14 @@
 #include "utils/rel.h"
 #include "utils/syscache.h"
 
-static Oid	get_partition_parent_worker(Relation inhRel, Oid relid,
-										bool *detach_pending);
+static Oid  get_partition_parent_worker(Relation inhRel, Oid relid,
+                                        bool *detach_pending);
 static void get_partition_ancestors_worker(Relation inhRel, Oid relid,
-										   List **ancestors);
+    List **ancestors);
 
 /*
  * get_partition_parent
- *		Obtain direct parent of given relation
+ *    Obtain direct parent of given relation
  *
  * Returns inheritance parent of a partition by scanning pg_inherits
  *
@@ -52,31 +52,31 @@ static void get_partition_ancestors_worker(Relation inhRel, Oid relid,
 Oid
 get_partition_parent(Oid relid, bool even_if_detached)
 {
-	Relation	catalogRelation;
-	Oid			result;
-	bool		detach_pending;
+  Relation  catalogRelation;
+  Oid     result;
+  bool    detach_pending;
 
-	catalogRelation = table_open(InheritsRelationId, AccessShareLock);
+  catalogRelation = table_open(InheritsRelationId, AccessShareLock);
 
-	result = get_partition_parent_worker(catalogRelation, relid,
-										 &detach_pending);
+  result = get_partition_parent_worker(catalogRelation, relid,
+                                       &detach_pending);
 
-	if (!OidIsValid(result))
-		elog(ERROR, "could not find tuple for parent of relation %u", relid);
+  if (!OidIsValid(result))
+    elog(ERROR, "could not find tuple for parent of relation %u", relid);
 
-	if (detach_pending && !even_if_detached)
-		elog(ERROR, "relation %u has no parent because it's being detached",
-			 relid);
+  if (detach_pending && !even_if_detached)
+    elog(ERROR, "relation %u has no parent because it's being detached",
+         relid);
 
-	table_close(catalogRelation, AccessShareLock);
+  table_close(catalogRelation, AccessShareLock);
 
-	return result;
+  return result;
 }
 
 /*
  * get_partition_parent_worker
- *		Scan the pg_inherits relation to return the OID of the parent of the
- *		given relation
+ *    Scan the pg_inherits relation to return the OID of the parent of the
+ *    given relation
  *
  * If the partition is being detached, *detach_pending is set true (but the
  * original parent is still returned.)
@@ -84,43 +84,44 @@ get_partition_parent(Oid relid, bool even_if_detached)
 static Oid
 get_partition_parent_worker(Relation inhRel, Oid relid, bool *detach_pending)
 {
-	SysScanDesc scan;
-	ScanKeyData key[2];
-	Oid			result = InvalidOid;
-	HeapTuple	tuple;
+  SysScanDesc scan;
+  ScanKeyData key[2];
+  Oid     result = InvalidOid;
+  HeapTuple tuple;
 
-	*detach_pending = false;
+  *detach_pending = false;
 
-	ScanKeyInit(&key[0],
-				Anum_pg_inherits_inhrelid,
-				BTEqualStrategyNumber, F_OIDEQ,
-				ObjectIdGetDatum(relid));
-	ScanKeyInit(&key[1],
-				Anum_pg_inherits_inhseqno,
-				BTEqualStrategyNumber, F_INT4EQ,
-				Int32GetDatum(1));
+  ScanKeyInit(&key[0],
+              Anum_pg_inherits_inhrelid,
+              BTEqualStrategyNumber, F_OIDEQ,
+              ObjectIdGetDatum(relid));
+  ScanKeyInit(&key[1],
+              Anum_pg_inherits_inhseqno,
+              BTEqualStrategyNumber, F_INT4EQ,
+              Int32GetDatum(1));
 
-	scan = systable_beginscan(inhRel, InheritsRelidSeqnoIndexId, true,
-							  NULL, 2, key);
-	tuple = systable_getnext(scan);
-	if (HeapTupleIsValid(tuple))
-	{
-		Form_pg_inherits form = (Form_pg_inherits) GETSTRUCT(tuple);
+  scan = systable_beginscan(inhRel, InheritsRelidSeqnoIndexId, true,
+                            NULL, 2, key);
+  tuple = systable_getnext(scan);
 
-		/* Let caller know of partition being detached */
-		if (form->inhdetachpending)
-			*detach_pending = true;
-		result = form->inhparent;
-	}
+  if (HeapTupleIsValid(tuple)) {
+    Form_pg_inherits form = (Form_pg_inherits) GETSTRUCT(tuple);
 
-	systable_endscan(scan);
+    /* Let caller know of partition being detached */
+    if (form->inhdetachpending)
+      *detach_pending = true;
 
-	return result;
+    result = form->inhparent;
+  }
+
+  systable_endscan(scan);
+
+  return result;
 }
 
 /*
  * get_partition_ancestors
- *		Obtain ancestors of given relation
+ *    Obtain ancestors of given relation
  *
  * Returns a list of ancestors of the given relation.  The list is ordered:
  * The first element is the immediate parent and the last one is the topmost
@@ -133,75 +134,78 @@ get_partition_parent_worker(Relation inhRel, Oid relid, bool *detach_pending)
 List *
 get_partition_ancestors(Oid relid)
 {
-	List	   *result = NIL;
-	Relation	inhRel;
+  List     *result = NIL;
+  Relation  inhRel;
 
-	inhRel = table_open(InheritsRelationId, AccessShareLock);
+  inhRel = table_open(InheritsRelationId, AccessShareLock);
 
-	get_partition_ancestors_worker(inhRel, relid, &result);
+  get_partition_ancestors_worker(inhRel, relid, &result);
 
-	table_close(inhRel, AccessShareLock);
+  table_close(inhRel, AccessShareLock);
 
-	return result;
+  return result;
 }
 
 /*
  * get_partition_ancestors_worker
- *		recursive worker for get_partition_ancestors
+ *    recursive worker for get_partition_ancestors
  */
 static void
 get_partition_ancestors_worker(Relation inhRel, Oid relid, List **ancestors)
 {
-	Oid			parentOid;
-	bool		detach_pending;
+  Oid     parentOid;
+  bool    detach_pending;
 
-	/*
-	 * Recursion ends at the topmost level, ie., when there's no parent; also
-	 * when the partition is being detached.
-	 */
-	parentOid = get_partition_parent_worker(inhRel, relid, &detach_pending);
-	if (parentOid == InvalidOid || detach_pending)
-		return;
+  /*
+   * Recursion ends at the topmost level, ie., when there's no parent; also
+   * when the partition is being detached.
+   */
+  parentOid = get_partition_parent_worker(inhRel, relid, &detach_pending);
 
-	*ancestors = lappend_oid(*ancestors, parentOid);
-	get_partition_ancestors_worker(inhRel, parentOid, ancestors);
+  if (parentOid == InvalidOid || detach_pending)
+    return;
+
+  *ancestors = lappend_oid(*ancestors, parentOid);
+  get_partition_ancestors_worker(inhRel, parentOid, ancestors);
 }
 
 /*
  * index_get_partition
- *		Return the OID of index of the given partition that is a child
- *		of the given index, or InvalidOid if there isn't one.
+ *    Return the OID of index of the given partition that is a child
+ *    of the given index, or InvalidOid if there isn't one.
  */
 Oid
 index_get_partition(Relation partition, Oid indexId)
 {
-	List	   *idxlist = RelationGetIndexList(partition);
-	ListCell   *l;
+  List     *idxlist = RelationGetIndexList(partition);
+  ListCell   *l;
 
-	foreach(l, idxlist)
-	{
-		Oid			partIdx = lfirst_oid(l);
-		HeapTuple	tup;
-		Form_pg_class classForm;
-		bool		ispartition;
+  foreach(l, idxlist) {
+    Oid     partIdx = lfirst_oid(l);
+    HeapTuple tup;
+    Form_pg_class classForm;
+    bool    ispartition;
 
-		tup = SearchSysCache1(RELOID, ObjectIdGetDatum(partIdx));
-		if (!HeapTupleIsValid(tup))
-			elog(ERROR, "cache lookup failed for relation %u", partIdx);
-		classForm = (Form_pg_class) GETSTRUCT(tup);
-		ispartition = classForm->relispartition;
-		ReleaseSysCache(tup);
-		if (!ispartition)
-			continue;
-		if (get_partition_parent(partIdx, false) == indexId)
-		{
-			list_free(idxlist);
-			return partIdx;
-		}
-	}
+    tup = SearchSysCache1(RELOID, ObjectIdGetDatum(partIdx));
 
-	list_free(idxlist);
-	return InvalidOid;
+    if (!HeapTupleIsValid(tup))
+      elog(ERROR, "cache lookup failed for relation %u", partIdx);
+
+    classForm = (Form_pg_class) GETSTRUCT(tup);
+    ispartition = classForm->relispartition;
+    ReleaseSysCache(tup);
+
+    if (!ispartition)
+      continue;
+
+    if (get_partition_parent(partIdx, false) == indexId) {
+      list_free(idxlist);
+      return partIdx;
+    }
+  }
+
+  list_free(idxlist);
+  return InvalidOid;
 }
 
 /*
@@ -220,25 +224,24 @@ index_get_partition(Relation partition, Oid indexId)
  */
 List *
 map_partition_varattnos(List *expr, int fromrel_varno,
-						Relation to_rel, Relation from_rel)
+                        Relation to_rel, Relation from_rel)
 {
-	if (expr != NIL)
-	{
-		AttrMap    *part_attmap;
-		bool		found_whole_row;
+  if (expr != NIL) {
+    AttrMap    *part_attmap;
+    bool    found_whole_row;
 
-		part_attmap = build_attrmap_by_name(RelationGetDescr(to_rel),
-											RelationGetDescr(from_rel),
-											false);
-		expr = (List *) map_variable_attnos((Node *) expr,
-											fromrel_varno, 0,
-											part_attmap,
-											RelationGetForm(to_rel)->reltype,
-											&found_whole_row);
-		/* Since we provided a to_rowtype, we may ignore found_whole_row. */
-	}
+    part_attmap = build_attrmap_by_name(RelationGetDescr(to_rel),
+                                        RelationGetDescr(from_rel),
+                                        false);
+    expr = (List *) map_variable_attnos((Node *) expr,
+                                        fromrel_varno, 0,
+                                        part_attmap,
+                                        RelationGetForm(to_rel)->reltype,
+                                        &found_whole_row);
+    /* Since we provided a to_rowtype, we may ignore found_whole_row. */
+  }
 
-	return expr;
+  return expr;
 }
 
 /*
@@ -254,54 +257,51 @@ map_partition_varattnos(List *expr, int fromrel_varno,
 bool
 has_partition_attrs(Relation rel, Bitmapset *attnums, bool *used_in_expr)
 {
-	PartitionKey key;
-	int			partnatts;
-	List	   *partexprs;
-	ListCell   *partexprs_item;
-	int			i;
+  PartitionKey key;
+  int     partnatts;
+  List     *partexprs;
+  ListCell   *partexprs_item;
+  int     i;
 
-	if (attnums == NULL || rel->rd_rel->relkind != RELKIND_PARTITIONED_TABLE)
-		return false;
+  if (attnums == NULL || rel->rd_rel->relkind != RELKIND_PARTITIONED_TABLE)
+    return false;
 
-	key = RelationGetPartitionKey(rel);
-	partnatts = get_partition_natts(key);
-	partexprs = get_partition_exprs(key);
+  key = RelationGetPartitionKey(rel);
+  partnatts = get_partition_natts(key);
+  partexprs = get_partition_exprs(key);
 
-	partexprs_item = list_head(partexprs);
-	for (i = 0; i < partnatts; i++)
-	{
-		AttrNumber	partattno = get_partition_col_attnum(key, i);
+  partexprs_item = list_head(partexprs);
 
-		if (partattno != 0)
-		{
-			if (bms_is_member(partattno - FirstLowInvalidHeapAttributeNumber,
-							  attnums))
-			{
-				if (used_in_expr)
-					*used_in_expr = false;
-				return true;
-			}
-		}
-		else
-		{
-			/* Arbitrary expression */
-			Node	   *expr = (Node *) lfirst(partexprs_item);
-			Bitmapset  *expr_attrs = NULL;
+  for (i = 0; i < partnatts; i++) {
+    AttrNumber  partattno = get_partition_col_attnum(key, i);
 
-			/* Find all attributes referenced */
-			pull_varattnos(expr, 1, &expr_attrs);
-			partexprs_item = lnext(partexprs, partexprs_item);
+    if (partattno != 0) {
+      if (bms_is_member(partattno - FirstLowInvalidHeapAttributeNumber,
+                        attnums)) {
+        if (used_in_expr)
+          *used_in_expr = false;
 
-			if (bms_overlap(attnums, expr_attrs))
-			{
-				if (used_in_expr)
-					*used_in_expr = true;
-				return true;
-			}
-		}
-	}
+        return true;
+      }
+    } else {
+      /* Arbitrary expression */
+      Node     *expr = (Node *) lfirst(partexprs_item);
+      Bitmapset  *expr_attrs = NULL;
 
-	return false;
+      /* Find all attributes referenced */
+      pull_varattnos(expr, 1, &expr_attrs);
+      partexprs_item = lnext(partexprs, partexprs_item);
+
+      if (bms_overlap(attnums, expr_attrs)) {
+        if (used_in_expr)
+          *used_in_expr = true;
+
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 /*
@@ -314,21 +314,20 @@ has_partition_attrs(Relation rel, Bitmapset *attnums, bool *used_in_expr)
 Oid
 get_default_partition_oid(Oid parentId)
 {
-	HeapTuple	tuple;
-	Oid			defaultPartId = InvalidOid;
+  HeapTuple tuple;
+  Oid     defaultPartId = InvalidOid;
 
-	tuple = SearchSysCache1(PARTRELID, ObjectIdGetDatum(parentId));
+  tuple = SearchSysCache1(PARTRELID, ObjectIdGetDatum(parentId));
 
-	if (HeapTupleIsValid(tuple))
-	{
-		Form_pg_partitioned_table part_table_form;
+  if (HeapTupleIsValid(tuple)) {
+    Form_pg_partitioned_table part_table_form;
 
-		part_table_form = (Form_pg_partitioned_table) GETSTRUCT(tuple);
-		defaultPartId = part_table_form->partdefid;
-		ReleaseSysCache(tuple);
-	}
+    part_table_form = (Form_pg_partitioned_table) GETSTRUCT(tuple);
+    defaultPartId = part_table_form->partdefid;
+    ReleaseSysCache(tuple);
+  }
 
-	return defaultPartId;
+  return defaultPartId;
 }
 
 /*
@@ -339,24 +338,24 @@ get_default_partition_oid(Oid parentId)
 void
 update_default_partition_oid(Oid parentId, Oid defaultPartId)
 {
-	HeapTuple	tuple;
-	Relation	pg_partitioned_table;
-	Form_pg_partitioned_table part_table_form;
+  HeapTuple tuple;
+  Relation  pg_partitioned_table;
+  Form_pg_partitioned_table part_table_form;
 
-	pg_partitioned_table = table_open(PartitionedRelationId, RowExclusiveLock);
+  pg_partitioned_table = table_open(PartitionedRelationId, RowExclusiveLock);
 
-	tuple = SearchSysCacheCopy1(PARTRELID, ObjectIdGetDatum(parentId));
+  tuple = SearchSysCacheCopy1(PARTRELID, ObjectIdGetDatum(parentId));
 
-	if (!HeapTupleIsValid(tuple))
-		elog(ERROR, "cache lookup failed for partition key of relation %u",
-			 parentId);
+  if (!HeapTupleIsValid(tuple))
+    elog(ERROR, "cache lookup failed for partition key of relation %u",
+         parentId);
 
-	part_table_form = (Form_pg_partitioned_table) GETSTRUCT(tuple);
-	part_table_form->partdefid = defaultPartId;
-	CatalogTupleUpdate(pg_partitioned_table, &tuple->t_self, tuple);
+  part_table_form = (Form_pg_partitioned_table) GETSTRUCT(tuple);
+  part_table_form->partdefid = defaultPartId;
+  CatalogTupleUpdate(pg_partitioned_table, &tuple->t_self, tuple);
 
-	heap_freetuple(tuple);
-	table_close(pg_partitioned_table, RowExclusiveLock);
+  heap_freetuple(tuple);
+  table_close(pg_partitioned_table, RowExclusiveLock);
 }
 
 /*
@@ -369,24 +368,24 @@ update_default_partition_oid(Oid parentId, Oid defaultPartId)
 List *
 get_proposed_default_constraint(List *new_part_constraints)
 {
-	Expr	   *defPartConstraint;
+  Expr     *defPartConstraint;
 
-	defPartConstraint = make_ands_explicit(new_part_constraints);
+  defPartConstraint = make_ands_explicit(new_part_constraints);
 
-	/*
-	 * Derive the partition constraints of default partition by negating the
-	 * given partition constraints. The partition constraint never evaluates
-	 * to NULL, so negating it like this is safe.
-	 */
-	defPartConstraint = makeBoolExpr(NOT_EXPR,
-									 list_make1(defPartConstraint),
-									 -1);
+  /*
+   * Derive the partition constraints of default partition by negating the
+   * given partition constraints. The partition constraint never evaluates
+   * to NULL, so negating it like this is safe.
+   */
+  defPartConstraint = makeBoolExpr(NOT_EXPR,
+                                   list_make1(defPartConstraint),
+                                   -1);
 
-	/* Simplify, to put the negated expression into canonical form */
-	defPartConstraint =
-		(Expr *) eval_const_expressions(NULL,
-										(Node *) defPartConstraint);
-	defPartConstraint = canonicalize_qual(defPartConstraint, true);
+  /* Simplify, to put the negated expression into canonical form */
+  defPartConstraint =
+    (Expr *) eval_const_expressions(NULL,
+                                    (Node *) defPartConstraint);
+  defPartConstraint = canonicalize_qual(defPartConstraint, true);
 
-	return make_ands_implicit(defPartConstraint);
+  return make_ands_implicit(defPartConstraint);
 }

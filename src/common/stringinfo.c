@@ -10,7 +10,7 @@
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- *	  src/common/stringinfo.c
+ *    src/common/stringinfo.c
  *
  *-------------------------------------------------------------------------
  */
@@ -40,11 +40,11 @@
 static inline void
 initStringInfoInternal(StringInfo str, int initsize)
 {
-	Assert(initsize >= 1 && initsize <= MaxAllocSize);
+  Assert(initsize >= 1 && initsize <= MaxAllocSize);
 
-	str->data = (char *) palloc(initsize);
-	str->maxlen = initsize;
-	resetStringInfo(str);
+  str->data = (char *) palloc(initsize);
+  str->maxlen = initsize;
+  resetStringInfo(str);
 }
 
 /*
@@ -57,10 +57,10 @@ initStringInfoInternal(StringInfo str, int initsize)
 static inline StringInfo
 makeStringInfoInternal(int initsize)
 {
-	StringInfo	res = (StringInfo) palloc(sizeof(StringInfoData));
+  StringInfo  res = (StringInfo) palloc(sizeof(StringInfoData));
 
-	initStringInfoInternal(res, initsize);
-	return res;
+  initStringInfoInternal(res, initsize);
+  return res;
 }
 
 /*
@@ -71,7 +71,7 @@ makeStringInfoInternal(int initsize)
 StringInfo
 makeStringInfo(void)
 {
-	return makeStringInfoInternal(STRINGINFO_DEFAULT_SIZE);
+  return makeStringInfoInternal(STRINGINFO_DEFAULT_SIZE);
 }
 
 /*
@@ -84,7 +84,7 @@ makeStringInfo(void)
 StringInfo
 makeStringInfoExt(int initsize)
 {
-	return makeStringInfoInternal(initsize);
+  return makeStringInfoInternal(initsize);
 }
 
 /*
@@ -96,7 +96,7 @@ makeStringInfoExt(int initsize)
 void
 initStringInfo(StringInfo str)
 {
-	initStringInfoInternal(str, STRINGINFO_DEFAULT_SIZE);
+  initStringInfoInternal(str, STRINGINFO_DEFAULT_SIZE);
 }
 
 /*
@@ -110,7 +110,7 @@ initStringInfo(StringInfo str)
 void
 initStringInfoExt(StringInfo str, int initsize)
 {
-	initStringInfoInternal(str, initsize);
+  initStringInfoInternal(str, initsize);
 }
 
 /*
@@ -125,12 +125,12 @@ initStringInfoExt(StringInfo str, int initsize)
 void
 resetStringInfo(StringInfo str)
 {
-	/* don't allow resets of read-only StringInfos */
-	Assert(str->maxlen != 0);
+  /* don't allow resets of read-only StringInfos */
+  Assert(str->maxlen != 0);
 
-	str->data[0] = '\0';
-	str->len = 0;
-	str->cursor = 0;
+  str->data[0] = '\0';
+  str->len = 0;
+  str->cursor = 0;
 }
 
 /*
@@ -142,27 +142,26 @@ resetStringInfo(StringInfo str)
  * strcat.
  */
 void
-appendStringInfo(StringInfo str, const char *fmt,...)
+appendStringInfo(StringInfo str, const char *fmt, ...)
 {
-	int			save_errno = errno;
+  int     save_errno = errno;
 
-	for (;;)
-	{
-		va_list		args;
-		int			needed;
+  for (;;) {
+    va_list   args;
+    int     needed;
 
-		/* Try to format the data. */
-		errno = save_errno;
-		va_start(args, fmt);
-		needed = appendStringInfoVA(str, fmt, args);
-		va_end(args);
+    /* Try to format the data. */
+    errno = save_errno;
+    va_start(args, fmt);
+    needed = appendStringInfoVA(str, fmt, args);
+    va_end(args);
 
-		if (needed == 0)
-			break;				/* success */
+    if (needed == 0)
+      break;        /* success */
 
-		/* Increase the buffer size and try again. */
-		enlargeStringInfo(str, needed);
-	}
+    /* Increase the buffer size and try again. */
+    enlargeStringInfo(str, needed);
+  }
 }
 
 /*
@@ -186,38 +185,38 @@ appendStringInfo(StringInfo str, const char *fmt,...)
 int
 appendStringInfoVA(StringInfo str, const char *fmt, va_list args)
 {
-	int			avail;
-	size_t		nprinted;
+  int     avail;
+  size_t    nprinted;
 
-	Assert(str != NULL);
+  Assert(str != NULL);
 
-	/*
-	 * If there's hardly any space, don't bother trying, just fail to make the
-	 * caller enlarge the buffer first.  We have to guess at how much to
-	 * enlarge, since we're skipping the formatting work.
-	 */
-	avail = str->maxlen - str->len;
-	if (avail < 16)
-		return 32;
+  /*
+   * If there's hardly any space, don't bother trying, just fail to make the
+   * caller enlarge the buffer first.  We have to guess at how much to
+   * enlarge, since we're skipping the formatting work.
+   */
+  avail = str->maxlen - str->len;
 
-	nprinted = pvsnprintf(str->data + str->len, (size_t) avail, fmt, args);
+  if (avail < 16)
+    return 32;
 
-	if (nprinted < (size_t) avail)
-	{
-		/* Success.  Note nprinted does not include trailing null. */
-		str->len += (int) nprinted;
-		return 0;
-	}
+  nprinted = pvsnprintf(str->data + str->len, (size_t) avail, fmt, args);
 
-	/* Restore the trailing null so that str is unmodified. */
-	str->data[str->len] = '\0';
+  if (nprinted < (size_t) avail) {
+    /* Success.  Note nprinted does not include trailing null. */
+    str->len += (int) nprinted;
+    return 0;
+  }
 
-	/*
-	 * Return pvsnprintf's estimate of the space needed.  (Although this is
-	 * given as a size_t, we know it will fit in int because it's not more
-	 * than MaxAllocSize.)
-	 */
-	return (int) nprinted;
+  /* Restore the trailing null so that str is unmodified. */
+  str->data[str->len] = '\0';
+
+  /*
+   * Return pvsnprintf's estimate of the space needed.  (Although this is
+   * given as a size_t, we know it will fit in int because it's not more
+   * than MaxAllocSize.)
+   */
+  return (int) nprinted;
 }
 
 /*
@@ -229,7 +228,7 @@ appendStringInfoVA(StringInfo str, const char *fmt, va_list args)
 void
 appendStringInfoString(StringInfo str, const char *s)
 {
-	appendBinaryStringInfo(str, s, strlen(s));
+  appendBinaryStringInfo(str, s, strlen(s));
 }
 
 /*
@@ -241,14 +240,14 @@ appendStringInfoString(StringInfo str, const char *s)
 void
 appendStringInfoChar(StringInfo str, char ch)
 {
-	/* Make more room if needed */
-	if (str->len + 1 >= str->maxlen)
-		enlargeStringInfo(str, 1);
+  /* Make more room if needed */
+  if (str->len + 1 >= str->maxlen)
+    enlargeStringInfo(str, 1);
 
-	/* OK, append the character */
-	str->data[str->len] = ch;
-	str->len++;
-	str->data[str->len] = '\0';
+  /* OK, append the character */
+  str->data[str->len] = ch;
+  str->len++;
+  str->data[str->len] = '\0';
 }
 
 /*
@@ -259,16 +258,15 @@ appendStringInfoChar(StringInfo str, char ch)
 void
 appendStringInfoSpaces(StringInfo str, int count)
 {
-	if (count > 0)
-	{
-		/* Make more room if needed */
-		enlargeStringInfo(str, count);
+  if (count > 0) {
+    /* Make more room if needed */
+    enlargeStringInfo(str, count);
 
-		/* OK, append the spaces */
-		memset(&str->data[str->len], ' ', count);
-		str->len += count;
-		str->data[str->len] = '\0';
-	}
+    /* OK, append the spaces */
+    memset(&str->data[str->len], ' ', count);
+    str->len += count;
+    str->data[str->len] = '\0';
+  }
 }
 
 /*
@@ -280,21 +278,21 @@ appendStringInfoSpaces(StringInfo str, int count)
 void
 appendBinaryStringInfo(StringInfo str, const void *data, int datalen)
 {
-	Assert(str != NULL);
+  Assert(str != NULL);
 
-	/* Make more room if needed */
-	enlargeStringInfo(str, datalen);
+  /* Make more room if needed */
+  enlargeStringInfo(str, datalen);
 
-	/* OK, append the data */
-	memcpy(str->data + str->len, data, datalen);
-	str->len += datalen;
+  /* OK, append the data */
+  memcpy(str->data + str->len, data, datalen);
+  str->len += datalen;
 
-	/*
-	 * Keep a trailing null in place, even though it's probably useless for
-	 * binary data.  (Some callers are dealing with text but call this because
-	 * their input isn't null-terminated.)
-	 */
-	str->data[str->len] = '\0';
+  /*
+   * Keep a trailing null in place, even though it's probably useless for
+   * binary data.  (Some callers are dealing with text but call this because
+   * their input isn't null-terminated.)
+   */
+  str->data[str->len] = '\0';
 }
 
 /*
@@ -306,14 +304,14 @@ appendBinaryStringInfo(StringInfo str, const void *data, int datalen)
 void
 appendBinaryStringInfoNT(StringInfo str, const void *data, int datalen)
 {
-	Assert(str != NULL);
+  Assert(str != NULL);
 
-	/* Make more room if needed */
-	enlargeStringInfo(str, datalen);
+  /* Make more room if needed */
+  enlargeStringInfo(str, datalen);
 
-	/* OK, append the data */
-	memcpy(str->data + str->len, data, datalen);
-	str->len += datalen;
+  /* OK, append the data */
+  memcpy(str->data + str->len, data, datalen);
+  str->len += datalen;
 }
 
 /*
@@ -336,67 +334,67 @@ appendBinaryStringInfoNT(StringInfo str, const void *data, int datalen)
 void
 enlargeStringInfo(StringInfo str, int needed)
 {
-	int			newlen;
+  int     newlen;
 
-	/* validate this is not a read-only StringInfo */
-	Assert(str->maxlen != 0);
+  /* validate this is not a read-only StringInfo */
+  Assert(str->maxlen != 0);
 
-	/*
-	 * Guard against out-of-range "needed" values.  Without this, we can get
-	 * an overflow or infinite loop in the following.
-	 */
-	if (needed < 0)				/* should not happen */
-	{
+  /*
+   * Guard against out-of-range "needed" values.  Without this, we can get
+   * an overflow or infinite loop in the following.
+   */
+  if (needed < 0) {     /* should not happen */
 #ifndef FRONTEND
-		elog(ERROR, "invalid string enlargement request size: %d", needed);
+    elog(ERROR, "invalid string enlargement request size: %d", needed);
 #else
-		fprintf(stderr, "invalid string enlargement request size: %d\n", needed);
-		exit(EXIT_FAILURE);
+    fprintf(stderr, "invalid string enlargement request size: %d\n", needed);
+    exit(EXIT_FAILURE);
 #endif
-	}
-	if (((Size) needed) >= (MaxAllocSize - (Size) str->len))
-	{
+  }
+
+  if (((Size) needed) >= (MaxAllocSize - (Size) str->len)) {
 #ifndef FRONTEND
-		ereport(ERROR,
-				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-				 errmsg("string buffer exceeds maximum allowed length (%zu bytes)", MaxAllocSize),
-				 errdetail("Cannot enlarge string buffer containing %d bytes by %d more bytes.",
-						   str->len, needed)));
+    ereport(ERROR,
+            (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+             errmsg("string buffer exceeds maximum allowed length (%zu bytes)", MaxAllocSize),
+             errdetail("Cannot enlarge string buffer containing %d bytes by %d more bytes.",
+                       str->len, needed)));
 #else
-		fprintf(stderr,
-				_("string buffer exceeds maximum allowed length (%zu bytes)\n\nCannot enlarge string buffer containing %d bytes by %d more bytes.\n"),
-				MaxAllocSize, str->len, needed);
-		exit(EXIT_FAILURE);
+    fprintf(stderr,
+            _("string buffer exceeds maximum allowed length (%zu bytes)\n\nCannot enlarge string buffer containing %d bytes by %d more bytes.\n"),
+            MaxAllocSize, str->len, needed);
+    exit(EXIT_FAILURE);
 #endif
-	}
+  }
 
-	needed += str->len + 1;		/* total space required now */
+  needed += str->len + 1;   /* total space required now */
 
-	/* Because of the above test, we now have needed <= MaxAllocSize */
+  /* Because of the above test, we now have needed <= MaxAllocSize */
 
-	if (needed <= str->maxlen)
-		return;					/* got enough space already */
+  if (needed <= str->maxlen)
+    return;         /* got enough space already */
 
-	/*
-	 * We don't want to allocate just a little more space with each append;
-	 * for efficiency, double the buffer size each time it overflows.
-	 * Actually, we might need to more than double it if 'needed' is big...
-	 */
-	newlen = 2 * str->maxlen;
-	while (needed > newlen)
-		newlen = 2 * newlen;
+  /*
+   * We don't want to allocate just a little more space with each append;
+   * for efficiency, double the buffer size each time it overflows.
+   * Actually, we might need to more than double it if 'needed' is big...
+   */
+  newlen = 2 * str->maxlen;
 
-	/*
-	 * Clamp to MaxAllocSize in case we went past it.  Note we are assuming
-	 * here that MaxAllocSize <= INT_MAX/2, else the above loop could
-	 * overflow.  We will still have newlen >= needed.
-	 */
-	if (newlen > (int) MaxAllocSize)
-		newlen = (int) MaxAllocSize;
+  while (needed > newlen)
+    newlen = 2 * newlen;
 
-	str->data = (char *) repalloc(str->data, newlen);
+  /*
+   * Clamp to MaxAllocSize in case we went past it.  Note we are assuming
+   * here that MaxAllocSize <= INT_MAX/2, else the above loop could
+   * overflow.  We will still have newlen >= needed.
+   */
+  if (newlen > (int) MaxAllocSize)
+    newlen = (int) MaxAllocSize;
 
-	str->maxlen = newlen;
+  str->data = (char *) repalloc(str->data, newlen);
+
+  str->maxlen = newlen;
 }
 
 /*
@@ -408,9 +406,9 @@ enlargeStringInfo(StringInfo str, int needed)
 void
 destroyStringInfo(StringInfo str)
 {
-	/* don't allow destroys of read-only StringInfos */
-	Assert(str->maxlen != 0);
+  /* don't allow destroys of read-only StringInfos */
+  Assert(str->maxlen != 0);
 
-	pfree(str->data);
-	pfree(str);
+  pfree(str->data);
+  pfree(str);
 }

@@ -21,8 +21,8 @@
 /* simple list of strings */
 typedef struct _stringlist
 {
-	char	   *str;
-	struct _stringlist *next;
+  char     *str;
+  struct _stringlist *next;
 } _stringlist;
 
 /*
@@ -34,9 +34,9 @@ typedef void (*init_function) (int argc, char **argv);
 
 /* Launch one test case */
 typedef PID_TYPE(*test_start_function) (const char *testname,
-										_stringlist **resultfiles,
-										_stringlist **expectfiles,
-										_stringlist **tags);
+                                        _stringlist **resultfiles,
+                                        _stringlist **expectfiles,
+                                        _stringlist **tags);
 
 /* Postprocess one result file (optional) */
 typedef void (*postprocess_result_function) (const char *filename);
@@ -57,11 +57,11 @@ extern char *launcher;
 extern const char *basic_diff_opts;
 extern const char *pretty_diff_opts;
 
-int			regression_main(int argc, char *argv[],
-							init_function ifunc,
-							test_start_function startfunc,
-							postprocess_result_function postfunc);
+int     regression_main(int argc, char *argv[],
+                        init_function ifunc,
+                        test_start_function startfunc,
+                        postprocess_result_function postfunc);
 
-void		add_stringlist_item(_stringlist **listhead, const char *str);
-PID_TYPE	spawn_process(const char *cmdline);
-bool		file_exists(const char *file);
+void    add_stringlist_item(_stringlist **listhead, const char *str);
+PID_TYPE  spawn_process(const char *cmdline);
+bool    file_exists(const char *file);

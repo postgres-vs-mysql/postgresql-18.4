@@ -1,12 +1,12 @@
 /*--------------------------------------------------------------------------
  *
  * test_ginpostinglist.c
- *		Test varbyte-encoding in ginpostinglist.c
+ *    Test varbyte-encoding in ginpostinglist.c
  *
  * Copyright (c) 2019-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *		src/test/modules/test_ginpostinglist/test_ginpostinglist.c
+ *    src/test/modules/test_ginpostinglist/test_ginpostinglist.c
  *
  * -------------------------------------------------------------------------
  */
@@ -40,45 +40,45 @@ PG_FUNCTION_INFO_V1(test_ginpostinglist);
 static void
 test_itemptr_pair(BlockNumber blk, OffsetNumber off, int maxsize)
 {
-	ItemPointerData orig_itemptrs[2];
-	ItemPointer decoded_itemptrs;
-	GinPostingList *pl;
-	int			nwritten;
-	int			ndecoded;
+  ItemPointerData orig_itemptrs[2];
+  ItemPointer decoded_itemptrs;
+  GinPostingList *pl;
+  int     nwritten;
+  int     ndecoded;
 
-	elog(NOTICE, "testing with (%u, %d), (%u, %d), max %d bytes",
-		 0, 1, blk, off, maxsize);
-	ItemPointerSet(&orig_itemptrs[0], 0, 1);
-	ItemPointerSet(&orig_itemptrs[1], blk, off);
+  elog(NOTICE, "testing with (%u, %d), (%u, %d), max %d bytes",
+       0, 1, blk, off, maxsize);
+  ItemPointerSet(&orig_itemptrs[0], 0, 1);
+  ItemPointerSet(&orig_itemptrs[1], blk, off);
 
-	/* Encode, and decode it back */
-	pl = ginCompressPostingList(orig_itemptrs, 2, maxsize, &nwritten);
-	elog(NOTICE, "encoded %d item pointers to %zu bytes",
-		 nwritten, SizeOfGinPostingList(pl));
+  /* Encode, and decode it back */
+  pl = ginCompressPostingList(orig_itemptrs, 2, maxsize, &nwritten);
+  elog(NOTICE, "encoded %d item pointers to %zu bytes",
+       nwritten, SizeOfGinPostingList(pl));
 
-	if (SizeOfGinPostingList(pl) > maxsize)
-		elog(ERROR, "overflow: result was %zu bytes, max %d",
-			 SizeOfGinPostingList(pl), maxsize);
+  if (SizeOfGinPostingList(pl) > maxsize)
+    elog(ERROR, "overflow: result was %zu bytes, max %d",
+         SizeOfGinPostingList(pl), maxsize);
 
-	decoded_itemptrs = ginPostingListDecode(pl, &ndecoded);
-	if (nwritten != ndecoded)
-		elog(NOTICE, "encoded %d itemptrs, %d came back", nwritten, ndecoded);
+  decoded_itemptrs = ginPostingListDecode(pl, &ndecoded);
 
-	/* Check the result */
-	if (!ItemPointerEquals(&orig_itemptrs[0], &decoded_itemptrs[0]))
-		elog(ERROR, "mismatch on first itemptr: (%u, %d) vs (%u, %d)",
-			 0, 1,
-			 ItemPointerGetBlockNumber(&decoded_itemptrs[0]),
-			 ItemPointerGetOffsetNumber(&decoded_itemptrs[0]));
+  if (nwritten != ndecoded)
+    elog(NOTICE, "encoded %d itemptrs, %d came back", nwritten, ndecoded);
 
-	if (ndecoded == 2 &&
-		!ItemPointerEquals(&orig_itemptrs[1], &decoded_itemptrs[1]))
-	{
-		elog(ERROR, "mismatch on second itemptr: (%u, %d) vs (%u, %d)",
-			 blk, off,
-			 ItemPointerGetBlockNumber(&decoded_itemptrs[1]),
-			 ItemPointerGetOffsetNumber(&decoded_itemptrs[1]));
-	}
+  /* Check the result */
+  if (!ItemPointerEquals(&orig_itemptrs[0], &decoded_itemptrs[0]))
+    elog(ERROR, "mismatch on first itemptr: (%u, %d) vs (%u, %d)",
+         0, 1,
+         ItemPointerGetBlockNumber(&decoded_itemptrs[0]),
+         ItemPointerGetOffsetNumber(&decoded_itemptrs[0]));
+
+  if (ndecoded == 2 &&
+      !ItemPointerEquals(&orig_itemptrs[1], &decoded_itemptrs[1])) {
+    elog(ERROR, "mismatch on second itemptr: (%u, %d) vs (%u, %d)",
+         blk, off,
+         ItemPointerGetBlockNumber(&decoded_itemptrs[1]),
+         ItemPointerGetOffsetNumber(&decoded_itemptrs[1]));
+  }
 }
 
 /*
@@ -87,10 +87,10 @@ test_itemptr_pair(BlockNumber blk, OffsetNumber off, int maxsize)
 Datum
 test_ginpostinglist(PG_FUNCTION_ARGS)
 {
-	test_itemptr_pair(0, 2, 14);
-	test_itemptr_pair(0, MaxHeapTuplesPerPage, 14);
-	test_itemptr_pair(MaxBlockNumber, MaxHeapTuplesPerPage, 14);
-	test_itemptr_pair(MaxBlockNumber, MaxHeapTuplesPerPage, 16);
+  test_itemptr_pair(0, 2, 14);
+  test_itemptr_pair(0, MaxHeapTuplesPerPage, 14);
+  test_itemptr_pair(MaxBlockNumber, MaxHeapTuplesPerPage, 14);
+  test_itemptr_pair(MaxBlockNumber, MaxHeapTuplesPerPage, 16);
 
-	PG_RETURN_VOID();
+  PG_RETURN_VOID();
 }

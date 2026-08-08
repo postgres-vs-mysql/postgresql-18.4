@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * cmdtag.h
- *	  Declarations for commandtag names and enumeration.
+ *    Declarations for commandtag names and enumeration.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -14,10 +14,10 @@
 #define CMDTAG_H
 
 /* buffer size required for command completion tags */
-#define COMPLETION_TAG_BUFSIZE	64
+#define COMPLETION_TAG_BUFSIZE  64
 
 #define PG_CMDTAG(tag, name, evtrgok, rwrok, rowcnt) \
-	tag,
+  tag,
 
 typedef enum CommandTag
 {
@@ -28,24 +28,24 @@ typedef enum CommandTag
 
 typedef struct QueryCompletion
 {
-	CommandTag	commandTag;
-	uint64		nprocessed;
+  CommandTag  commandTag;
+  uint64    nprocessed;
 } QueryCompletion;
 
 
 static inline void
 SetQueryCompletion(QueryCompletion *qc, CommandTag commandTag,
-				   uint64 nprocessed)
+                   uint64 nprocessed)
 {
-	qc->commandTag = commandTag;
-	qc->nprocessed = nprocessed;
+  qc->commandTag = commandTag;
+  qc->nprocessed = nprocessed;
 }
 
 static inline void
 CopyQueryCompletion(QueryCompletion *dst, const QueryCompletion *src)
 {
-	dst->commandTag = src->commandTag;
-	dst->nprocessed = src->nprocessed;
+  dst->commandTag = src->commandTag;
+  dst->nprocessed = src->nprocessed;
 }
 
 
@@ -57,6 +57,6 @@ extern bool command_tag_event_trigger_ok(CommandTag commandTag);
 extern bool command_tag_table_rewrite_ok(CommandTag commandTag);
 extern CommandTag GetCommandTagEnum(const char *commandname);
 extern Size BuildQueryCompletionString(char *buff, const QueryCompletion *qc,
-									   bool nameonly);
+                                       bool nameonly);
 
-#endif							/* CMDTAG_H */
+#endif              /* CMDTAG_H */

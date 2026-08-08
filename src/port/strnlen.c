@@ -1,14 +1,14 @@
 /*-------------------------------------------------------------------------
  *
  * strnlen.c
- *		Fallback implementation of strnlen().
+ *    Fallback implementation of strnlen().
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/port/strnlen.c
+ *    src/port/strnlen.c
  *
  *-------------------------------------------------------------------------
  */
@@ -25,9 +25,10 @@
 size_t
 strnlen(const char *str, size_t maxlen)
 {
-	const char *p = str;
+  const char *p = str;
 
-	while (maxlen-- > 0 && *p)
-		p++;
-	return p - str;
+  while (maxlen-- > 0 && *p)
+    p++;
+
+  return p - str;
 }

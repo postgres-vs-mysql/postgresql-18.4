@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * procnumber.h
- *	  definition of process number
+ *    definition of process number
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
@@ -23,7 +23,7 @@
  */
 typedef int ProcNumber;
 
-#define INVALID_PROC_NUMBER		(-1)
+#define INVALID_PROC_NUMBER   (-1)
 
 /*
  * Note: MAX_BACKENDS_BITS is 18 as that is the space available for buffer
@@ -35,8 +35,8 @@ typedef int ProcNumber;
  * 4*MaxBackends without any overflow check.  We check that the configured
  * number of backends does not exceed MAX_BACKENDS in InitializeMaxBackends().
  */
-#define MAX_BACKENDS_BITS		18
-#define MAX_BACKENDS			((1U << MAX_BACKENDS_BITS)-1)
+#define MAX_BACKENDS_BITS   18
+#define MAX_BACKENDS      ((1U << MAX_BACKENDS_BITS)-1)
 
 /*
  * Proc number of this backend (same as GetNumberFromPGProc(MyProc))
@@ -51,6 +51,6 @@ extern PGDLLIMPORT ProcNumber ParallelLeaderProcNumber;
  * but parallel workers should use their leader's proc number.
  */
 #define ProcNumberForTempRelations() \
-	(ParallelLeaderProcNumber == INVALID_PROC_NUMBER ? MyProcNumber : ParallelLeaderProcNumber)
+  (ParallelLeaderProcNumber == INVALID_PROC_NUMBER ? MyProcNumber : ParallelLeaderProcNumber)
 
-#endif							/* PROCNUMBER_H */
+#endif              /* PROCNUMBER_H */

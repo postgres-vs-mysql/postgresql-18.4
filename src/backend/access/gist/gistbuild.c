@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * gistbuild.c
- *	  build algorithm for GiST indexes implementation.
+ *    build algorithm for GiST indexes implementation.
  *
  * There are two different strategies:
  *
@@ -26,7 +26,7 @@
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/access/gist/gistbuild.c
+ *    src/backend/access/gist/gistbuild.c
  *
  *-------------------------------------------------------------------------
  */
@@ -64,50 +64,48 @@
  * GIST_BUFFERING_* modes on the fly, but if the Sorted method is used,
  * that needs to be decided up-front and cannot be changed afterwards.
  */
-typedef enum
-{
-	GIST_SORTED_BUILD,			/* bottom-up build by sorting */
-	GIST_BUFFERING_DISABLED,	/* in regular build mode and aren't going to
-								 * switch */
-	GIST_BUFFERING_AUTO,		/* in regular build mode, but will switch to
-								 * buffering build mode if the index grows too
-								 * big */
-	GIST_BUFFERING_STATS,		/* gathering statistics of index tuple size
-								 * before switching to the buffering build
-								 * mode */
-	GIST_BUFFERING_ACTIVE,		/* in buffering build mode */
+typedef enum {
+  GIST_SORTED_BUILD,      /* bottom-up build by sorting */
+  GIST_BUFFERING_DISABLED,  /* in regular build mode and aren't going to
+                 * switch */
+  GIST_BUFFERING_AUTO,    /* in regular build mode, but will switch to
+                 * buffering build mode if the index grows too
+                 * big */
+  GIST_BUFFERING_STATS,   /* gathering statistics of index tuple size
+                 * before switching to the buffering build
+                 * mode */
+  GIST_BUFFERING_ACTIVE,    /* in buffering build mode */
 } GistBuildMode;
 
 /* Working state for gistbuild and its callback */
-typedef struct
-{
-	Relation	indexrel;
-	Relation	heaprel;
-	GISTSTATE  *giststate;
+typedef struct {
+  Relation  indexrel;
+  Relation  heaprel;
+  GISTSTATE  *giststate;
 
-	Size		freespace;		/* amount of free space to leave on pages */
+  Size    freespace;    /* amount of free space to leave on pages */
 
-	GistBuildMode buildMode;
+  GistBuildMode buildMode;
 
-	int64		indtuples;		/* number of tuples indexed */
+  int64   indtuples;    /* number of tuples indexed */
 
-	/*
-	 * Extra data structures used during a buffering build. 'gfbb' contains
-	 * information related to managing the build buffers. 'parentMap' is a
-	 * lookup table of the parent of each internal page.
-	 */
-	int64		indtuplesSize;	/* total size of all indexed tuples */
-	GISTBuildBuffers *gfbb;
-	HTAB	   *parentMap;
+  /*
+   * Extra data structures used during a buffering build. 'gfbb' contains
+   * information related to managing the build buffers. 'parentMap' is a
+   * lookup table of the parent of each internal page.
+   */
+  int64   indtuplesSize;  /* total size of all indexed tuples */
+  GISTBuildBuffers *gfbb;
+  HTAB     *parentMap;
 
-	/*
-	 * Extra data structures used during a sorting build.
-	 */
-	Tuplesortstate *sortstate;	/* state data for tuplesort.c */
+  /*
+   * Extra data structures used during a sorting build.
+   */
+  Tuplesortstate *sortstate;  /* state data for tuplesort.c */
 
-	BlockNumber pages_allocated;
+  BlockNumber pages_allocated;
 
-	BulkWriteState *bulkstate;
+  BulkWriteState *bulkstate;
 } GISTBuildState;
 
 #define GIST_SORTED_BUILD_PAGE_NUM 4
@@ -120,55 +118,54 @@ typedef struct
  * not always the case in multidimensional data. To tackle the anomalies, we
  * buffer index tuples and apply picksplit that can be multidimension-aware.
  */
-typedef struct GistSortedBuildLevelState
-{
-	int			current_page;
-	BlockNumber last_blkno;
-	struct GistSortedBuildLevelState *parent;	/* Upper level, if any */
-	Page		pages[GIST_SORTED_BUILD_PAGE_NUM];
+typedef struct GistSortedBuildLevelState {
+  int     current_page;
+  BlockNumber last_blkno;
+  struct GistSortedBuildLevelState *parent; /* Upper level, if any */
+  Page    pages[GIST_SORTED_BUILD_PAGE_NUM];
 } GistSortedBuildLevelState;
 
 /* prototypes for private functions */
 
 static void gistSortedBuildCallback(Relation index, ItemPointer tid,
-									Datum *values, bool *isnull,
-									bool tupleIsAlive, void *state);
+                                    Datum *values, bool *isnull,
+                                    bool tupleIsAlive, void *state);
 static void gist_indexsortbuild(GISTBuildState *state);
 static void gist_indexsortbuild_levelstate_add(GISTBuildState *state,
-											   GistSortedBuildLevelState *levelstate,
-											   IndexTuple itup);
+    GistSortedBuildLevelState *levelstate,
+    IndexTuple itup);
 static void gist_indexsortbuild_levelstate_flush(GISTBuildState *state,
-												 GistSortedBuildLevelState *levelstate);
+    GistSortedBuildLevelState *levelstate);
 
 static void gistInitBuffering(GISTBuildState *buildstate);
-static int	calculatePagesPerBuffer(GISTBuildState *buildstate, int levelStep);
+static int  calculatePagesPerBuffer(GISTBuildState *buildstate, int levelStep);
 static void gistBuildCallback(Relation index,
-							  ItemPointer tid,
-							  Datum *values,
-							  bool *isnull,
-							  bool tupleIsAlive,
-							  void *state);
+                              ItemPointer tid,
+                              Datum *values,
+                              bool *isnull,
+                              bool tupleIsAlive,
+                              void *state);
 static void gistBufferingBuildInsert(GISTBuildState *buildstate,
-									 IndexTuple itup);
+                                     IndexTuple itup);
 static bool gistProcessItup(GISTBuildState *buildstate, IndexTuple itup,
-							BlockNumber startblkno, int startlevel);
+                            BlockNumber startblkno, int startlevel);
 static BlockNumber gistbufferinginserttuples(GISTBuildState *buildstate,
-											 Buffer buffer, int level,
-											 IndexTuple *itup, int ntup, OffsetNumber oldoffnum,
-											 BlockNumber parentblk, OffsetNumber downlinkoffnum);
+    Buffer buffer, int level,
+    IndexTuple *itup, int ntup, OffsetNumber oldoffnum,
+    BlockNumber parentblk, OffsetNumber downlinkoffnum);
 static Buffer gistBufferingFindCorrectParent(GISTBuildState *buildstate,
-											 BlockNumber childblkno, int level,
-											 BlockNumber *parentblkno,
-											 OffsetNumber *downlinkoffnum);
+    BlockNumber childblkno, int level,
+    BlockNumber *parentblkno,
+    OffsetNumber *downlinkoffnum);
 static void gistProcessEmptyingQueue(GISTBuildState *buildstate);
 static void gistEmptyAllBuffers(GISTBuildState *buildstate);
-static int	gistGetMaxLevel(Relation index);
+static int  gistGetMaxLevel(Relation index);
 
 static void gistInitParentMap(GISTBuildState *buildstate);
 static void gistMemorizeParent(GISTBuildState *buildstate, BlockNumber child,
-							   BlockNumber parent);
+                               BlockNumber parent);
 static void gistMemorizeAllDownlinks(GISTBuildState *buildstate,
-									 Buffer parentbuf);
+                                     Buffer parentbuf);
 static BlockNumber gistGetParent(GISTBuildState *buildstate, BlockNumber child);
 
 
@@ -178,180 +175,171 @@ static BlockNumber gistGetParent(GISTBuildState *buildstate, BlockNumber child);
 IndexBuildResult *
 gistbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 {
-	IndexBuildResult *result;
-	double		reltuples;
-	GISTBuildState buildstate;
-	MemoryContext oldcxt = CurrentMemoryContext;
-	int			fillfactor;
-	Oid			SortSupportFnOids[INDEX_MAX_KEYS];
-	GiSTOptions *options = (GiSTOptions *) index->rd_options;
+  IndexBuildResult *result;
+  double    reltuples;
+  GISTBuildState buildstate;
+  MemoryContext oldcxt = CurrentMemoryContext;
+  int     fillfactor;
+  Oid     SortSupportFnOids[INDEX_MAX_KEYS];
+  GiSTOptions *options = (GiSTOptions *) index->rd_options;
 
-	/*
-	 * We expect to be called exactly once for any index relation. If that's
-	 * not the case, big trouble's what we have.
-	 */
-	if (RelationGetNumberOfBlocks(index) != 0)
-		elog(ERROR, "index \"%s\" already contains data",
-			 RelationGetRelationName(index));
+  /*
+   * We expect to be called exactly once for any index relation. If that's
+   * not the case, big trouble's what we have.
+   */
+  if (RelationGetNumberOfBlocks(index) != 0)
+    elog(ERROR, "index \"%s\" already contains data",
+         RelationGetRelationName(index));
 
-	buildstate.indexrel = index;
-	buildstate.heaprel = heap;
-	buildstate.sortstate = NULL;
-	buildstate.giststate = initGISTstate(index);
+  buildstate.indexrel = index;
+  buildstate.heaprel = heap;
+  buildstate.sortstate = NULL;
+  buildstate.giststate = initGISTstate(index);
 
-	/*
-	 * Create a temporary memory context that is reset once for each tuple
-	 * processed.  (Note: we don't bother to make this a child of the
-	 * giststate's scanCxt, so we have to delete it separately at the end.)
-	 */
-	buildstate.giststate->tempCxt = createTempGistContext();
+  /*
+   * Create a temporary memory context that is reset once for each tuple
+   * processed.  (Note: we don't bother to make this a child of the
+   * giststate's scanCxt, so we have to delete it separately at the end.)
+   */
+  buildstate.giststate->tempCxt = createTempGistContext();
 
-	/*
-	 * Choose build strategy.  First check whether the user specified to use
-	 * buffering mode.  (The use-case for that in the field is somewhat
-	 * questionable perhaps, but it's important for testing purposes.)
-	 */
-	if (options)
-	{
-		if (options->buffering_mode == GIST_OPTION_BUFFERING_ON)
-			buildstate.buildMode = GIST_BUFFERING_STATS;
-		else if (options->buffering_mode == GIST_OPTION_BUFFERING_OFF)
-			buildstate.buildMode = GIST_BUFFERING_DISABLED;
-		else					/* must be "auto" */
-			buildstate.buildMode = GIST_BUFFERING_AUTO;
-	}
-	else
-	{
-		buildstate.buildMode = GIST_BUFFERING_AUTO;
-	}
+  /*
+   * Choose build strategy.  First check whether the user specified to use
+   * buffering mode.  (The use-case for that in the field is somewhat
+   * questionable perhaps, but it's important for testing purposes.)
+   */
+  if (options) {
+    if (options->buffering_mode == GIST_OPTION_BUFFERING_ON)
+      buildstate.buildMode = GIST_BUFFERING_STATS;
+    else if (options->buffering_mode == GIST_OPTION_BUFFERING_OFF)
+      buildstate.buildMode = GIST_BUFFERING_DISABLED;
+    else          /* must be "auto" */
+      buildstate.buildMode = GIST_BUFFERING_AUTO;
+  } else {
+    buildstate.buildMode = GIST_BUFFERING_AUTO;
+  }
 
-	/*
-	 * Unless buffering mode was forced, see if we can use sorting instead.
-	 */
-	if (buildstate.buildMode != GIST_BUFFERING_STATS)
-	{
-		bool		hasallsortsupports = true;
-		int			keyscount = IndexRelationGetNumberOfKeyAttributes(index);
+  /*
+   * Unless buffering mode was forced, see if we can use sorting instead.
+   */
+  if (buildstate.buildMode != GIST_BUFFERING_STATS) {
+    bool    hasallsortsupports = true;
+    int     keyscount = IndexRelationGetNumberOfKeyAttributes(index);
 
-		for (int i = 0; i < keyscount; i++)
-		{
-			SortSupportFnOids[i] = index_getprocid(index, i + 1,
-												   GIST_SORTSUPPORT_PROC);
-			if (!OidIsValid(SortSupportFnOids[i]))
-			{
-				hasallsortsupports = false;
-				break;
-			}
-		}
-		if (hasallsortsupports)
-			buildstate.buildMode = GIST_SORTED_BUILD;
-	}
+    for (int i = 0; i < keyscount; i++) {
+      SortSupportFnOids[i] = index_getprocid(index, i + 1,
+                                             GIST_SORTSUPPORT_PROC);
 
-	/*
-	 * Calculate target amount of free space to leave on pages.
-	 */
-	fillfactor = options ? options->fillfactor : GIST_DEFAULT_FILLFACTOR;
-	buildstate.freespace = BLCKSZ * (100 - fillfactor) / 100;
+      if (!OidIsValid(SortSupportFnOids[i])) {
+        hasallsortsupports = false;
+        break;
+      }
+    }
 
-	/*
-	 * Build the index using the chosen strategy.
-	 */
-	buildstate.indtuples = 0;
-	buildstate.indtuplesSize = 0;
+    if (hasallsortsupports)
+      buildstate.buildMode = GIST_SORTED_BUILD;
+  }
 
-	if (buildstate.buildMode == GIST_SORTED_BUILD)
-	{
-		/*
-		 * Sort all data, build the index from bottom up.
-		 */
-		buildstate.sortstate = tuplesort_begin_index_gist(heap,
-														  index,
-														  maintenance_work_mem,
-														  NULL,
-														  TUPLESORT_NONE);
+  /*
+   * Calculate target amount of free space to leave on pages.
+   */
+  fillfactor = options ? options->fillfactor : GIST_DEFAULT_FILLFACTOR;
+  buildstate.freespace = BLCKSZ * (100 - fillfactor) / 100;
 
-		/* Scan the table, adding all tuples to the tuplesort */
-		reltuples = table_index_build_scan(heap, index, indexInfo, true, true,
-										   gistSortedBuildCallback,
-										   &buildstate, NULL);
+  /*
+   * Build the index using the chosen strategy.
+   */
+  buildstate.indtuples = 0;
+  buildstate.indtuplesSize = 0;
 
-		/*
-		 * Perform the sort and build index pages.
-		 */
-		tuplesort_performsort(buildstate.sortstate);
+  if (buildstate.buildMode == GIST_SORTED_BUILD) {
+    /*
+     * Sort all data, build the index from bottom up.
+     */
+    buildstate.sortstate = tuplesort_begin_index_gist(heap,
+                           index,
+                           maintenance_work_mem,
+                           NULL,
+                           TUPLESORT_NONE);
 
-		gist_indexsortbuild(&buildstate);
+    /* Scan the table, adding all tuples to the tuplesort */
+    reltuples = table_index_build_scan(heap, index, indexInfo, true, true,
+                                       gistSortedBuildCallback,
+                                       &buildstate, NULL);
 
-		tuplesort_end(buildstate.sortstate);
-	}
-	else
-	{
-		/*
-		 * Initialize an empty index and insert all tuples, possibly using
-		 * buffers on intermediate levels.
-		 */
-		Buffer		buffer;
-		Page		page;
+    /*
+     * Perform the sort and build index pages.
+     */
+    tuplesort_performsort(buildstate.sortstate);
 
-		/* initialize the root page */
-		buffer = gistNewBuffer(index, heap);
-		Assert(BufferGetBlockNumber(buffer) == GIST_ROOT_BLKNO);
-		page = BufferGetPage(buffer);
+    gist_indexsortbuild(&buildstate);
 
-		START_CRIT_SECTION();
+    tuplesort_end(buildstate.sortstate);
+  } else {
+    /*
+     * Initialize an empty index and insert all tuples, possibly using
+     * buffers on intermediate levels.
+     */
+    Buffer    buffer;
+    Page    page;
 
-		GISTInitBuffer(buffer, F_LEAF);
+    /* initialize the root page */
+    buffer = gistNewBuffer(index, heap);
+    Assert(BufferGetBlockNumber(buffer) == GIST_ROOT_BLKNO);
+    page = BufferGetPage(buffer);
 
-		MarkBufferDirty(buffer);
-		PageSetLSN(page, GistBuildLSN);
+    START_CRIT_SECTION();
 
-		UnlockReleaseBuffer(buffer);
+    GISTInitBuffer(buffer, F_LEAF);
 
-		END_CRIT_SECTION();
+    MarkBufferDirty(buffer);
+    PageSetLSN(page, GistBuildLSN);
 
-		/* Scan the table, inserting all the tuples to the index. */
-		reltuples = table_index_build_scan(heap, index, indexInfo, true, true,
-										   gistBuildCallback,
-										   &buildstate, NULL);
+    UnlockReleaseBuffer(buffer);
 
-		/*
-		 * If buffering was used, flush out all the tuples that are still in
-		 * the buffers.
-		 */
-		if (buildstate.buildMode == GIST_BUFFERING_ACTIVE)
-		{
-			elog(DEBUG1, "all tuples processed, emptying buffers");
-			gistEmptyAllBuffers(&buildstate);
-			gistFreeBuildBuffers(buildstate.gfbb);
-		}
+    END_CRIT_SECTION();
 
-		/*
-		 * We didn't write WAL records as we built the index, so if
-		 * WAL-logging is required, write all pages to the WAL now.
-		 */
-		if (RelationNeedsWAL(index))
-		{
-			log_newpage_range(index, MAIN_FORKNUM,
-							  0, RelationGetNumberOfBlocks(index),
-							  true);
-		}
-	}
+    /* Scan the table, inserting all the tuples to the index. */
+    reltuples = table_index_build_scan(heap, index, indexInfo, true, true,
+                                       gistBuildCallback,
+                                       &buildstate, NULL);
 
-	/* okay, all heap tuples are indexed */
-	MemoryContextSwitchTo(oldcxt);
-	MemoryContextDelete(buildstate.giststate->tempCxt);
+    /*
+     * If buffering was used, flush out all the tuples that are still in
+     * the buffers.
+     */
+    if (buildstate.buildMode == GIST_BUFFERING_ACTIVE) {
+      elog(DEBUG1, "all tuples processed, emptying buffers");
+      gistEmptyAllBuffers(&buildstate);
+      gistFreeBuildBuffers(buildstate.gfbb);
+    }
 
-	freeGISTstate(buildstate.giststate);
+    /*
+     * We didn't write WAL records as we built the index, so if
+     * WAL-logging is required, write all pages to the WAL now.
+     */
+    if (RelationNeedsWAL(index)) {
+      log_newpage_range(index, MAIN_FORKNUM,
+                        0, RelationGetNumberOfBlocks(index),
+                        true);
+    }
+  }
 
-	/*
-	 * Return statistics
-	 */
-	result = (IndexBuildResult *) palloc(sizeof(IndexBuildResult));
+  /* okay, all heap tuples are indexed */
+  MemoryContextSwitchTo(oldcxt);
+  MemoryContextDelete(buildstate.giststate->tempCxt);
 
-	result->heap_tuples = reltuples;
-	result->index_tuples = (double) buildstate.indtuples;
+  freeGISTstate(buildstate.giststate);
 
-	return result;
+  /*
+   * Return statistics
+   */
+  result = (IndexBuildResult *) palloc(sizeof(IndexBuildResult));
+
+  result->heap_tuples = reltuples;
+  result->index_tuples = (double) buildstate.indtuples;
+
+  return result;
 }
 
 /*-------------------------------------------------------------------------
@@ -364,33 +352,33 @@ gistbuild(Relation heap, Relation index, IndexInfo *indexInfo)
  */
 static void
 gistSortedBuildCallback(Relation index,
-						ItemPointer tid,
-						Datum *values,
-						bool *isnull,
-						bool tupleIsAlive,
-						void *state)
+                        ItemPointer tid,
+                        Datum *values,
+                        bool *isnull,
+                        bool tupleIsAlive,
+                        void *state)
 {
-	GISTBuildState *buildstate = (GISTBuildState *) state;
-	MemoryContext oldCtx;
-	Datum		compressed_values[INDEX_MAX_KEYS];
+  GISTBuildState *buildstate = (GISTBuildState *) state;
+  MemoryContext oldCtx;
+  Datum   compressed_values[INDEX_MAX_KEYS];
 
-	oldCtx = MemoryContextSwitchTo(buildstate->giststate->tempCxt);
+  oldCtx = MemoryContextSwitchTo(buildstate->giststate->tempCxt);
 
-	/* Form an index tuple and point it at the heap tuple */
-	gistCompressValues(buildstate->giststate, index,
-					   values, isnull,
-					   true, compressed_values);
+  /* Form an index tuple and point it at the heap tuple */
+  gistCompressValues(buildstate->giststate, index,
+                     values, isnull,
+                     true, compressed_values);
 
-	tuplesort_putindextuplevalues(buildstate->sortstate,
-								  buildstate->indexrel,
-								  tid,
-								  compressed_values, isnull);
+  tuplesort_putindextuplevalues(buildstate->sortstate,
+                                buildstate->indexrel,
+                                tid,
+                                compressed_values, isnull);
 
-	MemoryContextSwitchTo(oldCtx);
-	MemoryContextReset(buildstate->giststate->tempCxt);
+  MemoryContextSwitchTo(oldCtx);
+  MemoryContextReset(buildstate->giststate->tempCxt);
 
-	/* Update tuple count. */
-	buildstate->indtuples += 1;
+  /* Update tuple count. */
+  buildstate->indtuples += 1;
 }
 
 /*
@@ -399,58 +387,58 @@ gistSortedBuildCallback(Relation index,
 static void
 gist_indexsortbuild(GISTBuildState *state)
 {
-	IndexTuple	itup;
-	GistSortedBuildLevelState *levelstate;
-	BulkWriteBuffer rootbuf;
+  IndexTuple  itup;
+  GistSortedBuildLevelState *levelstate;
+  BulkWriteBuffer rootbuf;
 
-	/* Reserve block 0 for the root page */
-	state->pages_allocated = 1;
+  /* Reserve block 0 for the root page */
+  state->pages_allocated = 1;
 
-	state->bulkstate = smgr_bulk_start_rel(state->indexrel, MAIN_FORKNUM);
+  state->bulkstate = smgr_bulk_start_rel(state->indexrel, MAIN_FORKNUM);
 
-	/* Allocate a temporary buffer for the first leaf page batch. */
-	levelstate = palloc0(sizeof(GistSortedBuildLevelState));
-	levelstate->pages[0] = palloc(BLCKSZ);
-	levelstate->parent = NULL;
-	gistinitpage(levelstate->pages[0], F_LEAF);
+  /* Allocate a temporary buffer for the first leaf page batch. */
+  levelstate = palloc0(sizeof(GistSortedBuildLevelState));
+  levelstate->pages[0] = palloc(BLCKSZ);
+  levelstate->parent = NULL;
+  gistinitpage(levelstate->pages[0], F_LEAF);
 
-	/*
-	 * Fill index pages with tuples in the sorted order.
-	 */
-	while ((itup = tuplesort_getindextuple(state->sortstate, true)) != NULL)
-	{
-		gist_indexsortbuild_levelstate_add(state, levelstate, itup);
-		MemoryContextReset(state->giststate->tempCxt);
-	}
+  /*
+   * Fill index pages with tuples in the sorted order.
+   */
+  while ((itup = tuplesort_getindextuple(state->sortstate, true)) != NULL) {
+    gist_indexsortbuild_levelstate_add(state, levelstate, itup);
+    MemoryContextReset(state->giststate->tempCxt);
+  }
 
-	/*
-	 * Write out the partially full non-root pages.
-	 *
-	 * Keep in mind that flush can build a new root. If number of pages is > 1
-	 * then new root is required.
-	 */
-	while (levelstate->parent != NULL || levelstate->current_page != 0)
-	{
-		GistSortedBuildLevelState *parent;
+  /*
+   * Write out the partially full non-root pages.
+   *
+   * Keep in mind that flush can build a new root. If number of pages is > 1
+   * then new root is required.
+   */
+  while (levelstate->parent != NULL || levelstate->current_page != 0) {
+    GistSortedBuildLevelState *parent;
 
-		gist_indexsortbuild_levelstate_flush(state, levelstate);
-		parent = levelstate->parent;
-		for (int i = 0; i < GIST_SORTED_BUILD_PAGE_NUM; i++)
-			if (levelstate->pages[i])
-				pfree(levelstate->pages[i]);
-		pfree(levelstate);
-		levelstate = parent;
-	}
+    gist_indexsortbuild_levelstate_flush(state, levelstate);
+    parent = levelstate->parent;
 
-	/* Write out the root */
-	PageSetLSN(levelstate->pages[0], GistBuildLSN);
-	rootbuf = smgr_bulk_get_buf(state->bulkstate);
-	memcpy(rootbuf, levelstate->pages[0], BLCKSZ);
-	smgr_bulk_write(state->bulkstate, GIST_ROOT_BLKNO, rootbuf, true);
+    for (int i = 0; i < GIST_SORTED_BUILD_PAGE_NUM; i++)
+      if (levelstate->pages[i])
+        pfree(levelstate->pages[i]);
 
-	pfree(levelstate);
+    pfree(levelstate);
+    levelstate = parent;
+  }
 
-	smgr_bulk_finish(state->bulkstate);
+  /* Write out the root */
+  PageSetLSN(levelstate->pages[0], GistBuildLSN);
+  rootbuf = smgr_bulk_get_buf(state->bulkstate);
+  memcpy(rootbuf, levelstate->pages[0], BLCKSZ);
+  smgr_bulk_write(state->bulkstate, GIST_ROOT_BLKNO, rootbuf, true);
+
+  pfree(levelstate);
+
+  smgr_bulk_finish(state->bulkstate);
 }
 
 /*
@@ -459,153 +447,149 @@ gist_indexsortbuild(GISTBuildState *state)
  */
 static void
 gist_indexsortbuild_levelstate_add(GISTBuildState *state,
-								   GistSortedBuildLevelState *levelstate,
-								   IndexTuple itup)
+                                   GistSortedBuildLevelState *levelstate,
+                                   IndexTuple itup)
 {
-	Size		sizeNeeded;
+  Size    sizeNeeded;
 
-	/* Check if tuple can be added to the current page */
-	sizeNeeded = IndexTupleSize(itup) + sizeof(ItemIdData); /* fillfactor ignored */
-	if (PageGetFreeSpace(levelstate->pages[levelstate->current_page]) < sizeNeeded)
-	{
-		Page		newPage;
-		Page		old_page = levelstate->pages[levelstate->current_page];
-		uint16		old_page_flags = GistPageGetOpaque(old_page)->flags;
+  /* Check if tuple can be added to the current page */
+  sizeNeeded = IndexTupleSize(itup) + sizeof(ItemIdData); /* fillfactor ignored */
 
-		if (levelstate->current_page + 1 == GIST_SORTED_BUILD_PAGE_NUM)
-		{
-			gist_indexsortbuild_levelstate_flush(state, levelstate);
-		}
-		else
-			levelstate->current_page++;
+  if (PageGetFreeSpace(levelstate->pages[levelstate->current_page]) < sizeNeeded) {
+    Page    newPage;
+    Page    old_page = levelstate->pages[levelstate->current_page];
+    uint16    old_page_flags = GistPageGetOpaque(old_page)->flags;
 
-		if (levelstate->pages[levelstate->current_page] == NULL)
-			levelstate->pages[levelstate->current_page] = palloc0(BLCKSZ);
+    if (levelstate->current_page + 1 == GIST_SORTED_BUILD_PAGE_NUM) {
+      gist_indexsortbuild_levelstate_flush(state, levelstate);
+    } else
+      levelstate->current_page++;
 
-		newPage = levelstate->pages[levelstate->current_page];
-		gistinitpage(newPage, old_page_flags);
-	}
+    if (levelstate->pages[levelstate->current_page] == NULL)
+      levelstate->pages[levelstate->current_page] = palloc0(BLCKSZ);
 
-	gistfillbuffer(levelstate->pages[levelstate->current_page], &itup, 1, InvalidOffsetNumber);
+    newPage = levelstate->pages[levelstate->current_page];
+    gistinitpage(newPage, old_page_flags);
+  }
+
+  gistfillbuffer(levelstate->pages[levelstate->current_page], &itup, 1, InvalidOffsetNumber);
 }
 
 static void
 gist_indexsortbuild_levelstate_flush(GISTBuildState *state,
-									 GistSortedBuildLevelState *levelstate)
+                                     GistSortedBuildLevelState *levelstate)
 {
-	GistSortedBuildLevelState *parent;
-	BlockNumber blkno;
-	MemoryContext oldCtx;
-	IndexTuple	union_tuple;
-	SplitPageLayout *dist;
-	IndexTuple *itvec;
-	int			vect_len;
-	bool		isleaf = GistPageIsLeaf(levelstate->pages[0]);
+  GistSortedBuildLevelState *parent;
+  BlockNumber blkno;
+  MemoryContext oldCtx;
+  IndexTuple  union_tuple;
+  SplitPageLayout *dist;
+  IndexTuple *itvec;
+  int     vect_len;
+  bool    isleaf = GistPageIsLeaf(levelstate->pages[0]);
 
-	CHECK_FOR_INTERRUPTS();
+  CHECK_FOR_INTERRUPTS();
 
-	oldCtx = MemoryContextSwitchTo(state->giststate->tempCxt);
+  oldCtx = MemoryContextSwitchTo(state->giststate->tempCxt);
 
-	/* Get index tuples from first page */
-	itvec = gistextractpage(levelstate->pages[0], &vect_len);
-	if (levelstate->current_page > 0)
-	{
-		/* Append tuples from each page */
-		for (int i = 1; i < levelstate->current_page + 1; i++)
-		{
-			int			len_local;
-			IndexTuple *itvec_local = gistextractpage(levelstate->pages[i], &len_local);
+  /* Get index tuples from first page */
+  itvec = gistextractpage(levelstate->pages[0], &vect_len);
 
-			itvec = gistjoinvector(itvec, &vect_len, itvec_local, len_local);
-			pfree(itvec_local);
-		}
+  if (levelstate->current_page > 0) {
+    /* Append tuples from each page */
+    for (int i = 1; i < levelstate->current_page + 1; i++) {
+      int     len_local;
+      IndexTuple *itvec_local = gistextractpage(levelstate->pages[i], &len_local);
 
-		/* Apply picksplit to list of all collected tuples */
-		dist = gistSplit(state->indexrel, levelstate->pages[0], itvec, vect_len, state->giststate);
-	}
-	else
-	{
-		/* Create split layout from single page */
-		dist = (SplitPageLayout *) palloc0(sizeof(SplitPageLayout));
-		union_tuple = gistunion(state->indexrel, itvec, vect_len,
-								state->giststate);
-		dist->itup = union_tuple;
-		dist->list = gistfillitupvec(itvec, vect_len, &(dist->lenlist));
-		dist->block.num = vect_len;
-	}
+      itvec = gistjoinvector(itvec, &vect_len, itvec_local, len_local);
+      pfree(itvec_local);
+    }
 
-	MemoryContextSwitchTo(oldCtx);
+    /* Apply picksplit to list of all collected tuples */
+    dist = gistSplit(state->indexrel, levelstate->pages[0], itvec, vect_len, state->giststate);
+  } else {
+    /* Create split layout from single page */
+    dist = (SplitPageLayout *) palloc0(sizeof(SplitPageLayout));
+    union_tuple = gistunion(state->indexrel, itvec, vect_len,
+                            state->giststate);
+    dist->itup = union_tuple;
+    dist->list = gistfillitupvec(itvec, vect_len, &(dist->lenlist));
+    dist->block.num = vect_len;
+  }
 
-	/* Reset page counter */
-	levelstate->current_page = 0;
+  MemoryContextSwitchTo(oldCtx);
 
-	/* Create pages for all partitions in split result */
-	for (; dist != NULL; dist = dist->next)
-	{
-		char	   *data;
-		BulkWriteBuffer buf;
-		Page		target;
+  /* Reset page counter */
+  levelstate->current_page = 0;
 
-		/* check once per page */
-		CHECK_FOR_INTERRUPTS();
+  /* Create pages for all partitions in split result */
+  for (; dist != NULL; dist = dist->next) {
+    char     *data;
+    BulkWriteBuffer buf;
+    Page    target;
 
-		/* Create page and copy data */
-		data = (char *) (dist->list);
-		buf = smgr_bulk_get_buf(state->bulkstate);
-		target = (Page) buf;
-		gistinitpage(target, isleaf ? F_LEAF : 0);
-		for (int i = 0; i < dist->block.num; i++)
-		{
-			IndexTuple	thistup = (IndexTuple) data;
+    /* check once per page */
+    CHECK_FOR_INTERRUPTS();
 
-			if (PageAddItem(target, (Item) data, IndexTupleSize(thistup), i + FirstOffsetNumber, false, false) == InvalidOffsetNumber)
-				elog(ERROR, "failed to add item to index page in \"%s\"", RelationGetRelationName(state->indexrel));
+    /* Create page and copy data */
+    data = (char *) (dist->list);
+    buf = smgr_bulk_get_buf(state->bulkstate);
+    target = (Page) buf;
+    gistinitpage(target, isleaf ? F_LEAF : 0);
 
-			data += IndexTupleSize(thistup);
-		}
-		union_tuple = dist->itup;
+    for (int i = 0; i < dist->block.num; i++) {
+      IndexTuple  thistup = (IndexTuple) data;
 
-		/*
-		 * Set the right link to point to the previous page. This is just for
-		 * debugging purposes: GiST only follows the right link if a page is
-		 * split concurrently to a scan, and that cannot happen during index
-		 * build.
-		 *
-		 * It's a bit counterintuitive that we set the right link on the new
-		 * page to point to the previous page, not the other way around. But
-		 * GiST pages are not ordered like B-tree pages are, so as long as the
-		 * right-links form a chain through all the pages at the same level,
-		 * the order doesn't matter.
-		 */
-		if (levelstate->last_blkno)
-			GistPageGetOpaque(target)->rightlink = levelstate->last_blkno;
+      if (PageAddItem(target, (Item) data, IndexTupleSize(thistup), i + FirstOffsetNumber, false, false) == InvalidOffsetNumber)
+        elog(ERROR, "failed to add item to index page in \"%s\"", RelationGetRelationName(state->indexrel));
 
-		/*
-		 * The page is now complete. Assign a block number to it, and pass it
-		 * to the bulk writer.
-		 */
-		blkno = state->pages_allocated++;
-		PageSetLSN(target, GistBuildLSN);
-		smgr_bulk_write(state->bulkstate, blkno, buf, true);
-		ItemPointerSetBlockNumber(&(union_tuple->t_tid), blkno);
-		levelstate->last_blkno = blkno;
+      data += IndexTupleSize(thistup);
+    }
 
-		/*
-		 * Insert the downlink to the parent page. If this was the root,
-		 * create a new page as the parent, which becomes the new root.
-		 */
-		parent = levelstate->parent;
-		if (parent == NULL)
-		{
-			parent = palloc0(sizeof(GistSortedBuildLevelState));
-			parent->pages[0] = palloc(BLCKSZ);
-			parent->parent = NULL;
-			gistinitpage(parent->pages[0], 0);
+    union_tuple = dist->itup;
 
-			levelstate->parent = parent;
-		}
-		gist_indexsortbuild_levelstate_add(state, parent, union_tuple);
-	}
+    /*
+     * Set the right link to point to the previous page. This is just for
+     * debugging purposes: GiST only follows the right link if a page is
+     * split concurrently to a scan, and that cannot happen during index
+     * build.
+     *
+     * It's a bit counterintuitive that we set the right link on the new
+     * page to point to the previous page, not the other way around. But
+     * GiST pages are not ordered like B-tree pages are, so as long as the
+     * right-links form a chain through all the pages at the same level,
+     * the order doesn't matter.
+     */
+    if (levelstate->last_blkno)
+      GistPageGetOpaque(target)->rightlink = levelstate->last_blkno;
+
+    /*
+     * The page is now complete. Assign a block number to it, and pass it
+     * to the bulk writer.
+     */
+    blkno = state->pages_allocated++;
+    PageSetLSN(target, GistBuildLSN);
+    smgr_bulk_write(state->bulkstate, blkno, buf, true);
+    ItemPointerSetBlockNumber(&(union_tuple->t_tid), blkno);
+    levelstate->last_blkno = blkno;
+
+    /*
+     * Insert the downlink to the parent page. If this was the root,
+     * create a new page as the parent, which becomes the new root.
+     */
+    parent = levelstate->parent;
+
+    if (parent == NULL) {
+      parent = palloc0(sizeof(GistSortedBuildLevelState));
+      parent->pages[0] = palloc(BLCKSZ);
+      parent->parent = NULL;
+      gistinitpage(parent->pages[0], 0);
+
+      levelstate->parent = parent;
+    }
+
+    gist_indexsortbuild_levelstate_add(state, parent, union_tuple);
+  }
 }
 
 
@@ -625,157 +609,156 @@ gist_indexsortbuild_levelstate_flush(GISTBuildState *state,
 static void
 gistInitBuffering(GISTBuildState *buildstate)
 {
-	Relation	index = buildstate->indexrel;
-	int			pagesPerBuffer;
-	Size		pageFreeSpace;
-	Size		itupAvgSize,
-				itupMinSize;
-	double		avgIndexTuplesPerPage,
-				maxIndexTuplesPerPage;
-	int			i;
-	int			levelStep;
+  Relation  index = buildstate->indexrel;
+  int     pagesPerBuffer;
+  Size    pageFreeSpace;
+  Size    itupAvgSize,
+          itupMinSize;
+  double    avgIndexTuplesPerPage,
+            maxIndexTuplesPerPage;
+  int     i;
+  int     levelStep;
 
-	/* Calc space of index page which is available for index tuples */
-	pageFreeSpace = BLCKSZ - SizeOfPageHeaderData - sizeof(GISTPageOpaqueData)
-		- sizeof(ItemIdData)
-		- buildstate->freespace;
+  /* Calc space of index page which is available for index tuples */
+  pageFreeSpace = BLCKSZ - SizeOfPageHeaderData - sizeof(GISTPageOpaqueData)
+                  - sizeof(ItemIdData)
+                  - buildstate->freespace;
 
-	/*
-	 * Calculate average size of already inserted index tuples using gathered
-	 * statistics.
-	 */
-	itupAvgSize = (double) buildstate->indtuplesSize /
-		(double) buildstate->indtuples;
+  /*
+   * Calculate average size of already inserted index tuples using gathered
+   * statistics.
+   */
+  itupAvgSize = (double) buildstate->indtuplesSize /
+                (double) buildstate->indtuples;
 
-	/*
-	 * Calculate minimal possible size of index tuple by index metadata.
-	 * Minimal possible size of varlena is VARHDRSZ.
-	 *
-	 * XXX: that's not actually true, as a short varlen can be just 2 bytes.
-	 * And we should take padding into account here.
-	 */
-	itupMinSize = (Size) MAXALIGN(sizeof(IndexTupleData));
-	for (i = 0; i < index->rd_att->natts; i++)
-	{
-		CompactAttribute *attr = TupleDescCompactAttr(index->rd_att, i);
+  /*
+   * Calculate minimal possible size of index tuple by index metadata.
+   * Minimal possible size of varlena is VARHDRSZ.
+   *
+   * XXX: that's not actually true, as a short varlen can be just 2 bytes.
+   * And we should take padding into account here.
+   */
+  itupMinSize = (Size) MAXALIGN(sizeof(IndexTupleData));
 
-		if (attr->attlen < 0)
-			itupMinSize += VARHDRSZ;
-		else
-			itupMinSize += attr->attlen;
-	}
+  for (i = 0; i < index->rd_att->natts; i++) {
+    CompactAttribute *attr = TupleDescCompactAttr(index->rd_att, i);
 
-	/* Calculate average and maximal number of index tuples which fit to page */
-	avgIndexTuplesPerPage = pageFreeSpace / itupAvgSize;
-	maxIndexTuplesPerPage = pageFreeSpace / itupMinSize;
+    if (attr->attlen < 0)
+      itupMinSize += VARHDRSZ;
+    else
+      itupMinSize += attr->attlen;
+  }
 
-	/*
-	 * We need to calculate two parameters for the buffering algorithm:
-	 * levelStep and pagesPerBuffer.
-	 *
-	 * levelStep determines the size of subtree that we operate on, while
-	 * emptying a buffer. A higher value is better, as you need fewer buffer
-	 * emptying steps to build the index. However, if you set it too high, the
-	 * subtree doesn't fit in cache anymore, and you quickly lose the benefit
-	 * of the buffers.
-	 *
-	 * In Arge et al's paper, levelStep is chosen as logB(M/4B), where B is
-	 * the number of tuples on page (ie. fanout), and M is the amount of
-	 * internal memory available. Curiously, they doesn't explain *why* that
-	 * setting is optimal. We calculate it by taking the highest levelStep so
-	 * that a subtree still fits in cache. For a small B, our way of
-	 * calculating levelStep is very close to Arge et al's formula. For a
-	 * large B, our formula gives a value that is 2x higher.
-	 *
-	 * The average size (in pages) of a subtree of depth n can be calculated
-	 * as a geometric series:
-	 *
-	 * B^0 + B^1 + B^2 + ... + B^n = (1 - B^(n + 1)) / (1 - B)
-	 *
-	 * where B is the average number of index tuples on page. The subtree is
-	 * cached in the shared buffer cache and the OS cache, so we choose
-	 * levelStep so that the subtree size is comfortably smaller than
-	 * effective_cache_size, with a safety factor of 4.
-	 *
-	 * The estimate on the average number of index tuples on page is based on
-	 * average tuple sizes observed before switching to buffered build, so the
-	 * real subtree size can be somewhat larger. Also, it would selfish to
-	 * gobble the whole cache for our index build. The safety factor of 4
-	 * should account for those effects.
-	 *
-	 * The other limiting factor for setting levelStep is that while
-	 * processing a subtree, we need to hold one page for each buffer at the
-	 * next lower buffered level. The max. number of buffers needed for that
-	 * is maxIndexTuplesPerPage^levelStep. This is very conservative, but
-	 * hopefully maintenance_work_mem is set high enough that you're
-	 * constrained by effective_cache_size rather than maintenance_work_mem.
-	 *
-	 * XXX: the buffer hash table consumes a fair amount of memory too per
-	 * buffer, but that is not currently taken into account. That scales on
-	 * the total number of buffers used, ie. the index size and on levelStep.
-	 * Note that a higher levelStep *reduces* the amount of memory needed for
-	 * the hash table.
-	 */
-	levelStep = 1;
-	for (;;)
-	{
-		double		subtreesize;
-		double		maxlowestlevelpages;
+  /* Calculate average and maximal number of index tuples which fit to page */
+  avgIndexTuplesPerPage = pageFreeSpace / itupAvgSize;
+  maxIndexTuplesPerPage = pageFreeSpace / itupMinSize;
 
-		/* size of an average subtree at this levelStep (in pages). */
-		subtreesize =
-			(1 - pow(avgIndexTuplesPerPage, (double) (levelStep + 1))) /
-			(1 - avgIndexTuplesPerPage);
+  /*
+   * We need to calculate two parameters for the buffering algorithm:
+   * levelStep and pagesPerBuffer.
+   *
+   * levelStep determines the size of subtree that we operate on, while
+   * emptying a buffer. A higher value is better, as you need fewer buffer
+   * emptying steps to build the index. However, if you set it too high, the
+   * subtree doesn't fit in cache anymore, and you quickly lose the benefit
+   * of the buffers.
+   *
+   * In Arge et al's paper, levelStep is chosen as logB(M/4B), where B is
+   * the number of tuples on page (ie. fanout), and M is the amount of
+   * internal memory available. Curiously, they doesn't explain *why* that
+   * setting is optimal. We calculate it by taking the highest levelStep so
+   * that a subtree still fits in cache. For a small B, our way of
+   * calculating levelStep is very close to Arge et al's formula. For a
+   * large B, our formula gives a value that is 2x higher.
+   *
+   * The average size (in pages) of a subtree of depth n can be calculated
+   * as a geometric series:
+   *
+   * B^0 + B^1 + B^2 + ... + B^n = (1 - B^(n + 1)) / (1 - B)
+   *
+   * where B is the average number of index tuples on page. The subtree is
+   * cached in the shared buffer cache and the OS cache, so we choose
+   * levelStep so that the subtree size is comfortably smaller than
+   * effective_cache_size, with a safety factor of 4.
+   *
+   * The estimate on the average number of index tuples on page is based on
+   * average tuple sizes observed before switching to buffered build, so the
+   * real subtree size can be somewhat larger. Also, it would selfish to
+   * gobble the whole cache for our index build. The safety factor of 4
+   * should account for those effects.
+   *
+   * The other limiting factor for setting levelStep is that while
+   * processing a subtree, we need to hold one page for each buffer at the
+   * next lower buffered level. The max. number of buffers needed for that
+   * is maxIndexTuplesPerPage^levelStep. This is very conservative, but
+   * hopefully maintenance_work_mem is set high enough that you're
+   * constrained by effective_cache_size rather than maintenance_work_mem.
+   *
+   * XXX: the buffer hash table consumes a fair amount of memory too per
+   * buffer, but that is not currently taken into account. That scales on
+   * the total number of buffers used, ie. the index size and on levelStep.
+   * Note that a higher levelStep *reduces* the amount of memory needed for
+   * the hash table.
+   */
+  levelStep = 1;
 
-		/* max number of pages at the lowest level of a subtree */
-		maxlowestlevelpages = pow(maxIndexTuplesPerPage, (double) levelStep);
+  for (;;) {
+    double    subtreesize;
+    double    maxlowestlevelpages;
 
-		/* subtree must fit in cache (with safety factor of 4) */
-		if (subtreesize > effective_cache_size / 4)
-			break;
+    /* size of an average subtree at this levelStep (in pages). */
+    subtreesize =
+      (1 - pow(avgIndexTuplesPerPage, (double) (levelStep + 1))) /
+      (1 - avgIndexTuplesPerPage);
 
-		/* each node in the lowest level of a subtree has one page in memory */
-		if (maxlowestlevelpages > ((double) maintenance_work_mem * 1024) / BLCKSZ)
-			break;
+    /* max number of pages at the lowest level of a subtree */
+    maxlowestlevelpages = pow(maxIndexTuplesPerPage, (double) levelStep);
 
-		/* Good, we can handle this levelStep. See if we can go one higher. */
-		levelStep++;
-	}
+    /* subtree must fit in cache (with safety factor of 4) */
+    if (subtreesize > effective_cache_size / 4)
+      break;
 
-	/*
-	 * We just reached an unacceptable value of levelStep in previous loop.
-	 * So, decrease levelStep to get last acceptable value.
-	 */
-	levelStep--;
+    /* each node in the lowest level of a subtree has one page in memory */
+    if (maxlowestlevelpages > ((double) maintenance_work_mem * 1024) / BLCKSZ)
+      break;
 
-	/*
-	 * If there's not enough cache or maintenance_work_mem, fall back to plain
-	 * inserts.
-	 */
-	if (levelStep <= 0)
-	{
-		elog(DEBUG1, "failed to switch to buffered GiST build");
-		buildstate->buildMode = GIST_BUFFERING_DISABLED;
-		return;
-	}
+    /* Good, we can handle this levelStep. See if we can go one higher. */
+    levelStep++;
+  }
 
-	/*
-	 * The second parameter to set is pagesPerBuffer, which determines the
-	 * size of each buffer. We adjust pagesPerBuffer also during the build,
-	 * which is why this calculation is in a separate function.
-	 */
-	pagesPerBuffer = calculatePagesPerBuffer(buildstate, levelStep);
+  /*
+   * We just reached an unacceptable value of levelStep in previous loop.
+   * So, decrease levelStep to get last acceptable value.
+   */
+  levelStep--;
 
-	/* Initialize GISTBuildBuffers with these parameters */
-	buildstate->gfbb = gistInitBuildBuffers(pagesPerBuffer, levelStep,
-											gistGetMaxLevel(index));
+  /*
+   * If there's not enough cache or maintenance_work_mem, fall back to plain
+   * inserts.
+   */
+  if (levelStep <= 0) {
+    elog(DEBUG1, "failed to switch to buffered GiST build");
+    buildstate->buildMode = GIST_BUFFERING_DISABLED;
+    return;
+  }
 
-	gistInitParentMap(buildstate);
+  /*
+   * The second parameter to set is pagesPerBuffer, which determines the
+   * size of each buffer. We adjust pagesPerBuffer also during the build,
+   * which is why this calculation is in a separate function.
+   */
+  pagesPerBuffer = calculatePagesPerBuffer(buildstate, levelStep);
 
-	buildstate->buildMode = GIST_BUFFERING_ACTIVE;
+  /* Initialize GISTBuildBuffers with these parameters */
+  buildstate->gfbb = gistInitBuildBuffers(pagesPerBuffer, levelStep,
+                                          gistGetMaxLevel(index));
 
-	elog(DEBUG1, "switched to buffered GiST build; level step = %d, pagesPerBuffer = %d",
-		 levelStep, pagesPerBuffer);
+  gistInitParentMap(buildstate);
+
+  buildstate->buildMode = GIST_BUFFERING_ACTIVE;
+
+  elog(DEBUG1, "switched to buffered GiST build; level step = %d, pagesPerBuffer = %d",
+       levelStep, pagesPerBuffer);
 }
 
 /*
@@ -788,31 +771,31 @@ gistInitBuffering(GISTBuildState *buildstate)
 static int
 calculatePagesPerBuffer(GISTBuildState *buildstate, int levelStep)
 {
-	double		pagesPerBuffer;
-	double		avgIndexTuplesPerPage;
-	double		itupAvgSize;
-	Size		pageFreeSpace;
+  double    pagesPerBuffer;
+  double    avgIndexTuplesPerPage;
+  double    itupAvgSize;
+  Size    pageFreeSpace;
 
-	/* Calc space of index page which is available for index tuples */
-	pageFreeSpace = BLCKSZ - SizeOfPageHeaderData - sizeof(GISTPageOpaqueData)
-		- sizeof(ItemIdData)
-		- buildstate->freespace;
+  /* Calc space of index page which is available for index tuples */
+  pageFreeSpace = BLCKSZ - SizeOfPageHeaderData - sizeof(GISTPageOpaqueData)
+                  - sizeof(ItemIdData)
+                  - buildstate->freespace;
 
-	/*
-	 * Calculate average size of already inserted index tuples using gathered
-	 * statistics.
-	 */
-	itupAvgSize = (double) buildstate->indtuplesSize /
-		(double) buildstate->indtuples;
+  /*
+   * Calculate average size of already inserted index tuples using gathered
+   * statistics.
+   */
+  itupAvgSize = (double) buildstate->indtuplesSize /
+                (double) buildstate->indtuples;
 
-	avgIndexTuplesPerPage = pageFreeSpace / itupAvgSize;
+  avgIndexTuplesPerPage = pageFreeSpace / itupAvgSize;
 
-	/*
-	 * Recalculate required size of buffers.
-	 */
-	pagesPerBuffer = 2 * pow(avgIndexTuplesPerPage, levelStep);
+  /*
+   * Recalculate required size of buffers.
+   */
+  pagesPerBuffer = 2 * pow(avgIndexTuplesPerPage, levelStep);
 
-	return (int) rint(pagesPerBuffer);
+  return (int) rint(pagesPerBuffer);
 }
 
 /*
@@ -820,86 +803,81 @@ calculatePagesPerBuffer(GISTBuildState *buildstate, int levelStep)
  */
 static void
 gistBuildCallback(Relation index,
-				  ItemPointer tid,
-				  Datum *values,
-				  bool *isnull,
-				  bool tupleIsAlive,
-				  void *state)
+                  ItemPointer tid,
+                  Datum *values,
+                  bool *isnull,
+                  bool tupleIsAlive,
+                  void *state)
 {
-	GISTBuildState *buildstate = (GISTBuildState *) state;
-	IndexTuple	itup;
-	MemoryContext oldCtx;
+  GISTBuildState *buildstate = (GISTBuildState *) state;
+  IndexTuple  itup;
+  MemoryContext oldCtx;
 
-	oldCtx = MemoryContextSwitchTo(buildstate->giststate->tempCxt);
+  oldCtx = MemoryContextSwitchTo(buildstate->giststate->tempCxt);
 
-	/* form an index tuple and point it at the heap tuple */
-	itup = gistFormTuple(buildstate->giststate, index,
-						 values, isnull,
-						 true);
-	itup->t_tid = *tid;
+  /* form an index tuple and point it at the heap tuple */
+  itup = gistFormTuple(buildstate->giststate, index,
+                       values, isnull,
+                       true);
+  itup->t_tid = *tid;
 
-	/* Update tuple count and total size. */
-	buildstate->indtuples += 1;
-	buildstate->indtuplesSize += IndexTupleSize(itup);
+  /* Update tuple count and total size. */
+  buildstate->indtuples += 1;
+  buildstate->indtuplesSize += IndexTupleSize(itup);
 
-	/*
-	 * XXX In buffering builds, the tempCxt is also reset down inside
-	 * gistProcessEmptyingQueue().  This is not great because it risks
-	 * confusion and possible use of dangling pointers (for example, itup
-	 * might be already freed when control returns here).  It's generally
-	 * better that a memory context be "owned" by only one function.  However,
-	 * currently this isn't causing issues so it doesn't seem worth the amount
-	 * of refactoring that would be needed to avoid it.
-	 */
-	if (buildstate->buildMode == GIST_BUFFERING_ACTIVE)
-	{
-		/* We have buffers, so use them. */
-		gistBufferingBuildInsert(buildstate, itup);
-	}
-	else
-	{
-		/*
-		 * There's no buffers (yet). Since we already have the index relation
-		 * locked, we call gistdoinsert directly.
-		 */
-		gistdoinsert(index, itup, buildstate->freespace,
-					 buildstate->giststate, buildstate->heaprel, true);
-	}
+  /*
+   * XXX In buffering builds, the tempCxt is also reset down inside
+   * gistProcessEmptyingQueue().  This is not great because it risks
+   * confusion and possible use of dangling pointers (for example, itup
+   * might be already freed when control returns here).  It's generally
+   * better that a memory context be "owned" by only one function.  However,
+   * currently this isn't causing issues so it doesn't seem worth the amount
+   * of refactoring that would be needed to avoid it.
+   */
+  if (buildstate->buildMode == GIST_BUFFERING_ACTIVE) {
+    /* We have buffers, so use them. */
+    gistBufferingBuildInsert(buildstate, itup);
+  } else {
+    /*
+     * There's no buffers (yet). Since we already have the index relation
+     * locked, we call gistdoinsert directly.
+     */
+    gistdoinsert(index, itup, buildstate->freespace,
+                 buildstate->giststate, buildstate->heaprel, true);
+  }
 
-	MemoryContextSwitchTo(oldCtx);
-	MemoryContextReset(buildstate->giststate->tempCxt);
+  MemoryContextSwitchTo(oldCtx);
+  MemoryContextReset(buildstate->giststate->tempCxt);
 
-	if (buildstate->buildMode == GIST_BUFFERING_ACTIVE &&
-		buildstate->indtuples % BUFFERING_MODE_TUPLE_SIZE_STATS_TARGET == 0)
-	{
-		/* Adjust the target buffer size now */
-		buildstate->gfbb->pagesPerBuffer =
-			calculatePagesPerBuffer(buildstate, buildstate->gfbb->levelStep);
-	}
+  if (buildstate->buildMode == GIST_BUFFERING_ACTIVE &&
+      buildstate->indtuples % BUFFERING_MODE_TUPLE_SIZE_STATS_TARGET == 0) {
+    /* Adjust the target buffer size now */
+    buildstate->gfbb->pagesPerBuffer =
+      calculatePagesPerBuffer(buildstate, buildstate->gfbb->levelStep);
+  }
 
-	/*
-	 * In 'auto' mode, check if the index has grown too large to fit in cache,
-	 * and switch to buffering mode if it has.
-	 *
-	 * To avoid excessive calls to smgrnblocks(), only check this every
-	 * BUFFERING_MODE_SWITCH_CHECK_STEP index tuples.
-	 *
-	 * In 'stats' state, switch as soon as we have seen enough tuples to have
-	 * some idea of the average tuple size.
-	 */
-	if ((buildstate->buildMode == GIST_BUFFERING_AUTO &&
-		 buildstate->indtuples % BUFFERING_MODE_SWITCH_CHECK_STEP == 0 &&
-		 effective_cache_size < smgrnblocks(RelationGetSmgr(index),
-											MAIN_FORKNUM)) ||
-		(buildstate->buildMode == GIST_BUFFERING_STATS &&
-		 buildstate->indtuples >= BUFFERING_MODE_TUPLE_SIZE_STATS_TARGET))
-	{
-		/*
-		 * Index doesn't fit in effective cache anymore. Try to switch to
-		 * buffering build mode.
-		 */
-		gistInitBuffering(buildstate);
-	}
+  /*
+   * In 'auto' mode, check if the index has grown too large to fit in cache,
+   * and switch to buffering mode if it has.
+   *
+   * To avoid excessive calls to smgrnblocks(), only check this every
+   * BUFFERING_MODE_SWITCH_CHECK_STEP index tuples.
+   *
+   * In 'stats' state, switch as soon as we have seen enough tuples to have
+   * some idea of the average tuple size.
+   */
+  if ((buildstate->buildMode == GIST_BUFFERING_AUTO &&
+       buildstate->indtuples % BUFFERING_MODE_SWITCH_CHECK_STEP == 0 &&
+       effective_cache_size < smgrnblocks(RelationGetSmgr(index),
+                                          MAIN_FORKNUM)) ||
+      (buildstate->buildMode == GIST_BUFFERING_STATS &&
+       buildstate->indtuples >= BUFFERING_MODE_TUPLE_SIZE_STATS_TARGET)) {
+    /*
+     * Index doesn't fit in effective cache anymore. Try to switch to
+     * buffering build mode.
+     */
+    gistInitBuffering(buildstate);
+  }
 }
 
 /*
@@ -908,11 +886,11 @@ gistBuildCallback(Relation index,
 static void
 gistBufferingBuildInsert(GISTBuildState *buildstate, IndexTuple itup)
 {
-	/* Insert the tuple to buffers. */
-	gistProcessItup(buildstate, itup, 0, buildstate->gfbb->rootlevel);
+  /* Insert the tuple to buffers. */
+  gistProcessItup(buildstate, itup, 0, buildstate->gfbb->rootlevel);
 
-	/* If we filled up (half of a) buffer, process buffer emptying. */
-	gistProcessEmptyingQueue(buildstate);
+  /* If we filled up (half of a) buffer, process buffer emptying. */
+  gistProcessEmptyingQueue(buildstate);
 }
 
 /*
@@ -923,121 +901,117 @@ gistBufferingBuildInsert(GISTBuildState *buildstate, IndexTuple itup)
  */
 static bool
 gistProcessItup(GISTBuildState *buildstate, IndexTuple itup,
-				BlockNumber startblkno, int startlevel)
+                BlockNumber startblkno, int startlevel)
 {
-	GISTSTATE  *giststate = buildstate->giststate;
-	GISTBuildBuffers *gfbb = buildstate->gfbb;
-	Relation	indexrel = buildstate->indexrel;
-	BlockNumber childblkno;
-	Buffer		buffer;
-	bool		result = false;
-	BlockNumber blkno;
-	int			level;
-	OffsetNumber downlinkoffnum = InvalidOffsetNumber;
-	BlockNumber parentblkno = InvalidBlockNumber;
+  GISTSTATE  *giststate = buildstate->giststate;
+  GISTBuildBuffers *gfbb = buildstate->gfbb;
+  Relation  indexrel = buildstate->indexrel;
+  BlockNumber childblkno;
+  Buffer    buffer;
+  bool    result = false;
+  BlockNumber blkno;
+  int     level;
+  OffsetNumber downlinkoffnum = InvalidOffsetNumber;
+  BlockNumber parentblkno = InvalidBlockNumber;
 
-	CHECK_FOR_INTERRUPTS();
+  CHECK_FOR_INTERRUPTS();
 
-	/*
-	 * Loop until we reach a leaf page (level == 0) or a level with buffers
-	 * (not including the level we start at, because we would otherwise make
-	 * no progress).
-	 */
-	blkno = startblkno;
-	level = startlevel;
-	for (;;)
-	{
-		ItemId		iid;
-		IndexTuple	idxtuple,
-					newtup;
-		Page		page;
-		OffsetNumber childoffnum;
+  /*
+   * Loop until we reach a leaf page (level == 0) or a level with buffers
+   * (not including the level we start at, because we would otherwise make
+   * no progress).
+   */
+  blkno = startblkno;
+  level = startlevel;
 
-		/* Have we reached a level with buffers? */
-		if (LEVEL_HAS_BUFFERS(level, gfbb) && level != startlevel)
-			break;
+  for (;;) {
+    ItemId    iid;
+    IndexTuple  idxtuple,
+                newtup;
+    Page    page;
+    OffsetNumber childoffnum;
 
-		/* Have we reached a leaf page? */
-		if (level == 0)
-			break;
+    /* Have we reached a level with buffers? */
+    if (LEVEL_HAS_BUFFERS(level, gfbb) && level != startlevel)
+      break;
 
-		/*
-		 * Nope. Descend down to the next level then. Choose a child to
-		 * descend down to.
-		 */
+    /* Have we reached a leaf page? */
+    if (level == 0)
+      break;
 
-		buffer = ReadBuffer(indexrel, blkno);
-		LockBuffer(buffer, GIST_EXCLUSIVE);
+    /*
+     * Nope. Descend down to the next level then. Choose a child to
+     * descend down to.
+     */
 
-		page = (Page) BufferGetPage(buffer);
-		childoffnum = gistchoose(indexrel, page, itup, giststate);
-		iid = PageGetItemId(page, childoffnum);
-		idxtuple = (IndexTuple) PageGetItem(page, iid);
-		childblkno = ItemPointerGetBlockNumber(&(idxtuple->t_tid));
+    buffer = ReadBuffer(indexrel, blkno);
+    LockBuffer(buffer, GIST_EXCLUSIVE);
 
-		if (level > 1)
-			gistMemorizeParent(buildstate, childblkno, blkno);
+    page = (Page) BufferGetPage(buffer);
+    childoffnum = gistchoose(indexrel, page, itup, giststate);
+    iid = PageGetItemId(page, childoffnum);
+    idxtuple = (IndexTuple) PageGetItem(page, iid);
+    childblkno = ItemPointerGetBlockNumber(&(idxtuple->t_tid));
 
-		/*
-		 * Check that the key representing the target child node is consistent
-		 * with the key we're inserting. Update it if it's not.
-		 */
-		newtup = gistgetadjusted(indexrel, idxtuple, itup, giststate);
-		if (newtup)
-		{
-			blkno = gistbufferinginserttuples(buildstate,
-											  buffer,
-											  level,
-											  &newtup,
-											  1,
-											  childoffnum,
-											  InvalidBlockNumber,
-											  InvalidOffsetNumber);
-			/* gistbufferinginserttuples() released the buffer */
-		}
-		else
-			UnlockReleaseBuffer(buffer);
+    if (level > 1)
+      gistMemorizeParent(buildstate, childblkno, blkno);
 
-		/* Descend to the child */
-		parentblkno = blkno;
-		blkno = childblkno;
-		downlinkoffnum = childoffnum;
-		Assert(level > 0);
-		level--;
-	}
+    /*
+     * Check that the key representing the target child node is consistent
+     * with the key we're inserting. Update it if it's not.
+     */
+    newtup = gistgetadjusted(indexrel, idxtuple, itup, giststate);
 
-	if (LEVEL_HAS_BUFFERS(level, gfbb))
-	{
-		/*
-		 * We've reached level with buffers. Place the index tuple to the
-		 * buffer, and add the buffer to the emptying queue if it overflows.
-		 */
-		GISTNodeBuffer *childNodeBuffer;
+    if (newtup) {
+      blkno = gistbufferinginserttuples(buildstate,
+                                        buffer,
+                                        level,
+                                        &newtup,
+                                        1,
+                                        childoffnum,
+                                        InvalidBlockNumber,
+                                        InvalidOffsetNumber);
+      /* gistbufferinginserttuples() released the buffer */
+    } else
+      UnlockReleaseBuffer(buffer);
 
-		/* Find the buffer or create a new one */
-		childNodeBuffer = gistGetNodeBuffer(gfbb, giststate, blkno, level);
+    /* Descend to the child */
+    parentblkno = blkno;
+    blkno = childblkno;
+    downlinkoffnum = childoffnum;
+    Assert(level > 0);
+    level--;
+  }
 
-		/* Add index tuple to it */
-		gistPushItupToNodeBuffer(gfbb, childNodeBuffer, itup);
+  if (LEVEL_HAS_BUFFERS(level, gfbb)) {
+    /*
+     * We've reached level with buffers. Place the index tuple to the
+     * buffer, and add the buffer to the emptying queue if it overflows.
+     */
+    GISTNodeBuffer *childNodeBuffer;
 
-		if (BUFFER_OVERFLOWED(childNodeBuffer, gfbb))
-			result = true;
-	}
-	else
-	{
-		/*
-		 * We've reached a leaf page. Place the tuple here.
-		 */
-		Assert(level == 0);
-		buffer = ReadBuffer(indexrel, blkno);
-		LockBuffer(buffer, GIST_EXCLUSIVE);
-		gistbufferinginserttuples(buildstate, buffer, level,
-								  &itup, 1, InvalidOffsetNumber,
-								  parentblkno, downlinkoffnum);
-		/* gistbufferinginserttuples() released the buffer */
-	}
+    /* Find the buffer or create a new one */
+    childNodeBuffer = gistGetNodeBuffer(gfbb, giststate, blkno, level);
 
-	return result;
+    /* Add index tuple to it */
+    gistPushItupToNodeBuffer(gfbb, childNodeBuffer, itup);
+
+    if (BUFFER_OVERFLOWED(childNodeBuffer, gfbb))
+      result = true;
+  } else {
+    /*
+     * We've reached a leaf page. Place the tuple here.
+     */
+    Assert(level == 0);
+    buffer = ReadBuffer(indexrel, blkno);
+    LockBuffer(buffer, GIST_EXCLUSIVE);
+    gistbufferinginserttuples(buildstate, buffer, level,
+                              &itup, 1, InvalidOffsetNumber,
+                              parentblkno, downlinkoffnum);
+    /* gistbufferinginserttuples() released the buffer */
+  }
+
+  return result;
 }
 
 /*
@@ -1054,152 +1028,148 @@ gistProcessItup(GISTBuildState *buildstate, IndexTuple itup,
  */
 static BlockNumber
 gistbufferinginserttuples(GISTBuildState *buildstate, Buffer buffer, int level,
-						  IndexTuple *itup, int ntup, OffsetNumber oldoffnum,
-						  BlockNumber parentblk, OffsetNumber downlinkoffnum)
+                          IndexTuple *itup, int ntup, OffsetNumber oldoffnum,
+                          BlockNumber parentblk, OffsetNumber downlinkoffnum)
 {
-	GISTBuildBuffers *gfbb = buildstate->gfbb;
-	List	   *splitinfo;
-	bool		is_split;
-	BlockNumber placed_to_blk = InvalidBlockNumber;
+  GISTBuildBuffers *gfbb = buildstate->gfbb;
+  List     *splitinfo;
+  bool    is_split;
+  BlockNumber placed_to_blk = InvalidBlockNumber;
 
-	is_split = gistplacetopage(buildstate->indexrel,
-							   buildstate->freespace,
-							   buildstate->giststate,
-							   buffer,
-							   itup, ntup, oldoffnum, &placed_to_blk,
-							   InvalidBuffer,
-							   &splitinfo,
-							   false,
-							   buildstate->heaprel, true);
+  is_split = gistplacetopage(buildstate->indexrel,
+                             buildstate->freespace,
+                             buildstate->giststate,
+                             buffer,
+                             itup, ntup, oldoffnum, &placed_to_blk,
+                             InvalidBuffer,
+                             &splitinfo,
+                             false,
+                             buildstate->heaprel, true);
 
-	/*
-	 * If this is a root split, update the root path item kept in memory. This
-	 * ensures that all path stacks are always complete, including all parent
-	 * nodes up to the root. That simplifies the algorithm to re-find correct
-	 * parent.
-	 */
-	if (is_split && BufferGetBlockNumber(buffer) == GIST_ROOT_BLKNO)
-	{
-		Page		page = BufferGetPage(buffer);
-		OffsetNumber off;
-		OffsetNumber maxoff;
+  /*
+   * If this is a root split, update the root path item kept in memory. This
+   * ensures that all path stacks are always complete, including all parent
+   * nodes up to the root. That simplifies the algorithm to re-find correct
+   * parent.
+   */
+  if (is_split && BufferGetBlockNumber(buffer) == GIST_ROOT_BLKNO) {
+    Page    page = BufferGetPage(buffer);
+    OffsetNumber off;
+    OffsetNumber maxoff;
 
-		Assert(level == gfbb->rootlevel);
-		gfbb->rootlevel++;
+    Assert(level == gfbb->rootlevel);
+    gfbb->rootlevel++;
 
-		elog(DEBUG2, "splitting GiST root page, now %d levels deep", gfbb->rootlevel);
+    elog(DEBUG2, "splitting GiST root page, now %d levels deep", gfbb->rootlevel);
 
-		/*
-		 * All the downlinks on the old root page are now on one of the child
-		 * pages. Visit all the new child pages to memorize the parents of the
-		 * grandchildren.
-		 */
-		if (gfbb->rootlevel > 1)
-		{
-			maxoff = PageGetMaxOffsetNumber(page);
-			for (off = FirstOffsetNumber; off <= maxoff; off++)
-			{
-				ItemId		iid = PageGetItemId(page, off);
-				IndexTuple	idxtuple = (IndexTuple) PageGetItem(page, iid);
-				BlockNumber childblkno = ItemPointerGetBlockNumber(&(idxtuple->t_tid));
-				Buffer		childbuf = ReadBuffer(buildstate->indexrel, childblkno);
+    /*
+     * All the downlinks on the old root page are now on one of the child
+     * pages. Visit all the new child pages to memorize the parents of the
+     * grandchildren.
+     */
+    if (gfbb->rootlevel > 1) {
+      maxoff = PageGetMaxOffsetNumber(page);
 
-				LockBuffer(childbuf, GIST_SHARE);
-				gistMemorizeAllDownlinks(buildstate, childbuf);
-				UnlockReleaseBuffer(childbuf);
+      for (off = FirstOffsetNumber; off <= maxoff; off++) {
+        ItemId    iid = PageGetItemId(page, off);
+        IndexTuple  idxtuple = (IndexTuple) PageGetItem(page, iid);
+        BlockNumber childblkno = ItemPointerGetBlockNumber(&(idxtuple->t_tid));
+        Buffer    childbuf = ReadBuffer(buildstate->indexrel, childblkno);
 
-				/*
-				 * Also remember that the parent of the new child page is the
-				 * root block.
-				 */
-				gistMemorizeParent(buildstate, childblkno, GIST_ROOT_BLKNO);
-			}
-		}
-	}
+        LockBuffer(childbuf, GIST_SHARE);
+        gistMemorizeAllDownlinks(buildstate, childbuf);
+        UnlockReleaseBuffer(childbuf);
 
-	if (splitinfo)
-	{
-		/*
-		 * Insert the downlinks to the parent. This is analogous with
-		 * gistfinishsplit() in the regular insertion code, but the locking is
-		 * simpler, and we have to maintain the buffers on internal nodes and
-		 * the parent map.
-		 */
-		IndexTuple *downlinks;
-		int			ndownlinks,
-					i;
-		Buffer		parentBuffer;
-		ListCell   *lc;
+        /*
+         * Also remember that the parent of the new child page is the
+         * root block.
+         */
+        gistMemorizeParent(buildstate, childblkno, GIST_ROOT_BLKNO);
+      }
+    }
+  }
 
-		/* Parent may have changed since we memorized this path. */
-		parentBuffer =
-			gistBufferingFindCorrectParent(buildstate,
-										   BufferGetBlockNumber(buffer),
-										   level,
-										   &parentblk,
-										   &downlinkoffnum);
+  if (splitinfo) {
+    /*
+     * Insert the downlinks to the parent. This is analogous with
+     * gistfinishsplit() in the regular insertion code, but the locking is
+     * simpler, and we have to maintain the buffers on internal nodes and
+     * the parent map.
+     */
+    IndexTuple *downlinks;
+    int     ndownlinks,
+            i;
+    Buffer    parentBuffer;
+    ListCell   *lc;
 
-		/*
-		 * If there's a buffer associated with this page, that needs to be
-		 * split too. gistRelocateBuildBuffersOnSplit() will also adjust the
-		 * downlinks in 'splitinfo', to make sure they're consistent not only
-		 * with the tuples already on the pages, but also the tuples in the
-		 * buffers that will eventually be inserted to them.
-		 */
-		gistRelocateBuildBuffersOnSplit(gfbb,
-										buildstate->giststate,
-										buildstate->indexrel,
-										level,
-										buffer, splitinfo);
+    /* Parent may have changed since we memorized this path. */
+    parentBuffer =
+      gistBufferingFindCorrectParent(buildstate,
+                                     BufferGetBlockNumber(buffer),
+                                     level,
+                                     &parentblk,
+                                     &downlinkoffnum);
 
-		/* Create an array of all the downlink tuples */
-		ndownlinks = list_length(splitinfo);
-		downlinks = (IndexTuple *) palloc(sizeof(IndexTuple) * ndownlinks);
-		i = 0;
-		foreach(lc, splitinfo)
-		{
-			GISTPageSplitInfo *splitinfo = lfirst(lc);
+    /*
+     * If there's a buffer associated with this page, that needs to be
+     * split too. gistRelocateBuildBuffersOnSplit() will also adjust the
+     * downlinks in 'splitinfo', to make sure they're consistent not only
+     * with the tuples already on the pages, but also the tuples in the
+     * buffers that will eventually be inserted to them.
+     */
+    gistRelocateBuildBuffersOnSplit(gfbb,
+                                    buildstate->giststate,
+                                    buildstate->indexrel,
+                                    level,
+                                    buffer, splitinfo);
 
-			/*
-			 * Remember the parent of each new child page in our parent map.
-			 * This assumes that the downlinks fit on the parent page. If the
-			 * parent page is split, too, when we recurse up to insert the
-			 * downlinks, the recursive gistbufferinginserttuples() call will
-			 * update the map again.
-			 */
-			if (level > 0)
-				gistMemorizeParent(buildstate,
-								   BufferGetBlockNumber(splitinfo->buf),
-								   BufferGetBlockNumber(parentBuffer));
+    /* Create an array of all the downlink tuples */
+    ndownlinks = list_length(splitinfo);
+    downlinks = (IndexTuple *) palloc(sizeof(IndexTuple) * ndownlinks);
+    i = 0;
 
-			/*
-			 * Also update the parent map for all the downlinks that got moved
-			 * to a different page. (actually this also loops through the
-			 * downlinks that stayed on the original page, but it does no
-			 * harm).
-			 */
-			if (level > 1)
-				gistMemorizeAllDownlinks(buildstate, splitinfo->buf);
+    foreach(lc, splitinfo) {
+      GISTPageSplitInfo *splitinfo = lfirst(lc);
 
-			/*
-			 * Since there's no concurrent access, we can release the lower
-			 * level buffers immediately. This includes the original page.
-			 */
-			UnlockReleaseBuffer(splitinfo->buf);
-			downlinks[i++] = splitinfo->downlink;
-		}
+      /*
+       * Remember the parent of each new child page in our parent map.
+       * This assumes that the downlinks fit on the parent page. If the
+       * parent page is split, too, when we recurse up to insert the
+       * downlinks, the recursive gistbufferinginserttuples() call will
+       * update the map again.
+       */
+      if (level > 0)
+        gistMemorizeParent(buildstate,
+                           BufferGetBlockNumber(splitinfo->buf),
+                           BufferGetBlockNumber(parentBuffer));
 
-		/* Insert them into parent. */
-		gistbufferinginserttuples(buildstate, parentBuffer, level + 1,
-								  downlinks, ndownlinks, downlinkoffnum,
-								  InvalidBlockNumber, InvalidOffsetNumber);
+      /*
+       * Also update the parent map for all the downlinks that got moved
+       * to a different page. (actually this also loops through the
+       * downlinks that stayed on the original page, but it does no
+       * harm).
+       */
+      if (level > 1)
+        gistMemorizeAllDownlinks(buildstate, splitinfo->buf);
 
-		list_free_deep(splitinfo);	/* we don't need this anymore */
-	}
-	else
-		UnlockReleaseBuffer(buffer);
+      /*
+       * Since there's no concurrent access, we can release the lower
+       * level buffers immediately. This includes the original page.
+       */
+      UnlockReleaseBuffer(splitinfo->buf);
+      downlinks[i++] = splitinfo->downlink;
+    }
 
-	return placed_to_blk;
+    /* Insert them into parent. */
+    gistbufferinginserttuples(buildstate, parentBuffer, level + 1,
+                              downlinks, ndownlinks, downlinkoffnum,
+                              InvalidBlockNumber, InvalidOffsetNumber);
+
+    list_free_deep(splitinfo);  /* we don't need this anymore */
+  } else
+    UnlockReleaseBuffer(buffer);
+
+  return placed_to_blk;
 }
 
 /*
@@ -1223,71 +1193,67 @@ gistbufferinginserttuples(GISTBuildState *buildstate, Buffer buffer, int level,
  */
 static Buffer
 gistBufferingFindCorrectParent(GISTBuildState *buildstate,
-							   BlockNumber childblkno, int level,
-							   BlockNumber *parentblkno,
-							   OffsetNumber *downlinkoffnum)
+                               BlockNumber childblkno, int level,
+                               BlockNumber *parentblkno,
+                               OffsetNumber *downlinkoffnum)
 {
-	BlockNumber parent;
-	Buffer		buffer;
-	Page		page;
-	OffsetNumber maxoff;
-	OffsetNumber off;
+  BlockNumber parent;
+  Buffer    buffer;
+  Page    page;
+  OffsetNumber maxoff;
+  OffsetNumber off;
 
-	if (level > 0)
-		parent = gistGetParent(buildstate, childblkno);
-	else
-	{
-		/*
-		 * For a leaf page, the caller must supply a correct parent block
-		 * number.
-		 */
-		if (*parentblkno == InvalidBlockNumber)
-			elog(ERROR, "no parent buffer provided of child %u", childblkno);
-		parent = *parentblkno;
-	}
+  if (level > 0)
+    parent = gistGetParent(buildstate, childblkno);
+  else {
+    /*
+     * For a leaf page, the caller must supply a correct parent block
+     * number.
+     */
+    if (*parentblkno == InvalidBlockNumber)
+      elog(ERROR, "no parent buffer provided of child %u", childblkno);
 
-	buffer = ReadBuffer(buildstate->indexrel, parent);
-	page = BufferGetPage(buffer);
-	LockBuffer(buffer, GIST_EXCLUSIVE);
-	gistcheckpage(buildstate->indexrel, buffer);
-	maxoff = PageGetMaxOffsetNumber(page);
+    parent = *parentblkno;
+  }
 
-	/* Check if it was not moved */
-	if (parent == *parentblkno && *parentblkno != InvalidBlockNumber &&
-		*downlinkoffnum != InvalidOffsetNumber && *downlinkoffnum <= maxoff)
-	{
-		ItemId		iid = PageGetItemId(page, *downlinkoffnum);
-		IndexTuple	idxtuple = (IndexTuple) PageGetItem(page, iid);
+  buffer = ReadBuffer(buildstate->indexrel, parent);
+  page = BufferGetPage(buffer);
+  LockBuffer(buffer, GIST_EXCLUSIVE);
+  gistcheckpage(buildstate->indexrel, buffer);
+  maxoff = PageGetMaxOffsetNumber(page);
 
-		if (ItemPointerGetBlockNumber(&(idxtuple->t_tid)) == childblkno)
-		{
-			/* Still there */
-			return buffer;
-		}
-	}
+  /* Check if it was not moved */
+  if (parent == *parentblkno && *parentblkno != InvalidBlockNumber &&
+      *downlinkoffnum != InvalidOffsetNumber && *downlinkoffnum <= maxoff) {
+    ItemId    iid = PageGetItemId(page, *downlinkoffnum);
+    IndexTuple  idxtuple = (IndexTuple) PageGetItem(page, iid);
 
-	/*
-	 * Downlink was not at the offset where it used to be. Scan the page to
-	 * find it. During normal gist insertions, it might've moved to another
-	 * page, to the right, but during a buffering build, we keep track of the
-	 * parent of each page in the lookup table so we should always know what
-	 * page it's on.
-	 */
-	for (off = FirstOffsetNumber; off <= maxoff; off = OffsetNumberNext(off))
-	{
-		ItemId		iid = PageGetItemId(page, off);
-		IndexTuple	idxtuple = (IndexTuple) PageGetItem(page, iid);
+    if (ItemPointerGetBlockNumber(&(idxtuple->t_tid)) == childblkno) {
+      /* Still there */
+      return buffer;
+    }
+  }
 
-		if (ItemPointerGetBlockNumber(&(idxtuple->t_tid)) == childblkno)
-		{
-			/* yes!!, found it */
-			*downlinkoffnum = off;
-			return buffer;
-		}
-	}
+  /*
+   * Downlink was not at the offset where it used to be. Scan the page to
+   * find it. During normal gist insertions, it might've moved to another
+   * page, to the right, but during a buffering build, we keep track of the
+   * parent of each page in the lookup table so we should always know what
+   * page it's on.
+   */
+  for (off = FirstOffsetNumber; off <= maxoff; off = OffsetNumberNext(off)) {
+    ItemId    iid = PageGetItemId(page, off);
+    IndexTuple  idxtuple = (IndexTuple) PageGetItem(page, iid);
 
-	elog(ERROR, "failed to re-find parent for block %u", childblkno);
-	return InvalidBuffer;		/* keep compiler quiet */
+    if (ItemPointerGetBlockNumber(&(idxtuple->t_tid)) == childblkno) {
+      /* yes!!, found it */
+      *downlinkoffnum = off;
+      return buffer;
+    }
+  }
+
+  elog(ERROR, "failed to re-find parent for block %u", childblkno);
+  return InvalidBuffer;   /* keep compiler quiet */
 }
 
 /*
@@ -1298,67 +1264,64 @@ gistBufferingFindCorrectParent(GISTBuildState *buildstate,
 static void
 gistProcessEmptyingQueue(GISTBuildState *buildstate)
 {
-	GISTBuildBuffers *gfbb = buildstate->gfbb;
+  GISTBuildBuffers *gfbb = buildstate->gfbb;
 
-	/* Iterate while we have elements in buffers emptying stack. */
-	while (gfbb->bufferEmptyingQueue != NIL)
-	{
-		GISTNodeBuffer *emptyingNodeBuffer;
+  /* Iterate while we have elements in buffers emptying stack. */
+  while (gfbb->bufferEmptyingQueue != NIL) {
+    GISTNodeBuffer *emptyingNodeBuffer;
 
-		/* Get node buffer from emptying stack. */
-		emptyingNodeBuffer = (GISTNodeBuffer *) linitial(gfbb->bufferEmptyingQueue);
-		gfbb->bufferEmptyingQueue = list_delete_first(gfbb->bufferEmptyingQueue);
-		emptyingNodeBuffer->queuedForEmptying = false;
+    /* Get node buffer from emptying stack. */
+    emptyingNodeBuffer = (GISTNodeBuffer *) linitial(gfbb->bufferEmptyingQueue);
+    gfbb->bufferEmptyingQueue = list_delete_first(gfbb->bufferEmptyingQueue);
+    emptyingNodeBuffer->queuedForEmptying = false;
 
-		/*
-		 * We are going to load last pages of buffers where emptying will be
-		 * to. So let's unload any previously loaded buffers.
-		 */
-		gistUnloadNodeBuffers(gfbb);
+    /*
+     * We are going to load last pages of buffers where emptying will be
+     * to. So let's unload any previously loaded buffers.
+     */
+    gistUnloadNodeBuffers(gfbb);
 
-		/*
-		 * Pop tuples from the buffer and run them down to the buffers at
-		 * lower level, or leaf pages. We continue until one of the lower
-		 * level buffers fills up, or this buffer runs empty.
-		 *
-		 * In Arge et al's paper, the buffer emptying is stopped after
-		 * processing 1/2 node buffer worth of tuples, to avoid overfilling
-		 * any of the lower level buffers. However, it's more efficient to
-		 * keep going until one of the lower level buffers actually fills up,
-		 * so that's what we do. This doesn't need to be exact, if a buffer
-		 * overfills by a few tuples, there's no harm done.
-		 */
-		while (true)
-		{
-			IndexTuple	itup;
+    /*
+     * Pop tuples from the buffer and run them down to the buffers at
+     * lower level, or leaf pages. We continue until one of the lower
+     * level buffers fills up, or this buffer runs empty.
+     *
+     * In Arge et al's paper, the buffer emptying is stopped after
+     * processing 1/2 node buffer worth of tuples, to avoid overfilling
+     * any of the lower level buffers. However, it's more efficient to
+     * keep going until one of the lower level buffers actually fills up,
+     * so that's what we do. This doesn't need to be exact, if a buffer
+     * overfills by a few tuples, there's no harm done.
+     */
+    while (true) {
+      IndexTuple  itup;
 
-			/* Get next index tuple from the buffer */
-			if (!gistPopItupFromNodeBuffer(gfbb, emptyingNodeBuffer, &itup))
-				break;
+      /* Get next index tuple from the buffer */
+      if (!gistPopItupFromNodeBuffer(gfbb, emptyingNodeBuffer, &itup))
+        break;
 
-			/*
-			 * Run it down to the underlying node buffer or leaf page.
-			 *
-			 * Note: it's possible that the buffer we're emptying splits as a
-			 * result of this call. If that happens, our emptyingNodeBuffer
-			 * points to the left half of the split. After split, it's very
-			 * likely that the new left buffer is no longer over the half-full
-			 * threshold, but we might as well keep flushing tuples from it
-			 * until we fill a lower-level buffer.
-			 */
-			if (gistProcessItup(buildstate, itup, emptyingNodeBuffer->nodeBlocknum, emptyingNodeBuffer->level))
-			{
-				/*
-				 * A lower level buffer filled up. Stop emptying this buffer,
-				 * to avoid overflowing the lower level buffer.
-				 */
-				break;
-			}
+      /*
+       * Run it down to the underlying node buffer or leaf page.
+       *
+       * Note: it's possible that the buffer we're emptying splits as a
+       * result of this call. If that happens, our emptyingNodeBuffer
+       * points to the left half of the split. After split, it's very
+       * likely that the new left buffer is no longer over the half-full
+       * threshold, but we might as well keep flushing tuples from it
+       * until we fill a lower-level buffer.
+       */
+      if (gistProcessItup(buildstate, itup, emptyingNodeBuffer->nodeBlocknum, emptyingNodeBuffer->level)) {
+        /*
+         * A lower level buffer filled up. Stop emptying this buffer,
+         * to avoid overflowing the lower level buffer.
+         */
+        break;
+      }
 
-			/* Free all the memory allocated during index tuple processing */
-			MemoryContextReset(buildstate->giststate->tempCxt);
-		}
-	}
+      /* Free all the memory allocated during index tuple processing */
+      MemoryContextReset(buildstate->giststate->tempCxt);
+    }
+  }
 }
 
 /*
@@ -1371,53 +1334,51 @@ gistProcessEmptyingQueue(GISTBuildState *buildstate)
 static void
 gistEmptyAllBuffers(GISTBuildState *buildstate)
 {
-	GISTBuildBuffers *gfbb = buildstate->gfbb;
-	MemoryContext oldCtx;
-	int			i;
+  GISTBuildBuffers *gfbb = buildstate->gfbb;
+  MemoryContext oldCtx;
+  int     i;
 
-	oldCtx = MemoryContextSwitchTo(buildstate->giststate->tempCxt);
+  oldCtx = MemoryContextSwitchTo(buildstate->giststate->tempCxt);
 
-	/*
-	 * Iterate through the levels from top to bottom.
-	 */
-	for (i = gfbb->buffersOnLevelsLen - 1; i >= 0; i--)
-	{
-		/*
-		 * Empty all buffers on this level. Note that new buffers can pop up
-		 * in the list during the processing, as a result of page splits, so a
-		 * simple walk through the list won't work. We remove buffers from the
-		 * list when we see them empty; a buffer can't become non-empty once
-		 * it's been fully emptied.
-		 */
-		while (gfbb->buffersOnLevels[i] != NIL)
-		{
-			GISTNodeBuffer *nodeBuffer;
+  /*
+   * Iterate through the levels from top to bottom.
+   */
+  for (i = gfbb->buffersOnLevelsLen - 1; i >= 0; i--) {
+    /*
+     * Empty all buffers on this level. Note that new buffers can pop up
+     * in the list during the processing, as a result of page splits, so a
+     * simple walk through the list won't work. We remove buffers from the
+     * list when we see them empty; a buffer can't become non-empty once
+     * it's been fully emptied.
+     */
+    while (gfbb->buffersOnLevels[i] != NIL) {
+      GISTNodeBuffer *nodeBuffer;
 
-			nodeBuffer = (GISTNodeBuffer *) linitial(gfbb->buffersOnLevels[i]);
+      nodeBuffer = (GISTNodeBuffer *) linitial(gfbb->buffersOnLevels[i]);
 
-			if (nodeBuffer->blocksCount != 0)
-			{
-				/*
-				 * Add this buffer to the emptying queue, and proceed to empty
-				 * the queue.
-				 */
-				if (!nodeBuffer->queuedForEmptying)
-				{
-					MemoryContextSwitchTo(gfbb->context);
-					nodeBuffer->queuedForEmptying = true;
-					gfbb->bufferEmptyingQueue =
-						lcons(nodeBuffer, gfbb->bufferEmptyingQueue);
-					MemoryContextSwitchTo(buildstate->giststate->tempCxt);
-				}
-				gistProcessEmptyingQueue(buildstate);
-			}
-			else
-				gfbb->buffersOnLevels[i] =
-					list_delete_first(gfbb->buffersOnLevels[i]);
-		}
-		elog(DEBUG2, "emptied all buffers at level %d", i);
-	}
-	MemoryContextSwitchTo(oldCtx);
+      if (nodeBuffer->blocksCount != 0) {
+        /*
+         * Add this buffer to the emptying queue, and proceed to empty
+         * the queue.
+         */
+        if (!nodeBuffer->queuedForEmptying) {
+          MemoryContextSwitchTo(gfbb->context);
+          nodeBuffer->queuedForEmptying = true;
+          gfbb->bufferEmptyingQueue =
+            lcons(nodeBuffer, gfbb->bufferEmptyingQueue);
+          MemoryContextSwitchTo(buildstate->giststate->tempCxt);
+        }
+
+        gistProcessEmptyingQueue(buildstate);
+      } else
+        gfbb->buffersOnLevels[i] =
+          list_delete_first(gfbb->buffersOnLevels[i]);
+    }
+
+    elog(DEBUG2, "emptied all buffers at level %d", i);
+  }
+
+  MemoryContextSwitchTo(oldCtx);
 }
 
 /*
@@ -1426,54 +1387,54 @@ gistEmptyAllBuffers(GISTBuildState *buildstate)
 static int
 gistGetMaxLevel(Relation index)
 {
-	int			maxLevel;
-	BlockNumber blkno;
+  int     maxLevel;
+  BlockNumber blkno;
 
-	/*
-	 * Traverse down the tree, starting from the root, until we hit the leaf
-	 * level.
-	 */
-	maxLevel = 0;
-	blkno = GIST_ROOT_BLKNO;
-	while (true)
-	{
-		Buffer		buffer;
-		Page		page;
-		IndexTuple	itup;
+  /*
+   * Traverse down the tree, starting from the root, until we hit the leaf
+   * level.
+   */
+  maxLevel = 0;
+  blkno = GIST_ROOT_BLKNO;
 
-		buffer = ReadBuffer(index, blkno);
+  while (true) {
+    Buffer    buffer;
+    Page    page;
+    IndexTuple  itup;
 
-		/*
-		 * There's no concurrent access during index build, so locking is just
-		 * pro forma.
-		 */
-		LockBuffer(buffer, GIST_SHARE);
-		page = (Page) BufferGetPage(buffer);
+    buffer = ReadBuffer(index, blkno);
 
-		if (GistPageIsLeaf(page))
-		{
-			/* We hit the bottom, so we're done. */
-			UnlockReleaseBuffer(buffer);
-			break;
-		}
+    /*
+     * There's no concurrent access during index build, so locking is just
+     * pro forma.
+     */
+    LockBuffer(buffer, GIST_SHARE);
+    page = (Page) BufferGetPage(buffer);
 
-		/*
-		 * Pick the first downlink on the page, and follow it. It doesn't
-		 * matter which downlink we choose, the tree has the same depth
-		 * everywhere, so we just pick the first one.
-		 */
-		itup = (IndexTuple) PageGetItem(page,
-										PageGetItemId(page, FirstOffsetNumber));
-		blkno = ItemPointerGetBlockNumber(&(itup->t_tid));
-		UnlockReleaseBuffer(buffer);
+    if (GistPageIsLeaf(page)) {
+      /* We hit the bottom, so we're done. */
+      UnlockReleaseBuffer(buffer);
+      break;
+    }
 
-		/*
-		 * We're going down on the tree. It means that there is yet one more
-		 * level in the tree.
-		 */
-		maxLevel++;
-	}
-	return maxLevel;
+    /*
+     * Pick the first downlink on the page, and follow it. It doesn't
+     * matter which downlink we choose, the tree has the same depth
+     * everywhere, so we just pick the first one.
+     */
+    itup = (IndexTuple) PageGetItem(page,
+                                    PageGetItemId(page, FirstOffsetNumber));
+    blkno = ItemPointerGetBlockNumber(&(itup->t_tid));
+    UnlockReleaseBuffer(buffer);
+
+    /*
+     * We're going down on the tree. It means that there is yet one more
+     * level in the tree.
+     */
+    maxLevel++;
+  }
+
+  return maxLevel;
 }
 
 
@@ -1506,37 +1467,36 @@ gistGetMaxLevel(Relation index)
  * but will be added there the first time we visit them.
  */
 
-typedef struct
-{
-	BlockNumber childblkno;		/* hash key */
-	BlockNumber parentblkno;
+typedef struct {
+  BlockNumber childblkno;   /* hash key */
+  BlockNumber parentblkno;
 } ParentMapEntry;
 
 static void
 gistInitParentMap(GISTBuildState *buildstate)
 {
-	HASHCTL		hashCtl;
+  HASHCTL   hashCtl;
 
-	hashCtl.keysize = sizeof(BlockNumber);
-	hashCtl.entrysize = sizeof(ParentMapEntry);
-	hashCtl.hcxt = CurrentMemoryContext;
-	buildstate->parentMap = hash_create("gistbuild parent map",
-										1024,
-										&hashCtl,
-										HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+  hashCtl.keysize = sizeof(BlockNumber);
+  hashCtl.entrysize = sizeof(ParentMapEntry);
+  hashCtl.hcxt = CurrentMemoryContext;
+  buildstate->parentMap = hash_create("gistbuild parent map",
+                                      1024,
+                                      &hashCtl,
+                                      HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
 }
 
 static void
 gistMemorizeParent(GISTBuildState *buildstate, BlockNumber child, BlockNumber parent)
 {
-	ParentMapEntry *entry;
-	bool		found;
+  ParentMapEntry *entry;
+  bool    found;
 
-	entry = (ParentMapEntry *) hash_search(buildstate->parentMap,
-										   &child,
-										   HASH_ENTER,
-										   &found);
-	entry->parentblkno = parent;
+  entry = (ParentMapEntry *) hash_search(buildstate->parentMap,
+                                         &child,
+                                         HASH_ENTER,
+                                         &found);
+  entry->parentblkno = parent;
 }
 
 /*
@@ -1545,37 +1505,38 @@ gistMemorizeParent(GISTBuildState *buildstate, BlockNumber child, BlockNumber pa
 static void
 gistMemorizeAllDownlinks(GISTBuildState *buildstate, Buffer parentbuf)
 {
-	OffsetNumber maxoff;
-	OffsetNumber off;
-	BlockNumber parentblkno = BufferGetBlockNumber(parentbuf);
-	Page		page = BufferGetPage(parentbuf);
+  OffsetNumber maxoff;
+  OffsetNumber off;
+  BlockNumber parentblkno = BufferGetBlockNumber(parentbuf);
+  Page    page = BufferGetPage(parentbuf);
 
-	Assert(!GistPageIsLeaf(page));
+  Assert(!GistPageIsLeaf(page));
 
-	maxoff = PageGetMaxOffsetNumber(page);
-	for (off = FirstOffsetNumber; off <= maxoff; off++)
-	{
-		ItemId		iid = PageGetItemId(page, off);
-		IndexTuple	idxtuple = (IndexTuple) PageGetItem(page, iid);
-		BlockNumber childblkno = ItemPointerGetBlockNumber(&(idxtuple->t_tid));
+  maxoff = PageGetMaxOffsetNumber(page);
 
-		gistMemorizeParent(buildstate, childblkno, parentblkno);
-	}
+  for (off = FirstOffsetNumber; off <= maxoff; off++) {
+    ItemId    iid = PageGetItemId(page, off);
+    IndexTuple  idxtuple = (IndexTuple) PageGetItem(page, iid);
+    BlockNumber childblkno = ItemPointerGetBlockNumber(&(idxtuple->t_tid));
+
+    gistMemorizeParent(buildstate, childblkno, parentblkno);
+  }
 }
 
 static BlockNumber
 gistGetParent(GISTBuildState *buildstate, BlockNumber child)
 {
-	ParentMapEntry *entry;
-	bool		found;
+  ParentMapEntry *entry;
+  bool    found;
 
-	/* Find node buffer in hash table */
-	entry = (ParentMapEntry *) hash_search(buildstate->parentMap,
-										   &child,
-										   HASH_FIND,
-										   &found);
-	if (!found)
-		elog(ERROR, "could not find parent of block %u in lookup table", child);
+  /* Find node buffer in hash table */
+  entry = (ParentMapEntry *) hash_search(buildstate->parentMap,
+                                         &child,
+                                         HASH_FIND,
+                                         &found);
 
-	return entry->parentblkno;
+  if (!found)
+    elog(ERROR, "could not find parent of block %u in lookup table", child);
+
+  return entry->parentblkno;
 }

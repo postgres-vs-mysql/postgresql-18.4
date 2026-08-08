@@ -23,13 +23,13 @@
  */
 typedef enum CollectedCommandType
 {
-	SCT_Simple,
-	SCT_AlterTable,
-	SCT_Grant,
-	SCT_AlterOpFamily,
-	SCT_AlterDefaultPrivileges,
-	SCT_CreateOpClass,
-	SCT_AlterTSConfig,
+  SCT_Simple,
+  SCT_AlterTable,
+  SCT_Grant,
+  SCT_AlterOpFamily,
+  SCT_AlterDefaultPrivileges,
+  SCT_CreateOpClass,
+  SCT_AlterTSConfig,
 } CollectedCommandType;
 
 /*
@@ -37,72 +37,72 @@ typedef enum CollectedCommandType
  */
 typedef struct CollectedATSubcmd
 {
-	ObjectAddress address;		/* affected column, constraint, index, ... */
-	Node	   *parsetree;
+  ObjectAddress address;    /* affected column, constraint, index, ... */
+  Node     *parsetree;
 } CollectedATSubcmd;
 
 typedef struct CollectedCommand
 {
-	CollectedCommandType type;
+  CollectedCommandType type;
 
-	bool		in_extension;
-	Node	   *parsetree;
+  bool    in_extension;
+  Node     *parsetree;
 
-	union
-	{
-		/* most commands */
-		struct
-		{
-			ObjectAddress address;
-			ObjectAddress secondaryObject;
-		}			simple;
+  union
+  {
+    /* most commands */
+    struct
+    {
+      ObjectAddress address;
+      ObjectAddress secondaryObject;
+    }     simple;
 
-		/* ALTER TABLE, and internal uses thereof */
-		struct
-		{
-			Oid			objectId;
-			Oid			classId;
-			List	   *subcmds;
-		}			alterTable;
+    /* ALTER TABLE, and internal uses thereof */
+    struct
+    {
+      Oid     objectId;
+      Oid     classId;
+      List     *subcmds;
+    }     alterTable;
 
-		/* GRANT / REVOKE */
-		struct
-		{
-			InternalGrant *istmt;
-		}			grant;
+    /* GRANT / REVOKE */
+    struct
+    {
+      InternalGrant *istmt;
+    }     grant;
 
-		/* ALTER OPERATOR FAMILY */
-		struct
-		{
-			ObjectAddress address;
-			List	   *operators;
-			List	   *procedures;
-		}			opfam;
+    /* ALTER OPERATOR FAMILY */
+    struct
+    {
+      ObjectAddress address;
+      List     *operators;
+      List     *procedures;
+    }     opfam;
 
-		/* CREATE OPERATOR CLASS */
-		struct
-		{
-			ObjectAddress address;
-			List	   *operators;
-			List	   *procedures;
-		}			createopc;
+    /* CREATE OPERATOR CLASS */
+    struct
+    {
+      ObjectAddress address;
+      List     *operators;
+      List     *procedures;
+    }     createopc;
 
-		/* ALTER TEXT SEARCH CONFIGURATION ADD/ALTER/DROP MAPPING */
-		struct
-		{
-			ObjectAddress address;
-			Oid		   *dictIds;
-			int			ndicts;
-		}			atscfg;
+    /* ALTER TEXT SEARCH CONFIGURATION ADD/ALTER/DROP MAPPING */
+    struct
+    {
+      ObjectAddress address;
+      Oid      *dictIds;
+      int     ndicts;
+    }     atscfg;
 
-		/* ALTER DEFAULT PRIVILEGES */
-		struct
-		{
-			ObjectType	objtype;
-		}			defprivs;
-	}			d;
+    /* ALTER DEFAULT PRIVILEGES */
+    struct
+    {
+      ObjectType  objtype;
+    }     defprivs;
+  }     d;
 
-	struct CollectedCommand *parent;	/* when nested */
+  struct CollectedCommand *parent;  /* when nested */
 } CollectedCommand;
 
-#endif							/* DEPARSE_UTILITY_H */
+#endif              /* DEPARSE_UTILITY_H */

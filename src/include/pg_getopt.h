@@ -20,11 +20,11 @@
 #define PG_GETOPT_H
 
 /* POSIX says getopt() is provided by unistd.h */
-#include <unistd.h>				/* IWYU pragma: export */
+#include <unistd.h>       /* IWYU pragma: export */
 
 /* rely on the system's getopt.h if present */
 #ifdef HAVE_GETOPT_H
-#include <getopt.h>				/* IWYU pragma: export */
+#include <getopt.h>       /* IWYU pragma: export */
 #endif
 
 /*
@@ -39,7 +39,7 @@ extern PGDLLIMPORT int optind;
 extern PGDLLIMPORT int opterr;
 extern PGDLLIMPORT int optopt;
 
-#endif							/* HAVE_GETOPT_H */
+#endif              /* HAVE_GETOPT_H */
 
 /*
  * Some platforms have optreset but fail to declare it in <getopt.h>, so cope.
@@ -51,7 +51,7 @@ extern PGDLLIMPORT int optreset;
 
 /* Provide getopt() declaration if the platform doesn't have it */
 #ifndef HAVE_GETOPT
-extern int	getopt(int nargc, char *const *nargv, const char *ostr);
+extern int  getopt(int nargc, char *const *nargv, const char *ostr);
 #endif
 
-#endif							/* PG_GETOPT_H */
+#endif              /* PG_GETOPT_H */

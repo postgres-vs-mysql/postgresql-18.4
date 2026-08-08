@@ -1,5 +1,5 @@
 /*
- *	qsort_arg.c: qsort with a passthrough "void *" argument
+ *  qsort_arg.c: qsort with a passthrough "void *" argument
  */
 
 #include "c.h"

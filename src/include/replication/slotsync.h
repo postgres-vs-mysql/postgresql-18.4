@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * slotsync.h
- *	  Exports for slot synchronization.
+ *    Exports for slot synchronization.
  *
  * Portions Copyright (c) 2016-2025, PostgreSQL Global Development Group
  *
@@ -42,4 +42,4 @@ extern void SyncReplicationSlots(WalReceiverConn *wrconn);
 extern void HandleSlotSyncMessageInterrupt(void);
 extern void ProcessSlotSyncMessage(void);
 
-#endif							/* SLOTSYNC_H */
+#endif              /* SLOTSYNC_H */

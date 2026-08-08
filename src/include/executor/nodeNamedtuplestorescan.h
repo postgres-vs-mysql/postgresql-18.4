@@ -19,4 +19,4 @@
 extern NamedTuplestoreScanState *ExecInitNamedTuplestoreScan(NamedTuplestoreScan *node, EState *estate, int eflags);
 extern void ExecReScanNamedTuplestoreScan(NamedTuplestoreScanState *node);
 
-#endif							/* NODENAMEDTUPLESTORESCAN_H */
+#endif              /* NODENAMEDTUPLESTORESCAN_H */

@@ -1,11 +1,11 @@
 /*-------------------------------------------------------------------------
  * applyparallelworker.c
- *	   Support routines for applying xact by parallel apply worker
+ *     Support routines for applying xact by parallel apply worker
  *
  * Copyright (c) 2023-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/backend/replication/logical/applyparallelworker.c
+ *    src/backend/replication/logical/applyparallelworker.c
  *
  * This file contains the code to launch, set up, and teardown a parallel apply
  * worker which receives the changes from the leader worker and invokes routines
@@ -179,12 +179,12 @@
  * since we don't need to worry about DSM keys conflicting with plan_node_id we
  * can use small integers.
  */
-#define PARALLEL_APPLY_KEY_SHARED		1
-#define PARALLEL_APPLY_KEY_MQ			2
-#define PARALLEL_APPLY_KEY_ERROR_QUEUE	3
+#define PARALLEL_APPLY_KEY_SHARED   1
+#define PARALLEL_APPLY_KEY_MQ     2
+#define PARALLEL_APPLY_KEY_ERROR_QUEUE  3
 
 /* Queue size of DSM, 16 MB for now. */
-#define DSM_QUEUE_SIZE	(16 * 1024 * 1024)
+#define DSM_QUEUE_SIZE  (16 * 1024 * 1024)
 
 /*
  * Error queue size of DSM. It is desirable to make it large enough that a
@@ -192,7 +192,7 @@
  * errors out can write the whole message into the queue and terminate without
  * waiting for the user backend.
  */
-#define DSM_ERROR_QUEUE_SIZE			(16 * 1024)
+#define DSM_ERROR_QUEUE_SIZE      (16 * 1024)
 
 /*
  * There are three fields in each message received by the parallel apply
@@ -206,16 +206,15 @@
  * The type of session-level lock on a transaction being applied on a logical
  * replication subscriber.
  */
-#define PARALLEL_APPLY_LOCK_STREAM	0
-#define PARALLEL_APPLY_LOCK_XACT	1
+#define PARALLEL_APPLY_LOCK_STREAM  0
+#define PARALLEL_APPLY_LOCK_XACT  1
 
 /*
  * Hash table entry to map xid to the parallel apply worker state.
  */
-typedef struct ParallelApplyWorkerEntry
-{
-	TransactionId xid;			/* Hash key -- must be first */
-	ParallelApplyWorkerInfo *winfo;
+typedef struct ParallelApplyWorkerEntry {
+  TransactionId xid;      /* Hash key -- must be first */
+  ParallelApplyWorkerInfo *winfo;
 } ParallelApplyWorkerEntry;
 
 /*
@@ -264,55 +263,55 @@ static PartialFileSetState pa_get_fileset_state(void);
 static bool
 pa_can_start(void)
 {
-	/* Only leader apply workers can start parallel apply workers. */
-	if (!am_leader_apply_worker())
-		return false;
+  /* Only leader apply workers can start parallel apply workers. */
+  if (!am_leader_apply_worker())
+    return false;
 
-	/*
-	 * It is good to check for any change in the subscription parameter to
-	 * avoid the case where for a very long time the change doesn't get
-	 * reflected. This can happen when there is a constant flow of streaming
-	 * transactions that are handled by parallel apply workers.
-	 *
-	 * It is better to do it before the below checks so that the latest values
-	 * of subscription can be used for the checks.
-	 */
-	maybe_reread_subscription();
+  /*
+   * It is good to check for any change in the subscription parameter to
+   * avoid the case where for a very long time the change doesn't get
+   * reflected. This can happen when there is a constant flow of streaming
+   * transactions that are handled by parallel apply workers.
+   *
+   * It is better to do it before the below checks so that the latest values
+   * of subscription can be used for the checks.
+   */
+  maybe_reread_subscription();
 
-	/*
-	 * Don't start a new parallel apply worker if the subscription is not
-	 * using parallel streaming mode, or if the publisher does not support
-	 * parallel apply.
-	 */
-	if (!MyLogicalRepWorker->parallel_apply)
-		return false;
+  /*
+   * Don't start a new parallel apply worker if the subscription is not
+   * using parallel streaming mode, or if the publisher does not support
+   * parallel apply.
+   */
+  if (!MyLogicalRepWorker->parallel_apply)
+    return false;
 
-	/*
-	 * Don't start a new parallel worker if user has set skiplsn as it's
-	 * possible that they want to skip the streaming transaction. For
-	 * streaming transactions, we need to serialize the transaction to a file
-	 * so that we can get the last LSN of the transaction to judge whether to
-	 * skip before starting to apply the change.
-	 *
-	 * One might think that we could allow parallelism if the first lsn of the
-	 * transaction is greater than skiplsn, but we don't send it with the
-	 * STREAM START message, and it doesn't seem worth sending the extra eight
-	 * bytes with the STREAM START to enable parallelism for this case.
-	 */
-	if (!XLogRecPtrIsInvalid(MySubscription->skiplsn))
-		return false;
+  /*
+   * Don't start a new parallel worker if user has set skiplsn as it's
+   * possible that they want to skip the streaming transaction. For
+   * streaming transactions, we need to serialize the transaction to a file
+   * so that we can get the last LSN of the transaction to judge whether to
+   * skip before starting to apply the change.
+   *
+   * One might think that we could allow parallelism if the first lsn of the
+   * transaction is greater than skiplsn, but we don't send it with the
+   * STREAM START message, and it doesn't seem worth sending the extra eight
+   * bytes with the STREAM START to enable parallelism for this case.
+   */
+  if (!XLogRecPtrIsInvalid(MySubscription->skiplsn))
+    return false;
 
-	/*
-	 * For streaming transactions that are being applied using a parallel
-	 * apply worker, we cannot decide whether to apply the change for a
-	 * relation that is not in the READY state (see
-	 * should_apply_changes_for_rel) as we won't know remote_final_lsn by that
-	 * time. So, we don't start the new parallel apply worker in this case.
-	 */
-	if (!AllTablesyncsReady())
-		return false;
+  /*
+   * For streaming transactions that are being applied using a parallel
+   * apply worker, we cannot decide whether to apply the change for a
+   * relation that is not in the READY state (see
+   * should_apply_changes_for_rel) as we won't know remote_final_lsn by that
+   * time. So, we don't start the new parallel apply worker in this case.
+   */
+  if (!AllTablesyncsReady())
+    return false;
 
-	return true;
+  return true;
 }
 
 /*
@@ -326,74 +325,75 @@ pa_can_start(void)
 static bool
 pa_setup_dsm(ParallelApplyWorkerInfo *winfo)
 {
-	shm_toc_estimator e;
-	Size		segsize;
-	dsm_segment *seg;
-	shm_toc    *toc;
-	ParallelApplyWorkerShared *shared;
-	shm_mq	   *mq;
-	Size		queue_size = DSM_QUEUE_SIZE;
-	Size		error_queue_size = DSM_ERROR_QUEUE_SIZE;
+  shm_toc_estimator e;
+  Size    segsize;
+  dsm_segment *seg;
+  shm_toc    *toc;
+  ParallelApplyWorkerShared *shared;
+  shm_mq     *mq;
+  Size    queue_size = DSM_QUEUE_SIZE;
+  Size    error_queue_size = DSM_ERROR_QUEUE_SIZE;
 
-	/*
-	 * Estimate how much shared memory we need.
-	 *
-	 * Because the TOC machinery may choose to insert padding of oddly-sized
-	 * requests, we must estimate each chunk separately.
-	 *
-	 * We need one key to register the location of the header, and two other
-	 * keys to track the locations of the message queue and the error message
-	 * queue.
-	 */
-	shm_toc_initialize_estimator(&e);
-	shm_toc_estimate_chunk(&e, sizeof(ParallelApplyWorkerShared));
-	shm_toc_estimate_chunk(&e, queue_size);
-	shm_toc_estimate_chunk(&e, error_queue_size);
+  /*
+   * Estimate how much shared memory we need.
+   *
+   * Because the TOC machinery may choose to insert padding of oddly-sized
+   * requests, we must estimate each chunk separately.
+   *
+   * We need one key to register the location of the header, and two other
+   * keys to track the locations of the message queue and the error message
+   * queue.
+   */
+  shm_toc_initialize_estimator(&e);
+  shm_toc_estimate_chunk(&e, sizeof(ParallelApplyWorkerShared));
+  shm_toc_estimate_chunk(&e, queue_size);
+  shm_toc_estimate_chunk(&e, error_queue_size);
 
-	shm_toc_estimate_keys(&e, 3);
-	segsize = shm_toc_estimate(&e);
+  shm_toc_estimate_keys(&e, 3);
+  segsize = shm_toc_estimate(&e);
 
-	/* Create the shared memory segment and establish a table of contents. */
-	seg = dsm_create(shm_toc_estimate(&e), 0);
-	if (!seg)
-		return false;
+  /* Create the shared memory segment and establish a table of contents. */
+  seg = dsm_create(shm_toc_estimate(&e), 0);
 
-	toc = shm_toc_create(PG_LOGICAL_APPLY_SHM_MAGIC, dsm_segment_address(seg),
-						 segsize);
+  if (!seg)
+    return false;
 
-	/* Set up the header region. */
-	shared = shm_toc_allocate(toc, sizeof(ParallelApplyWorkerShared));
-	SpinLockInit(&shared->mutex);
+  toc = shm_toc_create(PG_LOGICAL_APPLY_SHM_MAGIC, dsm_segment_address(seg),
+                       segsize);
 
-	shared->xact_state = PARALLEL_TRANS_UNKNOWN;
-	pg_atomic_init_u32(&(shared->pending_stream_count), 0);
-	shared->last_commit_end = InvalidXLogRecPtr;
-	shared->fileset_state = FS_EMPTY;
+  /* Set up the header region. */
+  shared = shm_toc_allocate(toc, sizeof(ParallelApplyWorkerShared));
+  SpinLockInit(&shared->mutex);
 
-	shm_toc_insert(toc, PARALLEL_APPLY_KEY_SHARED, shared);
+  shared->xact_state = PARALLEL_TRANS_UNKNOWN;
+  pg_atomic_init_u32(&(shared->pending_stream_count), 0);
+  shared->last_commit_end = InvalidXLogRecPtr;
+  shared->fileset_state = FS_EMPTY;
 
-	/* Set up message queue for the worker. */
-	mq = shm_mq_create(shm_toc_allocate(toc, queue_size), queue_size);
-	shm_toc_insert(toc, PARALLEL_APPLY_KEY_MQ, mq);
-	shm_mq_set_sender(mq, MyProc);
+  shm_toc_insert(toc, PARALLEL_APPLY_KEY_SHARED, shared);
 
-	/* Attach the queue. */
-	winfo->mq_handle = shm_mq_attach(mq, seg, NULL);
+  /* Set up message queue for the worker. */
+  mq = shm_mq_create(shm_toc_allocate(toc, queue_size), queue_size);
+  shm_toc_insert(toc, PARALLEL_APPLY_KEY_MQ, mq);
+  shm_mq_set_sender(mq, MyProc);
 
-	/* Set up error queue for the worker. */
-	mq = shm_mq_create(shm_toc_allocate(toc, error_queue_size),
-					   error_queue_size);
-	shm_toc_insert(toc, PARALLEL_APPLY_KEY_ERROR_QUEUE, mq);
-	shm_mq_set_receiver(mq, MyProc);
+  /* Attach the queue. */
+  winfo->mq_handle = shm_mq_attach(mq, seg, NULL);
 
-	/* Attach the queue. */
-	winfo->error_mq_handle = shm_mq_attach(mq, seg, NULL);
+  /* Set up error queue for the worker. */
+  mq = shm_mq_create(shm_toc_allocate(toc, error_queue_size),
+                     error_queue_size);
+  shm_toc_insert(toc, PARALLEL_APPLY_KEY_ERROR_QUEUE, mq);
+  shm_mq_set_receiver(mq, MyProc);
 
-	/* Return results to caller. */
-	winfo->dsm_seg = seg;
-	winfo->shared = shared;
+  /* Attach the queue. */
+  winfo->error_mq_handle = shm_mq_attach(mq, seg, NULL);
 
-	return true;
+  /* Return results to caller. */
+  winfo->dsm_seg = seg;
+  winfo->shared = shared;
+
+  return true;
 }
 
 /*
@@ -403,59 +403,54 @@ pa_setup_dsm(ParallelApplyWorkerInfo *winfo)
 static ParallelApplyWorkerInfo *
 pa_launch_parallel_worker(void)
 {
-	MemoryContext oldcontext;
-	bool		launched;
-	ParallelApplyWorkerInfo *winfo;
-	ListCell   *lc;
+  MemoryContext oldcontext;
+  bool    launched;
+  ParallelApplyWorkerInfo *winfo;
+  ListCell   *lc;
 
-	/* Try to get an available parallel apply worker from the worker pool. */
-	foreach(lc, ParallelApplyWorkerPool)
-	{
-		winfo = (ParallelApplyWorkerInfo *) lfirst(lc);
+  /* Try to get an available parallel apply worker from the worker pool. */
+  foreach(lc, ParallelApplyWorkerPool) {
+    winfo = (ParallelApplyWorkerInfo *) lfirst(lc);
 
-		if (!winfo->in_use)
-			return winfo;
-	}
+    if (!winfo->in_use)
+      return winfo;
+  }
 
-	/*
-	 * Start a new parallel apply worker.
-	 *
-	 * The worker info can be used for the lifetime of the worker process, so
-	 * create it in a permanent context.
-	 */
-	oldcontext = MemoryContextSwitchTo(ApplyContext);
+  /*
+   * Start a new parallel apply worker.
+   *
+   * The worker info can be used for the lifetime of the worker process, so
+   * create it in a permanent context.
+   */
+  oldcontext = MemoryContextSwitchTo(ApplyContext);
 
-	winfo = (ParallelApplyWorkerInfo *) palloc0(sizeof(ParallelApplyWorkerInfo));
+  winfo = (ParallelApplyWorkerInfo *) palloc0(sizeof(ParallelApplyWorkerInfo));
 
-	/* Setup shared memory. */
-	if (!pa_setup_dsm(winfo))
-	{
-		MemoryContextSwitchTo(oldcontext);
-		pfree(winfo);
-		return NULL;
-	}
+  /* Setup shared memory. */
+  if (!pa_setup_dsm(winfo)) {
+    MemoryContextSwitchTo(oldcontext);
+    pfree(winfo);
+    return NULL;
+  }
 
-	launched = logicalrep_worker_launch(WORKERTYPE_PARALLEL_APPLY,
-										MyLogicalRepWorker->dbid,
-										MySubscription->oid,
-										MySubscription->name,
-										MyLogicalRepWorker->userid,
-										InvalidOid,
-										dsm_segment_handle(winfo->dsm_seg));
+  launched = logicalrep_worker_launch(WORKERTYPE_PARALLEL_APPLY,
+                                      MyLogicalRepWorker->dbid,
+                                      MySubscription->oid,
+                                      MySubscription->name,
+                                      MyLogicalRepWorker->userid,
+                                      InvalidOid,
+                                      dsm_segment_handle(winfo->dsm_seg));
 
-	if (launched)
-	{
-		ParallelApplyWorkerPool = lappend(ParallelApplyWorkerPool, winfo);
-	}
-	else
-	{
-		pa_free_worker_info(winfo);
-		winfo = NULL;
-	}
+  if (launched) {
+    ParallelApplyWorkerPool = lappend(ParallelApplyWorkerPool, winfo);
+  } else {
+    pa_free_worker_info(winfo);
+    winfo = NULL;
+  }
 
-	MemoryContextSwitchTo(oldcontext);
+  MemoryContextSwitchTo(oldcontext);
 
-	return winfo;
+  return winfo;
 }
 
 /*
@@ -469,46 +464,47 @@ pa_launch_parallel_worker(void)
 void
 pa_allocate_worker(TransactionId xid)
 {
-	bool		found;
-	ParallelApplyWorkerInfo *winfo = NULL;
-	ParallelApplyWorkerEntry *entry;
+  bool    found;
+  ParallelApplyWorkerInfo *winfo = NULL;
+  ParallelApplyWorkerEntry *entry;
 
-	if (!pa_can_start())
-		return;
+  if (!pa_can_start())
+    return;
 
-	winfo = pa_launch_parallel_worker();
-	if (!winfo)
-		return;
+  winfo = pa_launch_parallel_worker();
 
-	/* First time through, initialize parallel apply worker state hashtable. */
-	if (!ParallelApplyTxnHash)
-	{
-		HASHCTL		ctl;
+  if (!winfo)
+    return;
 
-		MemSet(&ctl, 0, sizeof(ctl));
-		ctl.keysize = sizeof(TransactionId);
-		ctl.entrysize = sizeof(ParallelApplyWorkerEntry);
-		ctl.hcxt = ApplyContext;
+  /* First time through, initialize parallel apply worker state hashtable. */
+  if (!ParallelApplyTxnHash) {
+    HASHCTL   ctl;
 
-		ParallelApplyTxnHash = hash_create("logical replication parallel apply workers hash",
-										   16, &ctl,
-										   HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
-	}
+    MemSet(&ctl, 0, sizeof(ctl));
+    ctl.keysize = sizeof(TransactionId);
+    ctl.entrysize = sizeof(ParallelApplyWorkerEntry);
+    ctl.hcxt = ApplyContext;
 
-	/* Create an entry for the requested transaction. */
-	entry = hash_search(ParallelApplyTxnHash, &xid, HASH_ENTER, &found);
-	if (found)
-		elog(ERROR, "hash table corrupted");
+    ParallelApplyTxnHash = hash_create("logical replication parallel apply workers hash",
+                                       16, &ctl,
+                                       HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
+  }
 
-	/* Update the transaction information in shared memory. */
-	SpinLockAcquire(&winfo->shared->mutex);
-	winfo->shared->xact_state = PARALLEL_TRANS_UNKNOWN;
-	winfo->shared->xid = xid;
-	SpinLockRelease(&winfo->shared->mutex);
+  /* Create an entry for the requested transaction. */
+  entry = hash_search(ParallelApplyTxnHash, &xid, HASH_ENTER, &found);
 
-	winfo->in_use = true;
-	winfo->serialize_changes = false;
-	entry->winfo = winfo;
+  if (found)
+    elog(ERROR, "hash table corrupted");
+
+  /* Update the transaction information in shared memory. */
+  SpinLockAcquire(&winfo->shared->mutex);
+  winfo->shared->xact_state = PARALLEL_TRANS_UNKNOWN;
+  winfo->shared->xid = xid;
+  SpinLockRelease(&winfo->shared->mutex);
+
+  winfo->in_use = true;
+  winfo->serialize_changes = false;
+  entry->winfo = winfo;
 }
 
 /*
@@ -517,29 +513,29 @@ pa_allocate_worker(TransactionId xid)
 ParallelApplyWorkerInfo *
 pa_find_worker(TransactionId xid)
 {
-	bool		found;
-	ParallelApplyWorkerEntry *entry;
+  bool    found;
+  ParallelApplyWorkerEntry *entry;
 
-	if (!TransactionIdIsValid(xid))
-		return NULL;
+  if (!TransactionIdIsValid(xid))
+    return NULL;
 
-	if (!ParallelApplyTxnHash)
-		return NULL;
+  if (!ParallelApplyTxnHash)
+    return NULL;
 
-	/* Return the cached parallel apply worker if valid. */
-	if (stream_apply_worker)
-		return stream_apply_worker;
+  /* Return the cached parallel apply worker if valid. */
+  if (stream_apply_worker)
+    return stream_apply_worker;
 
-	/* Find an entry for the requested transaction. */
-	entry = hash_search(ParallelApplyTxnHash, &xid, HASH_FIND, &found);
-	if (found)
-	{
-		/* The worker must not have exited.  */
-		Assert(entry->winfo->in_use);
-		return entry->winfo;
-	}
+  /* Find an entry for the requested transaction. */
+  entry = hash_search(ParallelApplyTxnHash, &xid, HASH_FIND, &found);
 
-	return NULL;
+  if (found) {
+    /* The worker must not have exited.  */
+    Assert(entry->winfo->in_use);
+    return entry->winfo;
+  }
+
+  return NULL;
 }
 
 /*
@@ -555,36 +551,35 @@ pa_find_worker(TransactionId xid)
 static void
 pa_free_worker(ParallelApplyWorkerInfo *winfo)
 {
-	Assert(!am_parallel_apply_worker());
-	Assert(winfo->in_use);
-	Assert(pa_get_xact_state(winfo->shared) == PARALLEL_TRANS_FINISHED);
+  Assert(!am_parallel_apply_worker());
+  Assert(winfo->in_use);
+  Assert(pa_get_xact_state(winfo->shared) == PARALLEL_TRANS_FINISHED);
 
-	if (!hash_search(ParallelApplyTxnHash, &winfo->shared->xid, HASH_REMOVE, NULL))
-		elog(ERROR, "hash table corrupted");
+  if (!hash_search(ParallelApplyTxnHash, &winfo->shared->xid, HASH_REMOVE, NULL))
+    elog(ERROR, "hash table corrupted");
 
-	/*
-	 * Stop the worker if there are enough workers in the pool.
-	 *
-	 * XXX Additionally, we also stop the worker if the leader apply worker
-	 * serialize part of the transaction data due to a send timeout. This is
-	 * because the message could be partially written to the queue and there
-	 * is no way to clean the queue other than resending the message until it
-	 * succeeds. Instead of trying to send the data which anyway would have
-	 * been serialized and then letting the parallel apply worker deal with
-	 * the spurious message, we stop the worker.
-	 */
-	if (winfo->serialize_changes ||
-		list_length(ParallelApplyWorkerPool) >
-		(max_parallel_apply_workers_per_subscription / 2))
-	{
-		logicalrep_pa_worker_stop(winfo);
-		pa_free_worker_info(winfo);
+  /*
+   * Stop the worker if there are enough workers in the pool.
+   *
+   * XXX Additionally, we also stop the worker if the leader apply worker
+   * serialize part of the transaction data due to a send timeout. This is
+   * because the message could be partially written to the queue and there
+   * is no way to clean the queue other than resending the message until it
+   * succeeds. Instead of trying to send the data which anyway would have
+   * been serialized and then letting the parallel apply worker deal with
+   * the spurious message, we stop the worker.
+   */
+  if (winfo->serialize_changes ||
+      list_length(ParallelApplyWorkerPool) >
+      (max_parallel_apply_workers_per_subscription / 2)) {
+    logicalrep_pa_worker_stop(winfo);
+    pa_free_worker_info(winfo);
 
-		return;
-	}
+    return;
+  }
 
-	winfo->in_use = false;
-	winfo->serialize_changes = false;
+  winfo->in_use = false;
+  winfo->serialize_changes = false;
 }
 
 /*
@@ -594,25 +589,25 @@ pa_free_worker(ParallelApplyWorkerInfo *winfo)
 static void
 pa_free_worker_info(ParallelApplyWorkerInfo *winfo)
 {
-	Assert(winfo);
+  Assert(winfo);
 
-	if (winfo->mq_handle)
-		shm_mq_detach(winfo->mq_handle);
+  if (winfo->mq_handle)
+    shm_mq_detach(winfo->mq_handle);
 
-	if (winfo->error_mq_handle)
-		shm_mq_detach(winfo->error_mq_handle);
+  if (winfo->error_mq_handle)
+    shm_mq_detach(winfo->error_mq_handle);
 
-	/* Unlink the files with serialized changes. */
-	if (winfo->serialize_changes)
-		stream_cleanup_files(MyLogicalRepWorker->subid, winfo->shared->xid);
+  /* Unlink the files with serialized changes. */
+  if (winfo->serialize_changes)
+    stream_cleanup_files(MyLogicalRepWorker->subid, winfo->shared->xid);
 
-	if (winfo->dsm_seg)
-		dsm_detach(winfo->dsm_seg);
+  if (winfo->dsm_seg)
+    dsm_detach(winfo->dsm_seg);
 
-	/* Remove from the worker pool. */
-	ParallelApplyWorkerPool = list_delete_ptr(ParallelApplyWorkerPool, winfo);
+  /* Remove from the worker pool. */
+  ParallelApplyWorkerPool = list_delete_ptr(ParallelApplyWorkerPool, winfo);
 
-	pfree(winfo);
+  pfree(winfo);
 }
 
 /*
@@ -621,18 +616,16 @@ pa_free_worker_info(ParallelApplyWorkerInfo *winfo)
 void
 pa_detach_all_error_mq(void)
 {
-	ListCell   *lc;
+  ListCell   *lc;
 
-	foreach(lc, ParallelApplyWorkerPool)
-	{
-		ParallelApplyWorkerInfo *winfo = (ParallelApplyWorkerInfo *) lfirst(lc);
+  foreach(lc, ParallelApplyWorkerPool) {
+    ParallelApplyWorkerInfo *winfo = (ParallelApplyWorkerInfo *) lfirst(lc);
 
-		if (winfo->error_mq_handle)
-		{
-			shm_mq_detach(winfo->error_mq_handle);
-			winfo->error_mq_handle = NULL;
-		}
-	}
+    if (winfo->error_mq_handle) {
+      shm_mq_detach(winfo->error_mq_handle);
+      winfo->error_mq_handle = NULL;
+    }
+  }
 }
 
 /*
@@ -641,11 +634,11 @@ pa_detach_all_error_mq(void)
 static bool
 pa_has_spooled_message_pending()
 {
-	PartialFileSetState fileset_state;
+  PartialFileSetState fileset_state;
 
-	fileset_state = pa_get_fileset_state();
+  fileset_state = pa_get_fileset_state();
 
-	return (fileset_state != FS_EMPTY);
+  return (fileset_state != FS_EMPTY);
 }
 
 /*
@@ -657,52 +650,48 @@ pa_has_spooled_message_pending()
 static bool
 pa_process_spooled_messages_if_required(void)
 {
-	PartialFileSetState fileset_state;
+  PartialFileSetState fileset_state;
 
-	fileset_state = pa_get_fileset_state();
+  fileset_state = pa_get_fileset_state();
 
-	if (fileset_state == FS_EMPTY)
-		return false;
+  if (fileset_state == FS_EMPTY)
+    return false;
 
-	/*
-	 * If the leader apply worker is busy serializing the partial changes then
-	 * acquire the stream lock now and wait for the leader worker to finish
-	 * serializing the changes. Otherwise, the parallel apply worker won't get
-	 * a chance to receive a STREAM_STOP (and acquire the stream lock) until
-	 * the leader had serialized all changes which can lead to undetected
-	 * deadlock.
-	 *
-	 * Note that the fileset state can be FS_SERIALIZE_DONE once the leader
-	 * worker has finished serializing the changes.
-	 */
-	if (fileset_state == FS_SERIALIZE_IN_PROGRESS)
-	{
-		pa_lock_stream(MyParallelShared->xid, AccessShareLock);
-		pa_unlock_stream(MyParallelShared->xid, AccessShareLock);
+  /*
+   * If the leader apply worker is busy serializing the partial changes then
+   * acquire the stream lock now and wait for the leader worker to finish
+   * serializing the changes. Otherwise, the parallel apply worker won't get
+   * a chance to receive a STREAM_STOP (and acquire the stream lock) until
+   * the leader had serialized all changes which can lead to undetected
+   * deadlock.
+   *
+   * Note that the fileset state can be FS_SERIALIZE_DONE once the leader
+   * worker has finished serializing the changes.
+   */
+  if (fileset_state == FS_SERIALIZE_IN_PROGRESS) {
+    pa_lock_stream(MyParallelShared->xid, AccessShareLock);
+    pa_unlock_stream(MyParallelShared->xid, AccessShareLock);
 
-		fileset_state = pa_get_fileset_state();
-	}
+    fileset_state = pa_get_fileset_state();
+  }
 
-	/*
-	 * We cannot read the file immediately after the leader has serialized all
-	 * changes to the file because there may still be messages in the memory
-	 * queue. We will apply all spooled messages the next time we call this
-	 * function and that will ensure there are no messages left in the memory
-	 * queue.
-	 */
-	if (fileset_state == FS_SERIALIZE_DONE)
-	{
-		pa_set_fileset_state(MyParallelShared, FS_READY);
-	}
-	else if (fileset_state == FS_READY)
-	{
-		apply_spooled_messages(&MyParallelShared->fileset,
-							   MyParallelShared->xid,
-							   InvalidXLogRecPtr);
-		pa_set_fileset_state(MyParallelShared, FS_EMPTY);
-	}
+  /*
+   * We cannot read the file immediately after the leader has serialized all
+   * changes to the file because there may still be messages in the memory
+   * queue. We will apply all spooled messages the next time we call this
+   * function and that will ensure there are no messages left in the memory
+   * queue.
+   */
+  if (fileset_state == FS_SERIALIZE_DONE) {
+    pa_set_fileset_state(MyParallelShared, FS_READY);
+  } else if (fileset_state == FS_READY) {
+    apply_spooled_messages(&MyParallelShared->fileset,
+                           MyParallelShared->xid,
+                           InvalidXLogRecPtr);
+    pa_set_fileset_state(MyParallelShared, FS_EMPTY);
+  }
 
-	return true;
+  return true;
 }
 
 /*
@@ -711,134 +700,126 @@ pa_process_spooled_messages_if_required(void)
 static void
 ProcessParallelApplyInterrupts(void)
 {
-	CHECK_FOR_INTERRUPTS();
+  CHECK_FOR_INTERRUPTS();
 
-	if (ShutdownRequestPending)
-	{
-		ereport(LOG,
-				(errmsg("logical replication parallel apply worker for subscription \"%s\" has finished",
-						MySubscription->name)));
+  if (ShutdownRequestPending) {
+    ereport(LOG,
+            (errmsg("logical replication parallel apply worker for subscription \"%s\" has finished",
+                    MySubscription->name)));
 
-		proc_exit(0);
-	}
+    proc_exit(0);
+  }
 
-	if (ConfigReloadPending)
-	{
-		ConfigReloadPending = false;
-		ProcessConfigFile(PGC_SIGHUP);
-	}
+  if (ConfigReloadPending) {
+    ConfigReloadPending = false;
+    ProcessConfigFile(PGC_SIGHUP);
+  }
 }
 
 /* Parallel apply worker main loop. */
 static void
 LogicalParallelApplyLoop(shm_mq_handle *mqh)
 {
-	shm_mq_result shmq_res;
-	ErrorContextCallback errcallback;
-	MemoryContext oldcxt = CurrentMemoryContext;
+  shm_mq_result shmq_res;
+  ErrorContextCallback errcallback;
+  MemoryContext oldcxt = CurrentMemoryContext;
 
-	/*
-	 * Init the ApplyMessageContext which we clean up after each replication
-	 * protocol message.
-	 */
-	ApplyMessageContext = AllocSetContextCreate(ApplyContext,
-												"ApplyMessageContext",
-												ALLOCSET_DEFAULT_SIZES);
+  /*
+   * Init the ApplyMessageContext which we clean up after each replication
+   * protocol message.
+   */
+  ApplyMessageContext = AllocSetContextCreate(ApplyContext,
+                        "ApplyMessageContext",
+                        ALLOCSET_DEFAULT_SIZES);
 
-	/*
-	 * Push apply error context callback. Fields will be filled while applying
-	 * a change.
-	 */
-	errcallback.callback = apply_error_callback;
-	errcallback.previous = error_context_stack;
-	error_context_stack = &errcallback;
+  /*
+   * Push apply error context callback. Fields will be filled while applying
+   * a change.
+   */
+  errcallback.callback = apply_error_callback;
+  errcallback.previous = error_context_stack;
+  error_context_stack = &errcallback;
 
-	for (;;)
-	{
-		void	   *data;
-		Size		len;
+  for (;;) {
+    void     *data;
+    Size    len;
 
-		ProcessParallelApplyInterrupts();
+    ProcessParallelApplyInterrupts();
 
-		/* Ensure we are reading the data into our memory context. */
-		MemoryContextSwitchTo(ApplyMessageContext);
+    /* Ensure we are reading the data into our memory context. */
+    MemoryContextSwitchTo(ApplyMessageContext);
 
-		shmq_res = shm_mq_receive(mqh, &len, &data, true);
+    shmq_res = shm_mq_receive(mqh, &len, &data, true);
 
-		if (shmq_res == SHM_MQ_SUCCESS)
-		{
-			StringInfoData s;
-			int			c;
+    if (shmq_res == SHM_MQ_SUCCESS) {
+      StringInfoData s;
+      int     c;
 
-			if (len == 0)
-				elog(ERROR, "invalid message length");
+      if (len == 0)
+        elog(ERROR, "invalid message length");
 
-			initReadOnlyStringInfo(&s, data, len);
+      initReadOnlyStringInfo(&s, data, len);
 
-			/*
-			 * The first byte of messages sent from leader apply worker to
-			 * parallel apply workers can only be 'w'.
-			 */
-			c = pq_getmsgbyte(&s);
-			if (c != 'w')
-				elog(ERROR, "unexpected message \"%c\"", c);
+      /*
+       * The first byte of messages sent from leader apply worker to
+       * parallel apply workers can only be 'w'.
+       */
+      c = pq_getmsgbyte(&s);
 
-			/*
-			 * Ignore statistics fields that have been updated by the leader
-			 * apply worker.
-			 *
-			 * XXX We can avoid sending the statistics fields from the leader
-			 * apply worker but for that, it needs to rebuild the entire
-			 * message by removing these fields which could be more work than
-			 * simply ignoring these fields in the parallel apply worker.
-			 */
-			s.cursor += SIZE_STATS_MESSAGE;
+      if (c != 'w')
+        elog(ERROR, "unexpected message \"%c\"", c);
 
-			apply_dispatch(&s);
-		}
-		else if (shmq_res == SHM_MQ_WOULD_BLOCK)
-		{
-			/* Replay the changes from the file, if any. */
-			if (!pa_process_spooled_messages_if_required())
-			{
-				int			rc;
+      /*
+       * Ignore statistics fields that have been updated by the leader
+       * apply worker.
+       *
+       * XXX We can avoid sending the statistics fields from the leader
+       * apply worker but for that, it needs to rebuild the entire
+       * message by removing these fields which could be more work than
+       * simply ignoring these fields in the parallel apply worker.
+       */
+      s.cursor += SIZE_STATS_MESSAGE;
 
-				/* Wait for more work. */
-				rc = WaitLatch(MyLatch,
-							   WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
-							   1000L,
-							   WAIT_EVENT_LOGICAL_PARALLEL_APPLY_MAIN);
+      apply_dispatch(&s);
+    } else if (shmq_res == SHM_MQ_WOULD_BLOCK) {
+      /* Replay the changes from the file, if any. */
+      if (!pa_process_spooled_messages_if_required()) {
+        int     rc;
 
-				if (rc & WL_LATCH_SET)
-					ResetLatch(MyLatch);
+        /* Wait for more work. */
+        rc = WaitLatch(MyLatch,
+                       WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
+                       1000L,
+                       WAIT_EVENT_LOGICAL_PARALLEL_APPLY_MAIN);
 
-				/*
-				 * Force stats reporting to avoid long delays. There can be long
-				 * idle gaps before the leader assigns the next transaction, and
-				 * the only opportunity to report stats during such gaps is
-				 * here.
-				 */
-				if ((rc & WL_TIMEOUT) && !IsTransactionState())
-					pgstat_report_stat(true);
-			}
-		}
-		else
-		{
-			Assert(shmq_res == SHM_MQ_DETACHED);
+        if (rc & WL_LATCH_SET)
+          ResetLatch(MyLatch);
 
-			ereport(ERROR,
-					(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-					 errmsg("lost connection to the logical replication apply worker")));
-		}
+        /*
+         * Force stats reporting to avoid long delays. There can be long
+         * idle gaps before the leader assigns the next transaction, and
+         * the only opportunity to report stats during such gaps is
+         * here.
+         */
+        if ((rc & WL_TIMEOUT) && !IsTransactionState())
+          pgstat_report_stat(true);
+      }
+    } else {
+      Assert(shmq_res == SHM_MQ_DETACHED);
 
-		MemoryContextReset(ApplyMessageContext);
-		MemoryContextSwitchTo(oldcxt);
-	}
+      ereport(ERROR,
+              (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+               errmsg("lost connection to the logical replication apply worker")));
+    }
 
-	/* Pop the error context stack. */
-	error_context_stack = errcallback.previous;
+    MemoryContextReset(ApplyMessageContext);
+    MemoryContextSwitchTo(oldcxt);
+  }
 
-	MemoryContextSwitchTo(oldcxt);
+  /* Pop the error context stack. */
+  error_context_stack = errcallback.previous;
+
+  MemoryContextSwitchTo(oldcxt);
 }
 
 /*
@@ -852,11 +833,11 @@ LogicalParallelApplyLoop(shm_mq_handle *mqh)
 static void
 pa_shutdown(int code, Datum arg)
 {
-	SendProcSignal(MyLogicalRepWorker->leader_pid,
-				   PROCSIG_PARALLEL_APPLY_MESSAGE,
-				   INVALID_PROC_NUMBER);
+  SendProcSignal(MyLogicalRepWorker->leader_pid,
+                 PROCSIG_PARALLEL_APPLY_MESSAGE,
+                 INVALID_PROC_NUMBER);
 
-	dsm_detach((dsm_segment *) DatumGetPointer(arg));
+  dsm_detach((dsm_segment *) DatumGetPointer(arg));
 }
 
 /*
@@ -865,133 +846,135 @@ pa_shutdown(int code, Datum arg)
 void
 ParallelApplyWorkerMain(Datum main_arg)
 {
-	ParallelApplyWorkerShared *shared;
-	dsm_handle	handle;
-	dsm_segment *seg;
-	shm_toc    *toc;
-	shm_mq	   *mq;
-	shm_mq_handle *mqh;
-	shm_mq_handle *error_mqh;
-	RepOriginId originid;
-	int			worker_slot = DatumGetInt32(main_arg);
-	char		originname[NAMEDATALEN];
+  ParallelApplyWorkerShared *shared;
+  dsm_handle  handle;
+  dsm_segment *seg;
+  shm_toc    *toc;
+  shm_mq     *mq;
+  shm_mq_handle *mqh;
+  shm_mq_handle *error_mqh;
+  RepOriginId originid;
+  int     worker_slot = DatumGetInt32(main_arg);
+  char    originname[NAMEDATALEN];
 
-	InitializingApplyWorker = true;
+  InitializingApplyWorker = true;
 
-	/*
-	 * Setup signal handling.
-	 *
-	 * Note: We intentionally used SIGUSR2 to trigger a graceful shutdown
-	 * initiated by the leader apply worker. This helps to differentiate it
-	 * from the case where we abort the current transaction and exit on
-	 * receiving SIGTERM.
-	 */
-	pqsignal(SIGHUP, SignalHandlerForConfigReload);
-	pqsignal(SIGTERM, die);
-	pqsignal(SIGUSR2, SignalHandlerForShutdownRequest);
-	BackgroundWorkerUnblockSignals();
+  /*
+   * Setup signal handling.
+   *
+   * Note: We intentionally used SIGUSR2 to trigger a graceful shutdown
+   * initiated by the leader apply worker. This helps to differentiate it
+   * from the case where we abort the current transaction and exit on
+   * receiving SIGTERM.
+   */
+  pqsignal(SIGHUP, SignalHandlerForConfigReload);
+  pqsignal(SIGTERM, die);
+  pqsignal(SIGUSR2, SignalHandlerForShutdownRequest);
+  BackgroundWorkerUnblockSignals();
 
-	/*
-	 * Attach to the dynamic shared memory segment for the parallel apply, and
-	 * find its table of contents.
-	 *
-	 * Like parallel query, we don't need resource owner by this time. See
-	 * ParallelWorkerMain.
-	 */
-	memcpy(&handle, MyBgworkerEntry->bgw_extra, sizeof(dsm_handle));
-	seg = dsm_attach(handle);
-	if (!seg)
-		ereport(ERROR,
-				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-				 errmsg("could not map dynamic shared memory segment")));
+  /*
+   * Attach to the dynamic shared memory segment for the parallel apply, and
+   * find its table of contents.
+   *
+   * Like parallel query, we don't need resource owner by this time. See
+   * ParallelWorkerMain.
+   */
+  memcpy(&handle, MyBgworkerEntry->bgw_extra, sizeof(dsm_handle));
+  seg = dsm_attach(handle);
 
-	toc = shm_toc_attach(PG_LOGICAL_APPLY_SHM_MAGIC, dsm_segment_address(seg));
-	if (!toc)
-		ereport(ERROR,
-				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-				 errmsg("invalid magic number in dynamic shared memory segment")));
+  if (!seg)
+    ereport(ERROR,
+            (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+             errmsg("could not map dynamic shared memory segment")));
 
-	/* Look up the shared information. */
-	shared = shm_toc_lookup(toc, PARALLEL_APPLY_KEY_SHARED, false);
-	MyParallelShared = shared;
+  toc = shm_toc_attach(PG_LOGICAL_APPLY_SHM_MAGIC, dsm_segment_address(seg));
 
-	/*
-	 * Attach to the message queue.
-	 */
-	mq = shm_toc_lookup(toc, PARALLEL_APPLY_KEY_MQ, false);
-	shm_mq_set_receiver(mq, MyProc);
-	mqh = shm_mq_attach(mq, seg, NULL);
+  if (!toc)
+    ereport(ERROR,
+            (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+             errmsg("invalid magic number in dynamic shared memory segment")));
 
-	/*
-	 * Primary initialization is complete. Now, we can attach to our slot.
-	 * This is to ensure that the leader apply worker does not write data to
-	 * the uninitialized memory queue.
-	 */
-	logicalrep_worker_attach(worker_slot);
+  /* Look up the shared information. */
+  shared = shm_toc_lookup(toc, PARALLEL_APPLY_KEY_SHARED, false);
+  MyParallelShared = shared;
 
-	/*
-	 * Register the shutdown callback after we are attached to the worker
-	 * slot. This is to ensure that MyLogicalRepWorker remains valid when this
-	 * callback is invoked.
-	 */
-	before_shmem_exit(pa_shutdown, PointerGetDatum(seg));
+  /*
+   * Attach to the message queue.
+   */
+  mq = shm_toc_lookup(toc, PARALLEL_APPLY_KEY_MQ, false);
+  shm_mq_set_receiver(mq, MyProc);
+  mqh = shm_mq_attach(mq, seg, NULL);
 
-	SpinLockAcquire(&MyParallelShared->mutex);
-	MyParallelShared->logicalrep_worker_generation = MyLogicalRepWorker->generation;
-	MyParallelShared->logicalrep_worker_slot_no = worker_slot;
-	SpinLockRelease(&MyParallelShared->mutex);
+  /*
+   * Primary initialization is complete. Now, we can attach to our slot.
+   * This is to ensure that the leader apply worker does not write data to
+   * the uninitialized memory queue.
+   */
+  logicalrep_worker_attach(worker_slot);
 
-	/*
-	 * Attach to the error queue.
-	 */
-	mq = shm_toc_lookup(toc, PARALLEL_APPLY_KEY_ERROR_QUEUE, false);
-	shm_mq_set_sender(mq, MyProc);
-	error_mqh = shm_mq_attach(mq, seg, NULL);
+  /*
+   * Register the shutdown callback after we are attached to the worker
+   * slot. This is to ensure that MyLogicalRepWorker remains valid when this
+   * callback is invoked.
+   */
+  before_shmem_exit(pa_shutdown, PointerGetDatum(seg));
 
-	pq_redirect_to_shm_mq(seg, error_mqh);
-	pq_set_parallel_leader(MyLogicalRepWorker->leader_pid,
-						   INVALID_PROC_NUMBER);
+  SpinLockAcquire(&MyParallelShared->mutex);
+  MyParallelShared->logicalrep_worker_generation = MyLogicalRepWorker->generation;
+  MyParallelShared->logicalrep_worker_slot_no = worker_slot;
+  SpinLockRelease(&MyParallelShared->mutex);
 
-	MyLogicalRepWorker->last_send_time = MyLogicalRepWorker->last_recv_time =
-		MyLogicalRepWorker->reply_time = 0;
+  /*
+   * Attach to the error queue.
+   */
+  mq = shm_toc_lookup(toc, PARALLEL_APPLY_KEY_ERROR_QUEUE, false);
+  shm_mq_set_sender(mq, MyProc);
+  error_mqh = shm_mq_attach(mq, seg, NULL);
 
-	InitializeLogRepWorker();
+  pq_redirect_to_shm_mq(seg, error_mqh);
+  pq_set_parallel_leader(MyLogicalRepWorker->leader_pid,
+                         INVALID_PROC_NUMBER);
 
-	InitializingApplyWorker = false;
+  MyLogicalRepWorker->last_send_time = MyLogicalRepWorker->last_recv_time =
+                                         MyLogicalRepWorker->reply_time = 0;
 
-	/* Setup replication origin tracking. */
-	StartTransactionCommand();
-	ReplicationOriginNameForLogicalRep(MySubscription->oid, InvalidOid,
-									   originname, sizeof(originname));
-	originid = replorigin_by_name(originname, false);
+  InitializeLogRepWorker();
 
-	/*
-	 * The parallel apply worker doesn't need to monopolize this replication
-	 * origin which was already acquired by its leader process.
-	 */
-	replorigin_session_setup(originid, MyLogicalRepWorker->leader_pid);
-	replorigin_session_origin = originid;
-	CommitTransactionCommand();
+  InitializingApplyWorker = false;
 
-	/*
-	 * Setup callback for syscache so that we know when something changes in
-	 * the subscription relation state.
-	 */
-	CacheRegisterSyscacheCallback(SUBSCRIPTIONRELMAP,
-								  invalidate_syncing_table_states,
-								  (Datum) 0);
+  /* Setup replication origin tracking. */
+  StartTransactionCommand();
+  ReplicationOriginNameForLogicalRep(MySubscription->oid, InvalidOid,
+                                     originname, sizeof(originname));
+  originid = replorigin_by_name(originname, false);
 
-	set_apply_error_context_origin(originname);
+  /*
+   * The parallel apply worker doesn't need to monopolize this replication
+   * origin which was already acquired by its leader process.
+   */
+  replorigin_session_setup(originid, MyLogicalRepWorker->leader_pid);
+  replorigin_session_origin = originid;
+  CommitTransactionCommand();
 
-	LogicalParallelApplyLoop(mqh);
+  /*
+   * Setup callback for syscache so that we know when something changes in
+   * the subscription relation state.
+   */
+  CacheRegisterSyscacheCallback(SUBSCRIPTIONRELMAP,
+                                invalidate_syncing_table_states,
+                                (Datum) 0);
 
-	/*
-	 * The parallel apply worker must not get here because the parallel apply
-	 * worker will only stop when it receives a SIGTERM or SIGUSR2 from the
-	 * leader, or SIGINT from itself, or when there is an error. None of these
-	 * cases will allow the code to reach here.
-	 */
-	Assert(false);
+  set_apply_error_context_origin(originname);
+
+  LogicalParallelApplyLoop(mqh);
+
+  /*
+   * The parallel apply worker must not get here because the parallel apply
+   * worker will only stop when it receives a SIGTERM or SIGUSR2 from the
+   * leader, or SIGINT from itself, or when there is an error. None of these
+   * cases will allow the code to reach here.
+   */
+  Assert(false);
 }
 
 /*
@@ -1004,9 +987,9 @@ ParallelApplyWorkerMain(Datum main_arg)
 void
 HandleParallelApplyMessageInterrupt(void)
 {
-	InterruptPending = true;
-	ParallelApplyMessagePending = true;
-	SetLatch(MyLatch);
+  InterruptPending = true;
+  ParallelApplyMessagePending = true;
+  SetLatch(MyLatch);
 }
 
 /*
@@ -1016,60 +999,58 @@ HandleParallelApplyMessageInterrupt(void)
 static void
 ProcessParallelApplyMessage(StringInfo msg)
 {
-	char		msgtype;
+  char    msgtype;
 
-	msgtype = pq_getmsgbyte(msg);
+  msgtype = pq_getmsgbyte(msg);
 
-	switch (msgtype)
-	{
-		case 'E':				/* ErrorResponse */
-			{
-				ErrorData	edata;
+  switch (msgtype) {
+    case 'E': {     /* ErrorResponse */
+      ErrorData edata;
 
-				/* Parse ErrorResponse. */
-				pq_parse_errornotice(msg, &edata);
+      /* Parse ErrorResponse. */
+      pq_parse_errornotice(msg, &edata);
 
-				/*
-				 * If desired, add a context line to show that this is a
-				 * message propagated from a parallel apply worker. Otherwise,
-				 * it can sometimes be confusing to understand what actually
-				 * happened.
-				 */
-				if (edata.context)
-					edata.context = psprintf("%s\n%s", edata.context,
-											 _("logical replication parallel apply worker"));
-				else
-					edata.context = pstrdup(_("logical replication parallel apply worker"));
+      /*
+       * If desired, add a context line to show that this is a
+       * message propagated from a parallel apply worker. Otherwise,
+       * it can sometimes be confusing to understand what actually
+       * happened.
+       */
+      if (edata.context)
+        edata.context = psprintf("%s\n%s", edata.context,
+                                 _("logical replication parallel apply worker"));
+      else
+        edata.context = pstrdup(_("logical replication parallel apply worker"));
 
-				/*
-				 * Context beyond that should use the error context callbacks
-				 * that were in effect in LogicalRepApplyLoop().
-				 */
-				error_context_stack = apply_error_context_stack;
+      /*
+       * Context beyond that should use the error context callbacks
+       * that were in effect in LogicalRepApplyLoop().
+       */
+      error_context_stack = apply_error_context_stack;
 
-				/*
-				 * The actual error must have been reported by the parallel
-				 * apply worker.
-				 */
-				ereport(ERROR,
-						(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-						 errmsg("logical replication parallel apply worker exited due to error"),
-						 errcontext("%s", edata.context)));
-			}
+      /*
+       * The actual error must have been reported by the parallel
+       * apply worker.
+       */
+      ereport(ERROR,
+              (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+               errmsg("logical replication parallel apply worker exited due to error"),
+               errcontext("%s", edata.context)));
+    }
 
-			/*
-			 * Don't need to do anything about NoticeResponse and
-			 * NotifyResponse as the logical replication worker doesn't need
-			 * to send messages to the client.
-			 */
-		case 'N':
-		case 'A':
-			break;
+    /*
+     * Don't need to do anything about NoticeResponse and
+     * NotifyResponse as the logical replication worker doesn't need
+     * to send messages to the client.
+     */
+    case 'N':
+    case 'A':
+      break;
 
-		default:
-			elog(ERROR, "unrecognized message type received from logical replication parallel apply worker: %c (message length %d bytes)",
-				 msgtype, msg->len);
-	}
+    default:
+      elog(ERROR, "unrecognized message type received from logical replication parallel apply worker: %c (message length %d bytes)",
+           msgtype, msg->len);
+  }
 }
 
 /*
@@ -1078,77 +1059,74 @@ ProcessParallelApplyMessage(StringInfo msg)
 void
 ProcessParallelApplyMessages(void)
 {
-	ListCell   *lc;
-	MemoryContext oldcontext;
+  ListCell   *lc;
+  MemoryContext oldcontext;
 
-	static MemoryContext hpam_context = NULL;
+  static MemoryContext hpam_context = NULL;
 
-	/*
-	 * This is invoked from ProcessInterrupts(), and since some of the
-	 * functions it calls contain CHECK_FOR_INTERRUPTS(), there is a potential
-	 * for recursive calls if more signals are received while this runs. It's
-	 * unclear that recursive entry would be safe, and it doesn't seem useful
-	 * even if it is safe, so let's block interrupts until done.
-	 */
-	HOLD_INTERRUPTS();
+  /*
+   * This is invoked from ProcessInterrupts(), and since some of the
+   * functions it calls contain CHECK_FOR_INTERRUPTS(), there is a potential
+   * for recursive calls if more signals are received while this runs. It's
+   * unclear that recursive entry would be safe, and it doesn't seem useful
+   * even if it is safe, so let's block interrupts until done.
+   */
+  HOLD_INTERRUPTS();
 
-	/*
-	 * Moreover, CurrentMemoryContext might be pointing almost anywhere. We
-	 * don't want to risk leaking data into long-lived contexts, so let's do
-	 * our work here in a private context that we can reset on each use.
-	 */
-	if (!hpam_context)			/* first time through? */
-		hpam_context = AllocSetContextCreate(TopMemoryContext,
-											 "ProcessParallelApplyMessages",
-											 ALLOCSET_DEFAULT_SIZES);
-	else
-		MemoryContextReset(hpam_context);
+  /*
+   * Moreover, CurrentMemoryContext might be pointing almost anywhere. We
+   * don't want to risk leaking data into long-lived contexts, so let's do
+   * our work here in a private context that we can reset on each use.
+   */
+  if (!hpam_context)      /* first time through? */
+    hpam_context = AllocSetContextCreate(TopMemoryContext,
+                                         "ProcessParallelApplyMessages",
+                                         ALLOCSET_DEFAULT_SIZES);
+  else
+    MemoryContextReset(hpam_context);
 
-	oldcontext = MemoryContextSwitchTo(hpam_context);
+  oldcontext = MemoryContextSwitchTo(hpam_context);
 
-	ParallelApplyMessagePending = false;
+  ParallelApplyMessagePending = false;
 
-	foreach(lc, ParallelApplyWorkerPool)
-	{
-		shm_mq_result res;
-		Size		nbytes;
-		void	   *data;
-		ParallelApplyWorkerInfo *winfo = (ParallelApplyWorkerInfo *) lfirst(lc);
+  foreach(lc, ParallelApplyWorkerPool) {
+    shm_mq_result res;
+    Size    nbytes;
+    void     *data;
+    ParallelApplyWorkerInfo *winfo = (ParallelApplyWorkerInfo *) lfirst(lc);
 
-		/*
-		 * The leader will detach from the error queue and set it to NULL
-		 * before preparing to stop all parallel apply workers, so we don't
-		 * need to handle error messages anymore. See
-		 * logicalrep_worker_detach.
-		 */
-		if (!winfo->error_mq_handle)
-			continue;
+    /*
+     * The leader will detach from the error queue and set it to NULL
+     * before preparing to stop all parallel apply workers, so we don't
+     * need to handle error messages anymore. See
+     * logicalrep_worker_detach.
+     */
+    if (!winfo->error_mq_handle)
+      continue;
 
-		res = shm_mq_receive(winfo->error_mq_handle, &nbytes, &data, true);
+    res = shm_mq_receive(winfo->error_mq_handle, &nbytes, &data, true);
 
-		if (res == SHM_MQ_WOULD_BLOCK)
-			continue;
-		else if (res == SHM_MQ_SUCCESS)
-		{
-			StringInfoData msg;
+    if (res == SHM_MQ_WOULD_BLOCK)
+      continue;
+    else if (res == SHM_MQ_SUCCESS) {
+      StringInfoData msg;
 
-			initStringInfo(&msg);
-			appendBinaryStringInfo(&msg, data, nbytes);
-			ProcessParallelApplyMessage(&msg);
-			pfree(msg.data);
-		}
-		else
-			ereport(ERROR,
-					(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-					 errmsg("lost connection to the logical replication parallel apply worker")));
-	}
+      initStringInfo(&msg);
+      appendBinaryStringInfo(&msg, data, nbytes);
+      ProcessParallelApplyMessage(&msg);
+      pfree(msg.data);
+    } else
+      ereport(ERROR,
+              (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+               errmsg("lost connection to the logical replication parallel apply worker")));
+  }
 
-	MemoryContextSwitchTo(oldcontext);
+  MemoryContextSwitchTo(oldcontext);
 
-	/* Might as well clear the context on our way out */
-	MemoryContextReset(hpam_context);
+  /* Might as well clear the context on our way out */
+  MemoryContextReset(hpam_context);
 
-	RESUME_INTERRUPTS();
+  RESUME_INTERRUPTS();
 }
 
 /*
@@ -1161,60 +1139,58 @@ ProcessParallelApplyMessages(void)
 bool
 pa_send_data(ParallelApplyWorkerInfo *winfo, Size nbytes, const void *data)
 {
-	int			rc;
-	shm_mq_result result;
-	TimestampTz startTime = 0;
+  int     rc;
+  shm_mq_result result;
+  TimestampTz startTime = 0;
 
-	Assert(!IsTransactionState());
-	Assert(!winfo->serialize_changes);
+  Assert(!IsTransactionState());
+  Assert(!winfo->serialize_changes);
 
-	/*
-	 * We don't try to send data to parallel worker for 'immediate' mode. This
-	 * is primarily used for testing purposes.
-	 */
-	if (unlikely(debug_logical_replication_streaming == DEBUG_LOGICAL_REP_STREAMING_IMMEDIATE))
-		return false;
+  /*
+   * We don't try to send data to parallel worker for 'immediate' mode. This
+   * is primarily used for testing purposes.
+   */
+  if (unlikely(debug_logical_replication_streaming == DEBUG_LOGICAL_REP_STREAMING_IMMEDIATE))
+    return false;
 
-/*
- * This timeout is a bit arbitrary but testing revealed that it is sufficient
- * to send the message unless the parallel apply worker is waiting on some
- * lock or there is a serious resource crunch. See the comments atop this file
- * to know why we are using a non-blocking way to send the message.
- */
+  /*
+   * This timeout is a bit arbitrary but testing revealed that it is sufficient
+   * to send the message unless the parallel apply worker is waiting on some
+   * lock or there is a serious resource crunch. See the comments atop this file
+   * to know why we are using a non-blocking way to send the message.
+   */
 #define SHM_SEND_RETRY_INTERVAL_MS 1000
-#define SHM_SEND_TIMEOUT_MS		(10000 - SHM_SEND_RETRY_INTERVAL_MS)
+#define SHM_SEND_TIMEOUT_MS   (10000 - SHM_SEND_RETRY_INTERVAL_MS)
 
-	for (;;)
-	{
-		result = shm_mq_send(winfo->mq_handle, nbytes, data, true, true);
+  for (;;) {
+    result = shm_mq_send(winfo->mq_handle, nbytes, data, true, true);
 
-		if (result == SHM_MQ_SUCCESS)
-			return true;
-		else if (result == SHM_MQ_DETACHED)
-			ereport(ERROR,
-					(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-					 errmsg("could not send data to shared-memory queue")));
+    if (result == SHM_MQ_SUCCESS)
+      return true;
+    else if (result == SHM_MQ_DETACHED)
+      ereport(ERROR,
+              (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+               errmsg("could not send data to shared-memory queue")));
 
-		Assert(result == SHM_MQ_WOULD_BLOCK);
+    Assert(result == SHM_MQ_WOULD_BLOCK);
 
-		/* Wait before retrying. */
-		rc = WaitLatch(MyLatch,
-					   WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
-					   SHM_SEND_RETRY_INTERVAL_MS,
-					   WAIT_EVENT_LOGICAL_APPLY_SEND_DATA);
+    /* Wait before retrying. */
+    rc = WaitLatch(MyLatch,
+                   WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
+                   SHM_SEND_RETRY_INTERVAL_MS,
+                   WAIT_EVENT_LOGICAL_APPLY_SEND_DATA);
 
-		if (rc & WL_LATCH_SET)
-		{
-			ResetLatch(MyLatch);
-			CHECK_FOR_INTERRUPTS();
-		}
+    if (rc & WL_LATCH_SET) {
+      ResetLatch(MyLatch);
+      CHECK_FOR_INTERRUPTS();
+    }
 
-		if (startTime == 0)
-			startTime = GetCurrentTimestamp();
-		else if (TimestampDifferenceExceeds(startTime, GetCurrentTimestamp(),
-											SHM_SEND_TIMEOUT_MS))
-			return false;
-	}
+    if (startTime == 0)
+      startTime = GetCurrentTimestamp();
+    else if (TimestampDifferenceExceeds(startTime, GetCurrentTimestamp(),
+                                        SHM_SEND_TIMEOUT_MS))
+      return false;
+  }
 }
 
 /*
@@ -1225,31 +1201,31 @@ pa_send_data(ParallelApplyWorkerInfo *winfo, Size nbytes, const void *data)
  */
 void
 pa_switch_to_partial_serialize(ParallelApplyWorkerInfo *winfo,
-							   bool stream_locked)
+                               bool stream_locked)
 {
-	ereport(LOG,
-			(errmsg("logical replication apply worker will serialize the remaining changes of remote transaction %u to a file",
-					winfo->shared->xid)));
+  ereport(LOG,
+          (errmsg("logical replication apply worker will serialize the remaining changes of remote transaction %u to a file",
+                  winfo->shared->xid)));
 
-	/*
-	 * The parallel apply worker could be stuck for some reason (say waiting
-	 * on some lock by other backend), so stop trying to send data directly to
-	 * it and start serializing data to the file instead.
-	 */
-	winfo->serialize_changes = true;
+  /*
+   * The parallel apply worker could be stuck for some reason (say waiting
+   * on some lock by other backend), so stop trying to send data directly to
+   * it and start serializing data to the file instead.
+   */
+  winfo->serialize_changes = true;
 
-	/* Initialize the stream fileset. */
-	stream_start_internal(winfo->shared->xid, true);
+  /* Initialize the stream fileset. */
+  stream_start_internal(winfo->shared->xid, true);
 
-	/*
-	 * Acquires the stream lock if not already to make sure that the parallel
-	 * apply worker will wait for the leader to release the stream lock until
-	 * the end of the transaction.
-	 */
-	if (!stream_locked)
-		pa_lock_stream(winfo->shared->xid, AccessExclusiveLock);
+  /*
+   * Acquires the stream lock if not already to make sure that the parallel
+   * apply worker will wait for the leader to release the stream lock until
+   * the end of the transaction.
+   */
+  if (!stream_locked)
+    pa_lock_stream(winfo->shared->xid, AccessExclusiveLock);
 
-	pa_set_fileset_state(winfo->shared, FS_SERIALIZE_IN_PROGRESS);
+  pa_set_fileset_state(winfo->shared, FS_SERIALIZE_IN_PROGRESS);
 }
 
 /*
@@ -1258,29 +1234,28 @@ pa_switch_to_partial_serialize(ParallelApplyWorkerInfo *winfo,
  */
 static void
 pa_wait_for_xact_state(ParallelApplyWorkerInfo *winfo,
-					   ParallelTransState xact_state)
+                       ParallelTransState xact_state)
 {
-	for (;;)
-	{
-		/*
-		 * Stop if the transaction state has reached or exceeded the given
-		 * xact_state.
-		 */
-		if (pa_get_xact_state(winfo->shared) >= xact_state)
-			break;
+  for (;;) {
+    /*
+     * Stop if the transaction state has reached or exceeded the given
+     * xact_state.
+     */
+    if (pa_get_xact_state(winfo->shared) >= xact_state)
+      break;
 
-		/* Wait to be signalled. */
-		(void) WaitLatch(MyLatch,
-						 WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
-						 10L,
-						 WAIT_EVENT_LOGICAL_PARALLEL_APPLY_STATE_CHANGE);
+    /* Wait to be signalled. */
+    (void) WaitLatch(MyLatch,
+                     WL_LATCH_SET | WL_TIMEOUT | WL_EXIT_ON_PM_DEATH,
+                     10L,
+                     WAIT_EVENT_LOGICAL_PARALLEL_APPLY_STATE_CHANGE);
 
-		/* Reset the latch so we don't spin. */
-		ResetLatch(MyLatch);
+    /* Reset the latch so we don't spin. */
+    ResetLatch(MyLatch);
 
-		/* An interrupt may have occurred while we were waiting. */
-		CHECK_FOR_INTERRUPTS();
-	}
+    /* An interrupt may have occurred while we were waiting. */
+    CHECK_FOR_INTERRUPTS();
+  }
 }
 
 /*
@@ -1289,31 +1264,31 @@ pa_wait_for_xact_state(ParallelApplyWorkerInfo *winfo,
 static void
 pa_wait_for_xact_finish(ParallelApplyWorkerInfo *winfo)
 {
-	/*
-	 * Wait until the parallel apply worker set the state to
-	 * PARALLEL_TRANS_STARTED which means it has acquired the transaction
-	 * lock. This is to prevent leader apply worker from acquiring the
-	 * transaction lock earlier than the parallel apply worker.
-	 */
-	pa_wait_for_xact_state(winfo, PARALLEL_TRANS_STARTED);
+  /*
+   * Wait until the parallel apply worker set the state to
+   * PARALLEL_TRANS_STARTED which means it has acquired the transaction
+   * lock. This is to prevent leader apply worker from acquiring the
+   * transaction lock earlier than the parallel apply worker.
+   */
+  pa_wait_for_xact_state(winfo, PARALLEL_TRANS_STARTED);
 
-	/*
-	 * Wait for the transaction lock to be released. This is required to
-	 * detect deadlock among leader and parallel apply workers. Refer to the
-	 * comments atop this file.
-	 */
-	pa_lock_transaction(winfo->shared->xid, AccessShareLock);
-	pa_unlock_transaction(winfo->shared->xid, AccessShareLock);
+  /*
+   * Wait for the transaction lock to be released. This is required to
+   * detect deadlock among leader and parallel apply workers. Refer to the
+   * comments atop this file.
+   */
+  pa_lock_transaction(winfo->shared->xid, AccessShareLock);
+  pa_unlock_transaction(winfo->shared->xid, AccessShareLock);
 
-	/*
-	 * Check if the state becomes PARALLEL_TRANS_FINISHED in case the parallel
-	 * apply worker failed while applying changes causing the lock to be
-	 * released.
-	 */
-	if (pa_get_xact_state(winfo->shared) != PARALLEL_TRANS_FINISHED)
-		ereport(ERROR,
-				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
-				 errmsg("lost connection to the logical replication parallel apply worker")));
+  /*
+   * Check if the state becomes PARALLEL_TRANS_FINISHED in case the parallel
+   * apply worker failed while applying changes causing the lock to be
+   * released.
+   */
+  if (pa_get_xact_state(winfo->shared) != PARALLEL_TRANS_FINISHED)
+    ereport(ERROR,
+            (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+             errmsg("lost connection to the logical replication parallel apply worker")));
 }
 
 /*
@@ -1321,11 +1296,11 @@ pa_wait_for_xact_finish(ParallelApplyWorkerInfo *winfo)
  */
 void
 pa_set_xact_state(ParallelApplyWorkerShared *wshared,
-				  ParallelTransState xact_state)
+                  ParallelTransState xact_state)
 {
-	SpinLockAcquire(&wshared->mutex);
-	wshared->xact_state = xact_state;
-	SpinLockRelease(&wshared->mutex);
+  SpinLockAcquire(&wshared->mutex);
+  wshared->xact_state = xact_state;
+  SpinLockRelease(&wshared->mutex);
 }
 
 /*
@@ -1334,13 +1309,13 @@ pa_set_xact_state(ParallelApplyWorkerShared *wshared,
 static ParallelTransState
 pa_get_xact_state(ParallelApplyWorkerShared *wshared)
 {
-	ParallelTransState xact_state;
+  ParallelTransState xact_state;
 
-	SpinLockAcquire(&wshared->mutex);
-	xact_state = wshared->xact_state;
-	SpinLockRelease(&wshared->mutex);
+  SpinLockAcquire(&wshared->mutex);
+  xact_state = wshared->xact_state;
+  SpinLockRelease(&wshared->mutex);
 
-	return xact_state;
+  return xact_state;
 }
 
 /*
@@ -1349,7 +1324,7 @@ pa_get_xact_state(ParallelApplyWorkerShared *wshared)
 void
 pa_set_stream_apply_worker(ParallelApplyWorkerInfo *winfo)
 {
-	stream_apply_worker = winfo;
+  stream_apply_worker = winfo;
 }
 
 /*
@@ -1363,7 +1338,7 @@ pa_set_stream_apply_worker(ParallelApplyWorkerInfo *winfo)
 static void
 pa_savepoint_name(Oid suboid, TransactionId xid, char *spname, Size szsp)
 {
-	snprintf(spname, szsp, "pg_sp_%u_%u", suboid, xid);
+  snprintf(spname, szsp, "pg_sp_%u_%u", suboid, xid);
 }
 
 /*
@@ -1377,51 +1352,49 @@ pa_savepoint_name(Oid suboid, TransactionId xid, char *spname, Size szsp)
 void
 pa_start_subtrans(TransactionId current_xid, TransactionId top_xid)
 {
-	if (current_xid != top_xid &&
-		!list_member_xid(subxactlist, current_xid))
-	{
-		MemoryContext oldctx;
-		char		spname[NAMEDATALEN];
+  if (current_xid != top_xid &&
+      !list_member_xid(subxactlist, current_xid)) {
+    MemoryContext oldctx;
+    char    spname[NAMEDATALEN];
 
-		pa_savepoint_name(MySubscription->oid, current_xid,
-						  spname, sizeof(spname));
+    pa_savepoint_name(MySubscription->oid, current_xid,
+                      spname, sizeof(spname));
 
-		elog(DEBUG1, "defining savepoint %s in logical replication parallel apply worker", spname);
+    elog(DEBUG1, "defining savepoint %s in logical replication parallel apply worker", spname);
 
-		/* We must be in transaction block to define the SAVEPOINT. */
-		if (!IsTransactionBlock())
-		{
-			if (!IsTransactionState())
-				StartTransactionCommand();
+    /* We must be in transaction block to define the SAVEPOINT. */
+    if (!IsTransactionBlock()) {
+      if (!IsTransactionState())
+        StartTransactionCommand();
 
-			BeginTransactionBlock();
-			CommitTransactionCommand();
-		}
+      BeginTransactionBlock();
+      CommitTransactionCommand();
+    }
 
-		DefineSavepoint(spname);
+    DefineSavepoint(spname);
 
-		/*
-		 * CommitTransactionCommand is needed to start a subtransaction after
-		 * issuing a SAVEPOINT inside a transaction block (see
-		 * StartSubTransaction()).
-		 */
-		CommitTransactionCommand();
+    /*
+     * CommitTransactionCommand is needed to start a subtransaction after
+     * issuing a SAVEPOINT inside a transaction block (see
+     * StartSubTransaction()).
+     */
+    CommitTransactionCommand();
 
-		oldctx = MemoryContextSwitchTo(TopTransactionContext);
-		subxactlist = lappend_xid(subxactlist, current_xid);
-		MemoryContextSwitchTo(oldctx);
-	}
+    oldctx = MemoryContextSwitchTo(TopTransactionContext);
+    subxactlist = lappend_xid(subxactlist, current_xid);
+    MemoryContextSwitchTo(oldctx);
+  }
 }
 
 /* Reset the list that maintains subtransactions. */
 void
 pa_reset_subtrans(void)
 {
-	/*
-	 * We don't need to free this explicitly as the allocated memory will be
-	 * freed at the transaction end.
-	 */
-	subxactlist = NIL;
+  /*
+   * We don't need to free this explicitly as the allocated memory will be
+   * freed at the transaction end.
+   */
+  subxactlist = NIL;
 }
 
 /*
@@ -1431,78 +1404,72 @@ pa_reset_subtrans(void)
 void
 pa_stream_abort(LogicalRepStreamAbortData *abort_data)
 {
-	TransactionId xid = abort_data->xid;
-	TransactionId subxid = abort_data->subxid;
+  TransactionId xid = abort_data->xid;
+  TransactionId subxid = abort_data->subxid;
 
-	/*
-	 * Update origin state so we can restart streaming from correct position
-	 * in case of crash.
-	 */
-	replorigin_session_origin_lsn = abort_data->abort_lsn;
-	replorigin_session_origin_timestamp = abort_data->abort_time;
+  /*
+   * Update origin state so we can restart streaming from correct position
+   * in case of crash.
+   */
+  replorigin_session_origin_lsn = abort_data->abort_lsn;
+  replorigin_session_origin_timestamp = abort_data->abort_time;
 
-	/*
-	 * If the two XIDs are the same, it's in fact abort of toplevel xact, so
-	 * just free the subxactlist.
-	 */
-	if (subxid == xid)
-	{
-		pa_set_xact_state(MyParallelShared, PARALLEL_TRANS_FINISHED);
+  /*
+   * If the two XIDs are the same, it's in fact abort of toplevel xact, so
+   * just free the subxactlist.
+   */
+  if (subxid == xid) {
+    pa_set_xact_state(MyParallelShared, PARALLEL_TRANS_FINISHED);
 
-		/*
-		 * Release the lock as we might be processing an empty streaming
-		 * transaction in which case the lock won't be released during
-		 * transaction rollback.
-		 *
-		 * Note that it's ok to release the transaction lock before aborting
-		 * the transaction because even if the parallel apply worker dies due
-		 * to crash or some other reason, such a transaction would still be
-		 * considered aborted.
-		 */
-		pa_unlock_transaction(xid, AccessExclusiveLock);
+    /*
+     * Release the lock as we might be processing an empty streaming
+     * transaction in which case the lock won't be released during
+     * transaction rollback.
+     *
+     * Note that it's ok to release the transaction lock before aborting
+     * the transaction because even if the parallel apply worker dies due
+     * to crash or some other reason, such a transaction would still be
+     * considered aborted.
+     */
+    pa_unlock_transaction(xid, AccessExclusiveLock);
 
-		AbortCurrentTransaction();
+    AbortCurrentTransaction();
 
-		if (IsTransactionBlock())
-		{
-			EndTransactionBlock(false);
-			CommitTransactionCommand();
-		}
+    if (IsTransactionBlock()) {
+      EndTransactionBlock(false);
+      CommitTransactionCommand();
+    }
 
-		pa_reset_subtrans();
+    pa_reset_subtrans();
 
-		pgstat_report_activity(STATE_IDLE, NULL);
-	}
-	else
-	{
-		/* OK, so it's a subxact. Rollback to the savepoint. */
-		int			i;
-		char		spname[NAMEDATALEN];
+    pgstat_report_activity(STATE_IDLE, NULL);
+  } else {
+    /* OK, so it's a subxact. Rollback to the savepoint. */
+    int     i;
+    char    spname[NAMEDATALEN];
 
-		pa_savepoint_name(MySubscription->oid, subxid, spname, sizeof(spname));
+    pa_savepoint_name(MySubscription->oid, subxid, spname, sizeof(spname));
 
-		elog(DEBUG1, "rolling back to savepoint %s in logical replication parallel apply worker", spname);
+    elog(DEBUG1, "rolling back to savepoint %s in logical replication parallel apply worker", spname);
 
-		/*
-		 * Search the subxactlist, determine the offset tracked for the
-		 * subxact, and truncate the list.
-		 *
-		 * Note that for an empty sub-transaction we won't find the subxid
-		 * here.
-		 */
-		for (i = list_length(subxactlist) - 1; i >= 0; i--)
-		{
-			TransactionId xid_tmp = lfirst_xid(list_nth_cell(subxactlist, i));
+    /*
+     * Search the subxactlist, determine the offset tracked for the
+     * subxact, and truncate the list.
+     *
+     * Note that for an empty sub-transaction we won't find the subxid
+     * here.
+     */
+    for (i = list_length(subxactlist) - 1; i >= 0; i--) {
+      TransactionId xid_tmp = lfirst_xid(list_nth_cell(subxactlist, i));
 
-			if (xid_tmp == subxid)
-			{
-				RollbackToSavepoint(spname);
-				CommitTransactionCommand();
-				subxactlist = list_truncate(subxactlist, i);
-				break;
-			}
-		}
-	}
+      if (xid_tmp == subxid) {
+        RollbackToSavepoint(spname);
+        CommitTransactionCommand();
+        subxactlist = list_truncate(subxactlist, i);
+        break;
+      }
+    }
+  }
 }
 
 /*
@@ -1512,19 +1479,18 @@ pa_stream_abort(LogicalRepStreamAbortData *abort_data)
  */
 void
 pa_set_fileset_state(ParallelApplyWorkerShared *wshared,
-					 PartialFileSetState fileset_state)
+                     PartialFileSetState fileset_state)
 {
-	SpinLockAcquire(&wshared->mutex);
-	wshared->fileset_state = fileset_state;
+  SpinLockAcquire(&wshared->mutex);
+  wshared->fileset_state = fileset_state;
 
-	if (fileset_state == FS_SERIALIZE_DONE)
-	{
-		Assert(am_leader_apply_worker());
-		Assert(MyLogicalRepWorker->stream_fileset);
-		wshared->fileset = *MyLogicalRepWorker->stream_fileset;
-	}
+  if (fileset_state == FS_SERIALIZE_DONE) {
+    Assert(am_leader_apply_worker());
+    Assert(MyLogicalRepWorker->stream_fileset);
+    wshared->fileset = *MyLogicalRepWorker->stream_fileset;
+  }
 
-	SpinLockRelease(&wshared->mutex);
+  SpinLockRelease(&wshared->mutex);
 }
 
 /*
@@ -1533,15 +1499,15 @@ pa_set_fileset_state(ParallelApplyWorkerShared *wshared,
 static PartialFileSetState
 pa_get_fileset_state(void)
 {
-	PartialFileSetState fileset_state;
+  PartialFileSetState fileset_state;
 
-	Assert(am_parallel_apply_worker());
+  Assert(am_parallel_apply_worker());
 
-	SpinLockAcquire(&MyParallelShared->mutex);
-	fileset_state = MyParallelShared->fileset_state;
-	SpinLockRelease(&MyParallelShared->mutex);
+  SpinLockAcquire(&MyParallelShared->mutex);
+  fileset_state = MyParallelShared->fileset_state;
+  SpinLockRelease(&MyParallelShared->mutex);
 
-	return fileset_state;
+  return fileset_state;
 }
 
 /*
@@ -1555,15 +1521,15 @@ pa_get_fileset_state(void)
 void
 pa_lock_stream(TransactionId xid, LOCKMODE lockmode)
 {
-	LockApplyTransactionForSession(MyLogicalRepWorker->subid, xid,
-								   PARALLEL_APPLY_LOCK_STREAM, lockmode);
+  LockApplyTransactionForSession(MyLogicalRepWorker->subid, xid,
+                                 PARALLEL_APPLY_LOCK_STREAM, lockmode);
 }
 
 void
 pa_unlock_stream(TransactionId xid, LOCKMODE lockmode)
 {
-	UnlockApplyTransactionForSession(MyLogicalRepWorker->subid, xid,
-									 PARALLEL_APPLY_LOCK_STREAM, lockmode);
+  UnlockApplyTransactionForSession(MyLogicalRepWorker->subid, xid,
+                                   PARALLEL_APPLY_LOCK_STREAM, lockmode);
 }
 
 /*
@@ -1588,15 +1554,15 @@ pa_unlock_stream(TransactionId xid, LOCKMODE lockmode)
 void
 pa_lock_transaction(TransactionId xid, LOCKMODE lockmode)
 {
-	LockApplyTransactionForSession(MyLogicalRepWorker->subid, xid,
-								   PARALLEL_APPLY_LOCK_XACT, lockmode);
+  LockApplyTransactionForSession(MyLogicalRepWorker->subid, xid,
+                                 PARALLEL_APPLY_LOCK_XACT, lockmode);
 }
 
 void
 pa_unlock_transaction(TransactionId xid, LOCKMODE lockmode)
 {
-	UnlockApplyTransactionForSession(MyLogicalRepWorker->subid, xid,
-									 PARALLEL_APPLY_LOCK_XACT, lockmode);
+  UnlockApplyTransactionForSession(MyLogicalRepWorker->subid, xid,
+                                   PARALLEL_APPLY_LOCK_XACT, lockmode);
 }
 
 /*
@@ -1606,25 +1572,23 @@ pa_unlock_transaction(TransactionId xid, LOCKMODE lockmode)
 void
 pa_decr_and_wait_stream_block(void)
 {
-	Assert(am_parallel_apply_worker());
+  Assert(am_parallel_apply_worker());
 
-	/*
-	 * It is only possible to not have any pending stream chunks when we are
-	 * applying spooled messages.
-	 */
-	if (pg_atomic_read_u32(&MyParallelShared->pending_stream_count) == 0)
-	{
-		if (pa_has_spooled_message_pending())
-			return;
+  /*
+   * It is only possible to not have any pending stream chunks when we are
+   * applying spooled messages.
+   */
+  if (pg_atomic_read_u32(&MyParallelShared->pending_stream_count) == 0) {
+    if (pa_has_spooled_message_pending())
+      return;
 
-		elog(ERROR, "invalid pending streaming chunk 0");
-	}
+    elog(ERROR, "invalid pending streaming chunk 0");
+  }
 
-	if (pg_atomic_sub_fetch_u32(&MyParallelShared->pending_stream_count, 1) == 0)
-	{
-		pa_lock_stream(MyParallelShared->xid, AccessShareLock);
-		pa_unlock_stream(MyParallelShared->xid, AccessShareLock);
-	}
+  if (pg_atomic_sub_fetch_u32(&MyParallelShared->pending_stream_count, 1) == 0) {
+    pa_lock_stream(MyParallelShared->xid, AccessShareLock);
+    pa_unlock_stream(MyParallelShared->xid, AccessShareLock);
+  }
 }
 
 /*
@@ -1633,23 +1597,23 @@ pa_decr_and_wait_stream_block(void)
 void
 pa_xact_finish(ParallelApplyWorkerInfo *winfo, XLogRecPtr remote_lsn)
 {
-	Assert(am_leader_apply_worker());
+  Assert(am_leader_apply_worker());
 
-	/*
-	 * Unlock the shared object lock so that parallel apply worker can
-	 * continue to receive and apply changes.
-	 */
-	pa_unlock_stream(winfo->shared->xid, AccessExclusiveLock);
+  /*
+   * Unlock the shared object lock so that parallel apply worker can
+   * continue to receive and apply changes.
+   */
+  pa_unlock_stream(winfo->shared->xid, AccessExclusiveLock);
 
-	/*
-	 * Wait for that worker to finish. This is necessary to maintain commit
-	 * order which avoids failures due to transaction dependencies and
-	 * deadlocks.
-	 */
-	pa_wait_for_xact_finish(winfo);
+  /*
+   * Wait for that worker to finish. This is necessary to maintain commit
+   * order which avoids failures due to transaction dependencies and
+   * deadlocks.
+   */
+  pa_wait_for_xact_finish(winfo);
 
-	if (!XLogRecPtrIsInvalid(remote_lsn))
-		store_flush_position(remote_lsn, winfo->shared->last_commit_end);
+  if (!XLogRecPtrIsInvalid(remote_lsn))
+    store_flush_position(remote_lsn, winfo->shared->last_commit_end);
 
-	pa_free_worker(winfo);
+  pa_free_worker(winfo);
 }

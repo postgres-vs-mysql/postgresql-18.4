@@ -1,8 +1,8 @@
 /*-------------------------------------------------------------------------
  *
  * basebackup_sink.h
- *	  API for filtering or sending to a final destination the archives
- *	  produced by the base backup process
+ *    API for filtering or sending to a final destination the archives
+ *    produced by the base backup process
  *
  * Taking a base backup produces one archive per tablespace directory,
  * plus a backup manifest unless that feature has been disabled. The
@@ -65,13 +65,13 @@ typedef struct bbsink_ops bbsink_ops;
  */
 typedef struct bbsink_state
 {
-	List	   *tablespaces;
-	int			tablespace_num;
-	uint64		bytes_done;
-	uint64		bytes_total;
-	bool		bytes_total_is_valid;
-	XLogRecPtr	startptr;
-	TimeLineID	starttli;
+  List     *tablespaces;
+  int     tablespace_num;
+  uint64    bytes_done;
+  uint64    bytes_total;
+  bool    bytes_total_is_valid;
+  XLogRecPtr  startptr;
+  TimeLineID  starttli;
 } bbsink_state;
 
 /*
@@ -98,11 +98,11 @@ typedef struct bbsink_state
  */
 struct bbsink
 {
-	const bbsink_ops *bbs_ops;
-	char	   *bbs_buffer;
-	size_t		bbs_buffer_length;
-	bbsink	   *bbs_next;
-	bbsink_state *bbs_state;
+  const bbsink_ops *bbs_ops;
+  char     *bbs_buffer;
+  size_t    bbs_buffer_length;
+  bbsink     *bbs_next;
+  bbsink_state *bbs_state;
 };
 
 /*
@@ -117,169 +117,169 @@ struct bbsink
  */
 struct bbsink_ops
 {
-	/*
-	 * This callback is invoked just once, at the very start of the backup. It
-	 * must set bbs_buffer to point to a chunk of storage where at least
-	 * bbs_buffer_length bytes of data can be written.
-	 */
-	void		(*begin_backup) (bbsink *sink);
+  /*
+   * This callback is invoked just once, at the very start of the backup. It
+   * must set bbs_buffer to point to a chunk of storage where at least
+   * bbs_buffer_length bytes of data can be written.
+   */
+  void    (*begin_backup) (bbsink *sink);
 
-	/*
-	 * For each archive transmitted to a bbsink, there will be one call to the
-	 * begin_archive() callback, some number of calls to the
-	 * archive_contents() callback, and then one call to the end_archive()
-	 * callback.
-	 *
-	 * Before invoking the archive_contents() callback, the caller should copy
-	 * a number of bytes equal to what will be passed as len into bbs_buffer,
-	 * but not more than bbs_buffer_length.
-	 *
-	 * It's generally good if the buffer is as full as possible before the
-	 * archive_contents() callback is invoked, but it's not worth expending
-	 * extra cycles to make sure it's absolutely 100% full.
-	 */
-	void		(*begin_archive) (bbsink *sink, const char *archive_name);
-	void		(*archive_contents) (bbsink *sink, size_t len);
-	void		(*end_archive) (bbsink *sink);
+  /*
+   * For each archive transmitted to a bbsink, there will be one call to the
+   * begin_archive() callback, some number of calls to the
+   * archive_contents() callback, and then one call to the end_archive()
+   * callback.
+   *
+   * Before invoking the archive_contents() callback, the caller should copy
+   * a number of bytes equal to what will be passed as len into bbs_buffer,
+   * but not more than bbs_buffer_length.
+   *
+   * It's generally good if the buffer is as full as possible before the
+   * archive_contents() callback is invoked, but it's not worth expending
+   * extra cycles to make sure it's absolutely 100% full.
+   */
+  void    (*begin_archive) (bbsink *sink, const char *archive_name);
+  void    (*archive_contents) (bbsink *sink, size_t len);
+  void    (*end_archive) (bbsink *sink);
 
-	/*
-	 * If a backup manifest is to be transmitted to a bbsink, there will be
-	 * one call to the begin_manifest() callback, some number of calls to the
-	 * manifest_contents() callback, and then one call to the end_manifest()
-	 * callback. These calls will occur after all archives are transmitted.
-	 *
-	 * The rules for invoking the manifest_contents() callback are the same as
-	 * for the archive_contents() callback above.
-	 */
-	void		(*begin_manifest) (bbsink *sink);
-	void		(*manifest_contents) (bbsink *sink, size_t len);
-	void		(*end_manifest) (bbsink *sink);
+  /*
+   * If a backup manifest is to be transmitted to a bbsink, there will be
+   * one call to the begin_manifest() callback, some number of calls to the
+   * manifest_contents() callback, and then one call to the end_manifest()
+   * callback. These calls will occur after all archives are transmitted.
+   *
+   * The rules for invoking the manifest_contents() callback are the same as
+   * for the archive_contents() callback above.
+   */
+  void    (*begin_manifest) (bbsink *sink);
+  void    (*manifest_contents) (bbsink *sink, size_t len);
+  void    (*end_manifest) (bbsink *sink);
 
-	/*
-	 * This callback is invoked just once, after all archives and the manifest
-	 * have been sent.
-	 */
-	void		(*end_backup) (bbsink *sink, XLogRecPtr endptr, TimeLineID endtli);
+  /*
+   * This callback is invoked just once, after all archives and the manifest
+   * have been sent.
+   */
+  void    (*end_backup) (bbsink *sink, XLogRecPtr endptr, TimeLineID endtli);
 
-	/*
-	 * If a backup is aborted by an error, this callback is invoked before the
-	 * bbsink object is destroyed, so that it can release any resources that
-	 * would not be released automatically. If no error occurs, this callback
-	 * is invoked after the end_backup callback.
-	 */
-	void		(*cleanup) (bbsink *sink);
+  /*
+   * If a backup is aborted by an error, this callback is invoked before the
+   * bbsink object is destroyed, so that it can release any resources that
+   * would not be released automatically. If no error occurs, this callback
+   * is invoked after the end_backup callback.
+   */
+  void    (*cleanup) (bbsink *sink);
 };
 
 /* Begin a backup. */
 static inline void
 bbsink_begin_backup(bbsink *sink, bbsink_state *state, int buffer_length)
 {
-	Assert(sink != NULL);
+  Assert(sink != NULL);
 
-	Assert(buffer_length > 0);
+  Assert(buffer_length > 0);
 
-	sink->bbs_state = state;
-	sink->bbs_buffer_length = buffer_length;
-	sink->bbs_ops->begin_backup(sink);
+  sink->bbs_state = state;
+  sink->bbs_buffer_length = buffer_length;
+  sink->bbs_ops->begin_backup(sink);
 
-	Assert(sink->bbs_buffer != NULL);
-	Assert((sink->bbs_buffer_length % BLCKSZ) == 0);
+  Assert(sink->bbs_buffer != NULL);
+  Assert((sink->bbs_buffer_length % BLCKSZ) == 0);
 }
 
 /* Begin an archive. */
 static inline void
 bbsink_begin_archive(bbsink *sink, const char *archive_name)
 {
-	Assert(sink != NULL);
+  Assert(sink != NULL);
 
-	sink->bbs_ops->begin_archive(sink, archive_name);
+  sink->bbs_ops->begin_archive(sink, archive_name);
 }
 
 /* Process some of the contents of an archive. */
 static inline void
 bbsink_archive_contents(bbsink *sink, size_t len)
 {
-	Assert(sink != NULL);
+  Assert(sink != NULL);
 
-	/*
-	 * The caller should make a reasonable attempt to fill the buffer before
-	 * calling this function, so it shouldn't be completely empty. Nor should
-	 * it be filled beyond capacity.
-	 */
-	Assert(len > 0 && len <= sink->bbs_buffer_length);
+  /*
+   * The caller should make a reasonable attempt to fill the buffer before
+   * calling this function, so it shouldn't be completely empty. Nor should
+   * it be filled beyond capacity.
+   */
+  Assert(len > 0 && len <= sink->bbs_buffer_length);
 
-	sink->bbs_ops->archive_contents(sink, len);
+  sink->bbs_ops->archive_contents(sink, len);
 }
 
 /* Finish an archive. */
 static inline void
 bbsink_end_archive(bbsink *sink)
 {
-	Assert(sink != NULL);
+  Assert(sink != NULL);
 
-	sink->bbs_ops->end_archive(sink);
+  sink->bbs_ops->end_archive(sink);
 }
 
 /* Begin the backup manifest. */
 static inline void
 bbsink_begin_manifest(bbsink *sink)
 {
-	Assert(sink != NULL);
+  Assert(sink != NULL);
 
-	sink->bbs_ops->begin_manifest(sink);
+  sink->bbs_ops->begin_manifest(sink);
 }
 
 /* Process some of the manifest contents. */
 static inline void
 bbsink_manifest_contents(bbsink *sink, size_t len)
 {
-	Assert(sink != NULL);
+  Assert(sink != NULL);
 
-	/* See comments in bbsink_archive_contents. */
-	Assert(len > 0 && len <= sink->bbs_buffer_length);
+  /* See comments in bbsink_archive_contents. */
+  Assert(len > 0 && len <= sink->bbs_buffer_length);
 
-	sink->bbs_ops->manifest_contents(sink, len);
+  sink->bbs_ops->manifest_contents(sink, len);
 }
 
 /* Finish the backup manifest. */
 static inline void
 bbsink_end_manifest(bbsink *sink)
 {
-	Assert(sink != NULL);
+  Assert(sink != NULL);
 
-	sink->bbs_ops->end_manifest(sink);
+  sink->bbs_ops->end_manifest(sink);
 }
 
 /* Finish a backup. */
 static inline void
 bbsink_end_backup(bbsink *sink, XLogRecPtr endptr, TimeLineID endtli)
 {
-	Assert(sink != NULL);
-	Assert(sink->bbs_state->tablespace_num == list_length(sink->bbs_state->tablespaces));
+  Assert(sink != NULL);
+  Assert(sink->bbs_state->tablespace_num == list_length(sink->bbs_state->tablespaces));
 
-	sink->bbs_ops->end_backup(sink, endptr, endtli);
+  sink->bbs_ops->end_backup(sink, endptr, endtli);
 }
 
 /* Release resources before destruction. */
 static inline void
 bbsink_cleanup(bbsink *sink)
 {
-	Assert(sink != NULL);
+  Assert(sink != NULL);
 
-	sink->bbs_ops->cleanup(sink);
+  sink->bbs_ops->cleanup(sink);
 }
 
 /* Forwarding callbacks. Use these to pass operations through to next sink. */
 extern void bbsink_forward_begin_backup(bbsink *sink);
 extern void bbsink_forward_begin_archive(bbsink *sink,
-										 const char *archive_name);
+    const char *archive_name);
 extern void bbsink_forward_archive_contents(bbsink *sink, size_t len);
 extern void bbsink_forward_end_archive(bbsink *sink);
 extern void bbsink_forward_begin_manifest(bbsink *sink);
 extern void bbsink_forward_manifest_contents(bbsink *sink, size_t len);
 extern void bbsink_forward_end_manifest(bbsink *sink);
 extern void bbsink_forward_end_backup(bbsink *sink, XLogRecPtr endptr,
-									  TimeLineID endtli);
+                                      TimeLineID endtli);
 extern void bbsink_forward_cleanup(bbsink *sink);
 
 /* Constructors for various types of sinks. */

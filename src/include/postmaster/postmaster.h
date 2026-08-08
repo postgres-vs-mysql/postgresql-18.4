@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * postmaster.h
- *	  Exports from postmaster/postmaster.c.
+ *    Exports from postmaster/postmaster.c.
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -39,12 +39,12 @@
  */
 typedef struct
 {
-	pid_t		pid;			/* process id of backend */
-	int			child_slot;		/* PMChildSlot for this backend, if any */
-	BackendType bkend_type;		/* child process flavor, see above */
-	struct RegisteredBgWorker *rw;	/* bgworker info, if this is a bgworker */
-	bool		bgworker_notify;	/* gets bgworker start/stop notifications */
-	dlist_node	elem;			/* list link in ActiveChildList */
+  pid_t   pid;      /* process id of backend */
+  int     child_slot;   /* PMChildSlot for this backend, if any */
+  BackendType bkend_type;   /* child process flavor, see above */
+  struct RegisteredBgWorker *rw;  /* bgworker info, if this is a bgworker */
+  bool    bgworker_notify;  /* gets bgworker start/stop notifications */
+  dlist_node  elem;     /* list link in ActiveChildList */
 } PMChild;
 
 #ifdef EXEC_BACKEND
@@ -80,9 +80,9 @@ extern PGDLLIMPORT int postmaster_alive_fds[2];
  * Constants that represent which of postmaster_alive_fds is held by
  * postmaster, and which is used in children to check for postmaster death.
  */
-#define POSTMASTER_FD_WATCH		0	/* used in children to check for
-									 * postmaster death */
-#define POSTMASTER_FD_OWN		1	/* kept open by postmaster only */
+#define POSTMASTER_FD_WATCH   0 /* used in children to check for
+                   * postmaster death */
+#define POSTMASTER_FD_OWN   1 /* kept open by postmaster only */
 #endif
 
 extern PGDLLIMPORT const char *progname;
@@ -94,7 +94,7 @@ pg_noreturn extern void PostmasterMain(int argc, char *argv[]);
 extern void ClosePostmasterPorts(bool am_syslogger);
 extern void InitProcessGlobals(void);
 
-extern int	MaxLivePostmasterChildren(void);
+extern int  MaxLivePostmasterChildren(void);
 
 extern bool PostmasterMarkPIDForWorkerNotify(int);
 
@@ -107,10 +107,10 @@ extern PGDLLIMPORT struct ClientSocket *MyClientSocket;
 
 /* prototypes for functions in launch_backend.c */
 extern pid_t postmaster_child_launch(BackendType child_type,
-									 int child_slot,
-									 void *startup_data,
-									 size_t startup_data_len,
-									 struct ClientSocket *client_sock);
+                                     int child_slot,
+                                     void *startup_data,
+                                     size_t startup_data_len,
+                                     struct ClientSocket *client_sock);
 const char *PostmasterChildName(BackendType child_type);
 #ifdef EXEC_BACKEND
 pg_noreturn extern void SubPostmasterMain(int argc, char *argv[]);
@@ -132,14 +132,14 @@ extern PMChild *FindPostmasterChildByPid(int pid);
  */
 typedef enum DispatchOption
 {
-	DISPATCH_CHECK,
-	DISPATCH_BOOT,
-	DISPATCH_FORKCHILD,
-	DISPATCH_DESCRIBE_CONFIG,
-	DISPATCH_SINGLE,
-	DISPATCH_POSTMASTER,		/* must be last */
+  DISPATCH_CHECK,
+  DISPATCH_BOOT,
+  DISPATCH_FORKCHILD,
+  DISPATCH_DESCRIBE_CONFIG,
+  DISPATCH_SINGLE,
+  DISPATCH_POSTMASTER,    /* must be last */
 } DispatchOption;
 
 extern DispatchOption parse_dispatch_option(const char *name);
 
-#endif							/* _POSTMASTER_H */
+#endif              /* _POSTMASTER_H */

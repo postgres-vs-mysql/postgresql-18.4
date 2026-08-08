@@ -7,7 +7,7 @@
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *	  src/include/postmaster/walsummarizer.h
+ *    src/include/postmaster/walsummarizer.h
  *
  *-------------------------------------------------------------------------
  */
@@ -24,11 +24,11 @@ extern void WalSummarizerShmemInit(void);
 pg_noreturn extern void WalSummarizerMain(const void *startup_data, size_t startup_data_len);
 
 extern void GetWalSummarizerState(TimeLineID *summarized_tli,
-								  XLogRecPtr *summarized_lsn,
-								  XLogRecPtr *pending_lsn,
-								  int *summarizer_pid);
+                                  XLogRecPtr *summarized_lsn,
+                                  XLogRecPtr *pending_lsn,
+                                  int *summarizer_pid);
 extern XLogRecPtr GetOldestUnsummarizedLSN(TimeLineID *tli,
-										   bool *lsn_is_exact);
+    bool *lsn_is_exact);
 extern void WakeupWalSummarizer(void);
 extern void WaitForWalSummarization(XLogRecPtr lsn);
 

@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * logtape.h
- *	  Management of "logical tapes" within temporary files.
+ *    Management of "logical tapes" within temporary files.
  *
  * See logtape.c for explanations.
  *
@@ -47,11 +47,11 @@ typedef struct LogicalTape LogicalTape;
  */
 typedef struct TapeShare
 {
-	/*
-	 * Currently, all the leader process needs is the location of the
-	 * materialized tape's first block.
-	 */
-	int64		firstblocknumber;
+  /*
+   * Currently, all the leader process needs is the location of the
+   * materialized tape's first block.
+   */
+  int64   firstblocknumber;
 } TapeShare;
 
 /*
@@ -59,7 +59,7 @@ typedef struct TapeShare
  */
 
 extern LogicalTapeSet *LogicalTapeSetCreate(bool preallocate,
-											SharedFileSet *fileset, int worker);
+    SharedFileSet *fileset, int worker);
 extern void LogicalTapeClose(LogicalTape *lt);
 extern void LogicalTapeSetClose(LogicalTapeSet *lts);
 extern LogicalTape *LogicalTapeCreate(LogicalTapeSet *lts);
@@ -74,4 +74,4 @@ extern void LogicalTapeSeek(LogicalTape *lt, int64 blocknum, int offset);
 extern void LogicalTapeTell(LogicalTape *lt, int64 *blocknum, int *offset);
 extern int64 LogicalTapeSetBlocks(LogicalTapeSet *lts);
 
-#endif							/* LOGTAPE_H */
+#endif              /* LOGTAPE_H */

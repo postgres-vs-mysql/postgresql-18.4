@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * pg_conversion.h
- *	  definition of the "conversion" system catalog (pg_conversion)
+ *    definition of the "conversion" system catalog (pg_conversion)
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -9,8 +9,8 @@
  * src/include/catalog/pg_conversion.h
  *
  * NOTES
- *	  The Catalog.pm module reads this file and derives schema
- *	  information.
+ *    The Catalog.pm module reads this file and derives schema
+ *    information.
  *
  *-------------------------------------------------------------------------
  */
@@ -19,43 +19,44 @@
 
 #include "catalog/genbki.h"
 #include "catalog/objectaddress.h"
-#include "catalog/pg_conversion_d.h"	/* IWYU pragma: export */
+#include "catalog/pg_conversion_d.h"  /* IWYU pragma: export */
 
 /* ----------------
- *		pg_conversion definition.  cpp turns this into
- *		typedef struct FormData_pg_conversion
+ *    pg_conversion definition.  cpp turns this into
+ *    typedef struct FormData_pg_conversion
  * ----------------
  */
-CATALOG(pg_conversion,2607,ConversionRelationId)
+CATALOG(pg_conversion, 2607, ConversionRelationId)
 {
-	/* oid */
-	Oid			oid;
+  /* oid */
+  Oid     oid;
 
-	/* name of the conversion */
-	NameData	conname;
+  /* name of the conversion */
+  NameData  conname;
 
-	/* namespace that the conversion belongs to */
-	Oid			connamespace BKI_DEFAULT(pg_catalog) BKI_LOOKUP(pg_namespace);
+  /* namespace that the conversion belongs to */
+  Oid     connamespace BKI_DEFAULT(pg_catalog) BKI_LOOKUP(pg_namespace);
 
-	/* owner of the conversion */
-	Oid			conowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
+  /* owner of the conversion */
+  Oid     conowner BKI_DEFAULT(POSTGRES) BKI_LOOKUP(pg_authid);
 
-	/* FOR encoding id */
-	int32		conforencoding BKI_LOOKUP(encoding);
+  /* FOR encoding id */
+  int32   conforencoding BKI_LOOKUP(encoding);
 
-	/* TO encoding id */
-	int32		contoencoding BKI_LOOKUP(encoding);
+  /* TO encoding id */
+  int32   contoencoding BKI_LOOKUP(encoding);
 
-	/* OID of the conversion proc */
-	regproc		conproc BKI_LOOKUP(pg_proc);
+  /* OID of the conversion proc */
+  regproc   conproc BKI_LOOKUP(pg_proc);
 
-	/* true if this is a default conversion */
-	bool		condefault BKI_DEFAULT(t);
-} FormData_pg_conversion;
+  /* true if this is a default conversion */
+  bool    condefault BKI_DEFAULT(t);
+}
+FormData_pg_conversion;
 
 /* ----------------
- *		Form_pg_conversion corresponds to a pointer to a tuple with
- *		the format of pg_conversion relation.
+ *    Form_pg_conversion corresponds to a pointer to a tuple with
+ *    the format of pg_conversion relation.
  * ----------------
  */
 typedef FormData_pg_conversion *Form_pg_conversion;
@@ -70,10 +71,10 @@ MAKE_SYSCACHE(CONVOID, pg_conversion_oid_index, 8);
 
 
 extern ObjectAddress ConversionCreate(const char *conname, Oid connamespace,
-									  Oid conowner,
-									  int32 conforencoding, int32 contoencoding,
-									  Oid conproc, bool def);
-extern Oid	FindDefaultConversion(Oid name_space, int32 for_encoding,
-								  int32 to_encoding);
+                                      Oid conowner,
+                                      int32 conforencoding, int32 contoencoding,
+                                      Oid conproc, bool def);
+extern Oid  FindDefaultConversion(Oid name_space, int32 for_encoding,
+                                  int32 to_encoding);
 
-#endif							/* PG_CONVERSION_H */
+#endif              /* PG_CONVERSION_H */

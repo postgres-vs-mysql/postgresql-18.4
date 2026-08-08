@@ -5,7 +5,7 @@
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *		  src/bin/pg_basebackup/astreamer_inject.h
+ *      src/bin/pg_basebackup/astreamer_inject.h
  *-------------------------------------------------------------------------
  */
 
@@ -16,9 +16,9 @@
 #include "pqexpbuffer.h"
 
 extern astreamer *astreamer_recovery_injector_new(astreamer *next,
-												  bool is_recovery_guc_supported,
-												  PQExpBuffer recoveryconfcontents);
+    bool is_recovery_guc_supported,
+    PQExpBuffer recoveryconfcontents);
 extern void astreamer_inject_file(astreamer *streamer, char *pathname,
-								  char *data, int len);
+                                  char *data, int len);
 
 #endif

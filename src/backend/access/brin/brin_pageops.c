@@ -1,12 +1,12 @@
 /*
  * brin_pageops.c
- *		Page-handling routines for BRIN indexes
+ *    Page-handling routines for BRIN indexes
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/access/brin/brin_pageops.c
+ *    src/backend/access/brin/brin_pageops.c
  */
 #include "postgres.h"
 
@@ -26,13 +26,13 @@
  * a single item per page, unlike other index AMs.
  */
 #define BrinMaxItemSize \
-	MAXALIGN_DOWN(BLCKSZ - \
-				  (MAXALIGN(SizeOfPageHeaderData + \
-							sizeof(ItemIdData)) + \
-				   MAXALIGN(sizeof(BrinSpecialSpace))))
+  MAXALIGN_DOWN(BLCKSZ - \
+          (MAXALIGN(SizeOfPageHeaderData + \
+              sizeof(ItemIdData)) + \
+           MAXALIGN(sizeof(BrinSpecialSpace))))
 
 static Buffer brin_getinsertbuffer(Relation irel, Buffer oldbuf, Size itemsz,
-								   bool *extended);
+                                   bool *extended);
 static Size br_page_get_freespace(Page page);
 static void brin_initialize_empty_new_buffer(Relation idxrel, Buffer buffer);
 
@@ -51,269 +51,264 @@ static void brin_initialize_empty_new_buffer(Relation idxrel, Buffer buffer);
  */
 bool
 brin_doupdate(Relation idxrel, BlockNumber pagesPerRange,
-			  BrinRevmap *revmap, BlockNumber heapBlk,
-			  Buffer oldbuf, OffsetNumber oldoff,
-			  const BrinTuple *origtup, Size origsz,
-			  const BrinTuple *newtup, Size newsz,
-			  bool samepage)
+              BrinRevmap *revmap, BlockNumber heapBlk,
+              Buffer oldbuf, OffsetNumber oldoff,
+              const BrinTuple *origtup, Size origsz,
+              const BrinTuple *newtup, Size newsz,
+              bool samepage)
 {
-	Page		oldpage;
-	ItemId		oldlp;
-	BrinTuple  *oldtup;
-	Size		oldsz;
-	Buffer		newbuf;
-	BlockNumber newblk = InvalidBlockNumber;
-	bool		extended;
+  Page    oldpage;
+  ItemId    oldlp;
+  BrinTuple  *oldtup;
+  Size    oldsz;
+  Buffer    newbuf;
+  BlockNumber newblk = InvalidBlockNumber;
+  bool    extended;
 
-	Assert(newsz == MAXALIGN(newsz));
+  Assert(newsz == MAXALIGN(newsz));
 
-	/* If the item is oversized, don't bother. */
-	if (newsz > BrinMaxItemSize)
-	{
-		ereport(ERROR,
-				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-				 errmsg("index row size %zu exceeds maximum %zu for index \"%s\"",
-						newsz, BrinMaxItemSize, RelationGetRelationName(idxrel))));
-		return false;			/* keep compiler quiet */
-	}
+  /* If the item is oversized, don't bother. */
+  if (newsz > BrinMaxItemSize) {
+    ereport(ERROR,
+            (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+             errmsg("index row size %zu exceeds maximum %zu for index \"%s\"",
+                    newsz, BrinMaxItemSize, RelationGetRelationName(idxrel))));
+    return false;     /* keep compiler quiet */
+  }
 
-	/* make sure the revmap is long enough to contain the entry we need */
-	brinRevmapExtend(revmap, heapBlk);
+  /* make sure the revmap is long enough to contain the entry we need */
+  brinRevmapExtend(revmap, heapBlk);
 
-	if (!samepage)
-	{
-		/* need a page on which to put the item */
-		newbuf = brin_getinsertbuffer(idxrel, oldbuf, newsz, &extended);
-		if (!BufferIsValid(newbuf))
-		{
-			Assert(!extended);
-			return false;
-		}
+  if (!samepage) {
+    /* need a page on which to put the item */
+    newbuf = brin_getinsertbuffer(idxrel, oldbuf, newsz, &extended);
 
-		/*
-		 * Note: it's possible (though unlikely) that the returned newbuf is
-		 * the same as oldbuf, if brin_getinsertbuffer determined that the old
-		 * buffer does in fact have enough space.
-		 */
-		if (newbuf == oldbuf)
-		{
-			Assert(!extended);
-			newbuf = InvalidBuffer;
-		}
-		else
-			newblk = BufferGetBlockNumber(newbuf);
-	}
-	else
-	{
-		LockBuffer(oldbuf, BUFFER_LOCK_EXCLUSIVE);
-		newbuf = InvalidBuffer;
-		extended = false;
-	}
-	oldpage = BufferGetPage(oldbuf);
-	oldlp = PageGetItemId(oldpage, oldoff);
+    if (!BufferIsValid(newbuf)) {
+      Assert(!extended);
+      return false;
+    }
 
-	/*
-	 * Check that the old tuple wasn't updated concurrently: it might have
-	 * moved someplace else entirely, and for that matter the whole page
-	 * might've become a revmap page.  Note that in the first two cases
-	 * checked here, the "oldlp" we just calculated is garbage; but
-	 * PageGetItemId() is simple enough that it was safe to do that
-	 * calculation anyway.
-	 */
-	if (!BRIN_IS_REGULAR_PAGE(oldpage) ||
-		oldoff > PageGetMaxOffsetNumber(oldpage) ||
-		!ItemIdIsNormal(oldlp))
-	{
-		LockBuffer(oldbuf, BUFFER_LOCK_UNLOCK);
+    /*
+     * Note: it's possible (though unlikely) that the returned newbuf is
+     * the same as oldbuf, if brin_getinsertbuffer determined that the old
+     * buffer does in fact have enough space.
+     */
+    if (newbuf == oldbuf) {
+      Assert(!extended);
+      newbuf = InvalidBuffer;
+    } else
+      newblk = BufferGetBlockNumber(newbuf);
+  } else {
+    LockBuffer(oldbuf, BUFFER_LOCK_EXCLUSIVE);
+    newbuf = InvalidBuffer;
+    extended = false;
+  }
 
-		/*
-		 * If this happens, and the new buffer was obtained by extending the
-		 * relation, then we need to ensure we don't leave it uninitialized or
-		 * forget about it.
-		 */
-		if (BufferIsValid(newbuf))
-		{
-			if (extended)
-				brin_initialize_empty_new_buffer(idxrel, newbuf);
-			UnlockReleaseBuffer(newbuf);
-			if (extended)
-				FreeSpaceMapVacuumRange(idxrel, newblk, newblk + 1);
-		}
-		return false;
-	}
+  oldpage = BufferGetPage(oldbuf);
+  oldlp = PageGetItemId(oldpage, oldoff);
 
-	oldsz = ItemIdGetLength(oldlp);
-	oldtup = (BrinTuple *) PageGetItem(oldpage, oldlp);
+  /*
+   * Check that the old tuple wasn't updated concurrently: it might have
+   * moved someplace else entirely, and for that matter the whole page
+   * might've become a revmap page.  Note that in the first two cases
+   * checked here, the "oldlp" we just calculated is garbage; but
+   * PageGetItemId() is simple enough that it was safe to do that
+   * calculation anyway.
+   */
+  if (!BRIN_IS_REGULAR_PAGE(oldpage) ||
+      oldoff > PageGetMaxOffsetNumber(oldpage) ||
+      !ItemIdIsNormal(oldlp)) {
+    LockBuffer(oldbuf, BUFFER_LOCK_UNLOCK);
 
-	/*
-	 * ... or it might have been updated in place to different contents.
-	 */
-	if (!brin_tuples_equal(oldtup, oldsz, origtup, origsz))
-	{
-		LockBuffer(oldbuf, BUFFER_LOCK_UNLOCK);
-		if (BufferIsValid(newbuf))
-		{
-			/* As above, initialize and record new page if we got one */
-			if (extended)
-				brin_initialize_empty_new_buffer(idxrel, newbuf);
-			UnlockReleaseBuffer(newbuf);
-			if (extended)
-				FreeSpaceMapVacuumRange(idxrel, newblk, newblk + 1);
-		}
-		return false;
-	}
+    /*
+     * If this happens, and the new buffer was obtained by extending the
+     * relation, then we need to ensure we don't leave it uninitialized or
+     * forget about it.
+     */
+    if (BufferIsValid(newbuf)) {
+      if (extended)
+        brin_initialize_empty_new_buffer(idxrel, newbuf);
 
-	/*
-	 * Great, the old tuple is intact.  We can proceed with the update.
-	 *
-	 * If there's enough room in the old page for the new tuple, replace it.
-	 *
-	 * Note that there might now be enough space on the page even though the
-	 * caller told us there isn't, if a concurrent update moved another tuple
-	 * elsewhere or replaced a tuple with a smaller one.
-	 */
-	if (((BrinPageFlags(oldpage) & BRIN_EVACUATE_PAGE) == 0) &&
-		brin_can_do_samepage_update(oldbuf, origsz, newsz))
-	{
-		START_CRIT_SECTION();
-		if (!PageIndexTupleOverwrite(oldpage, oldoff, (Item) unconstify(BrinTuple *, newtup), newsz))
-			elog(ERROR, "failed to replace BRIN tuple");
-		MarkBufferDirty(oldbuf);
+      UnlockReleaseBuffer(newbuf);
 
-		/* XLOG stuff */
-		if (RelationNeedsWAL(idxrel))
-		{
-			xl_brin_samepage_update xlrec;
-			XLogRecPtr	recptr;
-			uint8		info = XLOG_BRIN_SAMEPAGE_UPDATE;
+      if (extended)
+        FreeSpaceMapVacuumRange(idxrel, newblk, newblk + 1);
+    }
 
-			xlrec.offnum = oldoff;
+    return false;
+  }
 
-			XLogBeginInsert();
-			XLogRegisterData(&xlrec, SizeOfBrinSamepageUpdate);
+  oldsz = ItemIdGetLength(oldlp);
+  oldtup = (BrinTuple *) PageGetItem(oldpage, oldlp);
 
-			XLogRegisterBuffer(0, oldbuf, REGBUF_STANDARD);
-			XLogRegisterBufData(0, newtup, newsz);
+  /*
+   * ... or it might have been updated in place to different contents.
+   */
+  if (!brin_tuples_equal(oldtup, oldsz, origtup, origsz)) {
+    LockBuffer(oldbuf, BUFFER_LOCK_UNLOCK);
 
-			recptr = XLogInsert(RM_BRIN_ID, info);
+    if (BufferIsValid(newbuf)) {
+      /* As above, initialize and record new page if we got one */
+      if (extended)
+        brin_initialize_empty_new_buffer(idxrel, newbuf);
 
-			PageSetLSN(oldpage, recptr);
-		}
+      UnlockReleaseBuffer(newbuf);
 
-		END_CRIT_SECTION();
+      if (extended)
+        FreeSpaceMapVacuumRange(idxrel, newblk, newblk + 1);
+    }
 
-		LockBuffer(oldbuf, BUFFER_LOCK_UNLOCK);
+    return false;
+  }
 
-		if (BufferIsValid(newbuf))
-		{
-			/* As above, initialize and record new page if we got one */
-			if (extended)
-				brin_initialize_empty_new_buffer(idxrel, newbuf);
-			UnlockReleaseBuffer(newbuf);
-			if (extended)
-				FreeSpaceMapVacuumRange(idxrel, newblk, newblk + 1);
-		}
+  /*
+   * Great, the old tuple is intact.  We can proceed with the update.
+   *
+   * If there's enough room in the old page for the new tuple, replace it.
+   *
+   * Note that there might now be enough space on the page even though the
+   * caller told us there isn't, if a concurrent update moved another tuple
+   * elsewhere or replaced a tuple with a smaller one.
+   */
+  if (((BrinPageFlags(oldpage) & BRIN_EVACUATE_PAGE) == 0) &&
+      brin_can_do_samepage_update(oldbuf, origsz, newsz)) {
+    START_CRIT_SECTION();
 
-		return true;
-	}
-	else if (newbuf == InvalidBuffer)
-	{
-		/*
-		 * Not enough space, but caller said that there was. Tell them to
-		 * start over.
-		 */
-		LockBuffer(oldbuf, BUFFER_LOCK_UNLOCK);
-		return false;
-	}
-	else
-	{
-		/*
-		 * Not enough free space on the oldpage. Put the new tuple on the new
-		 * page, and update the revmap.
-		 */
-		Page		newpage = BufferGetPage(newbuf);
-		Buffer		revmapbuf;
-		ItemPointerData newtid;
-		OffsetNumber newoff;
-		Size		freespace = 0;
+    if (!PageIndexTupleOverwrite(oldpage, oldoff, (Item) unconstify(BrinTuple *, newtup), newsz))
+      elog(ERROR, "failed to replace BRIN tuple");
 
-		revmapbuf = brinLockRevmapPageForUpdate(revmap, heapBlk);
+    MarkBufferDirty(oldbuf);
 
-		START_CRIT_SECTION();
+    /* XLOG stuff */
+    if (RelationNeedsWAL(idxrel)) {
+      xl_brin_samepage_update xlrec;
+      XLogRecPtr  recptr;
+      uint8   info = XLOG_BRIN_SAMEPAGE_UPDATE;
 
-		/*
-		 * We need to initialize the page if it's newly obtained.  Note we
-		 * will WAL-log the initialization as part of the update, so we don't
-		 * need to do that here.
-		 */
-		if (extended)
-			brin_page_init(newpage, BRIN_PAGETYPE_REGULAR);
+      xlrec.offnum = oldoff;
 
-		PageIndexTupleDeleteNoCompact(oldpage, oldoff);
-		newoff = PageAddItem(newpage, (Item) unconstify(BrinTuple *, newtup), newsz,
-							 InvalidOffsetNumber, false, false);
-		if (newoff == InvalidOffsetNumber)
-			elog(ERROR, "failed to add BRIN tuple to new page");
-		MarkBufferDirty(oldbuf);
-		MarkBufferDirty(newbuf);
+      XLogBeginInsert();
+      XLogRegisterData(&xlrec, SizeOfBrinSamepageUpdate);
 
-		/* needed to update FSM below */
-		if (extended)
-			freespace = br_page_get_freespace(newpage);
+      XLogRegisterBuffer(0, oldbuf, REGBUF_STANDARD);
+      XLogRegisterBufData(0, newtup, newsz);
 
-		ItemPointerSet(&newtid, newblk, newoff);
-		brinSetHeapBlockItemptr(revmapbuf, pagesPerRange, heapBlk, newtid);
-		MarkBufferDirty(revmapbuf);
+      recptr = XLogInsert(RM_BRIN_ID, info);
 
-		/* XLOG stuff */
-		if (RelationNeedsWAL(idxrel))
-		{
-			xl_brin_update xlrec;
-			XLogRecPtr	recptr;
-			uint8		info;
+      PageSetLSN(oldpage, recptr);
+    }
 
-			info = XLOG_BRIN_UPDATE | (extended ? XLOG_BRIN_INIT_PAGE : 0);
+    END_CRIT_SECTION();
 
-			xlrec.insert.offnum = newoff;
-			xlrec.insert.heapBlk = heapBlk;
-			xlrec.insert.pagesPerRange = pagesPerRange;
-			xlrec.oldOffnum = oldoff;
+    LockBuffer(oldbuf, BUFFER_LOCK_UNLOCK);
 
-			XLogBeginInsert();
+    if (BufferIsValid(newbuf)) {
+      /* As above, initialize and record new page if we got one */
+      if (extended)
+        brin_initialize_empty_new_buffer(idxrel, newbuf);
 
-			/* new page */
-			XLogRegisterData(&xlrec, SizeOfBrinUpdate);
+      UnlockReleaseBuffer(newbuf);
 
-			XLogRegisterBuffer(0, newbuf, REGBUF_STANDARD | (extended ? REGBUF_WILL_INIT : 0));
-			XLogRegisterBufData(0, newtup, newsz);
+      if (extended)
+        FreeSpaceMapVacuumRange(idxrel, newblk, newblk + 1);
+    }
 
-			/* revmap page */
-			XLogRegisterBuffer(1, revmapbuf, 0);
+    return true;
+  } else if (newbuf == InvalidBuffer) {
+    /*
+     * Not enough space, but caller said that there was. Tell them to
+     * start over.
+     */
+    LockBuffer(oldbuf, BUFFER_LOCK_UNLOCK);
+    return false;
+  } else {
+    /*
+     * Not enough free space on the oldpage. Put the new tuple on the new
+     * page, and update the revmap.
+     */
+    Page    newpage = BufferGetPage(newbuf);
+    Buffer    revmapbuf;
+    ItemPointerData newtid;
+    OffsetNumber newoff;
+    Size    freespace = 0;
 
-			/* old page */
-			XLogRegisterBuffer(2, oldbuf, REGBUF_STANDARD);
+    revmapbuf = brinLockRevmapPageForUpdate(revmap, heapBlk);
 
-			recptr = XLogInsert(RM_BRIN_ID, info);
+    START_CRIT_SECTION();
 
-			PageSetLSN(oldpage, recptr);
-			PageSetLSN(newpage, recptr);
-			PageSetLSN(BufferGetPage(revmapbuf), recptr);
-		}
+    /*
+     * We need to initialize the page if it's newly obtained.  Note we
+     * will WAL-log the initialization as part of the update, so we don't
+     * need to do that here.
+     */
+    if (extended)
+      brin_page_init(newpage, BRIN_PAGETYPE_REGULAR);
 
-		END_CRIT_SECTION();
+    PageIndexTupleDeleteNoCompact(oldpage, oldoff);
+    newoff = PageAddItem(newpage, (Item) unconstify(BrinTuple *, newtup), newsz,
+                         InvalidOffsetNumber, false, false);
 
-		LockBuffer(revmapbuf, BUFFER_LOCK_UNLOCK);
-		LockBuffer(oldbuf, BUFFER_LOCK_UNLOCK);
-		UnlockReleaseBuffer(newbuf);
+    if (newoff == InvalidOffsetNumber)
+      elog(ERROR, "failed to add BRIN tuple to new page");
 
-		if (extended)
-		{
-			RecordPageWithFreeSpace(idxrel, newblk, freespace);
-			FreeSpaceMapVacuumRange(idxrel, newblk, newblk + 1);
-		}
+    MarkBufferDirty(oldbuf);
+    MarkBufferDirty(newbuf);
 
-		return true;
-	}
+    /* needed to update FSM below */
+    if (extended)
+      freespace = br_page_get_freespace(newpage);
+
+    ItemPointerSet(&newtid, newblk, newoff);
+    brinSetHeapBlockItemptr(revmapbuf, pagesPerRange, heapBlk, newtid);
+    MarkBufferDirty(revmapbuf);
+
+    /* XLOG stuff */
+    if (RelationNeedsWAL(idxrel)) {
+      xl_brin_update xlrec;
+      XLogRecPtr  recptr;
+      uint8   info;
+
+      info = XLOG_BRIN_UPDATE | (extended ? XLOG_BRIN_INIT_PAGE : 0);
+
+      xlrec.insert.offnum = newoff;
+      xlrec.insert.heapBlk = heapBlk;
+      xlrec.insert.pagesPerRange = pagesPerRange;
+      xlrec.oldOffnum = oldoff;
+
+      XLogBeginInsert();
+
+      /* new page */
+      XLogRegisterData(&xlrec, SizeOfBrinUpdate);
+
+      XLogRegisterBuffer(0, newbuf, REGBUF_STANDARD | (extended ? REGBUF_WILL_INIT : 0));
+      XLogRegisterBufData(0, newtup, newsz);
+
+      /* revmap page */
+      XLogRegisterBuffer(1, revmapbuf, 0);
+
+      /* old page */
+      XLogRegisterBuffer(2, oldbuf, REGBUF_STANDARD);
+
+      recptr = XLogInsert(RM_BRIN_ID, info);
+
+      PageSetLSN(oldpage, recptr);
+      PageSetLSN(newpage, recptr);
+      PageSetLSN(BufferGetPage(revmapbuf), recptr);
+    }
+
+    END_CRIT_SECTION();
+
+    LockBuffer(revmapbuf, BUFFER_LOCK_UNLOCK);
+    LockBuffer(oldbuf, BUFFER_LOCK_UNLOCK);
+    UnlockReleaseBuffer(newbuf);
+
+    if (extended) {
+      RecordPageWithFreeSpace(idxrel, newblk, freespace);
+      FreeSpaceMapVacuumRange(idxrel, newblk, newblk + 1);
+    }
+
+    return true;
+  }
 }
 
 /*
@@ -322,9 +317,9 @@ brin_doupdate(Relation idxrel, BlockNumber pagesPerRange,
 bool
 brin_can_do_samepage_update(Buffer buffer, Size origsz, Size newsz)
 {
-	return
-		((newsz <= origsz) ||
-		 PageGetExactFreeSpace(BufferGetPage(buffer)) >= (newsz - origsz));
+  return
+    ((newsz <= origsz) ||
+     PageGetExactFreeSpace(BufferGetPage(buffer)) >= (newsz - origsz));
 }
 
 /*
@@ -340,130 +335,129 @@ brin_can_do_samepage_update(Buffer buffer, Size origsz, Size newsz)
  */
 OffsetNumber
 brin_doinsert(Relation idxrel, BlockNumber pagesPerRange,
-			  BrinRevmap *revmap, Buffer *buffer, BlockNumber heapBlk,
-			  BrinTuple *tup, Size itemsz)
+              BrinRevmap *revmap, Buffer *buffer, BlockNumber heapBlk,
+              BrinTuple *tup, Size itemsz)
 {
-	Page		page;
-	BlockNumber blk;
-	OffsetNumber off;
-	Size		freespace = 0;
-	Buffer		revmapbuf;
-	ItemPointerData tid;
-	bool		extended;
+  Page    page;
+  BlockNumber blk;
+  OffsetNumber off;
+  Size    freespace = 0;
+  Buffer    revmapbuf;
+  ItemPointerData tid;
+  bool    extended;
 
-	Assert(itemsz == MAXALIGN(itemsz));
+  Assert(itemsz == MAXALIGN(itemsz));
 
-	/* If the item is oversized, don't even bother. */
-	if (itemsz > BrinMaxItemSize)
-	{
-		ereport(ERROR,
-				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-				 errmsg("index row size %zu exceeds maximum %zu for index \"%s\"",
-						itemsz, BrinMaxItemSize, RelationGetRelationName(idxrel))));
-		return InvalidOffsetNumber; /* keep compiler quiet */
-	}
+  /* If the item is oversized, don't even bother. */
+  if (itemsz > BrinMaxItemSize) {
+    ereport(ERROR,
+            (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+             errmsg("index row size %zu exceeds maximum %zu for index \"%s\"",
+                    itemsz, BrinMaxItemSize, RelationGetRelationName(idxrel))));
+    return InvalidOffsetNumber; /* keep compiler quiet */
+  }
 
-	/* Make sure the revmap is long enough to contain the entry we need */
-	brinRevmapExtend(revmap, heapBlk);
+  /* Make sure the revmap is long enough to contain the entry we need */
+  brinRevmapExtend(revmap, heapBlk);
 
-	/*
-	 * Acquire lock on buffer supplied by caller, if any.  If it doesn't have
-	 * enough space, unpin it to obtain a new one below.
-	 */
-	if (BufferIsValid(*buffer))
-	{
-		/*
-		 * It's possible that another backend (or ourselves!) extended the
-		 * revmap over the page we held a pin on, so we cannot assume that
-		 * it's still a regular page.
-		 */
-		LockBuffer(*buffer, BUFFER_LOCK_EXCLUSIVE);
-		if (br_page_get_freespace(BufferGetPage(*buffer)) < itemsz)
-		{
-			UnlockReleaseBuffer(*buffer);
-			*buffer = InvalidBuffer;
-		}
-	}
+  /*
+   * Acquire lock on buffer supplied by caller, if any.  If it doesn't have
+   * enough space, unpin it to obtain a new one below.
+   */
+  if (BufferIsValid(*buffer)) {
+    /*
+     * It's possible that another backend (or ourselves!) extended the
+     * revmap over the page we held a pin on, so we cannot assume that
+     * it's still a regular page.
+     */
+    LockBuffer(*buffer, BUFFER_LOCK_EXCLUSIVE);
 
-	/*
-	 * If we still don't have a usable buffer, have brin_getinsertbuffer
-	 * obtain one for us.
-	 */
-	if (!BufferIsValid(*buffer))
-	{
-		do
-			*buffer = brin_getinsertbuffer(idxrel, InvalidBuffer, itemsz, &extended);
-		while (!BufferIsValid(*buffer));
-	}
-	else
-		extended = false;
+    if (br_page_get_freespace(BufferGetPage(*buffer)) < itemsz) {
+      UnlockReleaseBuffer(*buffer);
+      *buffer = InvalidBuffer;
+    }
+  }
 
-	/* Now obtain lock on revmap buffer */
-	revmapbuf = brinLockRevmapPageForUpdate(revmap, heapBlk);
+  /*
+   * If we still don't have a usable buffer, have brin_getinsertbuffer
+   * obtain one for us.
+   */
+  if (!BufferIsValid(*buffer)) {
+    do
+      *buffer = brin_getinsertbuffer(idxrel, InvalidBuffer, itemsz, &extended);
 
-	page = BufferGetPage(*buffer);
-	blk = BufferGetBlockNumber(*buffer);
+    while (!BufferIsValid(*buffer));
+  } else
+    extended = false;
 
-	/* Execute the actual insertion */
-	START_CRIT_SECTION();
-	if (extended)
-		brin_page_init(page, BRIN_PAGETYPE_REGULAR);
-	off = PageAddItem(page, (Item) tup, itemsz, InvalidOffsetNumber,
-					  false, false);
-	if (off == InvalidOffsetNumber)
-		elog(ERROR, "failed to add BRIN tuple to new page");
-	MarkBufferDirty(*buffer);
+  /* Now obtain lock on revmap buffer */
+  revmapbuf = brinLockRevmapPageForUpdate(revmap, heapBlk);
 
-	/* needed to update FSM below */
-	if (extended)
-		freespace = br_page_get_freespace(page);
+  page = BufferGetPage(*buffer);
+  blk = BufferGetBlockNumber(*buffer);
 
-	ItemPointerSet(&tid, blk, off);
-	brinSetHeapBlockItemptr(revmapbuf, pagesPerRange, heapBlk, tid);
-	MarkBufferDirty(revmapbuf);
+  /* Execute the actual insertion */
+  START_CRIT_SECTION();
 
-	/* XLOG stuff */
-	if (RelationNeedsWAL(idxrel))
-	{
-		xl_brin_insert xlrec;
-		XLogRecPtr	recptr;
-		uint8		info;
+  if (extended)
+    brin_page_init(page, BRIN_PAGETYPE_REGULAR);
 
-		info = XLOG_BRIN_INSERT | (extended ? XLOG_BRIN_INIT_PAGE : 0);
-		xlrec.heapBlk = heapBlk;
-		xlrec.pagesPerRange = pagesPerRange;
-		xlrec.offnum = off;
+  off = PageAddItem(page, (Item) tup, itemsz, InvalidOffsetNumber,
+                    false, false);
 
-		XLogBeginInsert();
-		XLogRegisterData(&xlrec, SizeOfBrinInsert);
+  if (off == InvalidOffsetNumber)
+    elog(ERROR, "failed to add BRIN tuple to new page");
 
-		XLogRegisterBuffer(0, *buffer, REGBUF_STANDARD | (extended ? REGBUF_WILL_INIT : 0));
-		XLogRegisterBufData(0, tup, itemsz);
+  MarkBufferDirty(*buffer);
 
-		XLogRegisterBuffer(1, revmapbuf, 0);
+  /* needed to update FSM below */
+  if (extended)
+    freespace = br_page_get_freespace(page);
 
-		recptr = XLogInsert(RM_BRIN_ID, info);
+  ItemPointerSet(&tid, blk, off);
+  brinSetHeapBlockItemptr(revmapbuf, pagesPerRange, heapBlk, tid);
+  MarkBufferDirty(revmapbuf);
 
-		PageSetLSN(page, recptr);
-		PageSetLSN(BufferGetPage(revmapbuf), recptr);
-	}
+  /* XLOG stuff */
+  if (RelationNeedsWAL(idxrel)) {
+    xl_brin_insert xlrec;
+    XLogRecPtr  recptr;
+    uint8   info;
 
-	END_CRIT_SECTION();
+    info = XLOG_BRIN_INSERT | (extended ? XLOG_BRIN_INIT_PAGE : 0);
+    xlrec.heapBlk = heapBlk;
+    xlrec.pagesPerRange = pagesPerRange;
+    xlrec.offnum = off;
 
-	/* Tuple is firmly on buffer; we can release our locks */
-	LockBuffer(*buffer, BUFFER_LOCK_UNLOCK);
-	LockBuffer(revmapbuf, BUFFER_LOCK_UNLOCK);
+    XLogBeginInsert();
+    XLogRegisterData(&xlrec, SizeOfBrinInsert);
 
-	BRIN_elog((DEBUG2, "inserted tuple (%u,%u) for range starting at %u",
-			   blk, off, heapBlk));
+    XLogRegisterBuffer(0, *buffer, REGBUF_STANDARD | (extended ? REGBUF_WILL_INIT : 0));
+    XLogRegisterBufData(0, tup, itemsz);
 
-	if (extended)
-	{
-		RecordPageWithFreeSpace(idxrel, blk, freespace);
-		FreeSpaceMapVacuumRange(idxrel, blk, blk + 1);
-	}
+    XLogRegisterBuffer(1, revmapbuf, 0);
 
-	return off;
+    recptr = XLogInsert(RM_BRIN_ID, info);
+
+    PageSetLSN(page, recptr);
+    PageSetLSN(BufferGetPage(revmapbuf), recptr);
+  }
+
+  END_CRIT_SECTION();
+
+  /* Tuple is firmly on buffer; we can release our locks */
+  LockBuffer(*buffer, BUFFER_LOCK_UNLOCK);
+  LockBuffer(revmapbuf, BUFFER_LOCK_UNLOCK);
+
+  BRIN_elog((DEBUG2, "inserted tuple (%u,%u) for range starting at %u",
+             blk, off, heapBlk));
+
+  if (extended) {
+    RecordPageWithFreeSpace(idxrel, blk, freespace);
+    FreeSpaceMapVacuumRange(idxrel, blk, blk + 1);
+  }
+
+  return off;
 }
 
 /*
@@ -474,9 +468,9 @@ brin_doinsert(Relation idxrel, BlockNumber pagesPerRange,
 void
 brin_page_init(Page page, uint16 type)
 {
-	PageInit(page, BLCKSZ, sizeof(BrinSpecialSpace));
+  PageInit(page, BLCKSZ, sizeof(BrinSpecialSpace));
 
-	BrinPageType(page) = type;
+  BrinPageType(page) = type;
 }
 
 /*
@@ -485,30 +479,30 @@ brin_page_init(Page page, uint16 type)
 void
 brin_metapage_init(Page page, BlockNumber pagesPerRange, uint16 version)
 {
-	BrinMetaPageData *metadata;
+  BrinMetaPageData *metadata;
 
-	brin_page_init(page, BRIN_PAGETYPE_META);
+  brin_page_init(page, BRIN_PAGETYPE_META);
 
-	metadata = (BrinMetaPageData *) PageGetContents(page);
+  metadata = (BrinMetaPageData *) PageGetContents(page);
 
-	metadata->brinMagic = BRIN_META_MAGIC;
-	metadata->brinVersion = version;
-	metadata->pagesPerRange = pagesPerRange;
+  metadata->brinMagic = BRIN_META_MAGIC;
+  metadata->brinVersion = version;
+  metadata->pagesPerRange = pagesPerRange;
 
-	/*
-	 * Note we cheat here a little.  0 is not a valid revmap block number
-	 * (because it's the metapage buffer), but doing this enables the first
-	 * revmap page to be created when the index is.
-	 */
-	metadata->lastRevmapPage = 0;
+  /*
+   * Note we cheat here a little.  0 is not a valid revmap block number
+   * (because it's the metapage buffer), but doing this enables the first
+   * revmap page to be created when the index is.
+   */
+  metadata->lastRevmapPage = 0;
 
-	/*
-	 * Set pd_lower just past the end of the metadata.  This is essential,
-	 * because without doing so, metadata will be lost if xlog.c compresses
-	 * the page.
-	 */
-	((PageHeader) page)->pd_lower =
-		((char *) metadata + sizeof(BrinMetaPageData)) - (char *) page;
+  /*
+   * Set pd_lower just past the end of the metadata.  This is essential,
+   * because without doing so, metadata will be lost if xlog.c compresses
+   * the page.
+   */
+  ((PageHeader) page)->pd_lower =
+    ((char *) metadata + sizeof(BrinMetaPageData)) - (char *) page;
 }
 
 /*
@@ -523,36 +517,37 @@ brin_metapage_init(Page page, BlockNumber pagesPerRange, uint16 version)
 bool
 brin_start_evacuating_page(Relation idxRel, Buffer buf)
 {
-	OffsetNumber off;
-	OffsetNumber maxoff;
-	Page		page;
+  OffsetNumber off;
+  OffsetNumber maxoff;
+  Page    page;
 
-	page = BufferGetPage(buf);
+  page = BufferGetPage(buf);
 
-	if (PageIsNew(page))
-		return false;
+  if (PageIsNew(page))
+    return false;
 
-	maxoff = PageGetMaxOffsetNumber(page);
-	for (off = FirstOffsetNumber; off <= maxoff; off++)
-	{
-		ItemId		lp;
+  maxoff = PageGetMaxOffsetNumber(page);
 
-		lp = PageGetItemId(page, off);
-		if (ItemIdIsUsed(lp))
-		{
-			/*
-			 * Prevent other backends from adding more stuff to this page:
-			 * BRIN_EVACUATE_PAGE informs br_page_get_freespace that this page
-			 * can no longer be used to add new tuples.  Note that this flag
-			 * is not WAL-logged, except accidentally.
-			 */
-			BrinPageFlags(page) |= BRIN_EVACUATE_PAGE;
-			MarkBufferDirtyHint(buf, true);
+  for (off = FirstOffsetNumber; off <= maxoff; off++) {
+    ItemId    lp;
 
-			return true;
-		}
-	}
-	return false;
+    lp = PageGetItemId(page, off);
+
+    if (ItemIdIsUsed(lp)) {
+      /*
+       * Prevent other backends from adding more stuff to this page:
+       * BRIN_EVACUATE_PAGE informs br_page_get_freespace that this page
+       * can no longer be used to add new tuples.  Note that this flag
+       * is not WAL-logged, except accidentally.
+       */
+      BrinPageFlags(page) |= BRIN_EVACUATE_PAGE;
+      MarkBufferDirtyHint(buf, true);
+
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /*
@@ -562,49 +557,49 @@ brin_start_evacuating_page(Relation idxRel, Buffer buf)
  */
 void
 brin_evacuate_page(Relation idxRel, BlockNumber pagesPerRange,
-				   BrinRevmap *revmap, Buffer buf)
+                   BrinRevmap *revmap, Buffer buf)
 {
-	OffsetNumber off;
-	OffsetNumber maxoff;
-	Page		page;
-	BrinTuple  *btup = NULL;
-	Size		btupsz = 0;
+  OffsetNumber off;
+  OffsetNumber maxoff;
+  Page    page;
+  BrinTuple  *btup = NULL;
+  Size    btupsz = 0;
 
-	page = BufferGetPage(buf);
+  page = BufferGetPage(buf);
 
-	Assert(BrinPageFlags(page) & BRIN_EVACUATE_PAGE);
+  Assert(BrinPageFlags(page) & BRIN_EVACUATE_PAGE);
 
-	maxoff = PageGetMaxOffsetNumber(page);
-	for (off = FirstOffsetNumber; off <= maxoff; off++)
-	{
-		BrinTuple  *tup;
-		Size		sz;
-		ItemId		lp;
+  maxoff = PageGetMaxOffsetNumber(page);
 
-		CHECK_FOR_INTERRUPTS();
+  for (off = FirstOffsetNumber; off <= maxoff; off++) {
+    BrinTuple  *tup;
+    Size    sz;
+    ItemId    lp;
 
-		lp = PageGetItemId(page, off);
-		if (ItemIdIsUsed(lp))
-		{
-			sz = ItemIdGetLength(lp);
-			tup = (BrinTuple *) PageGetItem(page, lp);
-			tup = brin_copy_tuple(tup, sz, btup, &btupsz);
+    CHECK_FOR_INTERRUPTS();
 
-			LockBuffer(buf, BUFFER_LOCK_UNLOCK);
+    lp = PageGetItemId(page, off);
 
-			if (!brin_doupdate(idxRel, pagesPerRange, revmap, tup->bt_blkno,
-							   buf, off, tup, sz, tup, sz, false))
-				off--;			/* retry */
+    if (ItemIdIsUsed(lp)) {
+      sz = ItemIdGetLength(lp);
+      tup = (BrinTuple *) PageGetItem(page, lp);
+      tup = brin_copy_tuple(tup, sz, btup, &btupsz);
 
-			LockBuffer(buf, BUFFER_LOCK_SHARE);
+      LockBuffer(buf, BUFFER_LOCK_UNLOCK);
 
-			/* It's possible that someone extended the revmap over this page */
-			if (!BRIN_IS_REGULAR_PAGE(page))
-				break;
-		}
-	}
+      if (!brin_doupdate(idxRel, pagesPerRange, revmap, tup->bt_blkno,
+                         buf, off, tup, sz, tup, sz, false))
+        off--;      /* retry */
 
-	UnlockReleaseBuffer(buf);
+      LockBuffer(buf, BUFFER_LOCK_SHARE);
+
+      /* It's possible that someone extended the revmap over this page */
+      if (!BRIN_IS_REGULAR_PAGE(page))
+        break;
+    }
+  }
+
+  UnlockReleaseBuffer(buf);
 }
 
 /*
@@ -623,41 +618,41 @@ brin_evacuate_page(Relation idxRel, BlockNumber pagesPerRange,
 void
 brin_page_cleanup(Relation idxrel, Buffer buf)
 {
-	Page		page = BufferGetPage(buf);
+  Page    page = BufferGetPage(buf);
 
-	/*
-	 * If a page was left uninitialized, initialize it now; also record it in
-	 * FSM.
-	 *
-	 * Somebody else might be extending the relation concurrently.  To avoid
-	 * re-initializing the page before they can grab the buffer lock, we
-	 * acquire the extension lock momentarily.  Since they hold the extension
-	 * lock from before getting the page and after its been initialized, we're
-	 * sure to see their initialization.
-	 */
-	if (PageIsNew(page))
-	{
-		LockRelationForExtension(idxrel, ShareLock);
-		UnlockRelationForExtension(idxrel, ShareLock);
+  /*
+   * If a page was left uninitialized, initialize it now; also record it in
+   * FSM.
+   *
+   * Somebody else might be extending the relation concurrently.  To avoid
+   * re-initializing the page before they can grab the buffer lock, we
+   * acquire the extension lock momentarily.  Since they hold the extension
+   * lock from before getting the page and after its been initialized, we're
+   * sure to see their initialization.
+   */
+  if (PageIsNew(page)) {
+    LockRelationForExtension(idxrel, ShareLock);
+    UnlockRelationForExtension(idxrel, ShareLock);
 
-		LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
-		if (PageIsNew(page))
-		{
-			brin_initialize_empty_new_buffer(idxrel, buf);
-			LockBuffer(buf, BUFFER_LOCK_UNLOCK);
-			return;
-		}
-		LockBuffer(buf, BUFFER_LOCK_UNLOCK);
-	}
+    LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
 
-	/* Nothing to be done for non-regular index pages */
-	if (BRIN_IS_META_PAGE(BufferGetPage(buf)) ||
-		BRIN_IS_REVMAP_PAGE(BufferGetPage(buf)))
-		return;
+    if (PageIsNew(page)) {
+      brin_initialize_empty_new_buffer(idxrel, buf);
+      LockBuffer(buf, BUFFER_LOCK_UNLOCK);
+      return;
+    }
 
-	/* Measure free space and record it */
-	RecordPageWithFreeSpace(idxrel, BufferGetBlockNumber(buf),
-							br_page_get_freespace(page));
+    LockBuffer(buf, BUFFER_LOCK_UNLOCK);
+  }
+
+  /* Nothing to be done for non-regular index pages */
+  if (BRIN_IS_META_PAGE(BufferGetPage(buf)) ||
+      BRIN_IS_REVMAP_PAGE(BufferGetPage(buf)))
+    return;
+
+  /* Measure free space and record it */
+  RecordPageWithFreeSpace(idxrel, BufferGetBlockNumber(buf),
+                          br_page_get_freespace(page));
 }
 
 /*
@@ -688,182 +683,174 @@ brin_page_cleanup(Relation idxrel, Buffer buf)
  */
 static Buffer
 brin_getinsertbuffer(Relation irel, Buffer oldbuf, Size itemsz,
-					 bool *extended)
+                     bool *extended)
 {
-	BlockNumber oldblk;
-	BlockNumber newblk;
-	Page		page;
-	Size		freespace;
+  BlockNumber oldblk;
+  BlockNumber newblk;
+  Page    page;
+  Size    freespace;
 
-	/* callers must have checked */
-	Assert(itemsz <= BrinMaxItemSize);
+  /* callers must have checked */
+  Assert(itemsz <= BrinMaxItemSize);
 
-	if (BufferIsValid(oldbuf))
-		oldblk = BufferGetBlockNumber(oldbuf);
-	else
-		oldblk = InvalidBlockNumber;
+  if (BufferIsValid(oldbuf))
+    oldblk = BufferGetBlockNumber(oldbuf);
+  else
+    oldblk = InvalidBlockNumber;
 
-	/* Choose initial target page, re-using existing target if known */
-	newblk = RelationGetTargetBlock(irel);
-	if (newblk == InvalidBlockNumber)
-		newblk = GetPageWithFreeSpace(irel, itemsz);
+  /* Choose initial target page, re-using existing target if known */
+  newblk = RelationGetTargetBlock(irel);
 
-	/*
-	 * Loop until we find a page with sufficient free space.  By the time we
-	 * return to caller out of this loop, both buffers are valid and locked;
-	 * if we have to restart here, neither page is locked and newblk isn't
-	 * pinned (if it's even valid).
-	 */
-	for (;;)
-	{
-		Buffer		buf;
-		bool		extensionLockHeld = false;
+  if (newblk == InvalidBlockNumber)
+    newblk = GetPageWithFreeSpace(irel, itemsz);
 
-		CHECK_FOR_INTERRUPTS();
+  /*
+   * Loop until we find a page with sufficient free space.  By the time we
+   * return to caller out of this loop, both buffers are valid and locked;
+   * if we have to restart here, neither page is locked and newblk isn't
+   * pinned (if it's even valid).
+   */
+  for (;;) {
+    Buffer    buf;
+    bool    extensionLockHeld = false;
 
-		*extended = false;
+    CHECK_FOR_INTERRUPTS();
 
-		if (newblk == InvalidBlockNumber)
-		{
-			/*
-			 * There's not enough free space in any existing index page,
-			 * according to the FSM: extend the relation to obtain a shiny new
-			 * page.
-			 *
-			 * XXX: It's likely possible to use RBM_ZERO_AND_LOCK here,
-			 * which'd avoid the need to hold the extension lock during buffer
-			 * reclaim.
-			 */
-			if (!RELATION_IS_LOCAL(irel))
-			{
-				LockRelationForExtension(irel, ExclusiveLock);
-				extensionLockHeld = true;
-			}
-			buf = ReadBuffer(irel, P_NEW);
-			newblk = BufferGetBlockNumber(buf);
-			*extended = true;
+    *extended = false;
 
-			BRIN_elog((DEBUG2, "brin_getinsertbuffer: extending to page %u",
-					   BufferGetBlockNumber(buf)));
-		}
-		else if (newblk == oldblk)
-		{
-			/*
-			 * There's an odd corner-case here where the FSM is out-of-date,
-			 * and gave us the old page.
-			 */
-			buf = oldbuf;
-		}
-		else
-		{
-			buf = ReadBuffer(irel, newblk);
-		}
+    if (newblk == InvalidBlockNumber) {
+      /*
+       * There's not enough free space in any existing index page,
+       * according to the FSM: extend the relation to obtain a shiny new
+       * page.
+       *
+       * XXX: It's likely possible to use RBM_ZERO_AND_LOCK here,
+       * which'd avoid the need to hold the extension lock during buffer
+       * reclaim.
+       */
+      if (!RELATION_IS_LOCAL(irel)) {
+        LockRelationForExtension(irel, ExclusiveLock);
+        extensionLockHeld = true;
+      }
 
-		/*
-		 * We lock the old buffer first, if it's earlier than the new one; but
-		 * then we need to check that it hasn't been turned into a revmap page
-		 * concurrently.  If we detect that that happened, give up and tell
-		 * caller to start over.
-		 */
-		if (BufferIsValid(oldbuf) && oldblk < newblk)
-		{
-			LockBuffer(oldbuf, BUFFER_LOCK_EXCLUSIVE);
-			if (!BRIN_IS_REGULAR_PAGE(BufferGetPage(oldbuf)))
-			{
-				LockBuffer(oldbuf, BUFFER_LOCK_UNLOCK);
+      buf = ReadBuffer(irel, P_NEW);
+      newblk = BufferGetBlockNumber(buf);
+      *extended = true;
 
-				/*
-				 * It is possible that the new page was obtained from
-				 * extending the relation.  In that case, we must be sure to
-				 * record it in the FSM before leaving, because otherwise the
-				 * space would be lost forever.  However, we cannot let an
-				 * uninitialized page get in the FSM, so we need to initialize
-				 * it first.
-				 */
-				if (*extended)
-					brin_initialize_empty_new_buffer(irel, buf);
+      BRIN_elog((DEBUG2, "brin_getinsertbuffer: extending to page %u",
+                 BufferGetBlockNumber(buf)));
+    } else if (newblk == oldblk) {
+      /*
+       * There's an odd corner-case here where the FSM is out-of-date,
+       * and gave us the old page.
+       */
+      buf = oldbuf;
+    } else {
+      buf = ReadBuffer(irel, newblk);
+    }
 
-				if (extensionLockHeld)
-					UnlockRelationForExtension(irel, ExclusiveLock);
+    /*
+     * We lock the old buffer first, if it's earlier than the new one; but
+     * then we need to check that it hasn't been turned into a revmap page
+     * concurrently.  If we detect that that happened, give up and tell
+     * caller to start over.
+     */
+    if (BufferIsValid(oldbuf) && oldblk < newblk) {
+      LockBuffer(oldbuf, BUFFER_LOCK_EXCLUSIVE);
 
-				ReleaseBuffer(buf);
+      if (!BRIN_IS_REGULAR_PAGE(BufferGetPage(oldbuf))) {
+        LockBuffer(oldbuf, BUFFER_LOCK_UNLOCK);
 
-				if (*extended)
-				{
-					FreeSpaceMapVacuumRange(irel, newblk, newblk + 1);
-					/* shouldn't matter, but don't confuse caller */
-					*extended = false;
-				}
+        /*
+         * It is possible that the new page was obtained from
+         * extending the relation.  In that case, we must be sure to
+         * record it in the FSM before leaving, because otherwise the
+         * space would be lost forever.  However, we cannot let an
+         * uninitialized page get in the FSM, so we need to initialize
+         * it first.
+         */
+        if (*extended)
+          brin_initialize_empty_new_buffer(irel, buf);
 
-				return InvalidBuffer;
-			}
-		}
+        if (extensionLockHeld)
+          UnlockRelationForExtension(irel, ExclusiveLock);
 
-		LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
+        ReleaseBuffer(buf);
 
-		if (extensionLockHeld)
-			UnlockRelationForExtension(irel, ExclusiveLock);
+        if (*extended) {
+          FreeSpaceMapVacuumRange(irel, newblk, newblk + 1);
+          /* shouldn't matter, but don't confuse caller */
+          *extended = false;
+        }
 
-		page = BufferGetPage(buf);
+        return InvalidBuffer;
+      }
+    }
 
-		/*
-		 * We have a new buffer to insert into.  Check that the new page has
-		 * enough free space, and return it if it does; otherwise start over.
-		 * (br_page_get_freespace also checks that the FSM didn't hand us a
-		 * page that has since been repurposed for the revmap.)
-		 */
-		freespace = *extended ?
-			BrinMaxItemSize : br_page_get_freespace(page);
-		if (freespace >= itemsz)
-		{
-			RelationSetTargetBlock(irel, newblk);
+    LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
 
-			/*
-			 * Lock the old buffer if not locked already.  Note that in this
-			 * case we know for sure it's a regular page: it's later than the
-			 * new page we just got, which is not a revmap page, and revmap
-			 * pages are always consecutive.
-			 */
-			if (BufferIsValid(oldbuf) && oldblk > newblk)
-			{
-				LockBuffer(oldbuf, BUFFER_LOCK_EXCLUSIVE);
-				Assert(BRIN_IS_REGULAR_PAGE(BufferGetPage(oldbuf)));
-			}
+    if (extensionLockHeld)
+      UnlockRelationForExtension(irel, ExclusiveLock);
 
-			return buf;
-		}
+    page = BufferGetPage(buf);
 
-		/* This page is no good. */
+    /*
+     * We have a new buffer to insert into.  Check that the new page has
+     * enough free space, and return it if it does; otherwise start over.
+     * (br_page_get_freespace also checks that the FSM didn't hand us a
+     * page that has since been repurposed for the revmap.)
+     */
+    freespace = *extended ?
+                BrinMaxItemSize : br_page_get_freespace(page);
 
-		/*
-		 * If an entirely new page does not contain enough free space for the
-		 * new item, then surely that item is oversized.  Complain loudly; but
-		 * first make sure we initialize the page and record it as free, for
-		 * next time.
-		 */
-		if (*extended)
-		{
-			brin_initialize_empty_new_buffer(irel, buf);
-			/* since this should not happen, skip FreeSpaceMapVacuum */
+    if (freespace >= itemsz) {
+      RelationSetTargetBlock(irel, newblk);
 
-			ereport(ERROR,
-					(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-					 errmsg("index row size %zu exceeds maximum %zu for index \"%s\"",
-							itemsz, freespace, RelationGetRelationName(irel))));
-			return InvalidBuffer;	/* keep compiler quiet */
-		}
+      /*
+       * Lock the old buffer if not locked already.  Note that in this
+       * case we know for sure it's a regular page: it's later than the
+       * new page we just got, which is not a revmap page, and revmap
+       * pages are always consecutive.
+       */
+      if (BufferIsValid(oldbuf) && oldblk > newblk) {
+        LockBuffer(oldbuf, BUFFER_LOCK_EXCLUSIVE);
+        Assert(BRIN_IS_REGULAR_PAGE(BufferGetPage(oldbuf)));
+      }
 
-		if (newblk != oldblk)
-			UnlockReleaseBuffer(buf);
-		if (BufferIsValid(oldbuf) && oldblk <= newblk)
-			LockBuffer(oldbuf, BUFFER_LOCK_UNLOCK);
+      return buf;
+    }
 
-		/*
-		 * Update the FSM with the new, presumably smaller, freespace value
-		 * for this page, then search for a new target page.
-		 */
-		newblk = RecordAndGetPageWithFreeSpace(irel, newblk, freespace, itemsz);
-	}
+    /* This page is no good. */
+
+    /*
+     * If an entirely new page does not contain enough free space for the
+     * new item, then surely that item is oversized.  Complain loudly; but
+     * first make sure we initialize the page and record it as free, for
+     * next time.
+     */
+    if (*extended) {
+      brin_initialize_empty_new_buffer(irel, buf);
+      /* since this should not happen, skip FreeSpaceMapVacuum */
+
+      ereport(ERROR,
+              (errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
+               errmsg("index row size %zu exceeds maximum %zu for index \"%s\"",
+                      itemsz, freespace, RelationGetRelationName(irel))));
+      return InvalidBuffer; /* keep compiler quiet */
+    }
+
+    if (newblk != oldblk)
+      UnlockReleaseBuffer(buf);
+
+    if (BufferIsValid(oldbuf) && oldblk <= newblk)
+      LockBuffer(oldbuf, BUFFER_LOCK_UNLOCK);
+
+    /*
+     * Update the FSM with the new, presumably smaller, freespace value
+     * for this page, then search for a new target page.
+     */
+    newblk = RecordAndGetPageWithFreeSpace(irel, newblk, freespace, itemsz);
+  }
 }
 
 /*
@@ -883,30 +870,30 @@ brin_getinsertbuffer(Relation irel, Buffer oldbuf, Size itemsz,
 static void
 brin_initialize_empty_new_buffer(Relation idxrel, Buffer buffer)
 {
-	Page		page;
+  Page    page;
 
-	BRIN_elog((DEBUG2,
-			   "brin_initialize_empty_new_buffer: initializing blank page %u",
-			   BufferGetBlockNumber(buffer)));
+  BRIN_elog((DEBUG2,
+             "brin_initialize_empty_new_buffer: initializing blank page %u",
+             BufferGetBlockNumber(buffer)));
 
-	START_CRIT_SECTION();
-	page = BufferGetPage(buffer);
-	brin_page_init(page, BRIN_PAGETYPE_REGULAR);
-	MarkBufferDirty(buffer);
+  START_CRIT_SECTION();
+  page = BufferGetPage(buffer);
+  brin_page_init(page, BRIN_PAGETYPE_REGULAR);
+  MarkBufferDirty(buffer);
 
-	/* XLOG stuff */
-	if (RelationNeedsWAL(idxrel))
-		log_newpage_buffer(buffer, true);
+  /* XLOG stuff */
+  if (RelationNeedsWAL(idxrel))
+    log_newpage_buffer(buffer, true);
 
-	END_CRIT_SECTION();
+  END_CRIT_SECTION();
 
-	/*
-	 * We update the FSM for this page, but this is not WAL-logged.  This is
-	 * acceptable because VACUUM will scan the index and update the FSM with
-	 * pages whose FSM records were forgotten in a crash.
-	 */
-	RecordPageWithFreeSpace(idxrel, BufferGetBlockNumber(buffer),
-							br_page_get_freespace(page));
+  /*
+   * We update the FSM for this page, but this is not WAL-logged.  This is
+   * acceptable because VACUUM will scan the index and update the FSM with
+   * pages whose FSM records were forgotten in a crash.
+   */
+  RecordPageWithFreeSpace(idxrel, BufferGetBlockNumber(buffer),
+                          br_page_get_freespace(page));
 }
 
 
@@ -919,9 +906,9 @@ brin_initialize_empty_new_buffer(Relation idxrel, Buffer buffer)
 static Size
 br_page_get_freespace(Page page)
 {
-	if (!BRIN_IS_REGULAR_PAGE(page) ||
-		(BrinPageFlags(page) & BRIN_EVACUATE_PAGE) != 0)
-		return 0;
-	else
-		return PageGetFreeSpace(page);
+  if (!BRIN_IS_REGULAR_PAGE(page) ||
+      (BrinPageFlags(page) & BRIN_EVACUATE_PAGE) != 0)
+    return 0;
+  else
+    return PageGetFreeSpace(page);
 }

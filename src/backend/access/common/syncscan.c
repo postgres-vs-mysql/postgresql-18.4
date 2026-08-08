@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * syncscan.c
- *	  scan synchronization support
+ *    scan synchronization support
  *
  * When multiple backends run a sequential scan on the same table, we try
  * to keep them synchronized to reduce the overall I/O needed.  The goal is
@@ -32,15 +32,15 @@
  * a threshold size (but that is not the concern of this module).
  *
  * INTERFACE ROUTINES
- *		ss_get_location		- return current scan location of a relation
- *		ss_report_location	- update current scan location
+ *    ss_get_location   - return current scan location of a relation
+ *    ss_report_location  - update current scan location
  *
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
  * IDENTIFICATION
- *	  src/backend/access/common/syncscan.c
+ *    src/backend/access/common/syncscan.c
  *
  *-------------------------------------------------------------------------
  */
@@ -55,7 +55,7 @@
 
 /* GUC variables */
 #ifdef TRACE_SYNCSCAN
-bool		trace_syncscan = false;
+bool    trace_syncscan = false;
 #endif
 
 
@@ -88,35 +88,32 @@ bool		trace_syncscan = false;
  * and tail pointer, but designed to hold a fixed maximum number of elements in
  * fixed-size shared memory.
  */
-typedef struct ss_scan_location_t
-{
-	RelFileLocator relfilelocator;	/* identity of a relation */
-	BlockNumber location;		/* last-reported location in the relation */
+typedef struct ss_scan_location_t {
+  RelFileLocator relfilelocator;  /* identity of a relation */
+  BlockNumber location;   /* last-reported location in the relation */
 } ss_scan_location_t;
 
-typedef struct ss_lru_item_t
-{
-	struct ss_lru_item_t *prev;
-	struct ss_lru_item_t *next;
-	ss_scan_location_t location;
+typedef struct ss_lru_item_t {
+  struct ss_lru_item_t *prev;
+  struct ss_lru_item_t *next;
+  ss_scan_location_t location;
 } ss_lru_item_t;
 
-typedef struct ss_scan_locations_t
-{
-	ss_lru_item_t *head;
-	ss_lru_item_t *tail;
-	ss_lru_item_t items[FLEXIBLE_ARRAY_MEMBER]; /* SYNC_SCAN_NELEM items */
+typedef struct ss_scan_locations_t {
+  ss_lru_item_t *head;
+  ss_lru_item_t *tail;
+  ss_lru_item_t items[FLEXIBLE_ARRAY_MEMBER]; /* SYNC_SCAN_NELEM items */
 } ss_scan_locations_t;
 
 #define SizeOfScanLocations(N) \
-	(offsetof(ss_scan_locations_t, items) + (N) * sizeof(ss_lru_item_t))
+  (offsetof(ss_scan_locations_t, items) + (N) * sizeof(ss_lru_item_t))
 
 /* Pointer to struct in shared memory */
 static ss_scan_locations_t *scan_locations;
 
 /* prototypes for internal functions */
 static BlockNumber ss_search(RelFileLocator relfilelocator,
-							 BlockNumber location, bool set);
+                             BlockNumber location, bool set);
 
 
 /*
@@ -125,7 +122,7 @@ static BlockNumber ss_search(RelFileLocator relfilelocator,
 Size
 SyncScanShmemSize(void)
 {
-	return SizeOfScanLocations(SYNC_SCAN_NELEM);
+  return SizeOfScanLocations(SYNC_SCAN_NELEM);
 }
 
 /*
@@ -134,49 +131,46 @@ SyncScanShmemSize(void)
 void
 SyncScanShmemInit(void)
 {
-	int			i;
-	bool		found;
+  int     i;
+  bool    found;
 
-	scan_locations = (ss_scan_locations_t *)
-		ShmemInitStruct("Sync Scan Locations List",
-						SizeOfScanLocations(SYNC_SCAN_NELEM),
-						&found);
+  scan_locations = (ss_scan_locations_t *)
+                   ShmemInitStruct("Sync Scan Locations List",
+                                   SizeOfScanLocations(SYNC_SCAN_NELEM),
+                                   &found);
 
-	if (!IsUnderPostmaster)
-	{
-		/* Initialize shared memory area */
-		Assert(!found);
+  if (!IsUnderPostmaster) {
+    /* Initialize shared memory area */
+    Assert(!found);
 
-		scan_locations->head = &scan_locations->items[0];
-		scan_locations->tail = &scan_locations->items[SYNC_SCAN_NELEM - 1];
+    scan_locations->head = &scan_locations->items[0];
+    scan_locations->tail = &scan_locations->items[SYNC_SCAN_NELEM - 1];
 
-		for (i = 0; i < SYNC_SCAN_NELEM; i++)
-		{
-			ss_lru_item_t *item = &scan_locations->items[i];
+    for (i = 0; i < SYNC_SCAN_NELEM; i++) {
+      ss_lru_item_t *item = &scan_locations->items[i];
 
-			/*
-			 * Initialize all slots with invalid values. As scans are started,
-			 * these invalid entries will fall off the LRU list and get
-			 * replaced with real entries.
-			 */
-			item->location.relfilelocator.spcOid = InvalidOid;
-			item->location.relfilelocator.dbOid = InvalidOid;
-			item->location.relfilelocator.relNumber = InvalidRelFileNumber;
-			item->location.location = InvalidBlockNumber;
+      /*
+       * Initialize all slots with invalid values. As scans are started,
+       * these invalid entries will fall off the LRU list and get
+       * replaced with real entries.
+       */
+      item->location.relfilelocator.spcOid = InvalidOid;
+      item->location.relfilelocator.dbOid = InvalidOid;
+      item->location.relfilelocator.relNumber = InvalidRelFileNumber;
+      item->location.location = InvalidBlockNumber;
 
-			item->prev = (i > 0) ?
-				(&scan_locations->items[i - 1]) : NULL;
-			item->next = (i < SYNC_SCAN_NELEM - 1) ?
-				(&scan_locations->items[i + 1]) : NULL;
-		}
-	}
-	else
-		Assert(found);
+      item->prev = (i > 0) ?
+                   (&scan_locations->items[i - 1]) : NULL;
+      item->next = (i < SYNC_SCAN_NELEM - 1) ?
+                   (&scan_locations->items[i + 1]) : NULL;
+    }
+  } else
+    Assert(found);
 }
 
 /*
  * ss_search --- search the scan_locations structure for an entry with the
- *		given relfilelocator.
+ *    given relfilelocator.
  *
  * If "set" is true, the location is updated to the given location.  If no
  * entry for the given relfilelocator is found, it will be created at the head
@@ -190,54 +184,52 @@ SyncScanShmemInit(void)
 static BlockNumber
 ss_search(RelFileLocator relfilelocator, BlockNumber location, bool set)
 {
-	ss_lru_item_t *item;
+  ss_lru_item_t *item;
 
-	item = scan_locations->head;
-	for (;;)
-	{
-		bool		match;
+  item = scan_locations->head;
 
-		match = RelFileLocatorEquals(item->location.relfilelocator,
-									 relfilelocator);
+  for (;;) {
+    bool    match;
 
-		if (match || item->next == NULL)
-		{
-			/*
-			 * If we reached the end of list and no match was found, take over
-			 * the last entry
-			 */
-			if (!match)
-			{
-				item->location.relfilelocator = relfilelocator;
-				item->location.location = location;
-			}
-			else if (set)
-				item->location.location = location;
+    match = RelFileLocatorEquals(item->location.relfilelocator,
+                                 relfilelocator);
 
-			/* Move the entry to the front of the LRU list */
-			if (item != scan_locations->head)
-			{
-				/* unlink */
-				if (item == scan_locations->tail)
-					scan_locations->tail = item->prev;
-				item->prev->next = item->next;
-				if (item->next)
-					item->next->prev = item->prev;
+    if (match || item->next == NULL) {
+      /*
+       * If we reached the end of list and no match was found, take over
+       * the last entry
+       */
+      if (!match) {
+        item->location.relfilelocator = relfilelocator;
+        item->location.location = location;
+      } else if (set)
+        item->location.location = location;
 
-				/* link */
-				item->prev = NULL;
-				item->next = scan_locations->head;
-				scan_locations->head->prev = item;
-				scan_locations->head = item;
-			}
+      /* Move the entry to the front of the LRU list */
+      if (item != scan_locations->head) {
+        /* unlink */
+        if (item == scan_locations->tail)
+          scan_locations->tail = item->prev;
 
-			return item->location.location;
-		}
+        item->prev->next = item->next;
 
-		item = item->next;
-	}
+        if (item->next)
+          item->next->prev = item->prev;
 
-	/* not reached */
+        /* link */
+        item->prev = NULL;
+        item->next = scan_locations->head;
+        scan_locations->head->prev = item;
+        scan_locations->head = item;
+      }
+
+      return item->location.location;
+    }
+
+    item = item->next;
+  }
+
+  /* not reached */
 }
 
 /*
@@ -253,29 +245,31 @@ ss_search(RelFileLocator relfilelocator, BlockNumber location, bool set)
 BlockNumber
 ss_get_location(Relation rel, BlockNumber relnblocks)
 {
-	BlockNumber startloc;
+  BlockNumber startloc;
 
-	LWLockAcquire(SyncScanLock, LW_EXCLUSIVE);
-	startloc = ss_search(rel->rd_locator, 0, false);
-	LWLockRelease(SyncScanLock);
+  LWLockAcquire(SyncScanLock, LW_EXCLUSIVE);
+  startloc = ss_search(rel->rd_locator, 0, false);
+  LWLockRelease(SyncScanLock);
 
-	/*
-	 * If the location is not a valid block number for this scan, start at 0.
-	 *
-	 * This can happen if for instance a VACUUM truncated the table since the
-	 * location was saved.
-	 */
-	if (startloc >= relnblocks)
-		startloc = 0;
+  /*
+   * If the location is not a valid block number for this scan, start at 0.
+   *
+   * This can happen if for instance a VACUUM truncated the table since the
+   * location was saved.
+   */
+  if (startloc >= relnblocks)
+    startloc = 0;
 
 #ifdef TRACE_SYNCSCAN
-	if (trace_syncscan)
-		elog(LOG,
-			 "SYNC_SCAN: start \"%s\" (size %u) at %u",
-			 RelationGetRelationName(rel), relnblocks, startloc);
+
+  if (trace_syncscan)
+    elog(LOG,
+         "SYNC_SCAN: start \"%s\" (size %u) at %u",
+         RelationGetRelationName(rel), relnblocks, startloc);
+
 #endif
 
-	return startloc;
+  return startloc;
 }
 
 /*
@@ -289,35 +283,36 @@ void
 ss_report_location(Relation rel, BlockNumber location)
 {
 #ifdef TRACE_SYNCSCAN
-	if (trace_syncscan)
-	{
-		if ((location % 1024) == 0)
-			elog(LOG,
-				 "SYNC_SCAN: scanning \"%s\" at %u",
-				 RelationGetRelationName(rel), location);
-	}
+
+  if (trace_syncscan) {
+    if ((location % 1024) == 0)
+      elog(LOG,
+           "SYNC_SCAN: scanning \"%s\" at %u",
+           RelationGetRelationName(rel), location);
+  }
+
 #endif
 
-	/*
-	 * To reduce lock contention, only report scan progress every N pages. For
-	 * the same reason, don't block if the lock isn't immediately available.
-	 * Missing a few updates isn't critical, it just means that a new scan
-	 * that wants to join the pack will start a little bit behind the head of
-	 * the scan.  Hopefully the pages are still in OS cache and the scan
-	 * catches up quickly.
-	 */
-	if ((location % SYNC_SCAN_REPORT_INTERVAL) == 0)
-	{
-		if (LWLockConditionalAcquire(SyncScanLock, LW_EXCLUSIVE))
-		{
-			(void) ss_search(rel->rd_locator, location, true);
-			LWLockRelease(SyncScanLock);
-		}
+  /*
+   * To reduce lock contention, only report scan progress every N pages. For
+   * the same reason, don't block if the lock isn't immediately available.
+   * Missing a few updates isn't critical, it just means that a new scan
+   * that wants to join the pack will start a little bit behind the head of
+   * the scan.  Hopefully the pages are still in OS cache and the scan
+   * catches up quickly.
+   */
+  if ((location % SYNC_SCAN_REPORT_INTERVAL) == 0) {
+    if (LWLockConditionalAcquire(SyncScanLock, LW_EXCLUSIVE)) {
+      (void) ss_search(rel->rd_locator, location, true);
+      LWLockRelease(SyncScanLock);
+    }
+
 #ifdef TRACE_SYNCSCAN
-		else if (trace_syncscan)
-			elog(LOG,
-				 "SYNC_SCAN: missed update for \"%s\" at %u",
-				 RelationGetRelationName(rel), location);
+    else if (trace_syncscan)
+      elog(LOG,
+           "SYNC_SCAN: missed update for \"%s\" at %u",
+           RelationGetRelationName(rel), location);
+
 #endif
-	}
+  }
 }

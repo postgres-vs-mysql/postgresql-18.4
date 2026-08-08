@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * archive.h
- *	  Common WAL archive routines
+ *    Common WAL archive routines
  *
  * Portions Copyright (c) 1996-2025, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
@@ -14,8 +14,8 @@
 #define ARCHIVE_H
 
 extern char *BuildRestoreCommand(const char *restoreCommand,
-								 const char *xlogpath,	/* %p */
-								 const char *xlogfname, /* %f */
-								 const char *lastRestartPointFname);	/* %r */
+                                 const char *xlogpath,  /* %p */
+                                 const char *xlogfname, /* %f */
+                                 const char *lastRestartPointFname);  /* %r */
 
-#endif							/* ARCHIVE_H */
+#endif              /* ARCHIVE_H */
