@@ -162,6 +162,7 @@ static inline void trace_info(unsigned int pid, int depth, const char *func, int
 
 #define DBUG_PRINT(keyword, msg, ...) \
   do { \
+    __attribute__((unused)) ssize_t _ign; \
     TraceContext *trace_ctx = get_trace_ctx(); \
     int trace_written = 0; \
     if (trace_disabled) break;  \
@@ -183,7 +184,7 @@ static inline void trace_info(unsigned int pid, int depth, const char *func, int
     } \
     if (trace_buffer_pos > MAX_DBUG_BUF_LEN || trace_process_slow_mode) { \
       trace_lock(); \
-      (void) write(trace_fp, trace_buffer, trace_buffer_pos); \
+      _ign = write(trace_fp, trace_buffer, trace_buffer_pos); \
       trace_unlock(); \
       trace_buffer_pos = 0; \
     } \
@@ -192,6 +193,7 @@ static inline void trace_info(unsigned int pid, int depth, const char *func, int
 #define DBUG_INSTANT_PRINT(keyword, msg, ...) \
   do { \
     TraceContext *trace_ctx = get_trace_ctx(); \
+    __attribute__((unused)) ssize_t _ign; \
     int trace_written = 0; \
     if (trace_disabled) break;  \
     if (trace_ctx->top >= MAX_STACK_DEPTH || trace_ctx->top < 0) { \
@@ -211,7 +213,7 @@ static inline void trace_info(unsigned int pid, int depth, const char *func, int
        trace_buffer_pos += trace_written; \
     } \
     trace_lock(); \
-    (void) write(trace_fp, trace_buffer, trace_buffer_pos); \
+    _ign = write(trace_fp, trace_buffer, trace_buffer_pos); \
     trace_unlock(); \
     trace_buffer_pos = 0; \
   } while (0)
@@ -223,6 +225,7 @@ typedef struct {
 } dbug_trace_t;
 
 static inline dbug_trace_t dbug_special_trace_enter(const char *func) {
+  __attribute__((unused)) ssize_t _ign;
   TraceContext *ctx = get_trace_ctx();
   if (trace_disabled) return (dbug_trace_t){func, -1};
   if (ctx->top > MAX_STACK_DEPTH || ctx->top < 0) {
@@ -236,7 +239,7 @@ static inline dbug_trace_t dbug_special_trace_enter(const char *func) {
   if (trace_buffer_pos > MAX_DBUG_BUF_LEN) {
     trace_buffer[trace_buffer_pos] = '\0';
     trace_lock();
-    (void) write(trace_fp, trace_buffer, trace_buffer_pos); 
+    _ign = write(trace_fp, trace_buffer, trace_buffer_pos);
     trace_unlock();
     trace_buffer_pos = 0;
   }
@@ -245,6 +248,7 @@ static inline dbug_trace_t dbug_special_trace_enter(const char *func) {
 }
 
 static inline dbug_trace_t dbug_trace_enter(const char *func) {
+  __attribute__((unused)) ssize_t _ign;
   TraceContext *ctx = get_trace_ctx();
   if (trace_disabled) return (dbug_trace_t){func, -1};
 
@@ -256,7 +260,7 @@ static inline dbug_trace_t dbug_trace_enter(const char *func) {
   if (trace_buffer_pos > MAX_DBUG_BUF_LEN) {
     trace_buffer[trace_buffer_pos] = '\0';
     trace_lock();
-    (void) write(trace_fp, trace_buffer, trace_buffer_pos); 
+    _ign = write(trace_fp, trace_buffer, trace_buffer_pos);
     trace_unlock();
     trace_buffer_pos = 0;
   }
@@ -265,6 +269,7 @@ static inline dbug_trace_t dbug_trace_enter(const char *func) {
 }
 
 static inline void dbug_trace_exit(dbug_trace_t *t) {
+  __attribute__((unused)) ssize_t _ign;
   TraceContext *ctx = get_trace_ctx();
   if (trace_disabled)  return;
   if (ctx->top > MAX_STACK_DEPTH || ctx->top < 0) {
@@ -278,14 +283,14 @@ static inline void dbug_trace_exit(dbug_trace_t *t) {
     if (trace_buffer_pos > MAX_DBUG_BUF_LEN) {
       trace_buffer[trace_buffer_pos] = '\0';
       trace_lock();
-      (void) write(trace_fp, trace_buffer, trace_buffer_pos); 
+      _ign = write(trace_fp, trace_buffer, trace_buffer_pos);
       trace_unlock();
       trace_buffer_pos = 0;
     }
   } else {
     const char *error = "stack error\n";
     trace_lock();
-    (void) write(trace_fp, error, strlen(error)); 
+    _ign = write(trace_fp, error, strlen(error));
     trace_unlock();
   }
 }

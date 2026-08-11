@@ -2697,9 +2697,10 @@ ReleaseLockIfHeld(LOCALLOCK *locallock, bool sessionLock)
 
         if (!LockRelease(&locallock->tag.lock,
                          locallock->tag.mode,
-                         sessionLock))
+                         sessionLock)) {
           DBUG_INSTANT_PRINT("info", "ReleaseLockIfHeld: failed??");
           elog(WARNING, "ReleaseLockIfHeld: failed??");
+        }
       }
 
       break;
