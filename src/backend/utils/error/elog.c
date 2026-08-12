@@ -403,7 +403,6 @@ errstart(int elevel, const char *domain)
   output_to_client = should_output_to_client(elevel);
 
   if (elevel < ERROR && !output_to_server && !output_to_client) {
-    DBUG_PRINT("info", "if it's warning or less and not enabled for logging, just return false without starting up any error logging machinery");
     return false;
   }
 
