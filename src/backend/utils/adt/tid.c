@@ -189,8 +189,15 @@ tideq(PG_FUNCTION_ARGS)
   DBUG_TRACE;
   ItemPointer arg1 = PG_GETARG_ITEMPOINTER(0);
   ItemPointer arg2 = PG_GETARG_ITEMPOINTER(1);
+  bool result;
 
-  PG_RETURN_BOOL(ItemPointerCompare(arg1, arg2) == 0);
+  result = (ItemPointerCompare(arg1, arg2) == 0);
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+  PG_RETURN_BOOL(result);
 }
 
 Datum
@@ -200,7 +207,14 @@ tidne(PG_FUNCTION_ARGS)
   ItemPointer arg1 = PG_GETARG_ITEMPOINTER(0);
   ItemPointer arg2 = PG_GETARG_ITEMPOINTER(1);
 
-  PG_RETURN_BOOL(ItemPointerCompare(arg1, arg2) != 0);
+  bool result = (ItemPointerCompare(arg1, arg2) != 0);
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
@@ -210,7 +224,14 @@ tidlt(PG_FUNCTION_ARGS)
   ItemPointer arg1 = PG_GETARG_ITEMPOINTER(0);
   ItemPointer arg2 = PG_GETARG_ITEMPOINTER(1);
 
-  PG_RETURN_BOOL(ItemPointerCompare(arg1, arg2) < 0);
+  bool result = (ItemPointerCompare(arg1, arg2) < 0);
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+
+  PG_RETURN_BOOL(result);
 }
 
 Datum
@@ -220,7 +241,13 @@ tidle(PG_FUNCTION_ARGS)
   ItemPointer arg1 = PG_GETARG_ITEMPOINTER(0);
   ItemPointer arg2 = PG_GETARG_ITEMPOINTER(1);
 
-  PG_RETURN_BOOL(ItemPointerCompare(arg1, arg2) <= 0);
+  bool result = (ItemPointerCompare(arg1, arg2) <= 0);
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+  PG_RETURN_BOOL(result);
 }
 
 Datum
@@ -230,7 +257,14 @@ tidgt(PG_FUNCTION_ARGS)
   ItemPointer arg1 = PG_GETARG_ITEMPOINTER(0);
   ItemPointer arg2 = PG_GETARG_ITEMPOINTER(1);
 
-  PG_RETURN_BOOL(ItemPointerCompare(arg1, arg2) > 0);
+  bool result = (ItemPointerCompare(arg1, arg2) > 0);
+
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+  PG_RETURN_BOOL(result);
 }
 
 Datum
@@ -240,7 +274,13 @@ tidge(PG_FUNCTION_ARGS)
   ItemPointer arg1 = PG_GETARG_ITEMPOINTER(0);
   ItemPointer arg2 = PG_GETARG_ITEMPOINTER(1);
 
-  PG_RETURN_BOOL(ItemPointerCompare(arg1, arg2) >= 0);
+  bool result = (ItemPointerCompare(arg1, arg2) >= 0);
+  if (result) {
+    DBUG_PRINT("info", "result: true");
+  } else {
+    DBUG_PRINT("info", "result: false");
+  }
+  PG_RETURN_BOOL(result);
 }
 
 Datum
@@ -249,8 +289,13 @@ bttidcmp(PG_FUNCTION_ARGS)
   DBUG_TRACE;
   ItemPointer arg1 = PG_GETARG_ITEMPOINTER(0);
   ItemPointer arg2 = PG_GETARG_ITEMPOINTER(1);
+  int32 result;
 
-  PG_RETURN_INT32(ItemPointerCompare(arg1, arg2));
+  result = (ItemPointerCompare(arg1, arg2));
+
+  DBUG_PRINT("info", "result:%d", result);
+
+  PG_RETURN_INT32(result);
 }
 
 Datum
@@ -260,7 +305,15 @@ tidlarger(PG_FUNCTION_ARGS)
   ItemPointer arg1 = PG_GETARG_ITEMPOINTER(0);
   ItemPointer arg2 = PG_GETARG_ITEMPOINTER(1);
 
-  PG_RETURN_ITEMPOINTER(ItemPointerCompare(arg1, arg2) >= 0 ? arg1 : arg2);
+  bool result = ItemPointerCompare(arg1, arg2) >= 0;
+
+  if (result) {
+    DBUG_PRINT("info", "return arg1");
+  } else {
+    DBUG_PRINT("info", "return arg2");
+  }
+
+  PG_RETURN_ITEMPOINTER(result ? arg1 : arg2);
 }
 
 Datum
@@ -270,7 +323,14 @@ tidsmaller(PG_FUNCTION_ARGS)
   ItemPointer arg1 = PG_GETARG_ITEMPOINTER(0);
   ItemPointer arg2 = PG_GETARG_ITEMPOINTER(1);
 
-  PG_RETURN_ITEMPOINTER(ItemPointerCompare(arg1, arg2) <= 0 ? arg1 : arg2);
+  bool result = ItemPointerCompare(arg1, arg2) <= 0;
+
+  if (result) {
+    DBUG_PRINT("info", "return arg1");
+  } else {
+    DBUG_PRINT("info", "return arg2");
+  }
+  PG_RETURN_ITEMPOINTER(result ? arg1 : arg2);
 }
 
 Datum
@@ -455,6 +515,7 @@ currtid_byrelname(PG_FUNCTION_ARGS)
   rel = table_openrv(relrv, AccessShareLock);
 
   /* grab the latest tuple version associated to this CTID */
+  DBUG_PRINT("info", "grab the latest tuple version associated to this CTID");
   result = currtid_internal(rel, tid);
 
   table_close(rel, AccessShareLock);

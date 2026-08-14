@@ -204,6 +204,13 @@ checkcondition_gin(void *checkval, QueryOperand *val, ExecPhraseData *data)
       result = GIN_MAYBE;
   }
 
+  if (result == GIN_MAYBE) {
+    DBUG_PRINT("info", "result: GIN_MAYBE");
+  } else if (result == GIN_TRUE) {
+    DBUG_PRINT("info", "result: GIN_TRUE");
+  } else {
+    DBUG_PRINT("info", "result: GIN_FALSE");
+  }
   /*
    * We rely on GinTernaryValue and TSTernaryValue using equivalent value
    * assignments.  We could use a switch statement to map the values if that

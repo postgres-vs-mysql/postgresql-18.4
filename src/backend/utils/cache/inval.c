@@ -898,6 +898,7 @@ InvalidateSystemCaches(void)
 void
 AcceptInvalidationMessages(void)
 {
+  DBUG_TRACE;
 #ifdef USE_ASSERT_CHECKING
 
   /* message handlers shall access catalogs only during transactions */

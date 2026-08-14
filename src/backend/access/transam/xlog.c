@@ -6576,6 +6576,7 @@ PerformRecoveryXLogAction(void)
 bool
 RecoveryInProgress(void)
 {
+  DBUG_TRACE;
   /*
    * We check shared state each time only until we leave recovery mode. We
    * can't re-enter recovery, so there's no need to keep checking after the
