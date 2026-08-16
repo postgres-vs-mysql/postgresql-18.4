@@ -4716,7 +4716,7 @@ PostgresMain(const char *dbname, const char *username)
       }
 
     }
-    DBUG_PRINT("info", "at top of loop, reset extended-query-message flag (count:%d)", count);
+    DBUG_PRINT("info", "at top of loop, reset extended-query-message flag (count:%lu)", count);
     /*
      * At top of loop, reset extended-query-message flag, so that any
      * errors encountered in "idle" state don't provoke skip.
@@ -4952,7 +4952,9 @@ PostgresMain(const char *dbname, const char *username)
         if (am_walsender) {
           if (!exec_replication_command(query_string)) {
             if (enable_session_trace || enable_global_trace) {
-              set_trace_enabled();
+              if (!tmp_trace_disabled) {
+                set_trace_enabled();
+              }
             } else {
               set_trace_disabled();
             }
@@ -4961,7 +4963,9 @@ PostgresMain(const char *dbname, const char *username)
           }
         } else {
           if (enable_session_trace || enable_global_trace) {
-            set_trace_enabled();
+            if (!tmp_trace_disabled) {
+              set_trace_enabled();
+            }
           } else {
             set_trace_disabled();
           }
