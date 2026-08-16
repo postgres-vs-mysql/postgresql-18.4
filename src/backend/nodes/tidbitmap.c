@@ -934,8 +934,6 @@ tbm_extract_page_tuple(TBMIterateResult *iteritem,
   int     wordnum;
   int     ntuples = 0;
 
-  DBUG_PRINT("info", "extract the tuple offsets from a page");
-
   for (wordnum = 0; wordnum < WORDS_PER_PAGE; wordnum++) {
     bitmapword  w = page->words[wordnum];
 
@@ -956,6 +954,7 @@ tbm_extract_page_tuple(TBMIterateResult *iteritem,
     }
   }
 
+  DBUG_PRINT("info", "extract the tuple offsets(%d) from a page", ntuples);
   return ntuples;
 }
 

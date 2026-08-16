@@ -4348,8 +4348,11 @@ PostgresMain(const char *dbname, const char *username)
   DBUG_TRACE;
   sigjmp_buf  local_sigjmp_buf;
   size_t count = 0;
+  size_t total_processed = 0;
+  size_t total_last_processed = 0;
   bool tmp_trace_disabled = false;
-  time_t tmp_last_sec = 0;
+  time_t last_disable_trace_sec = 0;
+  time_t last_check_sec = 0;
 
   /* these must be volatile to ensure state is preserved across longjmp: */
   volatile bool send_ready_for_query = true;
@@ -4697,13 +4700,29 @@ PostgresMain(const char *dbname, const char *username)
           gettimeofday(&tv, NULL);
           tmp_trace_disabled = true;
           set_trace_disabled();
-          tmp_last_sec = tv.tv_sec;
+          last_disable_trace_sec = tv.tv_sec;
+          total_last_processed = total_processed;
         }
       }
     }
 
-    DBUG_PRINT("info", "at top of loop, reset extended-query-message flag");
-    count++;
+    {
+      struct timeval tv;
+      gettimeofday(&tv, NULL);
+      if (last_check_sec == tv.tv_sec) {
+        count++;
+      } else {
+        if (tmp_trace_disabled) {
+          count++;
+        } else {
+          count = 1;
+        }
+      }
+      last_check_sec = tv.tv_sec;
+
+    }
+    total_processed++;
+    DBUG_PRINT("info", "at top of loop, reset extended-query-message flag (count:%lu, total_processed:%lu)", count, total_processed);
     /*
      * At top of loop, reset extended-query-message flag, so that any
      * errors encountered in "idle" state don't provoke skip.
@@ -4939,7 +4958,9 @@ PostgresMain(const char *dbname, const char *username)
         if (am_walsender) {
           if (!exec_replication_command(query_string)) {
             if (enable_session_trace || enable_global_trace) {
-              set_trace_enabled();
+              if (!tmp_trace_disabled) {
+                set_trace_enabled();
+              }
             } else {
               set_trace_disabled();
             }
@@ -4948,7 +4969,9 @@ PostgresMain(const char *dbname, const char *username)
           }
         } else {
           if (enable_session_trace || enable_global_trace) {
-            set_trace_enabled();
+            if (!tmp_trace_disabled) {
+              set_trace_enabled();
+            }
           } else {
             set_trace_disabled();
           }
@@ -5187,6 +5210,14 @@ PostgresMain(const char *dbname, const char *username)
         if (whereToSendOutput == DestRemote)
           whereToSendOutput = DestNone;
 
+        DBUG_PRINT("info", "command: PqMsg_Terminate");
+
+        if (tmp_trace_disabled) {
+          set_trace_enabled();
+          DBUG_PRINT("info", "...");
+          DBUG_PRINT("info", "in PostgresMain, similar things have been processed %lu times",  total_processed - total_last_processed);
+        }
+        DBUG_INSTANT_PRINT("info", "total_processed:%lu", total_processed);
         /*
          * NOTE: if you are tempted to add more code here, DON'T!
          * Whatever you had in mind to do should be set up as an
@@ -5218,16 +5249,21 @@ PostgresMain(const char *dbname, const char *username)
       struct timeval tv;
       gettimeofday(&tv, NULL);
 
-      if (tv.tv_sec > tmp_last_sec) {
+      if (tv.tv_sec > last_disable_trace_sec) {
         set_trace_enabled();
         tmp_trace_disabled = false;
         DBUG_PRINT("info", "...");
-        DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+        DBUG_PRINT("info", "in PostgresMain, similar things have been processed %lu times",  total_processed - total_last_processed);
         count = 0;
-        tmp_last_sec = tv.tv_sec;
+        last_check_sec = tv.tv_sec;
       }
     }
   }             /* end of input-reading loop */
+
+  if (tmp_trace_disabled) {
+    set_trace_enabled();
+  }
+  DBUG_INSTANT_PRINT("info", "total_processed:%lu", total_processed);
 }
 
 /*
