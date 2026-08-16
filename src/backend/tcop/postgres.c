@@ -5210,14 +5210,13 @@ PostgresMain(const char *dbname, const char *username)
         if (whereToSendOutput == DestRemote)
           whereToSendOutput = DestNone;
 
-        DBUG_PRINT("info", "command: PqMsg_Terminate");
 
         if (tmp_trace_disabled) {
           set_trace_enabled();
           DBUG_PRINT("info", "...");
           DBUG_PRINT("info", "in PostgresMain, similar things have been processed %lu times",  total_processed - total_last_processed);
         }
-        DBUG_INSTANT_PRINT("info", "total_processed:%lu", total_processed);
+        DBUG_PRINT("info", "total_processed:%lu", total_processed);
         /*
          * NOTE: if you are tempted to add more code here, DON'T!
          * Whatever you had in mind to do should be set up as an
@@ -5225,6 +5224,7 @@ PostgresMain(const char *dbname, const char *username)
          * it will fail to be called during other backend-shutdown
          * scenarios.
          */
+        DBUG_INSTANT_PRINT("info", "process exited due to PqMsg_Terminate command");
         proc_exit(0);
 
       case PqMsg_CopyData:
