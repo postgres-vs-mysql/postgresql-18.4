@@ -4702,8 +4702,21 @@ PostgresMain(const char *dbname, const char *username)
       }
     }
 
-    DBUG_PRINT("info", "at top of loop, reset extended-query-message flag");
-    count++;
+    {
+      struct timeval tv;
+      gettimeofday(&tv, NULL);
+      if (tmp_last_sec == tv.tv_sec) {
+        count++;
+      } else {
+        if (tmp_trace_disabled) {
+          count++;
+        } else {
+          count = 1;
+        }
+      }
+
+    }
+    DBUG_PRINT("info", "at top of loop, reset extended-query-message flag (count:%d)", count);
     /*
      * At top of loop, reset extended-query-message flag, so that any
      * errors encountered in "idle" state don't provoke skip.
@@ -5221,8 +5234,10 @@ PostgresMain(const char *dbname, const char *username)
       if (tv.tv_sec > tmp_last_sec) {
         set_trace_enabled();
         tmp_trace_disabled = false;
-        DBUG_PRINT("info", "...");
-        DBUG_PRINT("info", "similar things have been processed %lu times", count - min_trace_iterations);
+        if (count > min_trace_iterations) {
+          DBUG_PRINT("info", "...");
+          DBUG_PRINT("info", "in PostgresMain, similar things have been processed %lu times", count - min_trace_iterations);
+        }
         count = 0;
         tmp_last_sec = tv.tv_sec;
       }
