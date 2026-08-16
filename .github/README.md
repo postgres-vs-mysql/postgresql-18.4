@@ -69,7 +69,7 @@ Then, when you're ready to analyze a query, enable tracing for the current sessi
 SET enable_session_trace = on;
 ```
 
-> **Note:** Session-level tracing applies only to the current session. If you connect to another database (for example, by running `\c new_database` in `psql`), you'll need to enable it again.
+> **Note:** If you connect to another database (for example, by running `\c new_database` in `psql`), or execute `ROLLBACK`, you'll need to enable it again.
 
 
 ### 7. Coverage is broad but not complete
