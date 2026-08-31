@@ -1,0 +1,138 @@
+statement ok
+SET enable_seqscan TO off;
+
+statement ok
+CREATE TABLE t (index serial primary key, val vector(64));
+
+statement ok
+INSERT INTO t (val)
+SELECT
+    l2_normalize(ARRAY(
+        SELECT
+            ('x' || substring(md5((64 * i + j)::text), 1, 16))::bit(64)::bigint / 18446744073709551615.0
+        FROM generate_series(1, 64) d(j)
+    )::vector)
+FROM generate_series(1, 2048) s(i);
+
+statement ok
+CREATE INDEX ti ON t USING vchordg (val vector_l2_ops);
+
+query I
+SELECT index FROM t ORDER BY val <-> array_cat(ARRAY[0.6, 0.8], ARRAY(SELECT 0.0 FROM generate_series(1, 62)))::vector LIMIT 10;
+----
+1608
+155
+1643
+174
+818
+1603
+1629
+60
+218
+1080
+
+statement ok
+DROP INDEX ti;
+
+statement ok
+CREATE INDEX ti ON t USING vchordg (val vector_ip_ops);
+
+query I
+SELECT index FROM t ORDER BY val <#> array_cat(ARRAY[0.6, 0.8], ARRAY(SELECT 0.0 FROM generate_series(1, 62)))::vector LIMIT 10;
+----
+1608
+155
+1643
+174
+818
+1603
+1629
+60
+218
+1080
+
+statement ok
+DROP INDEX ti;
+
+statement ok
+CREATE INDEX ti ON t USING vchordg (val vector_cosine_ops);
+
+query I
+SELECT index FROM t ORDER BY val <=> array_cat(ARRAY[0.6, 0.8], ARRAY(SELECT 0.0 FROM generate_series(1, 62)))::vector LIMIT 10;
+----
+1608
+155
+1643
+174
+818
+1603
+1629
+60
+218
+1080
+
+statement ok
+DROP INDEX ti;
+
+statement ok
+CREATE INDEX ti ON t USING vchordg ((val::halfvec(64)) halfvec_l2_ops);
+
+query I
+SELECT index FROM t ORDER BY val::halfvec <-> array_cat(ARRAY[0.6, 0.8], ARRAY(SELECT 0.0 FROM generate_series(1, 62)))::halfvec LIMIT 10;
+----
+1608
+155
+1643
+174
+818
+1603
+1629
+60
+218
+1080
+
+statement ok
+DROP INDEX ti;
+
+statement ok
+CREATE INDEX ti ON t USING vchordg ((val::halfvec(64)) halfvec_ip_ops);
+
+query I
+SELECT index FROM t ORDER BY val::halfvec <#> array_cat(ARRAY[0.6, 0.8], ARRAY(SELECT 0.0 FROM generate_series(1, 62)))::halfvec LIMIT 10;
+----
+1608
+155
+1643
+174
+818
+1603
+1629
+60
+218
+1080
+
+statement ok
+DROP INDEX ti;
+
+statement ok
+CREATE INDEX ti ON t USING vchordg ((val::halfvec(64)) halfvec_cosine_ops);
+
+query I
+SELECT index FROM t ORDER BY val::halfvec <=> array_cat(ARRAY[0.6, 0.8], ARRAY(SELECT 0.0 FROM generate_series(1, 62)))::halfvec LIMIT 10;
+----
+1608
+155
+1643
+174
+818
+1603
+1629
+60
+218
+1080
+
+statement ok
+DROP INDEX ti;
+
+statement ok
+DROP TABLE t;

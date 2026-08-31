@@ -1,0 +1,17 @@
+statement ok
+CREATE TABLE t (val vector(3));
+
+statement ok
+INSERT INTO t (val) SELECT ARRAY[random(), random(), random()]::real[] FROM generate_series(1, 1000);
+
+statement ok
+SET max_parallel_workers = 0;
+
+statement ok
+SET max_parallel_maintenance_workers = 0;
+
+statement ok
+CREATE INDEX ON t USING vchordg (val vector_ip_ops);
+
+statement ok
+DROP TABLE t;

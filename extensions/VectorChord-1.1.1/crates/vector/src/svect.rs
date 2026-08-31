@@ -1,0 +1,453 @@
+// This software is licensed under a dual license model:
+//
+// GNU Affero General Public License v3 (AGPLv3): You may use, modify, and
+// distribute this software under the terms of the AGPLv3.
+//
+// Elastic License v2 (ELv2): You may also use, modify, and distribute this
+// software under the Elastic License v2, which has specific restrictions.
+//
+// We welcome any commercial collaboration or support. For inquiries
+// regarding the licenses, please contact us at:
+// vectorchord-inquiry@tensorchord.ai
+//
+// Copyright (c) 2025 TensorChord Inc.
+
+use crate::{VectorBorrowed, VectorOwned};
+use distance::Distance;
+use simd::Floating;
+use trace::trace_guard;
+
+#[derive(Debug, Clone)]
+pub struct SVectOwned<S> {
+    dim: u32,
+    indexes: Vec<u32>,
+    values: Vec<S>,
+}
+
+impl<S: Floating> SVectOwned<S> {
+    #[inline(always)]
+    pub fn new(dim: u32, indexes: Vec<u32>, values: Vec<S>) -> Self {
+        Self::new_checked(dim, indexes, values).expect("invalid data")
+    }
+
+    #[inline(always)]
+    pub fn new_checked(dim: u32, indexes: Vec<u32>, values: Vec<S>) -> Option<Self> {
+        let _guard = trace_guard!("SVectOwned::new_checked [rust]");
+        if !(1..=1_048_575).contains(&dim) {
+            return None;
+        }
+        if indexes.len() != values.len() {
+            return None;
+        }
+        let len = indexes.len();
+        for i in 1..len {
+            if !(indexes[i - 1] < indexes[i]) {
+                return None;
+            }
+        }
+        if len != 0 && !(indexes[len - 1] < dim) {
+            return None;
+        }
+        if S::reduce_or_of_is_zero_x(&values) {
+            return None;
+        }
+        #[allow(unsafe_code)]
+        unsafe {
+            Some(Self::new_unchecked(dim, indexes, values))
+        }
+    }
+
+    /// # Safety
+    ///
+    /// * `dim` must be in `1..=1_048_575`.
+    /// * `indexes.len()` must be equal to `values.len()`.
+    /// * `indexes` must be a strictly increasing sequence and the last in the sequence must be less than `dim`.
+    /// * A floating number in `values` must not be positive zero or negative zero.
+    #[allow(unsafe_code)]
+    #[inline(always)]
+    pub unsafe fn new_unchecked(dim: u32, indexes: Vec<u32>, values: Vec<S>) -> Self {
+        let _guard = trace_guard!("SVectOwned::new_unchecked [rust]");
+        Self {
+            dim,
+            indexes,
+            values,
+        }
+    }
+
+    #[inline(always)]
+    pub fn indexes(&self) -> &[u32] {
+        &self.indexes
+    }
+
+    #[inline(always)]
+    pub fn values(&self) -> &[S] {
+        &self.values
+    }
+}
+
+impl<S: Floating> VectorOwned for SVectOwned<S> {
+    type Borrowed<'a> = SVectBorrowed<'a, S>;
+
+    #[inline(always)]
+    fn as_borrowed(&self) -> SVectBorrowed<'_, S> {
+        let _guard = trace_guard!("VectorOwned(SVectOwned<S>)::as_borrowed [rust]");
+        SVectBorrowed {
+            dim: self.dim,
+            indexes: &self.indexes,
+            values: &self.values,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SVectBorrowed<'a, S> {
+    dim: u32,
+    indexes: &'a [u32],
+    values: &'a [S],
+}
+
+impl<'a, S: Floating> SVectBorrowed<'a, S> {
+    #[inline(always)]
+    pub fn new(dim: u32, indexes: &'a [u32], values: &'a [S]) -> Self {
+        let _guard = trace_guard!("SVectBorrowed::new [rust]");
+        Self::new_checked(dim, indexes, values).expect("invalid data")
+    }
+
+    #[inline(always)]
+    pub fn new_checked(dim: u32, indexes: &'a [u32], values: &'a [S]) -> Option<Self> {
+        let _guard = trace_guard!("SVectBorrowed::new_checked [rust]");
+        if !(1..=1_048_575).contains(&dim) {
+            return None;
+        }
+        if indexes.len() != values.len() {
+            return None;
+        }
+        let len = indexes.len();
+        for i in 1..len {
+            if !(indexes[i - 1] < indexes[i]) {
+                return None;
+            }
+        }
+        if len != 0 && !(indexes[len - 1] < dim) {
+            return None;
+        }
+        for i in 0..len {
+            if values[i] == S::zero() {
+                return None;
+            }
+        }
+        #[allow(unsafe_code)]
+        unsafe {
+            Some(Self::new_unchecked(dim, indexes, values))
+        }
+    }
+
+    /// # Safety
+    ///
+    /// * `dim` must be in `1..=1_048_575`.
+    /// * `indexes.len()` must be equal to `values.len()`.
+    /// * `indexes` must be a strictly increasing sequence and the last in the sequence must be less than `dim`.
+    /// * A floating number in `values` must not be positive zero or negative zero.
+    #[inline(always)]
+    #[allow(unsafe_code)]
+    pub unsafe fn new_unchecked(dim: u32, indexes: &'a [u32], values: &'a [S]) -> Self {
+        let _guard = trace_guard!("SVectBorrowed::new_unchecked [rust]");
+        Self {
+            dim,
+            indexes,
+            values,
+        }
+    }
+
+    #[inline(always)]
+    pub fn indexes(&self) -> &'a [u32] {
+        self.indexes
+    }
+
+    #[inline(always)]
+    pub fn values(&self) -> &'a [S] {
+        self.values
+    }
+
+    #[inline(always)]
+    pub fn len(&self) -> u32 {
+        self.indexes.len() as u32
+    }
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.indexes.is_empty()
+    }
+}
+
+impl<S: Floating> VectorBorrowed for SVectBorrowed<'_, S> {
+    type Owned = SVectOwned<S>;
+
+    #[inline(always)]
+    fn dim(&self) -> u32 {
+        self.dim
+    }
+
+    #[inline(always)]
+    fn own(&self) -> SVectOwned<S> {
+        SVectOwned {
+            dim: self.dim,
+            indexes: self.indexes.to_vec(),
+            values: self.values.to_vec(),
+        }
+    }
+
+    #[inline(always)]
+    fn norm(&self) -> f32 {
+        let _guard = trace_guard!("VectorBorrowed(SVectBorrowed)::norm [rust]");
+        S::reduce_sum_of_x2(self.values).sqrt()
+    }
+
+    #[inline(always)]
+    fn operator_dot(self, rhs: Self) -> Distance {
+        let _guard = trace_guard!("VectorBorrowed(SVectBorrowed)::operator_dot [rust]");
+        let xy = S::reduce_sum_of_xy_sparse(self.indexes, self.values, rhs.indexes, rhs.values);
+        Distance::from(-xy)
+    }
+
+    #[inline(always)]
+    fn operator_l2s(self, rhs: Self) -> Distance {
+        let _guard = trace_guard!("VectorBorrowed(SVectBorrowed)::operator_l2s [rust]");
+        let d2 = S::reduce_sum_of_d2_sparse(self.indexes, self.values, rhs.indexes, rhs.values);
+        Distance::from(d2)
+    }
+
+    #[inline(always)]
+    fn operator_cos(self, rhs: Self) -> Distance {
+        let _guard = trace_guard!("VectorBorrowed(SVectBorrowed)::operator_cos [rust]");
+        let xy = S::reduce_sum_of_xy_sparse(self.indexes, self.values, rhs.indexes, rhs.values);
+        let x2 = S::reduce_sum_of_x2(self.values);
+        let y2 = S::reduce_sum_of_x2(rhs.values);
+        Distance::from(1.0 - xy / (x2 * y2).sqrt())
+    }
+
+    #[inline(always)]
+    fn operator_hamming(self, _: Self) -> Distance {
+        unimplemented!()
+    }
+
+    #[inline(always)]
+    fn operator_jaccard(self, _: Self) -> Distance {
+        unimplemented!()
+    }
+
+    #[inline(always)]
+    fn function_normalize(&self) -> SVectOwned<S> {
+        let _guard = trace_guard!("VectorBorrowed(SVectBorrowed)::function_normalize [rust]");
+        let l = S::reduce_sum_of_x2(self.values).sqrt();
+        let mut indexes = self.indexes.to_vec();
+        let mut values = self.values.to_vec();
+        let n = indexes.len();
+        S::vector_mul_scalar_inplace(&mut values, 1.0 / l);
+        let mut j = 0_usize;
+        for i in 0..n {
+            if values[i] != S::zero() {
+                indexes[j] = indexes[i];
+                values[j] = values[i];
+                j += 1;
+            }
+        }
+        indexes.truncate(j);
+        values.truncate(j);
+        SVectOwned::new(self.dim, indexes, values)
+    }
+
+    fn operator_add(&self, rhs: Self) -> Self::Owned {
+        let _guard = trace_guard!("VectorBorrowed(SVectBorrowed)::operator_add [rust]");
+        assert_eq!(self.dim, rhs.dim);
+        let size1 = self.len();
+        let size2 = rhs.len();
+        let mut pos1 = 0;
+        let mut pos2 = 0;
+        let mut pos = 0;
+        let mut indexes = vec![0; (size1 + size2) as _];
+        let mut values = vec![S::zero(); (size1 + size2) as _];
+        while pos1 < size1 && pos2 < size2 {
+            let lhs_index = self.indexes[pos1 as usize];
+            let rhs_index = rhs.indexes[pos2 as usize];
+            let lhs_value = self.values[pos1 as usize];
+            let rhs_value = rhs.values[pos2 as usize];
+            indexes[pos] = lhs_index.min(rhs_index);
+            values[pos] = S::scalar_add(
+                lhs_value.mask(lhs_index <= rhs_index),
+                rhs_value.mask(lhs_index >= rhs_index),
+            );
+            pos1 += (lhs_index <= rhs_index) as u32;
+            pos2 += (lhs_index >= rhs_index) as u32;
+            pos += (values[pos] != S::zero()) as usize;
+        }
+        for i in pos1..size1 {
+            indexes[pos] = self.indexes[i as usize];
+            values[pos] = self.values[i as usize];
+            pos += 1;
+        }
+        for i in pos2..size2 {
+            indexes[pos] = rhs.indexes[i as usize];
+            values[pos] = rhs.values[i as usize];
+            pos += 1;
+        }
+        indexes.truncate(pos);
+        values.truncate(pos);
+        SVectOwned::new(self.dim, indexes, values)
+    }
+
+    fn operator_sub(&self, rhs: Self) -> Self::Owned {
+        let _guard = trace_guard!("VectorBorrowed(SVectBorrowed)::operator_sub [rust]");
+        assert_eq!(self.dim, rhs.dim);
+        let size1 = self.len();
+        let size2 = rhs.len();
+        let mut pos1 = 0;
+        let mut pos2 = 0;
+        let mut pos = 0;
+        let mut indexes = vec![0; (size1 + size2) as _];
+        let mut values = vec![S::zero(); (size1 + size2) as _];
+        while pos1 < size1 && pos2 < size2 {
+            let lhs_index = self.indexes[pos1 as usize];
+            let rhs_index = rhs.indexes[pos2 as usize];
+            let lhs_value = self.values[pos1 as usize];
+            let rhs_value = rhs.values[pos2 as usize];
+            indexes[pos] = lhs_index.min(rhs_index);
+            values[pos] = S::scalar_sub(
+                lhs_value.mask(lhs_index <= rhs_index),
+                rhs_value.mask(lhs_index >= rhs_index),
+            );
+            pos1 += (lhs_index <= rhs_index) as u32;
+            pos2 += (lhs_index >= rhs_index) as u32;
+            pos += (values[pos] != S::zero()) as usize;
+        }
+        for i in pos1..size1 {
+            indexes[pos] = self.indexes[i as usize];
+            values[pos] = self.values[i as usize];
+            pos += 1;
+        }
+        for i in pos2..size2 {
+            indexes[pos] = rhs.indexes[i as usize];
+            values[pos] = S::scalar_neg(rhs.values[i as usize]);
+            pos += 1;
+        }
+        indexes.truncate(pos);
+        values.truncate(pos);
+        SVectOwned::new(self.dim, indexes, values)
+    }
+
+    fn operator_mul(&self, rhs: Self) -> Self::Owned {
+        let _guard = trace_guard!("VectorBorrowed(SVectBorrowed)::operator_mul [rust]");
+        assert_eq!(self.dim, rhs.dim);
+        let size1 = self.len();
+        let size2 = rhs.len();
+        let mut pos1 = 0;
+        let mut pos2 = 0;
+        let mut pos = 0;
+        let mut indexes = vec![0; std::cmp::min(size1, size2) as _];
+        let mut values = vec![S::zero(); std::cmp::min(size1, size2) as _];
+        while pos1 < size1 && pos2 < size2 {
+            let lhs_index = self.indexes[pos1 as usize];
+            let rhs_index = rhs.indexes[pos2 as usize];
+            match lhs_index.cmp(&rhs_index) {
+                std::cmp::Ordering::Less => {
+                    pos1 += 1;
+                }
+                std::cmp::Ordering::Equal => {
+                    // only both indexes are not zero, values are multiplied
+                    let lhs_value = self.values[pos1 as usize];
+                    let rhs_value = rhs.values[pos2 as usize];
+                    indexes[pos] = lhs_index;
+                    values[pos] = S::scalar_mul(lhs_value, rhs_value);
+                    pos1 += 1;
+                    pos2 += 1;
+                    // only increment pos if the value is not zero
+                    pos += (values[pos] != S::zero()) as usize;
+                }
+                std::cmp::Ordering::Greater => {
+                    pos2 += 1;
+                }
+            }
+        }
+        indexes.truncate(pos);
+        values.truncate(pos);
+        SVectOwned::new(self.dim, indexes, values)
+    }
+
+    fn operator_and(&self, _: Self) -> Self::Owned {
+        unimplemented!()
+    }
+
+    fn operator_or(&self, _: Self) -> Self::Owned {
+        unimplemented!()
+    }
+
+    fn operator_xor(&self, _: Self) -> Self::Owned {
+        unimplemented!()
+    }
+}
+
+impl<S: Floating> PartialEq for SVectBorrowed<'_, S> {
+    fn eq(&self, other: &Self) -> bool {
+        let _guard = trace_guard!("PartialEq(SVectBorrowed)::eq [rust]");
+        if self.dim != other.dim {
+            return false;
+        }
+        if self.indexes.len() != other.indexes.len() {
+            return false;
+        }
+        for (&l, &r) in self.indexes.iter().zip(other.indexes.iter()) {
+            if l != r {
+                return false;
+            }
+        }
+        for (&l, &r) in self.values.iter().zip(other.values.iter()) {
+            if l != r {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+impl<S: Floating> PartialOrd for SVectBorrowed<'_, S> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        let _guard = trace_guard!("PartialOrd(SVectBorrowed)::partial_cmp [rust]");
+        use std::cmp::Ordering;
+        if self.dim != other.dim {
+            return None;
+        }
+        let mut lhs = self
+            .indexes
+            .iter()
+            .copied()
+            .zip(self.values.iter().copied());
+        let mut rhs = other
+            .indexes
+            .iter()
+            .copied()
+            .zip(other.values.iter().copied());
+        loop {
+            return match (lhs.next(), rhs.next()) {
+                (Some(lh), Some(rh)) => match lh.0.cmp(&rh.0) {
+                    Ordering::Equal => match lh.1.partial_cmp(&rh.1)? {
+                        Ordering::Equal => continue,
+                        x => Some(x),
+                    },
+                    Ordering::Less => Some(if lh.1 < S::zero() {
+                        Ordering::Less
+                    } else {
+                        Ordering::Greater
+                    }),
+                    Ordering::Greater => Some(if S::zero() < rh.1 {
+                        Ordering::Less
+                    } else {
+                        Ordering::Greater
+                    }),
+                },
+                (Some((_, x)), None) => Some(PartialOrd::partial_cmp(&x, &S::zero())?),
+                (None, Some((_, y))) => Some(PartialOrd::partial_cmp(&S::zero(), &y)?),
+                (None, None) => Some(Ordering::Equal),
+            };
+        }
+    }
+}

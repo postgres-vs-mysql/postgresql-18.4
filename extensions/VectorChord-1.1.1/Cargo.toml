@@ -1,0 +1,121 @@
+[package]
+name = "vchord"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[lib]
+name = "vchord"
+crate-type = ["cdylib", "lib"]
+
+[[bin]]
+name = "pgrx_embed_vchord"
+path = "./src/bin/pgrx_embed.rs"
+
+[features]
+default = ["simd/init"]
+pg14 = ["pgrx/pg14", "pgrx-catalog/pg14"]
+pg15 = ["pgrx/pg15", "pgrx-catalog/pg15"]
+pg16 = ["pgrx/pg16", "pgrx-catalog/pg16"]
+pg17 = ["pgrx/pg17", "pgrx-catalog/pg17"]
+pg18 = ["pgrx/pg18", "pgrx-catalog/pg18"]
+
+[dependencies]
+always_equal = { path = "./crates/always_equal" }
+distance = { path = "./crates/distance" }
+feistel = { path = "./crates/feistel" }
+index = { path = "./crates/index" }
+k_means = { path = "./crates/k_means" }
+rabitq = { path = "./crates/rabitq" }
+simd = { path = "./crates/simd" }
+small_iter = { path = "./crates/small_iter" }
+vchordg = { path = "./crates/vchordg" }
+vchordrq = { path = "./crates/vchordrq" }
+vector = { path = "./crates/vector" }
+trace = { path = "./crates/trace" }
+
+arrayvec = "0.7.6"
+bumpalo.workspace = true
+crossbeam-channel = "0.5.15"
+dary_heap.workspace = true
+humansize = "2.1.3"
+paste.workspace = true
+pgrx = { version = "=0.17.0", default-features = false, features = ["cshim"] }
+pgrx-catalog = "0.3.2"
+rand.workspace = true
+rayon.workspace = true
+rusqlite = { version = "0.38.0", features = ["bundled"] }
+seq-macro.workspace = true
+serde.workspace = true
+toml = "1.0.0"
+validator.workspace = true
+wyhash.workspace = true
+zerocopy.workspace = true
+
+[target.'cfg(all(any(target_arch = "x86_64", target_arch = "aarch64"), any(target_os = "linux", target_os = "macos")))'.dependencies]
+mimalloc = { version = "0.1.48", features = ["local_dynamic_tls"] }
+
+[lints]
+workspace = true
+
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+
+[workspace.dependencies]
+bumpalo = "3.19.1"
+dary_heap = "0.3.8"
+paste = "1.0.15"
+rand = "0.10.0"
+rand_chacha = "0.10.0"
+rayon = "1.11.0"
+seq-macro = "0.3.6"
+serde = { version = "1.0.228", features = ["derive"] }
+validator = { version = "0.20.0", features = ["derive"] }
+wyhash = "0.6.0"
+zerocopy = { version = "0.8.39", features = ["derive"] }
+
+[workspace.lints]
+# complexity
+clippy.identity_op = "allow"
+clippy.int_plus_one = "allow"
+clippy.manual_is_multiple_of = "allow"
+clippy.nonminimal_bool = "allow"
+clippy.too_many_arguments = "allow"
+clippy.type_complexity = "allow"
+# style
+clippy.collapsible_if = "allow"
+clippy.just_underscores_and_digits = "allow"
+clippy.needless_range_loop = "allow"
+# unsafe
+rust.unsafe_code = "deny"
+rust.unsafe_op_in_unsafe_fn = "deny"
+# unused
+rust.unused_extern_crates = "warn"
+rust.unused_import_braces = "warn"
+rust.unused_lifetimes = "warn"
+rust.unused_macro_rules = "warn"
+rust.unused_qualifications = "warn"
+
+[profile.dev]
+codegen-units = 256
+lto = "off"
+opt-level = 1
+debug = "full"
+strip = "none"
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = 3
+debug = "none"
+strip = "symbols"
+
+[profile.prof]
+inherits = "release"
+debug = "full"
+strip = "none"

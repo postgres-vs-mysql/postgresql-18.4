@@ -1,0 +1,21 @@
+[package]
+name = "index"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+always_equal = { path = "../always_equal" }
+distance = { path = "../distance" }
+rabitq = { path = "../rabitq" }
+simd = { path = "../simd" }
+small_iter = { path = "../small_iter" }
+vector = { path = "../vector" }
+trace = { path = "../trace" }
+
+bumpalo.workspace = true
+dary_heap.workspace = true
+zerocopy.workspace = true
+
+[lints]
+workspace = true

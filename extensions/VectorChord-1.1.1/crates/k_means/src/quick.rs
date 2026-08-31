@@ -1,0 +1,82 @@
+// This software is licensed under a dual license model:
+//
+// GNU Affero General Public License v3 (AGPLv3): You may use, modify, and
+// distribute this software under the terms of the AGPLv3.
+//
+// Elastic License v2 (ELv2): You may also use, modify, and distribute this
+// software under the Elastic License v2, which has specific restrictions.
+//
+// We welcome any commercial collaboration or support. For inquiries
+// regarding the licenses, please contact us at:
+// vectorchord-inquiry@tensorchord.ai
+//
+// Copyright (c) 2025 TensorChord Inc.
+
+use crate::KMeans;
+use crate::index::flat_index as prefect_index;
+use crate::square::{Square, SquareMut};
+use rand::rngs::StdRng;
+use rand::{RngExt, SeedableRng};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use trace::{trace_guard, trace_vchord_print};
+
+struct Quick {
+    centroids: Square,
+}
+
+impl KMeans for Quick {
+    fn prefect_index(&self) -> Box<dyn Fn(&[f32]) -> (f32, usize) + Sync + '_> {
+        Box::new(prefect_index(&self.centroids))
+    }
+
+    fn assign(&mut self) {}
+
+    fn update(&mut self) {}
+
+    fn finish(self: Box<Self>) -> Square {
+        self.centroids
+    }
+}
+
+pub fn new<'a>(
+    pool: &'a rayon::ThreadPool,
+    d: usize,
+    samples: SquareMut<'a>,
+    c: usize,
+    seed: [u8; 32],
+    is_spherical: bool,
+) -> Box<dyn KMeans + 'a> {
+    let _guard = trace_guard!("k_means::quick::new [rust]");
+    let mut rng = StdRng::from_seed(seed);
+
+    let mut centroids = Square::with_capacity(d, c);
+
+    for index in rand::seq::index::sample(&mut rng, samples.len(), c.min(samples.len())) {
+        centroids.push_slice(&samples[index]);
+    }
+
+    if centroids.is_empty() && c == 1 {
+        centroids.push_iter(std::iter::repeat_n(0.0, d as _));
+    }
+
+    trace_vchord_print!("centroids.len: {}, c: {}", centroids.len(), c);
+    while centroids.len() < c {
+        centroids.push_iter((0..d).map(|_| rng.random_range(-1.0f32..1.0f32)));
+    }
+
+    trace_vchord_print!("set thread trace mode and begin parallel execution");
+    trace::enable_trace_thread_mode();
+    pool.install(|| {
+        if is_spherical {
+            use simd::Floating;
+            (&mut centroids).into_par_iter().for_each(|centroid| {
+                let l = f32::reduce_sum_of_x2(centroid).sqrt();
+                f32::vector_mul_scalar_inplace(centroid, 1.0 / l);
+            });
+        }
+    });
+    trace::disable_trace_thread_mode();
+    trace_vchord_print!("parallel execution finished, and process trace mode is now enabled.");
+
+    Box::new(Quick { centroids })
+}

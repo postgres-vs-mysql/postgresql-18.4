@@ -1,0 +1,37 @@
+statement ok
+SET enable_seqscan = off;
+
+statement ok
+CREATE TABLE items (id bigserial PRIMARY KEY, embedding vector(3), visible boolean default true);
+
+statement ok
+INSERT INTO items (embedding) SELECT ARRAY[i * 0.001, i * 0.001, i * 0.001]::real[] FROM generate_series(1, 1000) s(i);
+
+statement ok
+CREATE INDEX ON items USING vchordrq (embedding vector_l2_ops);
+
+statement ok
+SET vchordrq.prefilter = on;
+
+query I
+SELECT id FROM items WHERE visible = true ORDER BY embedding <-> '[0.0031,0.0031,0.0031]' LIMIT 3;
+----
+3
+4
+2
+
+statement ok
+UPDATE items SET visible = false WHERE id = 3;
+
+statement ok
+UPDATE items SET visible = true WHERE id = 3;
+
+query I
+SELECT id FROM items WHERE visible = true ORDER BY embedding <-> '[0.0031,0.0031,0.0031]' LIMIT 3;
+----
+3
+4
+2
+
+statement ok
+DROP TABLE items;

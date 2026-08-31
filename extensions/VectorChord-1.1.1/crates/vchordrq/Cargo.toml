@@ -1,0 +1,25 @@
+[package]
+name = "vchordrq"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+always_equal = { path = "../always_equal" }
+distance = { path = "../distance" }
+index = { path = "../index" }
+rabitq = { path = "../rabitq" }
+simd = { path = "../simd" }
+vector = { path = "../vector" }
+trace = { path = "../trace" }
+
+pin-project = "1.1.10"
+serde.workspace = true
+validator.workspace = true
+zerocopy.workspace = true
+
+[dev-dependencies]
+rand.workspace = true
+
+[lints]
+workspace = true

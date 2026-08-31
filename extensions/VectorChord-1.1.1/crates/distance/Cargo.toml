@@ -1,0 +1,12 @@
+[package]
+name = "distance"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+zerocopy.workspace = true
+trace = { path = "../trace" }
+
+[lints]
+workspace = true

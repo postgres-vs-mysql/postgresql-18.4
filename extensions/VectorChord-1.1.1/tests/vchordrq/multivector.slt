@@ -1,0 +1,55 @@
+statement ok
+CREATE TABLE t (id integer, val vector(2)[]);
+
+statement ok
+INSERT INTO t (id, val)
+SELECT id,
+    ARRAY[
+        ARRAY[cos(((id + 0) % 10000) / 10000.0 * 6.283185307179586), sin(((id + 0) % 10000) / 10000.0 * 6.283185307179586)]::vector,
+        ARRAY[cos(((id + 22) % 10000) / 10000.0 * 6.283185307179586), sin(((id + 22) % 10000) / 10000.0 * 6.283185307179586)]::vector,
+        ARRAY[cos(((id + 777) % 10000) / 10000.0 * 6.283185307179586), sin(((id + 777) % 10000) / 10000.0 * 6.283185307179586)]::vector
+    ]
+FROM generate_series(1, 10000) s(id);
+
+statement ok
+CREATE INDEX t_val_idx ON t USING vchordrq (val vector_maxsim_ops)
+WITH (options = $$
+build.internal.lists = []
+$$);
+
+statement ok
+SET vchordrq.probes = '';
+
+statement ok
+SET vchordrq.maxsim_refine = 3000;
+
+statement ok
+SET enable_seqscan TO off;
+
+query I
+SELECT id FROM t ORDER BY val @# ARRAY['[0.7197411498053302, 0.6942425205048314]'::vector, '[0.10645067063129976, 0.9943179847122079]'::vector] limit 18;
+----
+1387
+1388
+1386
+1389
+1385
+1390
+1384
+1391
+1383
+1392
+1382
+1393
+1381
+1394
+1380
+1395
+1379
+1396
+
+statement ok
+DROP INDEX t_val_idx;
+
+statement ok
+DROP TABLE t;

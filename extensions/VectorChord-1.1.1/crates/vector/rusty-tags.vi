@@ -1,0 +1,865 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+Aligned16	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/aligned.rs	/^pub struct Aligned16<T>(pub T);$/;"	s
+BITS_0	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/rotate.rs	/^static BITS_0: [u64; 1024] = zerocopy::transmute!(BITS.as_chunks::<8192>().0[0]);$/;"	v
+BITS_1	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/rotate.rs	/^static BITS_1: [u64; 1024] = zerocopy::transmute!(BITS.as_chunks::<8192>().0[1]);$/;"	v
+BITS_2	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/rotate.rs	/^static BITS_2: [u64; 1024] = zerocopy::transmute!(BITS.as_chunks::<8192>().0[2]);$/;"	v
+BITS_3	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/rotate.rs	/^static BITS_3: [u64; 1024] = zerocopy::transmute!(BITS.as_chunks::<8192>().0[3]);$/;"	v
+BVectBorrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^impl PartialEq for BVectBorrowed<'_> {$/;"	c
+BVectBorrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^impl PartialOrd for BVectBorrowed<'_> {$/;"	c
+BVectBorrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^impl VectorBorrowed for BVectBorrowed<'_> {$/;"	c
+BVectBorrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^impl<'a> BVectBorrowed<'a> {$/;"	c
+BVectBorrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^pub struct BVectBorrowed<'a> {$/;"	s
+BVectOwned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^impl BVectOwned {$/;"	c
+BVectOwned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^impl VectorOwned for BVectOwned {$/;"	c
+BVectOwned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^pub struct BVectOwned {$/;"	s
+BinaryCode	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub type BinaryCode<'a> = ((f32, f32, f32, f32), &'a [u64]);$/;"	t	module:binary
+BinaryCode	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bits.rs	/^    pub type BinaryCode<'a> = ((f32, f32, f32, f32), &'a [u8]);$/;"	t	module:binary
+BinaryCode	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/byte.rs	/^    pub type BinaryCode<'a> = ((f32, f32, f32, f32), &'a [u8]);$/;"	t	module:binary
+BinaryCode	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/halfbyte.rs	/^    pub type BinaryCode<'a> = ((f32, f32, f32, f32), &'a [u8]);$/;"	t	module:binary
+BinaryLut	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub type BinaryLut = (BinaryLutMetadata, [Vec<u64>; BITS]);$/;"	t	module:binary
+BinaryLut	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bits.rs	/^    pub type BinaryLut = (BinaryLutMetadata, [Vec<u64>; BITS]);$/;"	t	module:binary
+BinaryLut	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/byte.rs	/^    pub type BinaryLut = (BinaryLutMetadata, Vec<u8>);$/;"	t	module:binary
+BinaryLut	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/halfbyte.rs	/^    pub type BinaryLut = (BinaryLutMetadata, Vec<u8>);$/;"	t	module:binary
+BinaryLutMetadata	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub struct BinaryLutMetadata {$/;"	s	module:binary
+BinaryLutMetadata	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bits.rs	/^    pub type BinaryLutMetadata = CodeMetadata;$/;"	t	module:binary
+BinaryLutMetadata	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/byte.rs	/^    pub type BinaryLutMetadata = CodeMetadata;$/;"	t	module:binary
+BinaryLutMetadata	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/halfbyte.rs	/^    pub type BinaryLutMetadata = CodeMetadata;$/;"	t	module:binary
+Bits	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bits.rs	/^impl TryFrom<u8> for Bits {$/;"	c
+Bits	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bits.rs	/^pub enum Bits {$/;"	g
+BlockCode	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub type BlockCode<'a> = ($/;"	t	module:block
+BlockLut	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub type BlockLut = (BlockLutMetadata, Vec<[u8; 16]>);$/;"	t	module:block
+BlockLutMetadata	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub struct BlockLutMetadata {$/;"	s	module:block
+Borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    type Borrowed<'a> = BVectBorrowed<'a>;$/;"	t	implementation:BVectOwned
+Borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^    type Borrowed<'a>: VectorBorrowed<Owned = Self>;$/;"	t	interface:VectorOwned
+Borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    type Borrowed<'a> = Rabitq4Borrowed<'a>;$/;"	t	implementation:Rabitq4Owned
+Borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    type Borrowed<'a> = Rabitq8Borrowed<'a>;$/;"	t	implementation:Rabitq8Owned
+Borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    type Borrowed<'a> = SVectBorrowed<'a, S>;$/;"	t	implementation:SVectOwned
+Borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    type Borrowed<'a> = VectBorrowed<'a, S>;$/;"	t	implementation:VectOwned
+Code	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^pub type Code = (CodeMetadata, Vec<bool>);$/;"	t
+Code	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^pub type Code = (CodeMetadata, Vec<u8>);$/;"	t
+CodeMetadata	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^impl CodeMetadata {$/;"	c
+CodeMetadata	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^pub struct CodeMetadata {$/;"	s
+CodeMetadata	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^impl CodeMetadata {$/;"	c
+CodeMetadata	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^pub struct CodeMetadata {$/;"	s
+Distance	/home/wangbin/work/github/VectorChord-1.1.1/crates/distance/src/lib.rs	/^impl Distance {$/;"	c
+Distance	/home/wangbin/work/github/VectorChord-1.1.1/crates/distance/src/lib.rs	/^impl From<f32> for Distance {$/;"	c
+Distance	/home/wangbin/work/github/VectorChord-1.1.1/crates/distance/src/lib.rs	/^impl std::fmt::Debug for Distance {$/;"	c
+Distance	/home/wangbin/work/github/VectorChord-1.1.1/crates/distance/src/lib.rs	/^pub struct Distance(i32);$/;"	s
+Error	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bits.rs	/^    type Error = ();$/;"	t	implementation:Bits
+F16	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^pub trait F16: Sized {$/;"	i
+Floating	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^pub trait Floating:$/;"	i
+LUT	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^        static LUT: [[i8; 16]; 2] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 2];$/;"	v	function:reduce_sum_of_and::reduce_sum_of_and_v3
+LUT	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^        static LUT: [[i8; 16]; 2] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 2];$/;"	v	function:reduce_sum_of_and_or::reduce_sum_of_and_or_v3
+LUT	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^        static LUT: [[i8; 16]; 2] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 2];$/;"	v	function:reduce_sum_of_or::reduce_sum_of_or_v3
+LUT	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^        static LUT: [[i8; 16]; 2] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 2];$/;"	v	function:reduce_sum_of_x::reduce_sum_of_x_v3
+LUT	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^        static LUT: [[i8; 16]; 2] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 2];$/;"	v	function:reduce_sum_of_xor::reduce_sum_of_xor_v3
+LUT	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^        static LUT: [[i8; 16]; 4] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 4];$/;"	v	function:reduce_sum_of_and::reduce_sum_of_and_v4
+LUT	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^        static LUT: [[i8; 16]; 4] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 4];$/;"	v	function:reduce_sum_of_and_or::reduce_sum_of_and_or_v4
+LUT	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^        static LUT: [[i8; 16]; 4] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 4];$/;"	v	function:reduce_sum_of_or::reduce_sum_of_or_v4
+LUT	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^        static LUT: [[i8; 16]; 4] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 4];$/;"	v	function:reduce_sum_of_x::reduce_sum_of_x_v4
+LUT	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^        static LUT: [[i8; 16]; 4] = [[0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]; 4];$/;"	v	function:reduce_sum_of_xor::reduce_sum_of_xor_v4
+Owned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    type Owned = BVectOwned;$/;"	t	implementation:BVectBorrowed
+Owned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^    type Owned: VectorOwned;$/;"	t	interface:VectorBorrowed
+Owned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    type Owned = Rabitq4Owned;$/;"	t	implementation:Rabitq4Borrowed
+Owned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    type Owned = Rabitq8Owned;$/;"	t	implementation:Rabitq8Borrowed
+Owned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    type Owned = SVectOwned<S>;$/;"	t	implementation:SVectBorrowed
+Owned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    type Owned = VectOwned<S>;$/;"	t	implementation:VectBorrowed
+Rabitq4Borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^impl VectorBorrowed for Rabitq4Borrowed<'_> {$/;"	c
+Rabitq4Borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^impl<'a> Rabitq4Borrowed<'a> {$/;"	c
+Rabitq4Borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^pub struct Rabitq4Borrowed<'a> {$/;"	s
+Rabitq4Owned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^impl Rabitq4Owned {$/;"	c
+Rabitq4Owned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^impl VectorOwned for Rabitq4Owned {$/;"	c
+Rabitq4Owned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^pub struct Rabitq4Owned {$/;"	s
+Rabitq8Borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^impl VectorBorrowed for Rabitq8Borrowed<'_> {$/;"	c
+Rabitq8Borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^impl<'a> Rabitq8Borrowed<'a> {$/;"	c
+Rabitq8Borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^pub struct Rabitq8Borrowed<'a> {$/;"	s
+Rabitq8Owned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^impl Rabitq8Owned {$/;"	c
+Rabitq8Owned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^impl VectorOwned for Rabitq8Owned {$/;"	c
+Rabitq8Owned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^pub struct Rabitq8Owned {$/;"	s
+SVectBorrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^impl<'a, S: Floating> SVectBorrowed<'a, S> {$/;"	c
+SVectBorrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^impl<S: Floating> PartialEq for SVectBorrowed<'_, S> {$/;"	c
+SVectBorrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^impl<S: Floating> PartialOrd for SVectBorrowed<'_, S> {$/;"	c
+SVectBorrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^impl<S: Floating> VectorBorrowed for SVectBorrowed<'_, S> {$/;"	c
+SVectBorrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^pub struct SVectBorrowed<'a, S> {$/;"	s
+SVectOwned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^impl<S: Floating> SVectOwned<S> {$/;"	c
+SVectOwned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^impl<S: Floating> VectorOwned for SVectOwned<S> {$/;"	c
+SVectOwned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^pub struct SVectOwned<S> {$/;"	s
+TraceGuard	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^impl Drop for TraceGuard {$/;"	c
+TraceGuard	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^impl TraceGuard {$/;"	c
+TraceGuard	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub struct TraceGuard {$/;"	s
+VectBorrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^impl<'a, S: Floating> VectBorrowed<'a, S> {$/;"	c
+VectBorrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^impl<S: Floating> PartialEq for VectBorrowed<'_, S> {$/;"	c
+VectBorrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^impl<S: Floating> PartialOrd for VectBorrowed<'_, S> {$/;"	c
+VectBorrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^impl<S: Floating> VectorBorrowed for VectBorrowed<'_, S> {$/;"	c
+VectBorrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^pub struct VectBorrowed<'a, S>(&'a [S]);$/;"	s
+VectOwned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^impl<S: Floating> VectOwned<S> {$/;"	c
+VectOwned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^impl<S: Floating> VectorOwned for VectOwned<S> {$/;"	c
+VectOwned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^pub struct VectOwned<S>(Vec<S>);$/;"	s
+VectorBorrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^pub trait VectorBorrowed: Copy {$/;"	i
+VectorOwned	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^pub trait VectorOwned: Clone + 'static {$/;"	i
+_1	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bits.rs	/^    _1 = 1,$/;"	e	enum:Bits
+_2	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bits.rs	/^    _2 = 2,$/;"	e	enum:Bits
+_from_f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn _from_f32(x: f32) -> Self {$/;"	P	implementation:f16
+_from_f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn _from_f32(x: f32) -> Self;$/;"	P	interface:F16
+_to_f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn _to_f32(self) -> f32 {$/;"	P	implementation:f16
+_to_f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn _to_f32(self) -> f32;$/;"	P	interface:F16
+accu	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^    pub fn accu(sum: &mut [u32; 32], delta: &[u16; 32]) {$/;"	f	module:accu
+accu	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^mod accu {$/;"	n
+accu	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^pub fn accu(sum: &mut [u32; 32], delta: &[u16; 32]) {$/;"	f
+accumulate	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub fn accumulate(t: &[[u8; 16]], s: &[[u8; 16]]) -> [u32; 32] {$/;"	f	module:block
+accumulate	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub fn accumulate(x: &[u64], y: &[impl AsRef<[u64]>; BITS]) -> u32 {$/;"	f	module:binary
+accumulate	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bits.rs	/^    pub fn accumulate(bits: Bits, lhs: &[u64], rhs: &[Vec<u64>; BITS]) -> u32 {$/;"	f	module:binary
+accumulate	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/byte.rs	/^    pub fn accumulate(x: &[u8], y: &[u8]) -> u32 {$/;"	f	module:binary
+accumulate	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^pub fn accumulate<const X: usize, const Y: usize>(lhs: &[u64], rhs: &[Vec<u64>; Y]) -> u32 {$/;"	f
+accumulate	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/halfbyte.rs	/^    pub fn accumulate(x: &[u8], y: &[u8]) -> u32 {$/;"	f	module:binary
+aligned	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^mod aligned;$/;"	n
+any_pack	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/packing.rs	/^pub fn any_pack<T: Default>(mut x: impl Iterator<Item = T>) -> [T; 32] {$/;"	f
+as_borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    fn as_borrowed(&self) -> BVectBorrowed<'_> {$/;"	P	implementation:BVectOwned
+as_borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^    fn as_borrowed(&self) -> Self::Borrowed<'_>;$/;"	P	interface:VectorOwned
+as_borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    fn as_borrowed(&self) -> Rabitq4Borrowed<'_> {$/;"	P	implementation:Rabitq4Owned
+as_borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    fn as_borrowed(&self) -> Rabitq8Borrowed<'_> {$/;"	P	implementation:Rabitq8Owned
+as_borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    fn as_borrowed(&self) -> SVectBorrowed<'_, S> {$/;"	P	implementation:SVectOwned
+as_borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    fn as_borrowed(&self) -> VectBorrowed<'_, S> {$/;"	P	implementation:VectOwned
+b	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^        b: f32,$/;"	m	struct:binary::BinaryLutMetadata
+basic_1	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fht.rs	/^fn basic_1<const Q: usize>(x: &mut [f32]) {$/;"	f
+basic_2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fht.rs	/^fn basic_2<const Q: usize>(x: &mut [f32]) {$/;"	f
+binarize	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub(crate) fn binarize(vector: &[u8]) -> [Vec<u64>; BITS] {$/;"	f	module:binary
+binary	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^pub mod binary {$/;"	n
+binary	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bits.rs	/^pub mod binary {$/;"	n
+binary	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/byte.rs	/^pub mod binary {$/;"	n
+binary	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/halfbyte.rs	/^pub mod binary {$/;"	n
+bit	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/lib.rs	/^pub mod bit;$/;"	n
+bit	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^pub mod bit;$/;"	n
+bits	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/lib.rs	/^pub mod bits;$/;"	n
+block	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^pub mod block {$/;"	n
+bvect	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^pub mod bvect;$/;"	n
+byte	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/lib.rs	/^pub mod byte;$/;"	n
+byte	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^pub mod byte;$/;"	n
+c	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^        c: f32,$/;"	m	struct:block::BlockLutMetadata
+code	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^pub fn code(vector: &[f32]) -> Code {$/;"	f
+code	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bits.rs	/^pub fn code(bits: Bits, vector: &[f32]) -> Code {$/;"	f
+code	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/byte.rs	/^pub fn code(vector: &[f32]) -> Code {$/;"	f
+code	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^pub fn code<const BITS: usize>(vector: &[f32]) -> Code {$/;"	f
+code	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/halfbyte.rs	/^pub fn code(vector: &[f32]) -> Code {$/;"	f
+code_elements	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^pub fn code_elements(vector: &[f32]) -> Vec<bool> {$/;"	f
+code_metadata	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^pub fn code_metadata(vector: &[f32]) -> CodeMetadata {$/;"	f
+combine2x2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^        fn combine2x2(x0x1: __m256i, y0y1: __m256i) -> __m256i {$/;"	f	function:scan::scan_v3
+combine2x2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^        fn combine2x2(x0x1: __m256i, y0y1: __m256i) -> __m256i {$/;"	f	function:scan::scan_v4
+combine4x2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^        fn combine4x2(x0x1x2x3: __m512i, y0y1y2y3: __m512i) -> __m256i {$/;"	f	function:scan::scan_v4
+compress	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    fn compress(vector: &[f32]) -> Vec<[f32; 16]> {$/;"	f	module:block
+data	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    data: &'a [u64],$/;"	m	struct:BVectBorrowed
+data	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    data: Vec<u64>,$/;"	m	struct:BVectOwned
+data	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    pub fn data(&self) -> &'a [u64] {$/;"	P	implementation:BVectBorrowed
+dim	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    dim: u32,$/;"	m	struct:BVectBorrowed
+dim	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    dim: u32,$/;"	m	struct:BVectOwned
+dim	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    fn dim(&self) -> u32 {$/;"	P	implementation:BVectBorrowed
+dim	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^    fn dim(&self) -> u32;$/;"	P	interface:VectorBorrowed
+dim	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    dim: u32,$/;"	m	struct:Rabitq4Borrowed
+dim	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    dim: u32,$/;"	m	struct:Rabitq4Owned
+dim	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    fn dim(&self) -> u32 {$/;"	P	implementation:Rabitq4Borrowed
+dim	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    dim: u32,$/;"	m	struct:Rabitq8Borrowed
+dim	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    dim: u32,$/;"	m	struct:Rabitq8Owned
+dim	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    fn dim(&self) -> u32 {$/;"	P	implementation:Rabitq8Borrowed
+dim	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    dim: u32,$/;"	m	struct:SVectBorrowed
+dim	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    dim: u32,$/;"	m	struct:SVectOwned
+dim	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    fn dim(&self) -> u32 {$/;"	P	implementation:SVectBorrowed
+dim	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    fn dim(&self) -> u32 {$/;"	P	implementation:VectBorrowed
+dis_u_2	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub dis_u_2: f32,$/;"	m	struct:CodeMetadata
+dis_u_2	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^    pub dis_u_2: f32,$/;"	m	struct:CodeMetadata
+dis_v_2	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^        dis_v_2: f32,$/;"	m	struct:binary::BinaryLutMetadata
+dis_v_2	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^        dis_v_2: f32,$/;"	m	struct:block::BlockLutMetadata
+distance_conversions	/home/wangbin/work/github/VectorChord-1.1.1/crates/distance/src/lib.rs	/^fn distance_conversions() {$/;"	f
+drop	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    fn drop(&mut self) {$/;"	P	implementation:TraceGuard
+emulate	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^mod emulate;$/;"	n
+emulate_mm256_reduce_add_epi32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/emulate.rs	/^pub fn emulate_mm256_reduce_add_epi32(mut x: core::arch::x86_64::__m256i) -> i32 {$/;"	f
+emulate_mm256_reduce_add_epi64	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/emulate.rs	/^pub fn emulate_mm256_reduce_add_epi64(mut x: core::arch::x86_64::__m256i) -> i64 {$/;"	f
+emulate_mm256_reduce_add_ps	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/emulate.rs	/^pub fn emulate_mm256_reduce_add_ps(mut x: core::arch::x86_64::__m256) -> f32 {$/;"	f
+emulate_mm256_reduce_max_ps	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/emulate.rs	/^pub fn emulate_mm256_reduce_max_ps(x: core::arch::x86_64::__m256) -> f32 {$/;"	f
+emulate_mm256_reduce_min_ps	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/emulate.rs	/^pub fn emulate_mm256_reduce_min_ps(x: core::arch::x86_64::__m256) -> f32 {$/;"	f
+emulate_mm512_2intersect_epi32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/emulate.rs	/^pub fn emulate_mm512_2intersect_epi32($/;"	f
+emulate_mm_reduce_add_epi32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/emulate.rs	/^pub fn emulate_mm_reduce_add_epi32(mut x: core::arch::x86_64::__m128i) -> i32 {$/;"	f
+emulate_mm_reduce_add_ps	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/emulate.rs	/^pub fn emulate_mm_reduce_add_ps(mut x: core::arch::x86_64::__m128) -> f32 {$/;"	f
+emulate_mm_reduce_max_ps	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/emulate.rs	/^pub fn emulate_mm_reduce_max_ps(x: core::arch::x86_64::__m128) -> f32 {$/;"	f
+emulate_mm_reduce_min_ps	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/emulate.rs	/^pub fn emulate_mm_reduce_min_ps(x: core::arch::x86_64::__m128) -> f32 {$/;"	f
+eq	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    fn eq(&self, other: &Self) -> bool {$/;"	P	implementation:BVectBorrowed
+eq	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    fn eq(&self, other: &Self) -> bool {$/;"	P	implementation:SVectBorrowed
+eq	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    fn eq(&self, other: &Self) -> bool {$/;"	P	implementation:VectBorrowed
+extended	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/lib.rs	/^mod extended;$/;"	n
+f	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^    fn f(array: &[u8; 64], bit: usize) -> u64 {$/;"	f	function:pack_code
+f	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^            unsafe fn f(n: usize, a: *const u8, b: *const u8) -> u32;$/;"	f	function:reduce_sum_of_xy::reduce_sum_of_xy_a2_dotprod
+f	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^            unsafe fn f(n: usize, a: *const f16, b: *const f16) -> f32;$/;"	f	function:reduce_sum_of_d2::reduce_sum_of_d2_a2_fp16
+f	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^            unsafe fn f(n: usize, a: *const f16, b: *const f16) -> f32;$/;"	f	function:reduce_sum_of_d2::reduce_sum_of_d2_a3_512
+f	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^            unsafe fn f(n: usize, a: *const f16, b: *const f16) -> f32;$/;"	f	function:reduce_sum_of_d2::reduce_sum_of_d2_v4_avx512fp16
+f	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^            unsafe fn f(n: usize, a: *const f16, b: *const f16) -> f32;$/;"	f	function:reduce_sum_of_xy::reduce_sum_of_xy_a2_fp16
+f	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^            unsafe fn f(n: usize, a: *const f16, b: *const f16) -> f32;$/;"	f	function:reduce_sum_of_xy::reduce_sum_of_xy_a3_512
+f	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^            unsafe fn f(n: usize, a: *const f16, b: *const f16) -> f32;$/;"	f	function:reduce_sum_of_xy::reduce_sum_of_xy_v4_avx512fp16
+f	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^            unsafe fn f(n: usize, a: *const f32, b: *const f32) -> f32;$/;"	f	function:reduce_sum_of_d2::reduce_sum_of_d2_a3_256
+f	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^            unsafe fn f(n: usize, a: *const f32, b: *const f32) -> f32;$/;"	f	function:reduce_sum_of_xy::reduce_sum_of_xy_a3_256
+f	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/halfbyte.rs	/^            unsafe fn f(n: usize, a: *const u8, b: *const u8) -> u32;$/;"	f	function:reduce_sum_of_xy::reduce_sum_of_xy_a2_dotprod
+f16	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^impl Floating for f16 {$/;"	c
+f16	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^impl F16 for f16 {$/;"	c
+f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/distance/src/lib.rs	/^impl From<Distance> for f32 {$/;"	c
+f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^impl Floating for f32 {$/;"	c
+factor_cnt	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub factor_cnt: f32,$/;"	m	struct:CodeMetadata
+factor_err	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub factor_err: f32,$/;"	m	struct:CodeMetadata
+factor_ip	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub factor_ip: f32,$/;"	m	struct:CodeMetadata
+fast_scan	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^pub mod fast_scan;$/;"	n
+fht	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fht.rs	/^    fn fht() {$/;"	f	module:tests
+fht	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fht.rs	/^macro_rules! fht {$/;"	M
+fht	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fht.rs	/^pub fn fht(x: &mut [f32]) {$/;"	f
+fht	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^pub mod fht;$/;"	n
+find_scale	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^fn find_scale<const B: usize>(o: &[f32]) -> f32 {$/;"	f
+flip	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/rotate.rs	/^    pub fn flip(bits: &[u64; 1024], result: &mut [f32]) {$/;"	f	module:flip
+flip	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/rotate.rs	/^mod flip {$/;"	n
+flip	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/rotate.rs	/^pub fn flip(bits: &[u64; 1024], result: &mut [f32]) {$/;"	f
+floating_f16	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^mod floating_f16;$/;"	n
+floating_f16	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^pub mod floating_f16;$/;"	n
+floating_f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^mod floating_f32;$/;"	n
+floating_f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^pub mod floating_f32;$/;"	n
+fmt	/home/wangbin/work/github/VectorChord-1.1.1/crates/distance/src/lib.rs	/^    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {$/;"	P	implementation:Distance
+from	/home/wangbin/work/github/VectorChord-1.1.1/crates/distance/src/lib.rs	/^    fn from(value: Distance) -> Self {$/;"	P	implementation:f32
+from	/home/wangbin/work/github/VectorChord-1.1.1/crates/distance/src/lib.rs	/^    fn from(value: f32) -> Self {$/;"	P	implementation:Distance
+from_array	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub fn from_array([dis_u_2, factor_cnt, factor_ip, factor_err]: [f32; 4]) -> Self {$/;"	P	implementation:CodeMetadata
+from_array	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^    pub fn from_array([dis_u_2, norm_of_lattice, sum_of_code]: [f32; 3]) -> Self {$/;"	P	implementation:CodeMetadata
+from_f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/distance/src/lib.rs	/^    pub const fn from_f32(value: f32) -> Self {$/;"	P	implementation:Distance
+from_tuple	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub fn from_tuple((dis_u_2, factor_cnt, factor_ip, factor_err): (f32, f32, f32, f32)) -> Sel/;"	P	implementation:CodeMetadata
+from_tuple	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^    pub fn from_tuple((dis_u_2, norm_of_lattice, sum_of_code): (f32, f32, f32)) -> Self {$/;"	P	implementation:CodeMetadata
+full_process_dot	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub fn full_process_dot($/;"	f	module:block
+full_process_l2s	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub fn full_process_l2s($/;"	f	module:block
+function_last_name	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! function_last_name {$/;"	M
+function_name	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    function_name: String,$/;"	m	struct:TraceGuard
+function_name	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! function_name {$/;"	M
+function_normalize	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    fn function_normalize(&self) -> BVectOwned {$/;"	P	implementation:BVectBorrowed
+function_normalize	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^    fn function_normalize(&self) -> Self::Owned;$/;"	P	interface:VectorBorrowed
+function_normalize	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    fn function_normalize(&self) -> Rabitq4Owned {$/;"	P	implementation:Rabitq4Borrowed
+function_normalize	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    fn function_normalize(&self) -> Rabitq8Owned {$/;"	P	implementation:Rabitq8Borrowed
+function_normalize	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    fn function_normalize(&self) -> SVectOwned<S> {$/;"	P	implementation:SVectBorrowed
+function_normalize	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    fn function_normalize(&self) -> VectOwned<S> {$/;"	P	implementation:VectBorrowed
+get	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    pub fn get(&self, index: u32) -> bool {$/;"	P	implementation:BVectBorrowed
+givens	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/rotate.rs	/^    pub fn givens(lhs: &mut [f32], rhs: &mut [f32]) {$/;"	f	module:givens
+givens	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/rotate.rs	/^mod givens {$/;"	n
+givens	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/rotate.rs	/^pub fn givens(lhs: &mut [f32], rhs: &mut [f32]) {$/;"	f
+half_process_cos	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/byte.rs	/^    pub fn half_process_cos($/;"	f	module:binary
+half_process_cos	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^pub fn half_process_cos<const X: usize, const Y: usize>($/;"	f
+half_process_cos	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/halfbyte.rs	/^    pub fn half_process_cos($/;"	f	module:binary
+half_process_dot	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bits.rs	/^    pub fn half_process_dot($/;"	f	module:binary
+half_process_dot	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/byte.rs	/^    pub fn half_process_dot($/;"	f	module:binary
+half_process_dot	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^pub fn half_process_dot<const X: usize, const Y: usize>($/;"	f
+half_process_dot	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/halfbyte.rs	/^    pub fn half_process_dot($/;"	f	module:binary
+half_process_l2s	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bits.rs	/^    pub fn half_process_l2s($/;"	f	module:binary
+half_process_l2s	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/byte.rs	/^    pub fn half_process_l2s($/;"	f	module:binary
+half_process_l2s	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^pub fn half_process_l2s<const X: usize, const Y: usize>($/;"	f
+half_process_l2s	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/halfbyte.rs	/^    pub fn half_process_l2s($/;"	f	module:binary
+halfbyte	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/lib.rs	/^pub mod halfbyte;$/;"	n
+halfbyte	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^pub mod halfbyte;$/;"	n
+indexes	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    indexes: &'a [u32],$/;"	m	struct:SVectBorrowed
+indexes	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    indexes: Vec<u32>,$/;"	m	struct:SVectOwned
+indexes	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    pub fn indexes(&self) -> &'a [u32] {$/;"	P	implementation:SVectBorrowed
+indexes	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    pub fn indexes(&self) -> &[u32] {$/;"	P	implementation:SVectOwned
+infinity	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn infinity() -> Self {$/;"	P	implementation:f16
+infinity	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn infinity() -> Self {$/;"	P	implementation:f32
+infinity	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn infinity() -> Self;$/;"	P	interface:Floating
+internal	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^pub mod internal {$/;"	n
+into_array	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub fn into_array(self) -> [f32; 4] {$/;"	P	implementation:CodeMetadata
+into_array	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^    pub fn into_array(self) -> [f32; 3] {$/;"	P	implementation:CodeMetadata
+into_tuple	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub fn into_tuple(self) -> (f32, f32, f32, f32) {$/;"	P	implementation:CodeMetadata
+into_tuple	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^    pub fn into_tuple(self) -> (f32, f32, f32) {$/;"	P	implementation:CodeMetadata
+into_vec	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    pub fn into_vec(self) -> Vec<S> {$/;"	P	implementation:VectOwned
+is_256_detected	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^        fn is_256_detected() -> bool {$/;"	f	function:internal::is_a3_256_detected
+is_512_detected	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^        fn is_512_detected() -> bool {$/;"	f	function:internal::is_a3_512_detected
+is_a2_detected	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    pub fn is_a2_detected() -> bool {$/;"	f	module:internal
+is_a3_128_detected	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    pub fn is_a3_128_detected() -> bool {$/;"	f	module:internal
+is_a3_256_detected	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    pub fn is_a3_256_detected() -> bool {$/;"	f	module:internal
+is_a3_512_detected	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    pub fn is_a3_512_detected() -> bool {$/;"	f	module:internal
+is_empty	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    pub fn is_empty(&self) -> bool {$/;"	P	implementation:SVectBorrowed
+is_p7_detected	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    pub fn is_p7_detected() -> bool {$/;"	f	module:internal
+is_p8_detected	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    pub fn is_p8_detected() -> bool {$/;"	f	module:internal
+is_p9_detected	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    pub fn is_p9_detected() -> bool {$/;"	f	module:internal
+is_r1_detected	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    pub fn is_r1_detected() -> bool {$/;"	f	module:internal
+is_v2_detected	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    pub fn is_v2_detected() -> bool {$/;"	f	module:internal
+is_v3_detected	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    pub fn is_v3_detected() -> bool {$/;"	f	module:internal
+is_v4_detected	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    pub fn is_v4_detected() -> bool {$/;"	f	module:internal
+is_z13_detected	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    pub fn is_z13_detected() -> bool {$/;"	f	module:internal
+is_z14_detected	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    pub fn is_z14_detected() -> bool {$/;"	f	module:internal
+is_z15_detected	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    pub fn is_z15_detected() -> bool {$/;"	f	module:internal
+is_z16_detected	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    pub fn is_z16_detected() -> bool {$/;"	f	module:internal
+is_z17_detected	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    pub fn is_z17_detected() -> bool {$/;"	f	module:internal
+iter	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    pub fn iter(self) -> impl Iterator<Item = bool> + 'a {$/;"	P	implementation:BVectBorrowed
+k	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^        k: f32,$/;"	m	struct:binary::BinaryLutMetadata
+k	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^        k: f32,$/;"	m	struct:block::BlockLutMetadata
+kacs_walk	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/rotate.rs	/^fn kacs_walk(result: &mut [f32]) {$/;"	f
+len	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    pub fn len(&self) -> u32 {$/;"	P	implementation:SVectBorrowed
+mask	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn mask(self, m: bool) -> Self {$/;"	P	implementation:f16
+mask	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn mask(self, m: bool) -> Self {$/;"	P	implementation:f32
+mask	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn mask(self, m: bool) -> Self;$/;"	P	interface:Floating
+mul_add_round	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/quantize.rs	/^    pub fn mul_add_round(this: &[f32], k: f32, b: f32) -> Vec<u8> {$/;"	f	module:mul_add_round
+mul_add_round	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/quantize.rs	/^mod mul_add_round {$/;"	n
+mul_add_round_a2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/quantize.rs	/^    fn mul_add_round_a2(this: &[f32], k: f32, b: f32) -> Vec<u8> {$/;"	f	module:mul_add_round
+mul_add_round_a2_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/quantize.rs	/^    fn mul_add_round_a2_test() {$/;"	f	module:mul_add_round
+mul_add_round_v2_fma	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/quantize.rs	/^    fn mul_add_round_v2_fma(this: &[f32], k: f32, b: f32) -> Vec<u8> {$/;"	f	module:mul_add_round
+mul_add_round_v2_fma_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/quantize.rs	/^    fn mul_add_round_v2_fma_test() {$/;"	f	module:mul_add_round
+mul_add_round_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/quantize.rs	/^    fn mul_add_round_v3(this: &[f32], k: f32, b: f32) -> Vec<u8> {$/;"	f	module:mul_add_round
+mul_add_round_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/quantize.rs	/^    fn mul_add_round_v3_test() {$/;"	f	module:mul_add_round
+mul_add_round_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/quantize.rs	/^    fn mul_add_round_v4(this: &[f32], k: f32, b: f32) -> Vec<u8> {$/;"	f	module:mul_add_round
+mul_add_round_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/quantize.rs	/^    fn mul_add_round_v4_test() {$/;"	f	module:mul_add_round
+native	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fht.rs	/^    fn native(x: &mut [f32]) {$/;"	f	module:tests
+new	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn new(function_name: &str) -> Self {$/;"	P	implementation:TraceGuard
+new	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    pub fn new(dim: u32, data: &'a [u64]) -> Self {$/;"	P	implementation:BVectBorrowed
+new	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    pub fn new(dim: u32, data: Vec<u64>) -> Self {$/;"	P	implementation:BVectOwned
+new	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    pub fn new($/;"	P	implementation:Rabitq4Borrowed
+new	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    pub fn new($/;"	P	implementation:Rabitq4Owned
+new	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    pub fn new($/;"	P	implementation:Rabitq8Borrowed
+new	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    pub fn new($/;"	P	implementation:Rabitq8Owned
+new	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    pub fn new(dim: u32, indexes: &'a [u32], values: &'a [S]) -> Self {$/;"	P	implementation:SVectBorrowed
+new	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    pub fn new(dim: u32, indexes: Vec<u32>, values: Vec<S>) -> Self {$/;"	P	implementation:SVectOwned
+new	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    pub fn new(slice: &'a [S]) -> Self {$/;"	P	implementation:VectBorrowed
+new	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    pub fn new(slice: Vec<S>) -> Self {$/;"	P	implementation:VectOwned
+new_checked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    pub fn new_checked(dim: u32, data: &'a [u64]) -> Option<Self> {$/;"	P	implementation:BVectBorrowed
+new_checked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    pub fn new_checked(dim: u32, data: Vec<u64>) -> Option<Self> {$/;"	P	implementation:BVectOwned
+new_checked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    pub fn new_checked($/;"	P	implementation:Rabitq4Borrowed
+new_checked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    pub fn new_checked($/;"	P	implementation:Rabitq4Owned
+new_checked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    pub fn new_checked($/;"	P	implementation:Rabitq8Borrowed
+new_checked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    pub fn new_checked($/;"	P	implementation:Rabitq8Owned
+new_checked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    pub fn new_checked(dim: u32, indexes: &'a [u32], values: &'a [S]) -> Option<Self> {$/;"	P	implementation:SVectBorrowed
+new_checked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    pub fn new_checked(dim: u32, indexes: Vec<u32>, values: Vec<S>) -> Option<Self> {$/;"	P	implementation:SVectOwned
+new_checked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    pub fn new_checked(slice: &'a [S]) -> Option<Self> {$/;"	P	implementation:VectBorrowed
+new_checked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    pub fn new_checked(slice: Vec<S>) -> Option<Self> {$/;"	P	implementation:VectOwned
+new_unchecked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    pub unsafe fn new_unchecked(dim: u32, data: &'a [u64]) -> Self {$/;"	P	implementation:BVectBorrowed
+new_unchecked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    pub unsafe fn new_unchecked(dim: u32, data: Vec<u64>) -> Self {$/;"	P	implementation:BVectOwned
+new_unchecked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    pub unsafe fn new_unchecked($/;"	P	implementation:Rabitq4Borrowed
+new_unchecked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    pub unsafe fn new_unchecked($/;"	P	implementation:Rabitq4Owned
+new_unchecked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    pub unsafe fn new_unchecked($/;"	P	implementation:Rabitq8Borrowed
+new_unchecked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    pub unsafe fn new_unchecked($/;"	P	implementation:Rabitq8Owned
+new_unchecked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    pub unsafe fn new_unchecked(dim: u32, indexes: &'a [u32], values: &'a [S]) -> Self {$/;"	P	implementation:SVectBorrowed
+new_unchecked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    pub unsafe fn new_unchecked(dim: u32, indexes: Vec<u32>, values: Vec<S>) -> Self {$/;"	P	implementation:SVectOwned
+new_unchecked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    pub unsafe fn new_unchecked(slice: &'a [S]) -> Self {$/;"	P	implementation:VectBorrowed
+new_unchecked	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    pub unsafe fn new_unchecked(slice: Vec<S>) -> Self {$/;"	P	implementation:VectOwned
+norm	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    fn norm(&self) -> f32 {$/;"	P	implementation:BVectBorrowed
+norm	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^    fn norm(&self) -> f32;$/;"	P	interface:VectorBorrowed
+norm	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    fn norm(&self) -> f32 {$/;"	P	implementation:Rabitq4Borrowed
+norm	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    fn norm(&self) -> f32 {$/;"	P	implementation:Rabitq8Borrowed
+norm	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    fn norm(&self) -> f32 {$/;"	P	implementation:SVectBorrowed
+norm	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    fn norm(&self) -> f32 {$/;"	P	implementation:VectBorrowed
+norm_of_lattice	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^    pub norm_of_lattice: f32,$/;"	m	struct:CodeMetadata
+norm_of_lattice	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    norm_of_lattice: f32,$/;"	m	struct:Rabitq4Borrowed
+norm_of_lattice	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    norm_of_lattice: f32,$/;"	m	struct:Rabitq4Owned
+norm_of_lattice	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    pub fn norm_of_lattice(&self) -> f32 {$/;"	P	implementation:Rabitq4Borrowed
+norm_of_lattice	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    norm_of_lattice: f32,$/;"	m	struct:Rabitq8Borrowed
+norm_of_lattice	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    norm_of_lattice: f32,$/;"	m	struct:Rabitq8Owned
+norm_of_lattice	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    pub fn norm_of_lattice(&self) -> f32 {$/;"	P	implementation:Rabitq8Borrowed
+operator_add	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    fn operator_add(&self, _: Self) -> Self::Owned {$/;"	P	implementation:BVectBorrowed
+operator_add	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^    fn operator_add(&self, rhs: Self) -> Self::Owned;$/;"	P	interface:VectorBorrowed
+operator_add	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    fn operator_add(&self, _: Self) -> Self::Owned {$/;"	P	implementation:Rabitq4Borrowed
+operator_add	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    fn operator_add(&self, _: Self) -> Self::Owned {$/;"	P	implementation:Rabitq8Borrowed
+operator_add	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    fn operator_add(&self, rhs: Self) -> Self::Owned {$/;"	P	implementation:SVectBorrowed
+operator_add	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    fn operator_add(&self, rhs: Self) -> Self::Owned {$/;"	P	implementation:VectBorrowed
+operator_and	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    fn operator_and(&self, rhs: Self) -> Self::Owned {$/;"	P	implementation:BVectBorrowed
+operator_and	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^    fn operator_and(&self, rhs: Self) -> Self::Owned;$/;"	P	interface:VectorBorrowed
+operator_and	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    fn operator_and(&self, _: Self) -> Self::Owned {$/;"	P	implementation:Rabitq4Borrowed
+operator_and	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    fn operator_and(&self, _: Self) -> Self::Owned {$/;"	P	implementation:Rabitq8Borrowed
+operator_and	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    fn operator_and(&self, _: Self) -> Self::Owned {$/;"	P	implementation:SVectBorrowed
+operator_and	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    fn operator_and(&self, _: Self) -> Self::Owned {$/;"	P	implementation:VectBorrowed
+operator_cos	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    fn operator_cos(self, _: Self) -> Distance {$/;"	P	implementation:BVectBorrowed
+operator_cos	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^    fn operator_cos(self, rhs: Self) -> distance::Distance;$/;"	P	interface:VectorBorrowed
+operator_cos	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    fn operator_cos(self, rhs: Self) -> Distance {$/;"	P	implementation:Rabitq4Borrowed
+operator_cos	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    fn operator_cos(self, rhs: Self) -> Distance {$/;"	P	implementation:Rabitq8Borrowed
+operator_cos	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    fn operator_cos(self, rhs: Self) -> Distance {$/;"	P	implementation:SVectBorrowed
+operator_cos	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    fn operator_cos(self, rhs: Self) -> Distance {$/;"	P	implementation:VectBorrowed
+operator_dot	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    fn operator_dot(self, rhs: Self) -> Distance {$/;"	P	implementation:BVectBorrowed
+operator_dot	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^    fn operator_dot(self, rhs: Self) -> distance::Distance;$/;"	P	interface:VectorBorrowed
+operator_dot	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    fn operator_dot(self, rhs: Self) -> Distance {$/;"	P	implementation:Rabitq4Borrowed
+operator_dot	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    fn operator_dot(self, rhs: Self) -> Distance {$/;"	P	implementation:Rabitq8Borrowed
+operator_dot	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    fn operator_dot(self, rhs: Self) -> Distance {$/;"	P	implementation:SVectBorrowed
+operator_dot	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    fn operator_dot(self, rhs: Self) -> Distance {$/;"	P	implementation:VectBorrowed
+operator_hamming	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    fn operator_hamming(self, rhs: Self) -> Distance {$/;"	P	implementation:BVectBorrowed
+operator_hamming	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^    fn operator_hamming(self, rhs: Self) -> distance::Distance;$/;"	P	interface:VectorBorrowed
+operator_hamming	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    fn operator_hamming(self, _: Self) -> Distance {$/;"	P	implementation:Rabitq4Borrowed
+operator_hamming	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    fn operator_hamming(self, _: Self) -> Distance {$/;"	P	implementation:Rabitq8Borrowed
+operator_hamming	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    fn operator_hamming(self, _: Self) -> Distance {$/;"	P	implementation:SVectBorrowed
+operator_hamming	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    fn operator_hamming(self, _: Self) -> Distance {$/;"	P	implementation:VectBorrowed
+operator_jaccard	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    fn operator_jaccard(self, rhs: Self) -> Distance {$/;"	P	implementation:BVectBorrowed
+operator_jaccard	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^    fn operator_jaccard(self, rhs: Self) -> distance::Distance;$/;"	P	interface:VectorBorrowed
+operator_jaccard	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    fn operator_jaccard(self, _: Self) -> Distance {$/;"	P	implementation:Rabitq4Borrowed
+operator_jaccard	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    fn operator_jaccard(self, _: Self) -> Distance {$/;"	P	implementation:Rabitq8Borrowed
+operator_jaccard	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    fn operator_jaccard(self, _: Self) -> Distance {$/;"	P	implementation:SVectBorrowed
+operator_jaccard	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    fn operator_jaccard(self, _: Self) -> Distance {$/;"	P	implementation:VectBorrowed
+operator_l2s	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    fn operator_l2s(self, _: Self) -> Distance {$/;"	P	implementation:BVectBorrowed
+operator_l2s	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^    fn operator_l2s(self, rhs: Self) -> distance::Distance;$/;"	P	interface:VectorBorrowed
+operator_l2s	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    fn operator_l2s(self, rhs: Self) -> Distance {$/;"	P	implementation:Rabitq4Borrowed
+operator_l2s	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    fn operator_l2s(self, rhs: Self) -> Distance {$/;"	P	implementation:Rabitq8Borrowed
+operator_l2s	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    fn operator_l2s(self, rhs: Self) -> Distance {$/;"	P	implementation:SVectBorrowed
+operator_l2s	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    fn operator_l2s(self, rhs: Self) -> Distance {$/;"	P	implementation:VectBorrowed
+operator_mul	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    fn operator_mul(&self, _: Self) -> Self::Owned {$/;"	P	implementation:BVectBorrowed
+operator_mul	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^    fn operator_mul(&self, rhs: Self) -> Self::Owned;$/;"	P	interface:VectorBorrowed
+operator_mul	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    fn operator_mul(&self, _: Self) -> Self::Owned {$/;"	P	implementation:Rabitq4Borrowed
+operator_mul	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    fn operator_mul(&self, _: Self) -> Self::Owned {$/;"	P	implementation:Rabitq8Borrowed
+operator_mul	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    fn operator_mul(&self, rhs: Self) -> Self::Owned {$/;"	P	implementation:SVectBorrowed
+operator_mul	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    fn operator_mul(&self, rhs: Self) -> Self::Owned {$/;"	P	implementation:VectBorrowed
+operator_or	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    fn operator_or(&self, rhs: Self) -> Self::Owned {$/;"	P	implementation:BVectBorrowed
+operator_or	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^    fn operator_or(&self, rhs: Self) -> Self::Owned;$/;"	P	interface:VectorBorrowed
+operator_or	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    fn operator_or(&self, _: Self) -> Self::Owned {$/;"	P	implementation:Rabitq4Borrowed
+operator_or	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    fn operator_or(&self, _: Self) -> Self::Owned {$/;"	P	implementation:Rabitq8Borrowed
+operator_or	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    fn operator_or(&self, _: Self) -> Self::Owned {$/;"	P	implementation:SVectBorrowed
+operator_or	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    fn operator_or(&self, _: Self) -> Self::Owned {$/;"	P	implementation:VectBorrowed
+operator_sub	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    fn operator_sub(&self, _: Self) -> Self::Owned {$/;"	P	implementation:BVectBorrowed
+operator_sub	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^    fn operator_sub(&self, rhs: Self) -> Self::Owned;$/;"	P	interface:VectorBorrowed
+operator_sub	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    fn operator_sub(&self, _: Self) -> Self::Owned {$/;"	P	implementation:Rabitq4Borrowed
+operator_sub	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    fn operator_sub(&self, _: Self) -> Self::Owned {$/;"	P	implementation:Rabitq8Borrowed
+operator_sub	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    fn operator_sub(&self, rhs: Self) -> Self::Owned {$/;"	P	implementation:SVectBorrowed
+operator_sub	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    fn operator_sub(&self, rhs: Self) -> Self::Owned {$/;"	P	implementation:VectBorrowed
+operator_xor	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    fn operator_xor(&self, rhs: Self) -> Self::Owned {$/;"	P	implementation:BVectBorrowed
+operator_xor	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^    fn operator_xor(&self, rhs: Self) -> Self::Owned;$/;"	P	interface:VectorBorrowed
+operator_xor	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    fn operator_xor(&self, _: Self) -> Self::Owned {$/;"	P	implementation:Rabitq4Borrowed
+operator_xor	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    fn operator_xor(&self, _: Self) -> Self::Owned {$/;"	P	implementation:Rabitq8Borrowed
+operator_xor	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    fn operator_xor(&self, _: Self) -> Self::Owned {$/;"	P	implementation:SVectBorrowed
+operator_xor	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    fn operator_xor(&self, _: Self) -> Self::Owned {$/;"	P	implementation:VectBorrowed
+own	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    fn own(&self) -> BVectOwned {$/;"	P	implementation:BVectBorrowed
+own	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^    fn own(&self) -> Self::Owned;$/;"	P	interface:VectorBorrowed
+own	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    fn own(&self) -> Rabitq4Owned {$/;"	P	implementation:Rabitq4Borrowed
+own	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    fn own(&self) -> Rabitq8Owned {$/;"	P	implementation:Rabitq8Borrowed
+own	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    fn own(&self) -> SVectOwned<S> {$/;"	P	implementation:SVectBorrowed
+own	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    fn own(&self) -> VectOwned<S> {$/;"	P	implementation:VectBorrowed
+pack	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/packing.rs	/^pub fn pack(x: [&[u8]; 32]) -> Vec<[u8; 16]> {$/;"	f
+pack_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub fn pack_code(input: &[bool]) -> Vec<u64> {$/;"	f	module:binary
+pack_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bits.rs	/^pub fn pack_code(bits: Bits, input: &[u8]) -> Vec<u64> {$/;"	f
+pack_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/byte.rs	/^pub fn pack_code(input: &[u8]) -> Vec<u8> {$/;"	f
+pack_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^pub fn pack_code<const BITS: usize>(input: &[u8]) -> [Vec<u64>; BITS] {$/;"	f
+pack_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/halfbyte.rs	/^pub fn pack_code(input: &[u8]) -> Vec<u8> {$/;"	f
+pack_to_u4	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/packing.rs	/^pub fn pack_to_u4(input: &[bool]) -> Vec<u8> {$/;"	f
+packed_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    packed_code: &'a [u8],$/;"	m	struct:Rabitq4Borrowed
+packed_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    packed_code: Vec<u8>,$/;"	m	struct:Rabitq4Owned
+packed_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    pub fn packed_code(&self) -> &'a [u8] {$/;"	P	implementation:Rabitq4Borrowed
+packed_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    packed_code: &'a [u8],$/;"	m	struct:Rabitq8Borrowed
+packed_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    packed_code: Vec<u8>,$/;"	m	struct:Rabitq8Owned
+packed_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    pub fn packed_code(&self) -> &'a [u8] {$/;"	P	implementation:Rabitq8Borrowed
+packing	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/lib.rs	/^pub mod packing;$/;"	n
+padding_pack	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/packing.rs	/^pub fn padding_pack(x: impl IntoIterator<Item = impl AsRef<[u8]>>) -> Vec<[u8; 16]> {$/;"	f
+partial_cmp	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/bvect.rs	/^    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {$/;"	P	implementation:BVectBorrowed
+partial_cmp	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {$/;"	P	implementation:SVectBorrowed
+partial_cmp	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {$/;"	P	implementation:VectBorrowed
+partial_load	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/emulate.rs	/^macro_rules! partial_load {$/;"	M
+preprocess	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub fn preprocess(vector: &[f32]) -> BinaryLut {$/;"	f	module:binary
+preprocess	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub fn preprocess(vector: &[f32]) -> BlockLut {$/;"	f	module:block
+preprocess	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^pub fn preprocess(vector: &[f32]) -> (BlockLut, BinaryLut) {$/;"	f
+preprocess	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bits.rs	/^    pub fn preprocess(vector: &[f32]) -> BinaryLut {$/;"	f	module:binary
+preprocess	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/byte.rs	/^    pub fn preprocess(vector: &[f32]) -> BinaryLut {$/;"	f	module:binary
+preprocess	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/halfbyte.rs	/^    pub fn preprocess(vector: &[f32]) -> BinaryLut {$/;"	f	module:binary
+preprocess_with_distance	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub(crate) fn preprocess_with_distance(vector: &[f32], dis_v_2: f32) -> BinaryLut {$/;"	f	module:binary
+preprocess_with_distance	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^    pub(crate) fn preprocess_with_distance(vector: &[f32], dis_v_2: f32) -> BlockLut {$/;"	f	module:block
+quantize	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^pub mod quantize;$/;"	n
+quantize	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/quantize.rs	/^pub fn quantize(lut: &[f32], n: f32) -> (f32, f32, Vec<u8>) {$/;"	f
+qvector_sum	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bit.rs	/^        qvector_sum: f32,$/;"	m	struct:binary::BinaryLutMetadata
+rabitq4	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^pub mod rabitq4;$/;"	n
+rabitq8	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^pub mod rabitq8;$/;"	n
+reduce_min_max_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_min_max_of_x(this: &[f16]) -> (f32, f32) {$/;"	P	implementation:f16
+reduce_min_max_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    pub fn reduce_min_max_of_x(this: &[f16]) -> (f32, f32) {$/;"	f	module:reduce_min_max_of_x
+reduce_min_max_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^mod reduce_min_max_of_x {$/;"	n
+reduce_min_max_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_min_max_of_x(this: &[f32]) -> (f32, f32) {$/;"	P	implementation:f32
+reduce_min_max_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    pub fn reduce_min_max_of_x(this: &[f32]) -> (f32, f32) {$/;"	f	module:reduce_min_max_of_x
+reduce_min_max_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^mod reduce_min_max_of_x {$/;"	n
+reduce_min_max_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn reduce_min_max_of_x(this: &[Self]) -> (f32, f32);$/;"	P	interface:Floating
+reduce_min_max_of_x_a2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_min_max_of_x_a2(this: &[f32]) -> (f32, f32) {$/;"	f	module:reduce_min_max_of_x
+reduce_min_max_of_x_a2_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_min_max_of_x_a2_test() {$/;"	f	module:reduce_min_max_of_x
+reduce_min_max_of_x_v2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_min_max_of_x_v2(this: &[f32]) -> (f32, f32) {$/;"	f	module:reduce_min_max_of_x
+reduce_min_max_of_x_v2_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_min_max_of_x_v2_test() {$/;"	f	module:reduce_min_max_of_x
+reduce_min_max_of_x_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_min_max_of_x_v3(this: &[f16]) -> (f32, f32) {$/;"	f	module:reduce_min_max_of_x
+reduce_min_max_of_x_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_min_max_of_x_v3(this: &[f32]) -> (f32, f32) {$/;"	f	module:reduce_min_max_of_x
+reduce_min_max_of_x_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_min_max_of_x_v3_test() {$/;"	f	module:reduce_min_max_of_x
+reduce_min_max_of_x_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_min_max_of_x_v3_test() {$/;"	f	module:reduce_min_max_of_x
+reduce_min_max_of_x_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_min_max_of_x_v4(this: &[f16]) -> (f32, f32) {$/;"	f	module:reduce_min_max_of_x
+reduce_min_max_of_x_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_min_max_of_x_v4(this: &[f32]) -> (f32, f32) {$/;"	f	module:reduce_min_max_of_x
+reduce_min_max_of_x_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_min_max_of_x_v4_test() {$/;"	f	module:reduce_min_max_of_x
+reduce_min_max_of_x_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_min_max_of_x_v4_test() {$/;"	f	module:reduce_min_max_of_x
+reduce_or_of_is_zero_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_or_of_is_zero_x(this: &[f16]) -> bool {$/;"	P	implementation:f16
+reduce_or_of_is_zero_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    pub fn reduce_or_of_is_zero_x(this: &[f16]) -> bool {$/;"	f	module:reduce_or_of_is_zero_x
+reduce_or_of_is_zero_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^mod reduce_or_of_is_zero_x {$/;"	n
+reduce_or_of_is_zero_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_or_of_is_zero_x(this: &[f32]) -> bool {$/;"	P	implementation:f32
+reduce_or_of_is_zero_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    pub fn reduce_or_of_is_zero_x(this: &[f32]) -> bool {$/;"	f	module:reduce_or_of_is_zero_x
+reduce_or_of_is_zero_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^mod reduce_or_of_is_zero_x {$/;"	n
+reduce_or_of_is_zero_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn reduce_or_of_is_zero_x(this: &[Self]) -> bool;$/;"	P	interface:Floating
+reduce_sum_of_abs_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_abs_x(this: &[f16]) -> f32 {$/;"	P	implementation:f16
+reduce_sum_of_abs_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    pub fn reduce_sum_of_abs_x(this: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_abs_x
+reduce_sum_of_abs_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^mod reduce_sum_of_abs_x {$/;"	n
+reduce_sum_of_abs_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_abs_x(this: &[f32]) -> f32 {$/;"	P	implementation:f32
+reduce_sum_of_abs_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    pub fn reduce_sum_of_abs_x(this: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_abs_x
+reduce_sum_of_abs_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^mod reduce_sum_of_abs_x {$/;"	n
+reduce_sum_of_abs_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn reduce_sum_of_abs_x(this: &[Self]) -> f32;$/;"	P	interface:Floating
+reduce_sum_of_abs_x_a2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_abs_x_a2(this: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_abs_x
+reduce_sum_of_abs_x_a2_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_abs_x_a2_test() {$/;"	f	module:reduce_sum_of_abs_x
+reduce_sum_of_abs_x_v2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_abs_x_v2(this: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_abs_x
+reduce_sum_of_abs_x_v2_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_abs_x_v2_test() {$/;"	f	module:reduce_sum_of_abs_x
+reduce_sum_of_abs_x_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_abs_x_v3(this: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_abs_x
+reduce_sum_of_abs_x_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_abs_x_v3(this: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_abs_x
+reduce_sum_of_abs_x_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_abs_x_v3_test() {$/;"	f	module:reduce_sum_of_abs_x
+reduce_sum_of_abs_x_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_abs_x_v3_test() {$/;"	f	module:reduce_sum_of_abs_x
+reduce_sum_of_abs_x_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_abs_x_v4(this: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_abs_x
+reduce_sum_of_abs_x_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_abs_x_v4(this: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_abs_x
+reduce_sum_of_abs_x_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_abs_x_v4_test() {$/;"	f	module:reduce_sum_of_abs_x
+reduce_sum_of_abs_x_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_abs_x_v4_test() {$/;"	f	module:reduce_sum_of_abs_x
+reduce_sum_of_and	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    pub fn reduce_sum_of_and(lhs: &[u64], rhs: &[u64]) -> u32 {$/;"	f	module:reduce_sum_of_and
+reduce_sum_of_and	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^mod reduce_sum_of_and {$/;"	n
+reduce_sum_of_and	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^pub fn reduce_sum_of_and(lhs: &[u64], rhs: &[u64]) -> u32 {$/;"	f
+reduce_sum_of_and_or	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    pub fn reduce_sum_of_and_or(lhs: &[u64], rhs: &[u64]) -> (u32, u32) {$/;"	f	module:reduce_sum_of_and_or
+reduce_sum_of_and_or	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^mod reduce_sum_of_and_or {$/;"	n
+reduce_sum_of_and_or	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^pub fn reduce_sum_of_and_or(lhs: &[u64], rhs: &[u64]) -> (u32, u32) {$/;"	f
+reduce_sum_of_and_or_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_and_or_v3(lhs: &[u64], rhs: &[u64]) -> (u32, u32) {$/;"	f	module:reduce_sum_of_and_or
+reduce_sum_of_and_or_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_and_or_v3_test() {$/;"	f	module:reduce_sum_of_and_or
+reduce_sum_of_and_or_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_and_or_v4(lhs: &[u64], rhs: &[u64]) -> (u32, u32) {$/;"	f	module:reduce_sum_of_and_or
+reduce_sum_of_and_or_v4_avx512vpopcntdq	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_and_or_v4_avx512vpopcntdq(lhs: &[u64], rhs: &[u64]) -> (u32, u32) {$/;"	f	module:reduce_sum_of_and_or
+reduce_sum_of_and_or_v4_avx512vpopcntdq_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_and_or_v4_avx512vpopcntdq_test() {$/;"	f	module:reduce_sum_of_and_or
+reduce_sum_of_and_or_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_and_or_v4_test() {$/;"	f	module:reduce_sum_of_and_or
+reduce_sum_of_and_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_and_v3(lhs: &[u64], rhs: &[u64]) -> u32 {$/;"	f	module:reduce_sum_of_and
+reduce_sum_of_and_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_and_v3_test() {$/;"	f	module:reduce_sum_of_and
+reduce_sum_of_and_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_and_v4(lhs: &[u64], rhs: &[u64]) -> u32 {$/;"	f	module:reduce_sum_of_and
+reduce_sum_of_and_v4_avx512vpopcntdq	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_and_v4_avx512vpopcntdq(lhs: &[u64], rhs: &[u64]) -> u32 {$/;"	f	module:reduce_sum_of_and
+reduce_sum_of_and_v4_avx512vpopcntdq_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_and_v4_avx512vpopcntdq_test() {$/;"	f	module:reduce_sum_of_and
+reduce_sum_of_and_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_and_v4_test() {$/;"	f	module:reduce_sum_of_and
+reduce_sum_of_d2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_d2(lhs: &[f16], rhs: &[f16]) -> f32 {$/;"	P	implementation:f16
+reduce_sum_of_d2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    pub fn reduce_sum_of_d2(lhs: &[f16], rhs: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^mod reduce_sum_of_d2 {$/;"	n
+reduce_sum_of_d2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_d2(lhs: &[Self], rhs: &[Self]) -> f32 {$/;"	P	implementation:f32
+reduce_sum_of_d2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    pub fn reduce_sum_of_d2(lhs: &[f32], rhs: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^mod reduce_sum_of_d2 {$/;"	n
+reduce_sum_of_d2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn reduce_sum_of_d2(lhs: &[Self], rhs: &[Self]) -> f32;$/;"	P	interface:Floating
+reduce_sum_of_d2_a2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_d2_a2(lhs: &[f32], rhs: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_a2_fp16	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_d2_a2_fp16(lhs: &[f16], rhs: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_a2_fp16_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_d2_a2_fp16_test() {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_a2_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_d2_a2_test() {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_a3_256	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_d2_a3_256(lhs: &[f32], rhs: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_a3_256_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_d2_a3_256_test() {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_a3_512	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_d2_a3_512(lhs: &[f16], rhs: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_a3_512_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_d2_a3_512_test() {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_sparse	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_d2_sparse(lidx: &[u32], lval: &[f16], ridx: &[u32], rval: &[f16]) -> f32 {$/;"	P	implementation:f16
+reduce_sum_of_d2_sparse	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    pub fn reduce_sum_of_d2_sparse(lidx: &[u32], lval: &[f16], ridx: &[u32], rval: &[f16]) -> f3/;"	f	module:reduce_sum_of_d2_sparse
+reduce_sum_of_d2_sparse	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^mod reduce_sum_of_d2_sparse {$/;"	n
+reduce_sum_of_d2_sparse	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_d2_sparse(lidx: &[u32], lval: &[f32], ridx: &[u32], rval: &[f32]) -> f32 {$/;"	P	implementation:f32
+reduce_sum_of_d2_sparse	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    pub fn reduce_sum_of_d2_sparse(lidx: &[u32], lval: &[f32], ridx: &[u32], rval: &[f32]) -> f3/;"	f	module:reduce_sum_of_d2_sparse
+reduce_sum_of_d2_sparse	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^mod reduce_sum_of_d2_sparse {$/;"	n
+reduce_sum_of_d2_sparse	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn reduce_sum_of_d2_sparse(lidx: &[u32], lval: &[Self], ridx: &[u32], rval: &[Self]) -> f32;$/;"	P	interface:Floating
+reduce_sum_of_d2_sparse_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_d2_sparse_v4(li: &[u32], lv: &[f32], ri: &[u32], rv: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_d2_sparse
+reduce_sum_of_d2_sparse_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_d2_sparse_v4_test() {$/;"	f	module:reduce_sum_of_d2_sparse
+reduce_sum_of_d2_v2_fma	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_d2_v2_fma(lhs: &[f32], rhs: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_v2_fma_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_d2_v2_fma_test() {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_d2_v3(lhs: &[f16], rhs: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_d2_v3(lhs: &[f32], rhs: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_d2_v3_test() {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_d2_v3_test() {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_d2_v4(lhs: &[f16], rhs: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_d2_v4(lhs: &[f32], rhs: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_v4_avx512fp16	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_d2_v4_avx512fp16(lhs: &[f16], rhs: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_v4_avx512fp16_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_d2_v4_avx512fp16_test() {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_d2_v4_test() {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_d2_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_d2_v4_test() {$/;"	f	module:reduce_sum_of_d2
+reduce_sum_of_or	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    pub fn reduce_sum_of_or(lhs: &[u64], rhs: &[u64]) -> u32 {$/;"	f	module:reduce_sum_of_or
+reduce_sum_of_or	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^mod reduce_sum_of_or {$/;"	n
+reduce_sum_of_or	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^pub fn reduce_sum_of_or(lhs: &[u64], rhs: &[u64]) -> u32 {$/;"	f
+reduce_sum_of_or_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_or_v3(lhs: &[u64], rhs: &[u64]) -> u32 {$/;"	f	module:reduce_sum_of_or
+reduce_sum_of_or_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_or_v3_test() {$/;"	f	module:reduce_sum_of_or
+reduce_sum_of_or_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_or_v4(lhs: &[u64], rhs: &[u64]) -> u32 {$/;"	f	module:reduce_sum_of_or
+reduce_sum_of_or_v4_avx512vpopcntdq	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_or_v4_avx512vpopcntdq(lhs: &[u64], rhs: &[u64]) -> u32 {$/;"	f	module:reduce_sum_of_or
+reduce_sum_of_or_v4_avx512vpopcntdq_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_or_v4_avx512vpopcntdq_test() {$/;"	f	module:reduce_sum_of_or
+reduce_sum_of_or_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_or_v4_test() {$/;"	f	module:reduce_sum_of_or
+reduce_sum_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    pub fn reduce_sum_of_x(this: &[u64]) -> u32 {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^mod reduce_sum_of_x {$/;"	n
+reduce_sum_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^pub fn reduce_sum_of_x(this: &[u64]) -> u32 {$/;"	f
+reduce_sum_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    pub fn reduce_sum_of_x(this: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^mod reduce_sum_of_x {$/;"	n
+reduce_sum_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^pub fn reduce_sum_of_x(vector: &[u8]) -> u32 {$/;"	f
+reduce_sum_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_x(this: &[f16]) -> f32 {$/;"	P	implementation:f16
+reduce_sum_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    pub fn reduce_sum_of_x(this: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^mod reduce_sum_of_x {$/;"	n
+reduce_sum_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_x(this: &[f32]) -> f32 {$/;"	P	implementation:f32
+reduce_sum_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    pub fn reduce_sum_of_x(this: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^mod reduce_sum_of_x {$/;"	n
+reduce_sum_of_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn reduce_sum_of_x(this: &[Self]) -> f32;$/;"	P	interface:Floating
+reduce_sum_of_x2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_x2(this: &[f16]) -> f32 {$/;"	P	implementation:f16
+reduce_sum_of_x2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    pub fn reduce_sum_of_x2(this: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_x2
+reduce_sum_of_x2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^mod reduce_sum_of_x2 {$/;"	n
+reduce_sum_of_x2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_x2(this: &[f32]) -> f32 {$/;"	P	implementation:f32
+reduce_sum_of_x2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    pub fn reduce_sum_of_x2(this: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_x2
+reduce_sum_of_x2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^mod reduce_sum_of_x2 {$/;"	n
+reduce_sum_of_x2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn reduce_sum_of_x2(this: &[Self]) -> f32;$/;"	P	interface:Floating
+reduce_sum_of_x2_a2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_x2_a2(this: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_x2
+reduce_sum_of_x2_a2_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_x2_a2_test() {$/;"	f	module:reduce_sum_of_x2
+reduce_sum_of_x2_v2_fma	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_x2_v2_fma(this: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_x2
+reduce_sum_of_x2_v2_fma_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_x2_v2_fma_test() {$/;"	f	module:reduce_sum_of_x2
+reduce_sum_of_x2_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_x2_v3(this: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_x2
+reduce_sum_of_x2_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_x2_v3(this: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_x2
+reduce_sum_of_x2_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_x2_v3_test() {$/;"	f	module:reduce_sum_of_x2
+reduce_sum_of_x2_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_x2_v3_test() {$/;"	f	module:reduce_sum_of_x2
+reduce_sum_of_x2_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_x2_v4(this: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_x2
+reduce_sum_of_x2_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_x2_v4(this: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_x2
+reduce_sum_of_x2_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_x2_v4_test() {$/;"	f	module:reduce_sum_of_x2
+reduce_sum_of_x2_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_x2_v4_test() {$/;"	f	module:reduce_sum_of_x2
+reduce_sum_of_x_a2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_x_a2(this: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_a2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_x_a2(this: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_a2_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_x_a2_test() {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_a2_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_x_a2_test() {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_x_v2(this: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_x_v2(this: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v2_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_x_v2_test() {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v2_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_x_v2_test() {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_x_v3(this: &[u64]) -> u32 {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_x_v3(this: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_x_v3(this: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_x_v3(this: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_x_v3_test() {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_x_v3_test() {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_x_v3_test() {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_x_v3_test() {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_x_v4(this: &[u64]) -> u32 {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_x_v4(this: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_x_v4(this: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_x_v4(this: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v4_avx512vpopcntdq	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_x_v4_avx512vpopcntdq(this: &[u64]) -> u32 {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v4_avx512vpopcntdq_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_x_v4_avx512vpopcntdq_test() {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_x_v4_test() {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_x_v4_test() {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_x_v4_test() {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_x_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_x_v4_test() {$/;"	f	module:reduce_sum_of_x
+reduce_sum_of_xor	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    pub fn reduce_sum_of_xor(lhs: &[u64], rhs: &[u64]) -> u32 {$/;"	f	module:reduce_sum_of_xor
+reduce_sum_of_xor	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^mod reduce_sum_of_xor {$/;"	n
+reduce_sum_of_xor	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^pub fn reduce_sum_of_xor(lhs: &[u64], rhs: &[u64]) -> u32 {$/;"	f
+reduce_sum_of_xor_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_xor_v3(lhs: &[u64], rhs: &[u64]) -> u32 {$/;"	f	module:reduce_sum_of_xor
+reduce_sum_of_xor_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_xor_v3_test() {$/;"	f	module:reduce_sum_of_xor
+reduce_sum_of_xor_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_xor_v4(lhs: &[u64], rhs: &[u64]) -> u32 {$/;"	f	module:reduce_sum_of_xor
+reduce_sum_of_xor_v4_avx512vpopcntdq	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_xor_v4_avx512vpopcntdq(lhs: &[u64], rhs: &[u64]) -> u32 {$/;"	f	module:reduce_sum_of_xor
+reduce_sum_of_xor_v4_avx512vpopcntdq_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_xor_v4_avx512vpopcntdq_test() {$/;"	f	module:reduce_sum_of_xor
+reduce_sum_of_xor_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    fn reduce_sum_of_xor_v4_test() {$/;"	f	module:reduce_sum_of_xor
+reduce_sum_of_xy	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    pub fn reduce_sum_of_xy(s: &[u8], t: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^mod reduce_sum_of_xy {$/;"	n
+reduce_sum_of_xy	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^pub fn reduce_sum_of_xy(s: &[u8], t: &[u8]) -> u32 {$/;"	f
+reduce_sum_of_xy	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_xy(lhs: &[Self], rhs: &[Self]) -> f32 {$/;"	P	implementation:f16
+reduce_sum_of_xy	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    pub fn reduce_sum_of_xy(lhs: &[f16], rhs: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^mod reduce_sum_of_xy {$/;"	n
+reduce_sum_of_xy	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_xy(lhs: &[Self], rhs: &[Self]) -> f32 {$/;"	P	implementation:f32
+reduce_sum_of_xy	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    pub fn reduce_sum_of_xy(lhs: &[f32], rhs: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^mod reduce_sum_of_xy {$/;"	n
+reduce_sum_of_xy	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/halfbyte.rs	/^    pub fn reduce_sum_of_xy(s: &[u8], t: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/halfbyte.rs	/^mod reduce_sum_of_xy {$/;"	n
+reduce_sum_of_xy	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/halfbyte.rs	/^pub fn reduce_sum_of_xy(s: &[u8], t: &[u8]) -> u32 {$/;"	f
+reduce_sum_of_xy	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn reduce_sum_of_xy(lhs: &[Self], rhs: &[Self]) -> f32;$/;"	P	interface:Floating
+reduce_sum_of_xy_a2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_xy_a2(lhs: &[u8], rhs: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_a2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_xy_a2(lhs: &[f32], rhs: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_a2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/halfbyte.rs	/^    fn reduce_sum_of_xy_a2(lhs: &[u8], rhs: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_a2_dotprod	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_xy_a2_dotprod(lhs: &[u8], rhs: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_a2_dotprod	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/halfbyte.rs	/^    fn reduce_sum_of_xy_a2_dotprod(lhs: &[u8], rhs: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_a2_dotprod_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_xy_a2_dotprod_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_a2_dotprod_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/halfbyte.rs	/^    fn reduce_sum_of_xy_a2_dotprod_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_a2_fp16	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_xy_a2_fp16(lhs: &[f16], rhs: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_a2_fp16_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_xy_a2_fp16_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_a2_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_xy_a2_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_a2_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_xy_a2_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_a2_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/halfbyte.rs	/^    fn reduce_sum_of_xy_a2_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_a3_256	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_xy_a3_256(lhs: &[f32], rhs: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_a3_256_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_xy_a3_256_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_a3_512	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_xy_a3_512(lhs: &[f16], rhs: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_a3_512_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_xy_a3_512_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_sparse	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_xy_sparse(lidx: &[u32], lval: &[f16], ridx: &[u32], rval: &[f16]) -> f32 {$/;"	P	implementation:f16
+reduce_sum_of_xy_sparse	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    pub fn reduce_sum_of_xy_sparse(lidx: &[u32], lval: &[f16], ridx: &[u32], rval: &[f16]) -> f3/;"	f	module:reduce_sum_of_xy_sparse
+reduce_sum_of_xy_sparse	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^mod reduce_sum_of_xy_sparse {$/;"	n
+reduce_sum_of_xy_sparse	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_xy_sparse(lidx: &[u32], lval: &[f32], ridx: &[u32], rval: &[f32]) -> f32 {$/;"	P	implementation:f32
+reduce_sum_of_xy_sparse	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    pub fn reduce_sum_of_xy_sparse(lidx: &[u32], lval: &[f32], ridx: &[u32], rval: &[f32]) -> f3/;"	f	module:reduce_sum_of_xy_sparse
+reduce_sum_of_xy_sparse	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^mod reduce_sum_of_xy_sparse {$/;"	n
+reduce_sum_of_xy_sparse	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn reduce_sum_of_xy_sparse(lidx: &[u32], lval: &[Self], ridx: &[u32], rval: &[Self]) -> f32;$/;"	P	interface:Floating
+reduce_sum_of_xy_sparse_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_xy_sparse_v4(li: &[u32], lv: &[f32], ri: &[u32], rv: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_xy_sparse
+reduce_sum_of_xy_sparse_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_xy_sparse_v4_test() {$/;"	f	module:reduce_sum_of_xy_sparse
+reduce_sum_of_xy_v2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_xy_v2(lhs: &[u8], rhs: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/halfbyte.rs	/^    fn reduce_sum_of_xy_v2(lhs: &[u8], rhs: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v2_fma	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_xy_v2_fma(lhs: &[f32], rhs: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v2_fma_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_xy_v2_fma_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v2_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_xy_v2_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v2_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/halfbyte.rs	/^    fn reduce_sum_of_xy_v2_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_xy_v3(lhs: &[u8], rhs: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_xy_v3(lhs: &[f16], rhs: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_xy_v3(lhs: &[f32], rhs: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/halfbyte.rs	/^    fn reduce_sum_of_xy_v3(lhs: &[u8], rhs: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_xy_v3_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_xy_v3_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_xy_v3_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/halfbyte.rs	/^    fn reduce_sum_of_xy_v3_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_xy_v4(lhs: &[u8], rhs: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_xy_v4(lhs: &[f16], rhs: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_xy_v4(lhs: &[f32], rhs: &[f32]) -> f32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/halfbyte.rs	/^    fn reduce_sum_of_xy_v4(lhs: &[u8], rhs: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v4_avx512fp16	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_xy_v4_avx512fp16(lhs: &[f16], rhs: &[f16]) -> f32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v4_avx512fp16_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_xy_v4_avx512fp16_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v4_avx512vnni	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_xy_v4_avx512vnni(lhs: &[u8], rhs: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v4_avx512vnni	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/halfbyte.rs	/^    fn reduce_sum_of_xy_v4_avx512vnni(lhs: &[u8], rhs: &[u8]) -> u32 {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v4_avx512vnni_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_xy_v4_avx512vnni_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v4_avx512vnni_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/halfbyte.rs	/^    fn reduce_sum_of_xy_v4_avx512vnni_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/byte.rs	/^    fn reduce_sum_of_xy_v4_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn reduce_sum_of_xy_v4_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn reduce_sum_of_xy_v4_test() {$/;"	f	module:reduce_sum_of_xy
+reduce_sum_of_xy_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/halfbyte.rs	/^    fn reduce_sum_of_xy_v4_test() {$/;"	f	module:reduce_sum_of_xy
+reverse	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/rotate.rs	/^fn reverse() {$/;"	f
+rotate	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/lib.rs	/^pub mod rotate;$/;"	n
+rotate	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/rotate.rs	/^pub fn rotate(vector: &[f32]) -> Vec<f32> {$/;"	f
+rotate	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^pub mod rotate;$/;"	n
+rotate_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/rotate.rs	/^pub fn rotate_inplace(result: &mut [f32]) {$/;"	f
+rotate_reversed_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/rotate.rs	/^pub fn rotate_reversed_inplace(result: &mut [f32]) {$/;"	f
+rust_trace_function_enter	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn rust_trace_function_enter(function: *const std::os::raw::c_char);$/;"	f
+rust_trace_function_exit	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn rust_trace_function_exit(function: *const std::os::raw::c_char);$/;"	f
+rust_trace_instant_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn rust_trace_instant_print($/;"	f
+rust_trace_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn rust_trace_print($/;"	f
+sample_u32_sorted	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^        pub fn sample_u32_sorted($/;"	f	function:reduce_sum_of_d2_sparse::reduce_sum_of_d2_sparse_v4_test
+sample_u32_sorted	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^        pub fn sample_u32_sorted($/;"	f	function:reduce_sum_of_xy_sparse::reduce_sum_of_xy_sparse_v4_test
+scalar_add	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn scalar_add(lhs: Self, rhs: Self) -> Self {$/;"	P	implementation:f16
+scalar_add	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn scalar_add(lhs: Self, rhs: Self) -> Self {$/;"	P	implementation:f32
+scalar_add	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn scalar_add(lhs: Self, rhs: Self) -> Self;$/;"	P	interface:Floating
+scalar_mul	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn scalar_mul(lhs: Self, rhs: Self) -> Self {$/;"	P	implementation:f16
+scalar_mul	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn scalar_mul(lhs: Self, rhs: Self) -> Self {$/;"	P	implementation:f32
+scalar_mul	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn scalar_mul(lhs: Self, rhs: Self) -> Self;$/;"	P	interface:Floating
+scalar_neg	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn scalar_neg(this: Self) -> Self {$/;"	P	implementation:f16
+scalar_neg	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn scalar_neg(this: Self) -> Self {$/;"	P	implementation:f32
+scalar_neg	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn scalar_neg(this: Self) -> Self;$/;"	P	interface:Floating
+scalar_sub	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn scalar_sub(lhs: Self, rhs: Self) -> Self {$/;"	P	implementation:f16
+scalar_sub	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn scalar_sub(lhs: Self, rhs: Self) -> Self {$/;"	P	implementation:f32
+scalar_sub	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn scalar_sub(lhs: Self, rhs: Self) -> Self;$/;"	P	interface:Floating
+scan	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^    pub fn scan(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {$/;"	f	module:scan
+scan	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^mod scan {$/;"	n
+scan	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^pub fn scan(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {$/;"	f
+scan_a2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^    fn scan_a2(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {$/;"	f	module:scan
+scan_a2_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^    fn scan_a2_test() {$/;"	f	module:scan
+scan_p7_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^    fn scan_p7_test() {$/;"	f	module:scan
+scan_p8_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^    fn scan_p8_test() {$/;"	f	module:scan
+scan_p9_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^    fn scan_p9_test() {$/;"	f	module:scan
+scan_powerpc64	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^    macro_rules! scan_powerpc64 {$/;"	M	module:scan
+scan_v2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^    fn scan_v2(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {$/;"	f	module:scan
+scan_v2_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^    fn scan_v2_test() {$/;"	f	module:scan
+scan_v3	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^    fn scan_v3(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {$/;"	f	module:scan
+scan_v3_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^    fn scan_v3_test() {$/;"	f	module:scan
+scan_v4	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^    fn scan_v4(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {$/;"	f	module:scan
+scan_v4_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^    fn scan_v4_test() {$/;"	f	module:scan
+scan_z13	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^    fn scan_z13(code: &[[u8; 16]], lut: &[[u8; 16]]) -> [u16; 32] {$/;"	f	module:scan
+scan_z13_test	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fast_scan.rs	/^    fn scan_z13_test() {$/;"	f	module:scan
+slice	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    pub fn slice(&self) -> &'a [S] {$/;"	P	implementation:VectBorrowed
+slice	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    pub fn slice(&self) -> &[S] {$/;"	P	implementation:VectOwned
+slice_mut	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/vect.rs	/^    pub fn slice_mut(&mut self) -> &mut [S] {$/;"	P	implementation:VectOwned
+step_1	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fht.rs	/^mod step_1 {$/;"	n
+step_2	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fht.rs	/^mod step_2 {$/;"	n
+sum_of_abs_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    pub fn sum_of_abs_x(&self) -> f32 {$/;"	P	implementation:Rabitq4Borrowed
+sum_of_abs_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    sum_of_abs_x: f32,$/;"	m	struct:Rabitq4Borrowed
+sum_of_abs_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    sum_of_abs_x: f32,$/;"	m	struct:Rabitq4Owned
+sum_of_abs_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    pub fn sum_of_abs_x(&self) -> f32 {$/;"	P	implementation:Rabitq8Borrowed
+sum_of_abs_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    sum_of_abs_x: f32,$/;"	m	struct:Rabitq8Borrowed
+sum_of_abs_x	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    sum_of_abs_x: f32,$/;"	m	struct:Rabitq8Owned
+sum_of_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^    pub sum_of_code: f32,$/;"	m	struct:CodeMetadata
+sum_of_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    pub fn sum_of_code(&self) -> f32 {$/;"	P	implementation:Rabitq4Borrowed
+sum_of_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    sum_of_code: f32,$/;"	m	struct:Rabitq4Borrowed
+sum_of_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    sum_of_code: f32,$/;"	m	struct:Rabitq4Owned
+sum_of_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    pub fn sum_of_code(&self) -> f32 {$/;"	P	implementation:Rabitq8Borrowed
+sum_of_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    sum_of_code: f32,$/;"	m	struct:Rabitq8Borrowed
+sum_of_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    sum_of_code: f32,$/;"	m	struct:Rabitq8Owned
+sum_of_x2	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    pub fn sum_of_x2(&self) -> f32 {$/;"	P	implementation:Rabitq4Borrowed
+sum_of_x2	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    sum_of_x2: f32,$/;"	m	struct:Rabitq4Borrowed
+sum_of_x2	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    sum_of_x2: f32,$/;"	m	struct:Rabitq4Owned
+sum_of_x2	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    pub fn sum_of_x2(&self) -> f32 {$/;"	P	implementation:Rabitq8Borrowed
+sum_of_x2	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    sum_of_x2: f32,$/;"	m	struct:Rabitq8Borrowed
+sum_of_x2	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    sum_of_x2: f32,$/;"	m	struct:Rabitq8Owned
+svect	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^pub mod svect;$/;"	n
+tests	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/fht.rs	/^mod tests {$/;"	n
+to_f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/distance/src/lib.rs	/^    pub const fn to_f32(self) -> f32 {$/;"	P	implementation:Distance
+to_i32	/home/wangbin/work/github/VectorChord-1.1.1/crates/distance/src/lib.rs	/^    pub const fn to_i32(self) -> i32 {$/;"	P	implementation:Distance
+trace	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/lib.rs	/^pub mod trace;$/;"	n
+trace_enter	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_enter {$/;"	M
+trace_enter	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub fn trace_enter(function_name: &str) -> Result<(), String> {$/;"	f
+trace_exit	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_exit {$/;"	M
+trace_exit	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub fn trace_exit(function_name: &str) -> Result<(), String> {$/;"	f
+trace_guard	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_guard {$/;"	M
+trace_instant_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub fn trace_instant_print(ext_name: &str, fmt: &str) -> Result<(), String> {$/;"	f
+trace_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub fn trace_print(ext_name: &str, fmt: &str) -> Result<(), String> {$/;"	f
+trace_vchord_instant_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_vchord_instant_print {$/;"	M
+trace_vchord_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_vchord_print {$/;"	M
+try_from	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bits.rs	/^    fn try_from(value: u8) -> Result<Self, Self::Error> {$/;"	P	implementation:Bits
+ugly_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bits.rs	/^pub fn ugly_code(bits: Bits, vector: &[f32]) -> Code {$/;"	f
+ugly_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/byte.rs	/^pub fn ugly_code(vector: &[f32]) -> Code {$/;"	f
+ugly_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^pub fn ugly_code<const BITS: usize>(vector: &[f32]) -> Code {$/;"	f
+ugly_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/halfbyte.rs	/^pub fn ugly_code(vector: &[f32]) -> Code {$/;"	f
+ugly_find_scale	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/extended.rs	/^fn ugly_find_scale<const B: usize>(o: &[f32]) -> f32 {$/;"	f
+ugly_preprocess	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/bits.rs	/^    pub fn ugly_preprocess(vector: &[f32]) -> BinaryLut {$/;"	f	module:binary
+ugly_preprocess	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/byte.rs	/^    pub fn ugly_preprocess(vector: &[f32]) -> BinaryLut {$/;"	f	module:binary
+ugly_preprocess	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/halfbyte.rs	/^    pub fn ugly_preprocess(vector: &[f32]) -> BinaryLut {$/;"	f	module:binary
+unpack	/home/wangbin/work/github/VectorChord-1.1.1/crates/rabitq/src/packing.rs	/^pub fn unpack(x: &[[u8; 16]]) -> [Vec<u8>; 32] {$/;"	f
+unpacked_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq4.rs	/^    pub fn unpacked_code(&self) -> impl Iterator<Item = u8> {$/;"	P	implementation:Rabitq4Borrowed
+unpacked_code	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/rabitq8.rs	/^    pub fn unpacked_code(&self) -> impl Iterator<Item = u8> {$/;"	P	implementation:Rabitq8Borrowed
+values	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    pub fn values(&self) -> &'a [S] {$/;"	P	implementation:SVectBorrowed
+values	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    pub fn values(&self) -> &[S] {$/;"	P	implementation:SVectOwned
+values	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    values: &'a [S],$/;"	m	struct:SVectBorrowed
+values	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/svect.rs	/^    values: Vec<S>,$/;"	m	struct:SVectOwned
+vect	/home/wangbin/work/github/VectorChord-1.1.1/crates/vector/src/lib.rs	/^pub mod vect;$/;"	n
+vector_abs_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn vector_abs_inplace(this: &mut [Self]) {$/;"	P	implementation:f16
+vector_abs_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    pub fn vector_abs_inplace(this: &mut [f16]) {$/;"	f	module:vector_abs_inplace
+vector_abs_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^mod vector_abs_inplace {$/;"	n
+vector_abs_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn vector_abs_inplace(this: &mut [Self]) {$/;"	P	implementation:f32
+vector_abs_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    pub fn vector_abs_inplace(this: &mut [f32]) {$/;"	f	module:vector_abs_inplace
+vector_abs_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^mod vector_abs_inplace {$/;"	n
+vector_abs_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn vector_abs_inplace(this: &mut [Self]);$/;"	P	interface:Floating
+vector_add	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn vector_add(lhs: &[Self], rhs: &[Self]) -> Vec<Self> {$/;"	P	implementation:f16
+vector_add	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    pub fn vector_add(lhs: &[f16], rhs: &[f16]) -> Vec<f16> {$/;"	f	module:vector_add
+vector_add	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^mod vector_add {$/;"	n
+vector_add	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn vector_add(lhs: &[f32], rhs: &[f32]) -> Vec<f32> {$/;"	P	implementation:f32
+vector_add	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    pub fn vector_add(lhs: &[f32], rhs: &[f32]) -> Vec<f32> {$/;"	f	module:vector_add
+vector_add	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^mod vector_add {$/;"	n
+vector_add	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn vector_add(lhs: &[Self], rhs: &[Self]) -> Vec<Self>;$/;"	P	interface:Floating
+vector_add_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn vector_add_inplace(lhs: &mut [Self], rhs: &[Self]) {$/;"	P	implementation:f16
+vector_add_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    pub fn vector_add_inplace(lhs: &mut [f16], rhs: &[f16]) {$/;"	f	module:vector_add_inplace
+vector_add_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^mod vector_add_inplace {$/;"	n
+vector_add_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn vector_add_inplace(lhs: &mut [f32], rhs: &[f32]) {$/;"	P	implementation:f32
+vector_add_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    pub fn vector_add_inplace(lhs: &mut [f32], rhs: &[f32]) {$/;"	f	module:vector_add_inplace
+vector_add_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^mod vector_add_inplace {$/;"	n
+vector_add_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn vector_add_inplace(lhs: &mut [Self], rhs: &[Self]);$/;"	P	interface:Floating
+vector_and	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    pub fn vector_and(lhs: &[u64], rhs: &[u64]) -> Vec<u64> {$/;"	f	module:vector_and
+vector_and	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^mod vector_and {$/;"	n
+vector_and	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^pub fn vector_and(lhs: &[u64], rhs: &[u64]) -> Vec<u64> {$/;"	f
+vector_from_f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn vector_from_f32(this: &[f32]) -> Vec<Self> {$/;"	P	implementation:f16
+vector_from_f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    pub fn vector_from_f32(this: &[f32]) -> Vec<f16> {$/;"	f	module:vector_from_f32
+vector_from_f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^mod vector_from_f32 {$/;"	n
+vector_from_f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn vector_from_f32(this: &[f32]) -> Vec<f32> {$/;"	P	implementation:f32
+vector_from_f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn vector_from_f32(this: &[f32]) -> Vec<Self>;$/;"	P	interface:Floating
+vector_mul	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn vector_mul(lhs: &[Self], rhs: &[Self]) -> Vec<Self> {$/;"	P	implementation:f16
+vector_mul	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    pub fn vector_mul(lhs: &[f16], rhs: &[f16]) -> Vec<f16> {$/;"	f	module:vector_mul
+vector_mul	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^mod vector_mul {$/;"	n
+vector_mul	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn vector_mul(lhs: &[f32], rhs: &[f32]) -> Vec<f32> {$/;"	P	implementation:f32
+vector_mul	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    pub fn vector_mul(lhs: &[f32], rhs: &[f32]) -> Vec<f32> {$/;"	f	module:vector_mul
+vector_mul	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^mod vector_mul {$/;"	n
+vector_mul	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn vector_mul(lhs: &[Self], rhs: &[Self]) -> Vec<Self>;$/;"	P	interface:Floating
+vector_mul_scalar	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn vector_mul_scalar(lhs: &[Self], rhs: f32) -> Vec<Self> {$/;"	P	implementation:f16
+vector_mul_scalar	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    pub fn vector_mul_scalar(lhs: &[f16], rhs: f32) -> Vec<f16> {$/;"	f	module:vector_mul_scalar
+vector_mul_scalar	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^mod vector_mul_scalar {$/;"	n
+vector_mul_scalar	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn vector_mul_scalar(lhs: &[f32], rhs: f32) -> Vec<f32> {$/;"	P	implementation:f32
+vector_mul_scalar	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    pub fn vector_mul_scalar(lhs: &[f32], rhs: f32) -> Vec<f32> {$/;"	f	module:vector_mul_scalar
+vector_mul_scalar	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^mod vector_mul_scalar {$/;"	n
+vector_mul_scalar	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn vector_mul_scalar(lhs: &[Self], rhs: f32) -> Vec<Self>;$/;"	P	interface:Floating
+vector_mul_scalar_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn vector_mul_scalar_inplace(lhs: &mut [Self], rhs: f32) {$/;"	P	implementation:f16
+vector_mul_scalar_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    pub fn vector_mul_scalar_inplace(lhs: &mut [f16], rhs: f32) {$/;"	f	module:vector_mul_scalar_inplace
+vector_mul_scalar_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^mod vector_mul_scalar_inplace {$/;"	n
+vector_mul_scalar_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn vector_mul_scalar_inplace(lhs: &mut [f32], rhs: f32) {$/;"	P	implementation:f32
+vector_mul_scalar_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    pub fn vector_mul_scalar_inplace(lhs: &mut [f32], rhs: f32) {$/;"	f	module:vector_mul_scalar_inplace
+vector_mul_scalar_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^mod vector_mul_scalar_inplace {$/;"	n
+vector_mul_scalar_inplace	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn vector_mul_scalar_inplace(lhs: &mut [Self], rhs: f32);$/;"	P	interface:Floating
+vector_or	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    pub fn vector_or(lhs: &[u64], rhs: &[u64]) -> Vec<u64> {$/;"	f	module:vector_or
+vector_or	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^mod vector_or {$/;"	n
+vector_or	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^pub fn vector_or(lhs: &[u64], rhs: &[u64]) -> Vec<u64> {$/;"	f
+vector_sub	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn vector_sub(lhs: &[Self], rhs: &[Self]) -> Vec<Self> {$/;"	P	implementation:f16
+vector_sub	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    pub fn vector_sub(lhs: &[f16], rhs: &[f16]) -> Vec<f16> {$/;"	f	module:vector_sub
+vector_sub	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^mod vector_sub {$/;"	n
+vector_sub	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn vector_sub(lhs: &[f32], rhs: &[f32]) -> Vec<f32> {$/;"	P	implementation:f32
+vector_sub	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    pub fn vector_sub(lhs: &[f32], rhs: &[f32]) -> Vec<f32> {$/;"	f	module:vector_sub
+vector_sub	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^mod vector_sub {$/;"	n
+vector_sub	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn vector_sub(lhs: &[Self], rhs: &[Self]) -> Vec<Self>;$/;"	P	interface:Floating
+vector_to_f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn vector_to_f32(this: &[Self]) -> Vec<f32> {$/;"	P	implementation:f16
+vector_to_f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    pub fn vector_to_f32(this: &[f16]) -> Vec<f32> {$/;"	f	module:vector_to_f32
+vector_to_f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^mod vector_to_f32 {$/;"	n
+vector_to_f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn vector_to_f32(this: &[f32]) -> Vec<f32> {$/;"	P	implementation:f32
+vector_to_f32	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn vector_to_f32(this: &[Self]) -> Vec<f32>;$/;"	P	interface:Floating
+vector_to_f32_borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn vector_to_f32_borrowed(this: &[Self]) -> impl AsRef<[f32]> {$/;"	P	implementation:f16
+vector_to_f32_borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn vector_to_f32_borrowed(this: &[Self]) -> impl AsRef<[f32]> {$/;"	P	implementation:f32
+vector_to_f32_borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn vector_to_f32_borrowed(this: &[Self]) -> impl AsRef<[f32]>;$/;"	P	interface:Floating
+vector_xor	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^    pub fn vector_xor(lhs: &[u64], rhs: &[u64]) -> Vec<u64> {$/;"	f	module:vector_xor
+vector_xor	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^mod vector_xor {$/;"	n
+vector_xor	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/bit.rs	/^pub fn vector_xor(lhs: &[u64], rhs: &[u64]) -> Vec<u64> {$/;"	f
+zero	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f16.rs	/^    fn zero() -> Self {$/;"	P	implementation:f16
+zero	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/floating_f32.rs	/^    fn zero() -> Self {$/;"	P	implementation:f32
+zero	/home/wangbin/work/github/VectorChord-1.1.1/crates/simd/src/lib.rs	/^    fn zero() -> Self;$/;"	P	interface:Floating

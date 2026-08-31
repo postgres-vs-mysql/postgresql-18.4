@@ -1,0 +1,75 @@
+statement ok
+SET enable_seqscan TO off;
+
+statement ok
+CREATE TABLE t (index serial primary key, val vector(64)[2]);
+
+statement ok
+INSERT INTO t (val)
+SELECT
+    ARRAY[
+        l2_normalize(ARRAY(
+            SELECT
+                ('x' || substring(md5((64 * i + j)::text), 1, 16))::bit(64)::bigint / 18446744073709551615.0
+            FROM generate_series(1, 64) d(j)
+        )::vector),
+        l2_normalize(ARRAY(
+            SELECT
+                ('x' || substring(md5((64 * i + j)::text), 1, 16))::bit(64)::bigint / 18446744073709551615.0
+            FROM generate_series(1, 64) d(j)
+        )::vector)
+    ]
+FROM generate_series(1, 2048) s(i);
+
+statement ok
+CREATE INDEX ti ON t USING vchordrq (val vector_maxsim_ops);
+
+query I
+SELECT index FROM t ORDER BY
+val @# ARRAY[
+    array_cat(ARRAY[0.6, 0.8], ARRAY(SELECT 0.0 FROM generate_series(1, 62)))::vector,
+    array_cat(ARRAY[0.3, 0.4], ARRAY(SELECT 0.0 FROM generate_series(1, 62)))::vector
+]
+LIMIT 10;
+----
+1207
+919
+1639
+1821
+174
+79
+1076
+1125
+239
+194
+
+statement ok
+DROP INDEX ti;
+
+statement ok
+CREATE INDEX ti ON t USING vchordrq ((val::halfvec(64)[2]) halfvec_maxsim_ops);
+
+query I
+SELECT index FROM t ORDER BY
+val::halfvec(64)[] @# ARRAY[
+    array_cat(ARRAY[0.6, 0.8], ARRAY(SELECT 0.0 FROM generate_series(1, 62)))::halfvec,
+    array_cat(ARRAY[0.3, 0.4], ARRAY(SELECT 0.0 FROM generate_series(1, 62)))::halfvec
+]
+LIMIT 10;
+----
+1207
+919
+1639
+1821
+174
+79
+1076
+1125
+239
+194
+
+statement ok
+DROP INDEX ti;
+
+statement ok
+DROP TABLE t;

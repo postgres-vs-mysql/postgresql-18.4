@@ -1,0 +1,77 @@
+statement ok
+SET enable_seqscan = off;
+
+statement ok
+CREATE TABLE t (val vector(3));
+
+statement ok
+INSERT INTO t (val) SELECT ARRAY[random(), random(), random()]::real[] FROM generate_series(1, 100);
+
+statement ok
+CREATE INDEX ON t USING vchordg (val vector_l2_ops);
+
+statement ok
+SELECT val FROM t ORDER BY val <-> '[0.5,0.5,0.5]' limit 10;
+
+statement ok
+VACUUM t;
+
+statement ok
+SELECT val FROM t ORDER BY val <-> '[0.5,0.5,0.5]' limit 10;
+
+statement ok
+INSERT INTO t (val) SELECT ARRAY[random(), random(), random()]::real[] FROM generate_series(1, 100);
+
+statement ok
+SELECT val FROM t ORDER BY val <-> '[0.5,0.5,0.5]' limit 10;
+
+statement ok
+VACUUM t;
+
+statement ok
+SELECT val FROM t ORDER BY val <-> '[0.5,0.5,0.5]' limit 10;
+
+statement ok
+DELETE FROM t WHERE vector_norm(val) < 0.333;
+
+statement ok
+SELECT val FROM t ORDER BY val <-> '[0.5,0.5,0.5]' limit 10;
+
+statement ok
+VACUUM t;
+
+statement ok
+SELECT val FROM t ORDER BY val <-> '[0.5,0.5,0.5]' limit 10;
+
+statement ok
+DELETE FROM t WHERE vector_norm(val) < 0.333;
+
+statement ok
+INSERT INTO t (val) SELECT ARRAY[random(), random(), random()]::real[] FROM generate_series(1, 100);
+
+statement ok
+SELECT val FROM t ORDER BY val <-> '[0.5,0.5,0.5]' limit 10;
+
+statement ok
+VACUUM t;
+
+statement ok
+SELECT val FROM t ORDER BY val <-> '[0.5,0.5,0.5]' limit 10;
+
+statement ok
+INSERT INTO t (val) SELECT ARRAY[random(), random(), random()]::real[] FROM generate_series(1, 100);
+
+statement ok
+DELETE FROM t WHERE vector_norm(val) > 0.667;
+
+statement ok
+SELECT val FROM t ORDER BY val <-> '[0.5,0.5,0.5]' limit 10;
+
+statement ok
+VACUUM t;
+
+statement ok
+SELECT val FROM t ORDER BY val <-> '[0.5,0.5,0.5]' limit 10;
+
+statement ok
+DROP TABLE t;

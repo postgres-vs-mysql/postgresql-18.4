@@ -1,0 +1,33 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_OUTPUT_EXCMD	mixed	/number, pattern, mixed, or combineV2/
+!_TAG_OUTPUT_FILESEP	slash	/slash or backslash/
+!_TAG_OUTPUT_MODE	u-ctags	/u-ctags or e-ctags/
+!_TAG_PATTERN_LENGTH_LIMIT	96	/0 for no limit/
+!_TAG_PROC_CWD	/home/wangbin/work/github/VectorChord-1.1.1/	//
+!_TAG_PROGRAM_AUTHOR	Universal Ctags Team	//
+!_TAG_PROGRAM_NAME	Universal Ctags	/Derived from Exuberant Ctags/
+!_TAG_PROGRAM_URL	https://ctags.io/	/official site/
+!_TAG_PROGRAM_VERSION	5.9.0	//
+TraceGuard	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^impl Drop for TraceGuard {$/;"	c
+TraceGuard	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^impl TraceGuard {$/;"	c
+TraceGuard	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub struct TraceGuard {$/;"	s
+drop	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    fn drop(&mut self) {$/;"	P	implementation:TraceGuard
+function_last_name	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! function_last_name {$/;"	M
+function_name	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    function_name: String,$/;"	m	struct:TraceGuard
+function_name	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! function_name {$/;"	M
+new	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn new(function_name: &str) -> Self {$/;"	P	implementation:TraceGuard
+rust_trace_function_enter	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn rust_trace_function_enter(function: *const std::os::raw::c_char);$/;"	f
+rust_trace_function_exit	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn rust_trace_function_exit(function: *const std::os::raw::c_char);$/;"	f
+rust_trace_instant_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn rust_trace_instant_print($/;"	f
+rust_trace_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn rust_trace_print($/;"	f
+trace	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/lib.rs	/^pub mod trace;$/;"	n
+trace_enter	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_enter {$/;"	M
+trace_enter	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub fn trace_enter(function_name: &str) -> Result<(), String> {$/;"	f
+trace_exit	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_exit {$/;"	M
+trace_exit	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub fn trace_exit(function_name: &str) -> Result<(), String> {$/;"	f
+trace_guard	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_guard {$/;"	M
+trace_instant_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub fn trace_instant_print(ext_name: &str, fmt: &str) -> Result<(), String> {$/;"	f
+trace_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub fn trace_print(ext_name: &str, fmt: &str) -> Result<(), String> {$/;"	f
+trace_vchord_instant_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_vchord_instant_print {$/;"	M
+trace_vchord_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_vchord_print {$/;"	M

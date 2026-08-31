@@ -1,0 +1,827 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+Alphabetic	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^impl Distribution<u8> for Alphabetic {$/;"	c
+Alphabetic	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^impl SampleString for Alphabetic {$/;"	c
+Alphabetic	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^pub struct Alphabetic;$/;"	s
+Alphanumeric	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^impl Distribution<u8> for Alphanumeric {$/;"	c
+Alphanumeric	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^impl SampleString for Alphanumeric {$/;"	c
+Alphanumeric	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^pub struct Alphanumeric;$/;"	s
+Bernoulli	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^impl Bernoulli {$/;"	c
+Bernoulli	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^impl Distribution<bool> for Bernoulli {$/;"	c
+Bernoulli	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^pub struct Bernoulli {$/;"	s
+BernoulliError	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^impl core::error::Error for BernoulliError {}$/;"	c
+BernoulliError	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^impl fmt::Display for BernoulliError {$/;"	c
+BernoulliError	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^pub enum BernoulliError {$/;"	g
+BoolAsSIMD	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^pub(crate) trait BoolAsSIMD: Sized {$/;"	i
+Borrowed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^impl<Borrowed> SampleBorrow<Borrowed> for &Borrowed$/;"	c
+Borrowed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^impl<Borrowed> SampleBorrow<Borrowed> for Borrowed$/;"	c
+Choose	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/slice.rs	/^impl super::SampleString for Choose<'_, char> {$/;"	c
+Choose	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/slice.rs	/^impl<'a, T> Choose<'a, T> {$/;"	c
+Choose	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/slice.rs	/^impl<'a, T> Distribution<&'a T> for Choose<'a, T> {$/;"	c
+Choose	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/slice.rs	/^pub struct Choose<'a, T> {$/;"	s
+ChunkHintedIterator	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    impl<I: ExactSizeIterator + Iterator + Clone> Iterator for ChunkHintedIterator<I> {$/;"	c	module:test
+ChunkHintedIterator	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    struct ChunkHintedIterator<I: ExactSizeIterator + Iterator + Clone> {$/;"	s	module:test
+CoinFlipper	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/coin_flipper.rs	/^impl<R: Rng> CoinFlipper<R> {$/;"	c
+CoinFlipper	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/coin_flipper.rs	/^pub(crate) struct CoinFlipper<R: Rng> {$/;"	s
+Core	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^type Core = chacha20::ChaChaCore<chacha20::R12, chacha20::variants::Legacy>;$/;"	t
+D	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^impl<T, D: Distribution<T> + ?Sized> Distribution<T> for &D {$/;"	c
+Distribution	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^pub trait Distribution<T> {$/;"	i
+Duration	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^impl SampleUniform for Duration {$/;"	c
+Element	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    impl<N> Eq for Element<N> {}$/;"	c	function:sample_efraimidis_spirakis
+Element	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    impl<N> Ord for Element<N> {$/;"	c	function:sample_efraimidis_spirakis
+Element	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    impl<N> PartialEq for Element<N> {$/;"	c	function:sample_efraimidis_spirakis
+Element	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    impl<N> PartialOrd for Element<N> {$/;"	c	function:sample_efraimidis_spirakis
+Element	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    struct Element<N> {$/;"	s	function:sample_efraimidis_spirakis
+Empty	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/slice.rs	/^impl core::error::Error for Empty {}$/;"	c
+Empty	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/slice.rs	/^impl core::fmt::Display for Empty {$/;"	c
+Empty	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/slice.rs	/^pub struct Empty;$/;"	s
+EmptyRange	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    EmptyRange,$/;"	e	enum:Error
+Error	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    type Error = Error;$/;"	t	implementation:Uniform
+Error	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^impl core::error::Error for Error {}$/;"	c
+Error	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^impl fmt::Display for Error {$/;"	c
+Error	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^pub enum Error {$/;"	g
+Error	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/mod.rs	/^impl core::error::Error for Error {}$/;"	c
+Error	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/mod.rs	/^impl fmt::Display for Error {$/;"	c
+Error	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/mod.rs	/^pub enum Error {$/;"	g
+Error	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^        type Error = Infallible;$/;"	t	implementation:test::StepRng
+Error	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/small.rs	/^    type Error = Infallible;$/;"	t	implementation:SmallRng
+Error	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/std.rs	/^    type Error = Infallible;$/;"	t	implementation:StdRng
+Error	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^    type Error = Infallible;$/;"	t	implementation:ThreadRng
+Error	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro128plusplus.rs	/^    type Error = Infallible;$/;"	t	implementation:Xoshiro128PlusPlus
+Error	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro256plusplus.rs	/^    type Error = Infallible;$/;"	t	implementation:Xoshiro256PlusPlus
+F	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/float.rs	/^    type F;$/;"	t	interface:IntoFloat
+Fill	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^pub trait Fill: Sized {$/;"	i
+FloatAsSIMD	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^pub(crate) trait FloatAsSIMD: Sized {$/;"	i
+FloatSIMDScalarUtils	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^pub(crate) trait FloatSIMDScalarUtils: FloatSIMDUtils {$/;"	i
+FloatSIMDUtils	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^pub(crate) trait FloatSIMDUtils {$/;"	i
+Hasher	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    type Hasher = WyHash;$/;"	t	implementation:WyHasherBuilder
+Hasher	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^    type Hasher = WyHash;$/;"	t	implementation:WyHasherBuilder
+I	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^impl<I> IteratorRandom for I where I: Iterator + Sized {}$/;"	c
+IR	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^impl<IR: IndexedRandom + IndexMut<usize> + ?Sized> IndexedMutRandom for IR {}$/;"	c
+IncreasingUniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/increasing_uniform.rs	/^impl<R: Rng> IncreasingUniform<R> {$/;"	c
+IncreasingUniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/increasing_uniform.rs	/^pub(crate) struct IncreasingUniform<R: Rng> {$/;"	s
+IndexVec	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^impl From<Vec<u32>> for IndexVec {$/;"	c
+IndexVec	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^impl From<Vec<u64>> for IndexVec {$/;"	c
+IndexVec	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^impl IndexVec {$/;"	c
+IndexVec	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^impl IntoIterator for IndexVec {$/;"	c
+IndexVec	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^impl PartialEq for IndexVec {$/;"	c
+IndexVec	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^pub enum IndexVec {$/;"	g
+IndexVecIntoIter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^impl ExactSizeIterator for IndexVecIntoIter {}$/;"	c
+IndexVecIntoIter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^impl Iterator for IndexVecIntoIter {$/;"	c
+IndexVecIntoIter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^pub enum IndexVecIntoIter {$/;"	g
+IndexVecIter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^impl ExactSizeIterator for IndexVecIter<'_> {}$/;"	c
+IndexVecIter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^impl Iterator for IndexVecIter<'_> {$/;"	c
+IndexVecIter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^pub enum IndexVecIter<'a> {$/;"	g
+IndexedMutRandom	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^pub trait IndexedMutRandom: IndexedRandom + IndexMut<usize> {$/;"	i
+IndexedRandom	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^pub trait IndexedRandom: Index<usize> {$/;"	i
+IndexedSamples	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^impl<'a, S: Index<usize, Output = T> + ?Sized + 'a, T: 'a> ExactSizeIterator$/;"	c
+IndexedSamples	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^impl<'a, S: Index<usize, Output = T> + ?Sized + 'a, T: 'a> Iterator for IndexedSamples<'a, S, T>/;"	c
+IndexedSamples	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^pub struct IndexedSamples<'a, S: ?Sized + 'a, T: 'a> {$/;"	s
+InsufficientNonZero	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/mod.rs	/^    InsufficientNonZero,$/;"	e	enum:Error
+IntAsSIMD	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^pub(crate) trait IntAsSIMD: Sized {$/;"	i
+IntoFloat	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/float.rs	/^pub trait IntoFloat {$/;"	i
+IntoIter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    type IntoIter = IndexVecIntoIter;$/;"	t	implementation:IndexVec
+InvalidInput	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/mod.rs	/^    InvalidInput,$/;"	e	enum:Error
+InvalidProbability	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^    InvalidProbability,$/;"	e	enum:BernoulliError
+InvalidWeight	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/mod.rs	/^    InvalidWeight,$/;"	e	enum:Error
+Item	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    type Item = T;$/;"	t
+Item	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    type Item = X;$/;"	t
+Item	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    type Item = usize;$/;"	t	implementation:IndexVec
+Item	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    type Item = usize;$/;"	t	implementation:IndexVecIntoIter
+Item	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    type Item = usize;$/;"	t	implementation:IndexVecIter
+Item	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        type Item = I::Item;$/;"	t	implementation:test::ChunkHintedIterator
+Item	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        type Item = I::Item;$/;"	t	implementation:test::UnhintedIterator
+Item	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        type Item = I::Item;$/;"	t	implementation:test::WindowHintedIterator
+Item	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    type Item = &'a T;$/;"	t	implementation:IndexedSamples
+Iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^impl<D, R, T> Iterator for Iter<D, R, T>$/;"	c
+Iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^impl<D, R, T> iter::FusedIterator for Iter<D, R, T>$/;"	c
+Iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^pub struct Iter<D, R, T> {$/;"	s
+IteratorRandom	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^pub trait IteratorRandom: Iterator + Sized {$/;"	i
+Large	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    Large {$/;"	e	enum:UniformDurationMode
+Map	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^impl<D, F, T, S> Distribution<S> for Map<D, F, T, S>$/;"	c
+Map	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^pub struct Map<D, F, T, S> {$/;"	s
+Mask	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^    type Mask;$/;"	t	interface:FloatSIMDUtils
+Medium	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    Medium {$/;"	e	enum:UniformDurationMode
+MyF32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^        impl SampleUniform for MyF32 {$/;"	c	function:tests::test_custom_uniform
+MyF32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^        struct MyF32 {$/;"	s	function:tests::test_custom_uniform
+NonFinite	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    NonFinite,$/;"	e	enum:Error
+One	/home/wangbin/work/github/VectorChord-1.1.1/crates/feistel/src/lib.rs	/^pub trait One {$/;"	i
+Open01	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/float.rs	/^pub struct Open01;$/;"	s
+OpenClosed01	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/float.rs	/^pub struct OpenClosed01;$/;"	s
+Output	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^    type Output;$/;"	t	interface:WideningMultiply
+Output	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^    type Output = Results;$/;"	t	implementation:ReseedingCore
+Overflow	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/mod.rs	/^    Overflow,$/;"	e	enum:Error
+R	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^impl<R: Rng + ?Sized> RngExt for R {}$/;"	c
+Range	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^impl<T: SampleUniform + PartialOrd> SampleRange<T> for Range<T> {$/;"	c
+RangeInclusive	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^impl<T: SampleUniform + PartialOrd> SampleRange<T> for RangeInclusive<T> {$/;"	c
+ReseedingCore	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^impl Generator for ReseedingCore {$/;"	c
+ReseedingCore	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^impl ReseedingCore {$/;"	c
+ReseedingCore	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^struct ReseedingCore {$/;"	s
+Results	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^type Results = <Core as Generator>::Output;$/;"	t
+Rng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/small.rs	/^type Rng = super::xoshiro128plusplus::Xoshiro128PlusPlus;$/;"	t
+Rng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/small.rs	/^type Rng = super::xoshiro256plusplus::Xoshiro256PlusPlus;$/;"	t
+RngExt	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^pub trait RngExt: Rng {$/;"	i
+RngReader	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^impl<R: TryRng> std::fmt::Debug for RngReader<R> {$/;"	c
+RngReader	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^impl<R: TryRng> std::io::Read for RngReader<R> {$/;"	c
+RngReader	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^pub struct RngReader<R: TryRng>(pub R);$/;"	s
+SampleBorrow	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^pub trait SampleBorrow<Borrowed> {$/;"	i
+SampleRange	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^pub trait SampleRange<T> {$/;"	i
+SampleString	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^pub trait SampleString {$/;"	i
+SampleUniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^pub trait SampleUniform: Sized {$/;"	i
+Sampler	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^            type Sampler = UniformMyF32;$/;"	t	implementation:tests::test_custom_uniform::MyF32
+Sampler	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    type Sampler: UniformSampler<X = Self>;$/;"	t	interface:SampleUniform
+Sampler	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    type Sampler = UniformUsize;$/;"	t	implementation:usize
+Sampler	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    type Sampler = UniformChar;$/;"	t	implementation:char
+Sampler	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    type Sampler = UniformDuration;$/;"	t	implementation:Duration
+Scalar	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^    type Scalar;$/;"	t	interface:FloatSIMDScalarUtils
+Seed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/small.rs	/^    type Seed = [u8; 32];$/;"	t	implementation:SmallRng
+Seed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/std.rs	/^    type Seed = [u8; 32];$/;"	t	implementation:StdRng
+Seed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro128plusplus.rs	/^    type Seed = [u8; 16];$/;"	t	implementation:Xoshiro128PlusPlus
+Seed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro256plusplus.rs	/^    type Seed = [u8; 32];$/;"	t	implementation:Xoshiro256PlusPlus
+Seed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    type Seed = [u8; 8];$/;"	t	implementation:WyRng
+Seed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^    type Seed = [u8; 8];$/;"	t	implementation:WyRng
+SliceChooseIter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^pub type SliceChooseIter<'a, S, T> = IndexedSamples<'a, S, T>;$/;"	t
+SliceRandom	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^pub trait SliceRandom: IndexedMutRandom {$/;"	i
+Small	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    Small {$/;"	e	enum:UniformDurationMode
+SmallRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/small.rs	/^impl SeedableRng for SmallRng {$/;"	c
+SmallRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/small.rs	/^impl TryRng for SmallRng {$/;"	c
+SmallRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/small.rs	/^pub struct SmallRng(Rng);$/;"	s
+StandardUniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^impl Distribution<__m128i> for StandardUniform {$/;"	c
+StandardUniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^impl Distribution<__m256i> for StandardUniform {$/;"	c
+StandardUniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^impl Distribution<__m512i> for StandardUniform {$/;"	c
+StandardUniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^impl Distribution<u128> for StandardUniform {$/;"	c
+StandardUniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^impl Distribution<u16> for StandardUniform {$/;"	c
+StandardUniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^impl Distribution<u32> for StandardUniform {$/;"	c
+StandardUniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^impl Distribution<u64> for StandardUniform {$/;"	c
+StandardUniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^impl Distribution<u8> for StandardUniform {$/;"	c
+StandardUniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/mod.rs	/^pub struct StandardUniform;$/;"	s
+StandardUniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^impl Distribution<bool> for StandardUniform {$/;"	c
+StandardUniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^impl Distribution<char> for StandardUniform {$/;"	c
+StandardUniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^impl SampleString for StandardUniform {$/;"	c
+StandardUniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^impl<T, const LANES: usize> Distribution<Mask<T, LANES>> for StandardUniform$/;"	c
+StandardUniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^impl<T, const N: usize> Distribution<[T; N]> for StandardUniform$/;"	c
+StandardUniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^impl<T> Distribution<Wrapping<T>> for StandardUniform$/;"	c
+StdRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/std.rs	/^impl SeedableRng for StdRng {$/;"	c
+StdRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/std.rs	/^impl TryCryptoRng for StdRng {}$/;"	c
+StdRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/std.rs	/^impl TryRng for StdRng {$/;"	c
+StdRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/std.rs	/^pub struct StdRng(Rng);$/;"	s
+StepRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^    impl TryRng for StepRng {$/;"	c	module:test
+StepRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^    pub struct StepRng(u64, u64);$/;"	s	module:test
+T	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^impl<T> IndexedRandom for [T] {$/;"	c
+T	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^impl<T> SliceRandom for [T] {$/;"	c
+ThreadRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^impl Default for ThreadRng {$/;"	c
+ThreadRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^impl ThreadRng {$/;"	c
+ThreadRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^impl TryCryptoRng for ThreadRng {}$/;"	c
+ThreadRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^impl TryRng for ThreadRng {$/;"	c
+ThreadRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^impl fmt::Debug for ThreadRng {$/;"	c
+ThreadRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^pub struct ThreadRng {$/;"	s
+TraceGuard	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^impl Drop for TraceGuard {$/;"	c
+TraceGuard	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^impl TraceGuard {$/;"	c
+TraceGuard	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub struct TraceGuard {$/;"	s
+U32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    U32(Vec<u32>),$/;"	e	enum:IndexVec
+U32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    U32(slice::Iter<'a, u32>),$/;"	e	enum:IndexVecIter
+U32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    U32(vec::IntoIter<u32>),$/;"	e	enum:IndexVecIntoIter
+U64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    U64(Vec<u64>),$/;"	e	enum:IndexVec
+U64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    U64(slice::Iter<'a, u64>),$/;"	e	enum:IndexVecIter
+U64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    U64(vec::IntoIter<u64>),$/;"	e	enum:IndexVecIntoIter
+UInt	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^    type UInt;$/;"	t	interface:FloatSIMDUtils
+UInt	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^trait UInt: Copy + PartialOrd + Ord + PartialEq + Eq + SampleUniform + Hash + AddAssign {$/;"	i
+UnhintedIterator	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    impl<I: Iterator + Clone> Iterator for UnhintedIterator<I> {$/;"	c	module:test
+UnhintedIterator	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    struct UnhintedIterator<I: Iterator + Clone> {$/;"	s	module:test
+Uniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^impl<X: SampleUniform> Distribution<X> for Uniform<X> {$/;"	c
+Uniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^impl<X: SampleUniform> TryFrom<Range<X>> for Uniform<X> {$/;"	c
+Uniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^impl<X: SampleUniform> TryFrom<RangeInclusive<X>> for Uniform<X> {$/;"	c
+Uniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^impl<X: SampleUniform> Uniform<X> {$/;"	c
+Uniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^pub struct Uniform<X: SampleUniform>(X::Sampler);$/;"	s
+Uniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^impl crate::distr::SampleString for Uniform<char> {$/;"	c
+UniformChar	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^impl UniformSampler for UniformChar {$/;"	c
+UniformChar	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^pub struct UniformChar {$/;"	s
+UniformDuration	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^impl UniformSampler for UniformDuration {$/;"	c
+UniformDuration	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^pub struct UniformDuration {$/;"	s
+UniformDurationMode	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^enum UniformDurationMode {$/;"	g
+UniformFloat	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_float.rs	/^pub struct UniformFloat<X> {$/;"	s
+UniformInt	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^pub struct UniformInt<X> {$/;"	s
+UniformMyF32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^        impl UniformSampler for UniformMyF32 {$/;"	c	function:tests::test_custom_uniform
+UniformMyF32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^        struct UniformMyF32(UniformFloat<f32>);$/;"	s	function:tests::test_custom_uniform
+UniformSampler	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^pub trait UniformSampler: Sized {$/;"	i
+UniformUsize	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^impl UniformSampler for UniformUsize {$/;"	c
+UniformUsize	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^pub struct UniformUsize {$/;"	s
+Weight	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/mod.rs	/^pub trait Weight: Clone {$/;"	i
+WeightedIndex	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^impl<X: SampleUniform + PartialOrd + Clone> WeightedIndex<X> {$/;"	c
+WeightedIndex	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^impl<X: SampleUniform + PartialOrd> WeightedIndex<X> {$/;"	c
+WeightedIndex	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^impl<X> Distribution<usize> for WeightedIndex<X>$/;"	c
+WeightedIndex	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^pub struct WeightedIndex<X: SampleUniform + PartialOrd> {$/;"	s
+WeightedIndexIter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^impl<X> Clone for WeightedIndexIter<'_, X>$/;"	c
+WeightedIndexIter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^impl<X> Debug for WeightedIndexIter<'_, X>$/;"	c
+WeightedIndexIter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^impl<X> Iterator for WeightedIndexIter<'_, X>$/;"	c
+WeightedIndexIter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^pub struct WeightedIndexIter<'a, X: SampleUniform + PartialOrd> {$/;"	s
+WideningMultiply	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^pub(crate) trait WideningMultiply<RHS = Self> {$/;"	i
+WindowHintedIterator	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    impl<I: ExactSizeIterator + Iterator + Clone> Iterator for WindowHintedIterator<I> {$/;"	c	module:test
+WindowHintedIterator	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    struct WindowHintedIterator<I: ExactSizeIterator + Iterator + Clone> {$/;"	s	module:test
+WyHash	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^impl Default for WyHash {$/;"	c
+WyHash	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^impl Hasher for WyHash {$/;"	c
+WyHash	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^impl WyHash {$/;"	c
+WyHash	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^pub struct WyHash {$/;"	s
+WyHash	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^impl Hasher for WyHash {$/;"	c
+WyHash	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^impl WyHash {$/;"	c
+WyHash	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^pub struct WyHash {$/;"	s
+WyHasherBuilder	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^impl BuildHasher for WyHasherBuilder {$/;"	c
+WyHasherBuilder	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^impl Default for WyHasherBuilder {$/;"	c
+WyHasherBuilder	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^impl WyHasherBuilder {$/;"	c
+WyHasherBuilder	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^pub struct WyHasherBuilder {$/;"	s
+WyHasherBuilder	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^impl BuildHasher for WyHasherBuilder {$/;"	c
+WyHasherBuilder	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^impl Default for WyHasherBuilder {$/;"	c
+WyHasherBuilder	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^impl WyHasherBuilder {$/;"	c
+WyHasherBuilder	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^pub struct WyHasherBuilder {$/;"	s
+WyRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^impl RngCore for WyRng {$/;"	c
+WyRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^impl SeedableRng for WyRng {$/;"	c
+WyRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^pub struct WyRng(u64);$/;"	s
+WyRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^impl RngCore for WyRng {$/;"	c
+WyRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^impl SeedableRng for WyRng {$/;"	c
+WyRng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^pub struct WyRng(u64);$/;"	s
+X	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^            type X = MyF32;$/;"	t	implementation:tests::test_custom_uniform::UniformMyF32
+X	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    type X;$/;"	t	interface:UniformSampler
+X	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    type X = usize;$/;"	t	implementation:UniformUsize
+X	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    type X = Duration;$/;"	t	implementation:UniformDuration
+X	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    type X = char;$/;"	t	implementation:UniformChar
+Xoshiro128PlusPlus	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro128plusplus.rs	/^impl SeedableRng for Xoshiro128PlusPlus {$/;"	c
+Xoshiro128PlusPlus	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro128plusplus.rs	/^impl TryRng for Xoshiro128PlusPlus {$/;"	c
+Xoshiro128PlusPlus	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro128plusplus.rs	/^pub struct Xoshiro128PlusPlus {$/;"	s
+Xoshiro256PlusPlus	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro256plusplus.rs	/^impl SeedableRng for Xoshiro256PlusPlus {$/;"	c
+Xoshiro256PlusPlus	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro256plusplus.rs	/^impl TryRng for Xoshiro256PlusPlus {$/;"	c
+Xoshiro256PlusPlus	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro256plusplus.rs	/^pub struct Xoshiro256PlusPlus {$/;"	s
+Zero	/home/wangbin/work/github/VectorChord-1.1.1/crates/feistel/src/lib.rs	/^pub trait Zero {$/;"	i
+__unsafe	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^const unsafe fn __unsafe() {}$/;"	f
+_phantom	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    _phantom: core::marker::PhantomData<T>,$/;"	m	struct:IndexedSamples
+a	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    a: u64,$/;"	m	struct:WyHash
+all_finite	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^    fn all_finite(self) -> bool;$/;"	P	interface:FloatSIMDUtils
+all_le	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^    fn all_le(self, other: Self) -> bool;$/;"	P	interface:FloatSIMDUtils
+all_lt	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^    fn all_lt(self, other: Self) -> bool;$/;"	P	interface:FloatSIMDUtils
+any	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^    fn any(self) -> bool {$/;"	P	implementation:bool
+any	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^    fn any(self) -> bool;$/;"	P	interface:BoolAsSIMD
+append_string	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    fn append_string<R: Rng + ?Sized>(&self, rng: &mut R, string: &mut String, len: usize);$/;"	P	interface:SampleString
+append_string	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^    fn append_string<R: Rng + ?Sized>(&self, rng: &mut R, s: &mut String, len: usize) {$/;"	P	implementation:StandardUniform
+append_string	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^    fn append_string<R: Rng + ?Sized>(&self, rng: &mut R, string: &mut String, len: usize) {$/;"	P	implementation:Alphabetic
+append_string	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^    fn append_string<R: Rng + ?Sized>(&self, rng: &mut R, string: &mut String, len: usize) {$/;"	P	implementation:Alphanumeric
+append_string	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/slice.rs	/^    fn append_string<R: Rng + ?Sized>(&self, rng: &mut R, string: &mut String, len: usize) {$/;"	P	implementation:Choose
+append_string	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    fn append_string<R: Rng + ?Sized>($/;"	P	implementation:Uniform
+as_usize	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn as_usize(self) -> usize {$/;"	P	implementation:u32
+as_usize	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn as_usize(self) -> usize {$/;"	P	implementation:u64
+as_usize	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn as_usize(self) -> usize;$/;"	P	interface:UInt
+b	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    b: u64,$/;"	m	struct:WyHash
+bernoulli	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/mod.rs	/^mod bernoulli;$/;"	n
+bernoulli_distributions_can_be_compared	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^    fn bernoulli_distributions_can_be_compared() {$/;"	f	module:test
+bool	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^impl BoolAsSIMD for bool {$/;"	c
+borrow	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn borrow(&self) -> &Borrowed {$/;"	f
+borrow	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn borrow(&self) -> &Borrowed;$/;"	P	interface:SampleBorrow
+build_hasher	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    fn build_hasher(&self) -> Self::Hasher {$/;"	P	implementation:WyHasherBuilder
+build_hasher	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^    fn build_hasher(&self) -> Self::Hasher {$/;"	P	implementation:WyHasherBuilder
+calculate_bound_u32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/increasing_uniform.rs	/^fn calculate_bound_u32(m: u32) -> (u32, u8) {$/;"	f
+cast_from_int	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^    fn cast_from_int(i: Self::UInt) -> Self;$/;"	P	interface:FloatSIMDUtils
+char	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^impl SampleUniform for char {$/;"	c
+char_to_comp_u32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^fn char_to_comp_u32(c: char) -> u32 {$/;"	f
+checked_add_assign	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/mod.rs	/^    fn checked_add_assign(&mut self, v: &Self) -> Result<(), ()>;$/;"	P	interface:Weight
+choose	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        fn choose<I: Iterator<Item = u32>>(iter: I) -> Option<u32> {$/;"	f	function:test::value_stability_choose
+choose	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        fn choose<I: Iterator<Item = u32>>(iter: I) -> Option<u32> {$/;"	f	function:test::value_stability_choose_stable
+choose	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    fn choose<R>(mut self, rng: &mut R) -> Option<Self::Item>$/;"	P	interface:IteratorRandom
+choose	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn choose<R>(&self, rng: &mut R) -> Option<&Self::Output>$/;"	P	interface:IndexedRandom
+choose_iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn choose_iter<R>(&self, rng: &mut R) -> Option<impl Iterator<Item = &Self::Output>>$/;"	P	interface:IndexedRandom
+choose_multiple	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    fn choose_multiple<R>(self, rng: &mut R, amount: usize) -> Vec<Self::Item>$/;"	P	interface:IteratorRandom
+choose_multiple	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn choose_multiple<R>($/;"	P	interface:IndexedRandom
+choose_multiple_array	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn choose_multiple_array<R, const N: usize>(&self, rng: &mut R) -> Option<[Self::Output; N]>$/;"	P	interface:IndexedRandom
+choose_multiple_fill	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    fn choose_multiple_fill<R>(self, rng: &mut R, buf: &mut [Self::Item]) -> usize$/;"	P	interface:IteratorRandom
+choose_multiple_weighted	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn choose_multiple_weighted<R, F, X>($/;"	P	interface:IndexedRandom
+choose_mut	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn choose_mut<R>(&mut self, rng: &mut R) -> Option<&mut Self::Output>$/;"	P	interface:IndexedMutRandom
+choose_stable	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    fn choose_stable<R>(mut self, rng: &mut R) -> Option<Self::Item>$/;"	P	interface:IteratorRandom
+choose_weighted	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn choose_weighted<R, F, B, X>($/;"	P	interface:IndexedRandom
+choose_weighted_iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn choose_weighted_iter<R, F, B, X>($/;"	P	interface:IndexedRandom
+choose_weighted_mut	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn choose_weighted_mut<R, F, B, X>($/;"	P	interface:IndexedMutRandom
+chunk	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/coin_flipper.rs	/^    chunk: u32, \/\/ TODO(opt): this should depend on RNG word size$/;"	m	struct:CoinFlipper
+chunk	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/increasing_uniform.rs	/^    chunk: u32,$/;"	m	struct:IncreasingUniform
+chunk_remaining	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/coin_flipper.rs	/^    chunk_remaining: u32,$/;"	m	struct:CoinFlipper
+chunk_remaining	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/increasing_uniform.rs	/^    chunk_remaining: u8,$/;"	m	struct:IncreasingUniform
+chunk_remaining	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        chunk_remaining: usize,$/;"	m	struct:test::ChunkHintedIterator
+chunk_size	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        chunk_size: usize,$/;"	m	struct:test::ChunkHintedIterator
+clone	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    fn clone(&self) -> Self {$/;"	f
+cmp	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^        fn cmp(&self, other: &Self) -> Ordering {$/;"	P	implementation:sample_efraimidis_spirakis::Element
+coin_flipper	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/mod.rs	/^mod coin_flipper;$/;"	n
+const_rng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^    pub fn const_rng(x: u64) -> StepRng {$/;"	f	module:test
+cumulative_weights	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    cumulative_weights: Vec<X>,$/;"	m	struct:WeightedIndex
+debug	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/log_macros.rs	/^macro_rules! debug { ($($x:tt)*) => ($/;"	M
+decrease_masked	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^    fn decrease_masked(self, mask: Self::Mask) -> Self;$/;"	P	interface:FloatSIMDUtils
+default	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^    fn default() -> ThreadRng {$/;"	P	implementation:ThreadRng
+default	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    fn default() -> Self {$/;"	P	implementation:WyHash
+default	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    fn default() -> Self {$/;"	P	implementation:WyHasherBuilder
+default	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^    fn default() -> Self {$/;"	P	implementation:WyHasherBuilder
+distr	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    distr: D,$/;"	m	struct:Iter
+distr	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    distr: D,$/;"	m	struct:Map
+distr	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^pub mod distr;$/;"	n
+distribution	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/mod.rs	/^mod distribution;$/;"	n
+do_test	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        fn do_test<I: Clone + Iterator<Item = u32>>(iter: I, v: &[u32]) {$/;"	f	function:test::value_stability_sample
+drop	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    fn drop(&mut self) {$/;"	P	implementation:TraceGuard
+eq	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^        fn eq(&self, other: &Self) -> bool {$/;"	P	implementation:sample_efraimidis_spirakis::Element
+eq	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn eq(&self, other: &IndexVec) -> bool {$/;"	P	implementation:IndexVec
+error	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/log_macros.rs	/^macro_rules! error { ($($x:tt)*) => ($/;"	M
+extract_lane	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^    fn extract_lane(self, index: usize) -> Self::Scalar;$/;"	P	interface:FloatSIMDScalarUtils
+feistel	/home/wangbin/work/github/VectorChord-1.1.1/crates/feistel/src/lib.rs	/^pub fn feistel<I>(width: u32, x: I, round: u32, secret: impl Fn(u32, I) -> I) -> I$/;"	f
+fill	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^pub fn fill<T: Fill>(dest: &mut [T]) {$/;"	f
+fill	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn fill<T: Fill>(&mut self, dest: &mut [T]) {$/;"	P	interface:RngExt
+fill_bytes	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    fn fill_bytes(&mut self, dest: &mut [u8]) {$/;"	P	implementation:WyRng
+fill_bytes	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^    fn fill_bytes(&mut self, dest: &mut [u8]) {$/;"	P	implementation:WyRng
+fill_slice	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn fill_slice<R: Rng + ?Sized>(this: &mut [Self], rng: &mut R) {$/;"	P	implementation:u8
+fill_slice	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn fill_slice<R: Rng + ?Sized>(this: &mut [Self], rng: &mut R);$/;"	P	interface:Fill
+final3	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/lib.rs	/^pub mod final3;$/;"	n
+finish	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    fn finish(&self) -> u64 {$/;"	P	implementation:WyHash
+finish	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^    fn finish(&self) -> u64 {$/;"	P	implementation:WyHash
+flip_c_heads	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/coin_flipper.rs	/^    fn flip_c_heads(&mut self, mut c: u32) -> bool {$/;"	P	implementation:CoinFlipper
+float	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/mod.rs	/^mod float;$/;"	n
+float	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^mod float;$/;"	n
+float_impls	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/float.rs	/^macro_rules! float_impls {$/;"	M
+fmt	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {$/;"	P	implementation:BernoulliError
+fmt	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/slice.rs	/^    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {$/;"	P	implementation:Empty
+fmt	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {$/;"	P	implementation:Error
+fmt	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/mod.rs	/^    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {$/;"	P	implementation:Error
+fmt	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {$/;"	f
+fmt	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {$/;"	P	implementation:RngReader
+fmt	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {$/;"	P	implementation:ThreadRng
+from	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn from(v: Vec<u32>) -> Self {$/;"	P	implementation:IndexVec
+from	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn from(v: Vec<u64>) -> Self {$/;"	P	implementation:IndexVec
+from_ratio	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^    pub fn from_ratio(numerator: u32, denominator: u32) -> Result<Bernoulli, BernoulliError> {$/;"	P	implementation:Bernoulli
+from_seed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/small.rs	/^    fn from_seed(seed: Self::Seed) -> Self {$/;"	P	implementation:SmallRng
+from_seed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/std.rs	/^    fn from_seed(seed: Self::Seed) -> Self {$/;"	P	implementation:StdRng
+from_seed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro128plusplus.rs	/^    fn from_seed(seed: [u8; 16]) -> Xoshiro128PlusPlus {$/;"	P	implementation:Xoshiro128PlusPlus
+from_seed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro256plusplus.rs	/^    fn from_seed(seed: [u8; 32]) -> Xoshiro256PlusPlus {$/;"	P	implementation:Xoshiro256PlusPlus
+from_seed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    fn from_seed(seed: Self::Seed) -> Self {$/;"	P	implementation:WyRng
+from_seed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^    fn from_seed(seed: Self::Seed) -> Self {$/;"	P	implementation:WyRng
+func	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    func: F,$/;"	m	struct:Map
+function_last_name	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! function_last_name {$/;"	M
+function_name	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    function_name: String,$/;"	m	struct:TraceGuard
+function_name	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! function_name {$/;"	M
+functions	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/mod.rs	/^mod functions;$/;"	n
+functions	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/mod.rs	/^pub(crate) mod functions;$/;"	n
+generate	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^    fn generate(&mut self, results: &mut Results) {$/;"	P	implementation:ReseedingCore
+generates_secret_with_32_ones	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/functions.rs	/^    fn generates_secret_with_32_ones() {$/;"	f	module:tests
+get_weight	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^        fn get_weight<T>(item: &(u32, T)) -> u32 {$/;"	f	function:test::test_weighted
+gt_mask	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^    fn gt_mask(self, other: Self) -> Self::Mask;$/;"	P	interface:FloatSIMDUtils
+h	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^    h: u64,$/;"	m	struct:WyHash
+hidden_export	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/mod.rs	/^pub mod hidden_export {$/;"	n
+hint_total_size	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        hint_total_size: bool,$/;"	m	struct:test::ChunkHintedIterator
+hint_total_size	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        hint_total_size: bool,$/;"	m	struct:test::WindowHintedIterator
+impl_fill	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^macro_rules! impl_fill {$/;"	M
+impl_int_from_uint	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^macro_rules! impl_int_from_uint {$/;"	M
+impl_nzint	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^macro_rules! impl_nzint {$/;"	M
+impl_sample_range_u	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^macro_rules! impl_sample_range_u {$/;"	M
+impl_traits	/home/wangbin/work/github/VectorChord-1.1.1/crates/feistel/src/lib.rs	/^macro_rules! impl_traits {$/;"	M
+impl_weight_float	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/mod.rs	/^macro_rules! impl_weight_float {$/;"	M
+impl_weight_int	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/mod.rs	/^macro_rules! impl_weight_int {$/;"	M
+increasing_uniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/mod.rs	/^mod increasing_uniform;$/;"	n
+index	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    index: usize,$/;"	m	struct:WeightedIndexIter
+index	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^        index: N,$/;"	m	struct:sample_efraimidis_spirakis::Element
+index	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    pub fn index(&self, index: usize) -> usize {$/;"	P	implementation:IndexVec
+index	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/mod.rs	/^pub mod index {$/;"	n
+index_	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/mod.rs	/^mod index_;$/;"	n
+indices	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    indices: index::IndexVecIntoIter,$/;"	m	struct:IndexedSamples
+info	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/log_macros.rs	/^macro_rules! info { ($($x:tt)*) => ($/;"	M
+inner	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^    inner: Core,$/;"	m	struct:ReseedingCore
+inner	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/increasing_uniform.rs	/^    const fn inner(m: u32) -> (u32, u8) {$/;"	f	function:calculate_bound_u32
+int	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^mod int;$/;"	n
+integer	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/mod.rs	/^mod integer;$/;"	n
+into_float_with_exponent	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/float.rs	/^    fn into_float_with_exponent(self, exponent: i32) -> Self::F;$/;"	P	interface:IntoFloat
+into_iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn into_iter(self) -> IndexVecIntoIter {$/;"	P	implementation:IndexVec
+into_vec	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    pub fn into_vec(self) -> Vec<usize> {$/;"	P	implementation:IndexVec
+is_a_permutation	/home/wangbin/work/github/VectorChord-1.1.1/crates/feistel/src/lib.rs	/^fn is_a_permutation() {$/;"	f
+is_empty	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn is_empty(&self) -> bool {$/;"	P	implementation:Range
+is_empty	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn is_empty(&self) -> bool {$/;"	P	implementation:RangeInclusive
+is_empty	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn is_empty(&self) -> bool;$/;"	P	interface:SampleRange
+is_empty	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    pub fn is_empty(&self) -> bool {$/;"	P	implementation:IndexVec
+is_empty	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn is_empty(&self) -> bool {$/;"	P	interface:IndexedRandom
+iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    pub fn iter(&self) -> IndexVecIter<'_> {$/;"	P	implementation:IndexVec
+iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        iter: I,$/;"	m	struct:test::ChunkHintedIterator
+iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        iter: I,$/;"	m	struct:test::UnhintedIterator
+iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        iter: I,$/;"	m	struct:test::WindowHintedIterator
+iterator	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/mod.rs	/^mod iterator;$/;"	n
+key	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^        key: f64,$/;"	m	struct:sample_efraimidis_spirakis::Element
+len	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    pub fn len(&self) -> usize {$/;"	P	implementation:IndexVec
+len	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn len(&self) -> usize {$/;"	P	implementation:IndexedSamples
+len	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn len(&self) -> usize {$/;"	P	implementation:T
+len	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn len(&self) -> usize;$/;"	P	interface:IndexedRandom
+log_macros	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^mod log_macros;$/;"	n
+low	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_float.rs	/^    low: X,$/;"	m	struct:UniformFloat
+low	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    low: usize,$/;"	m	struct:UniformUsize
+low	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    pub(super) low: X,$/;"	m	struct:UniformInt
+make_rng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^pub fn make_rng<R: SeedableRng>() -> R {$/;"	f
+make_secret	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/functions.rs	/^pub fn make_secret(seed: u64) -> [u64; 4] {$/;"	f
+map	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    fn map<F, S>(self, func: F) -> Map<Self, F, T, S>$/;"	P	interface:Distribution
+mix_with_p0	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/functions.rs	/^pub(crate) fn mix_with_p0(seed: u64) -> u64 {$/;"	f
+mode	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    mode: UniformDurationMode,$/;"	m	struct:UniformDuration
+mode64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    mode64: bool,$/;"	m	struct:UniformUsize
+move_last	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^        fn move_last(slice: &mut [usize], pos: usize) {$/;"	f	function:test::test_shuffle
+n	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/increasing_uniform.rs	/^    n: u32,$/;"	m	struct:IncreasingUniform
+new	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^    pub fn new(p: f64) -> Result<Bernoulli, BernoulliError> {$/;"	P	implementation:Bernoulli
+new	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/slice.rs	/^    pub fn new(slice: &'a [T]) -> Result<Self, Empty> {$/;"	P	implementation:Choose
+new	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^            fn new<B1, B2>(low: B1, high: B2) -> Result<Self, Error>$/;"	P	implementation:tests::test_custom_uniform::UniformMyF32
+new	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn new<B1, B2>(low: B1, high: B2) -> Result<Self, Error>$/;"	P	interface:UniformSampler
+new	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    pub fn new<B1, B2>(low: B1, high: B2) -> Result<Uniform<X>, Error>$/;"	P	implementation:Uniform
+new	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn new<B1, B2>(low_b: B1, high_b: B2) -> Result<Self, Error>$/;"	P	implementation:UniformUsize
+new	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    fn new<B1, B2>(low_b: B1, high_b: B2) -> Result<Self, Error>$/;"	P	implementation:UniformChar
+new	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    fn new<B1, B2>(low_b: B1, high_b: B2) -> Result<Self, Error>$/;"	P	implementation:UniformDuration
+new	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    pub fn new<I>(weights: I) -> Result<WeightedIndex<X>, Error>$/;"	P	implementation:WeightedIndex
+new	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/coin_flipper.rs	/^    pub fn new(rng: R) -> Self {$/;"	P	implementation:CoinFlipper
+new	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/increasing_uniform.rs	/^    pub fn new(rng: R, n: u32) -> Self {$/;"	P	implementation:IncreasingUniform
+new	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    pub fn new(seed: u64, secret: [u64; 4]) -> Self {$/;"	P	implementation:WyHash
+new	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    pub fn new(seed: u64, secret: [u64; 4]) -> Self {$/;"	P	implementation:WyHasherBuilder
+new	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^    pub fn new(seed: u64) -> Self {$/;"	P	implementation:WyHasherBuilder
+new	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn new(function_name: &str) -> Self {$/;"	P	implementation:TraceGuard
+new_inclusive	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^            fn new_inclusive<B1, B2>(low: B1, high: B2) -> Result<Self, Error>$/;"	P	implementation:tests::test_custom_uniform::UniformMyF32
+new_inclusive	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn new_inclusive<B1, B2>(low: B1, high: B2) -> Result<Self, Error>$/;"	P	interface:UniformSampler
+new_inclusive	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    pub fn new_inclusive<B1, B2>(low: B1, high: B2) -> Result<Uniform<X>, Error>$/;"	P	implementation:Uniform
+new_inclusive	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn new_inclusive<B1, B2>(low_b: B1, high_b: B2) -> Result<Self, Error>$/;"	P	implementation:UniformUsize
+new_inclusive	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    fn new_inclusive<B1, B2>(low_b: B1, high_b: B2) -> Result<Self, Error>$/;"	P	implementation:UniformChar
+new_inclusive	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    fn new_inclusive<B1, B2>(low_b: B1, high_b: B2) -> Result<Self, Error>$/;"	P	implementation:UniformDuration
+next	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    fn next(&mut self) -> Option<T> {$/;"	f
+next	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    fn next(&mut self) -> Option<Self::Item> {$/;"	f
+next	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn next(&mut self) -> Option<Self::Item> {$/;"	P	implementation:IndexVecIntoIter
+next	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn next(&mut self) -> Option<usize> {$/;"	P	implementation:IndexVecIter
+next	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        fn next(&mut self) -> Option<Self::Item> {$/;"	P	implementation:test::ChunkHintedIterator
+next	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        fn next(&mut self) -> Option<Self::Item> {$/;"	P	implementation:test::UnhintedIterator
+next	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        fn next(&mut self) -> Option<Self::Item> {$/;"	P	implementation:test::WindowHintedIterator
+next	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn next(&mut self) -> Option<Self::Item> {$/;"	P	implementation:IndexedSamples
+next_index	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/increasing_uniform.rs	/^    pub fn next_index(&mut self) -> usize {$/;"	P	implementation:IncreasingUniform
+next_u32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    fn next_u32(&mut self) -> u32 {$/;"	P	implementation:WyRng
+next_u32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^    fn next_u32(&mut self) -> u32 {$/;"	P	implementation:WyRng
+next_u64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    fn next_u64(&mut self) -> u64 {$/;"	P	implementation:WyRng
+next_u64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^    fn next_u64(&mut self) -> u64 {$/;"	P	implementation:WyRng
+num_choices	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/slice.rs	/^    num_choices: NonZeroUsize,$/;"	m	struct:Choose
+num_choices	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/slice.rs	/^    pub fn num_choices(&self) -> NonZeroUsize {$/;"	P	implementation:Choose
+offset	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    offset: u32,$/;"	m	struct:UniformDuration
+one	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn one() -> Self {$/;"	P	implementation:u32
+one	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn one() -> Self {$/;"	P	implementation:u64
+one	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn one() -> Self;$/;"	P	interface:UInt
+one	/home/wangbin/work/github/VectorChord-1.1.1/crates/feistel/src/lib.rs	/^    fn one() -> Self;$/;"	P	interface:One
+other	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/mod.rs	/^mod other;$/;"	n
+other	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^mod other;$/;"	n
+overflow	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    fn overflow() {$/;"	f	module:test
+p	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^    pub fn p(&self) -> f64 {$/;"	P	implementation:Bernoulli
+p_int	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^    p_int: u64,$/;"	m	struct:Bernoulli
+partial_cmp	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {$/;"	P	implementation:sample_efraimidis_spirakis::Element
+partial_shuffle	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn partial_shuffle<R>($/;"	P	interface:SliceRandom
+partial_shuffle	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn partial_shuffle<R>(&mut self, rng: &mut R, amount: usize) -> (&mut [T], &mut [T])$/;"	P	implementation:T
+phantom	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    phantom: core::marker::PhantomData<T>,$/;"	m	struct:Iter
+phantom	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    phantom: core::marker::PhantomData<fn(T) -> S>,$/;"	m	struct:Map
+prelude	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^pub mod prelude;$/;"	n
+random	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^pub fn random<T>() -> T$/;"	f
+random	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn random<T>(&mut self) -> T$/;"	P	interface:RngExt
+random_bool	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^pub fn random_bool(p: f64) -> bool {$/;"	f
+random_bool	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn random_bool(&mut self, p: f64) -> bool {$/;"	P	interface:RngExt
+random_iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^pub fn random_iter<T>() -> distr::Iter<StandardUniform, rngs::ThreadRng, T>$/;"	f
+random_iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn random_iter<T>(self) -> distr::Iter<StandardUniform, Self, T>$/;"	P	interface:RngExt
+random_range	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^pub fn random_range<T, R>(range: R) -> T$/;"	f
+random_range	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn random_range<T, R>(&mut self, range: R) -> T$/;"	P	interface:RngExt
+random_ratio	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^pub fn random_ratio(numerator: u32, denominator: u32) -> bool {$/;"	f
+random_ratio	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn random_ratio(&mut self, numerator: u32, denominator: u32) -> bool {$/;"	P	interface:RngExt
+random_ratio	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/coin_flipper.rs	/^    fn random_ratio(&mut self, mut n: usize, d: usize) -> bool {$/;"	P	implementation:CoinFlipper
+random_ratio_one_over	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/coin_flipper.rs	/^    pub fn random_ratio_one_over(&mut self, d: usize) -> bool {$/;"	P	implementation:CoinFlipper
+range	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/slice.rs	/^    range: UniformUsize,$/;"	m	struct:Choose
+range	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_float.rs	/^        fn range<T: SampleUniform>(low: T, high: T) -> Result<T, Error> {$/;"	f	function:tests::test_float_assertions
+range	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    pub(super) range: X,$/;"	m	struct:UniformInt
+range	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    range: usize,$/;"	m	struct:UniformUsize
+read	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^    fn read(&mut self, buf: &mut [u8]) -> Result<usize, std::io::Error> {$/;"	P	implementation:RngReader
+read32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/functions.rs	/^pub fn read32(data: &[u8]) -> u64 {$/;"	f
+read64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/functions.rs	/^pub fn read64(data: &[u8]) -> u64 {$/;"	f
+read64_byte_sorting	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/functions.rs	/^    fn read64_byte_sorting() {$/;"	f	module:tests
+read64_swapped	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/functions.rs	/^fn read64_swapped(data: &[u8]) -> u64 {$/;"	f
+read_rest	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/functions.rs	/^pub fn read_rest(data: &[u8]) -> u64 {$/;"	f
+read_rest_byte_sorting	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/functions.rs	/^    fn read_rest_byte_sorting() {$/;"	f	module:tests
+read_up_to_24	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/functions.rs	/^fn read_up_to_24(bytes: &[u8]) -> u64 {$/;"	f
+reference	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro128plusplus.rs	/^    fn reference() {$/;"	f	module:tests
+reference	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro256plusplus.rs	/^    fn reference() {$/;"	f	module:tests
+replace	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^    fn replace(self, index: usize, new_value: Self::Scalar) -> Self;$/;"	P	interface:FloatSIMDScalarUtils
+reseed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^    fn reseed(&mut self) -> Result<(), SysError> {$/;"	P	implementation:ReseedingCore
+reseed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^    pub fn reseed(&mut self) -> Result<(), SysError> {$/;"	P	implementation:ThreadRng
+rng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    rng: R,$/;"	m	struct:Iter
+rng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^    pub fn rng(seed: u64) -> impl Rng {$/;"	f	module:test
+rng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^mod rng;$/;"	n
+rng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^    rng: Rc<UnsafeCell<BlockRng<ReseedingCore>>>,$/;"	m	struct:ThreadRng
+rng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^pub fn rng() -> ThreadRng {$/;"	f
+rng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/coin_flipper.rs	/^    pub rng: R,$/;"	m	struct:CoinFlipper
+rng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/increasing_uniform.rs	/^    pub rng: R,$/;"	m	struct:IncreasingUniform
+rng_reader	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^    fn rng_reader() {$/;"	f	module:test
+rngs	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^pub mod rngs;$/;"	n
+rust_trace_function_enter	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn rust_trace_function_enter(function: *const std::os::raw::c_char);$/;"	f
+rust_trace_function_exit	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn rust_trace_function_exit(function: *const std::os::raw::c_char);$/;"	f
+rust_trace_instant_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn rust_trace_instant_print($/;"	f
+rust_trace_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn rust_trace_print($/;"	f
+s	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro128plusplus.rs	/^    s: [u32; 4],$/;"	m	struct:Xoshiro128PlusPlus
+s	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro256plusplus.rs	/^    s: [u64; 4],$/;"	m	struct:Xoshiro256PlusPlus
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> bool {$/;"	P	implementation:Bernoulli
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> S {$/;"	f
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> T {$/;"	P	implementation:D
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> T;$/;"	P	interface:Distribution
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> __m128i {$/;"	P	implementation:StandardUniform
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> __m256i {$/;"	P	implementation:StandardUniform
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> __m512i {$/;"	P	implementation:StandardUniform
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> u128 {$/;"	P	implementation:StandardUniform
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> u16 {$/;"	P	implementation:StandardUniform
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> u32 {$/;"	P	implementation:StandardUniform
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> u64 {$/;"	P	implementation:StandardUniform
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> u8 {$/;"	P	implementation:StandardUniform
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Mask<T, LANES> {$/;"	f
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Wrapping<T> {$/;"	f
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> [T; N] {$/;"	f
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> bool {$/;"	P	implementation:StandardUniform
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> char {$/;"	P	implementation:StandardUniform
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> u8 {$/;"	P	implementation:Alphabetic
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> u8 {$/;"	P	implementation:Alphanumeric
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/slice.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> &'a T {$/;"	P	implementation:Choose
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^            fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Self::X {$/;"	P	implementation:tests::test_custom_uniform::UniformMyF32
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Self::X;$/;"	P	interface:UniformSampler
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> X {$/;"	P	implementation:Uniform
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> usize {$/;"	P	implementation:UniformUsize
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Duration {$/;"	P	implementation:UniformDuration
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Self::X {$/;"	P	implementation:UniformChar
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> usize {$/;"	f
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn sample<T, D: Distribution<T>>(&mut self, distr: D) -> T {$/;"	P	interface:RngExt
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^pub fn sample<R>(rng: &mut R, length: usize, amount: usize) -> IndexVec$/;"	f
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    fn sample<R>(mut self, rng: &mut R, amount: usize) -> Vec<Self::Item>$/;"	P	interface:IteratorRandom
+sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn sample<R>(&self, rng: &mut R, amount: usize) -> IndexedSamples<'_, Self, Self::Output>$/;"	P	interface:IndexedRandom
+sample	/home/wangbin/work/github/VectorChord-1.1.1/crates/feistel/src/lib.rs	/^fn sample() {$/;"	f
+sample_array	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/mod.rs	/^    pub fn sample_array<R, const N: usize>(rng: &mut R, len: usize) -> Option<[usize; N]>$/;"	f	module:index
+sample_array	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn sample_array<R, const N: usize>(&self, rng: &mut R) -> Option<[Self::Output; N]>$/;"	P	interface:IndexedRandom
+sample_efraimidis_spirakis	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^fn sample_efraimidis_spirakis<R, F, X, N>($/;"	f
+sample_fill	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    fn sample_fill<R>(mut self, rng: &mut R, buf: &mut [Self::Item]) -> usize$/;"	P	interface:IteratorRandom
+sample_floyd	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^fn sample_floyd<R>(rng: &mut R, length: u32, amount: u32) -> IndexVec$/;"	f
+sample_inplace	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^fn sample_inplace<R>(rng: &mut R, length: u32, amount: u32) -> IndexVec$/;"	f
+sample_iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    fn sample_iter<R>(self, rng: R) -> Iter<Self, R, T>$/;"	P	interface:Distribution
+sample_iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn sample_iter<T, D>(self, distr: D) -> distr::Iter<D, Self, T>$/;"	P	interface:RngExt
+sample_rejection	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^fn sample_rejection<X: UInt, R>(rng: &mut R, length: X, amount: X) -> IndexVec$/;"	f
+sample_single	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn sample_single<R: Rng + ?Sized, B1, B2>($/;"	P	interface:UniformSampler
+sample_single	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn sample_single<R: Rng + ?Sized>(self, rng: &mut R) -> Result<T, Error> {$/;"	P	implementation:Range
+sample_single	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn sample_single<R: Rng + ?Sized>(self, rng: &mut R) -> Result<T, Error> {$/;"	P	implementation:RangeInclusive
+sample_single	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn sample_single<R: Rng + ?Sized>(self, rng: &mut R) -> Result<T, Error>;$/;"	P	interface:SampleRange
+sample_single	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn sample_single<R: Rng + ?Sized, B1, B2>($/;"	P	implementation:UniformUsize
+sample_single_inclusive	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn sample_single_inclusive<R: Rng + ?Sized, B1, B2>($/;"	P	interface:UniformSampler
+sample_single_inclusive	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn sample_single_inclusive<R: Rng + ?Sized, B1, B2>($/;"	P	implementation:UniformUsize
+sample_string	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    fn sample_string<R: Rng + ?Sized>(&self, rng: &mut R, len: usize) -> String {$/;"	P	interface:SampleString
+sample_weighted	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^pub fn sample_weighted<R, F, X>($/;"	f
+sample_weighted	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn sample_weighted<R, F, X>($/;"	P	interface:IndexedRandom
+sampler	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    sampler: UniformInt<u32>,$/;"	m	struct:UniformChar
+scalar_float_impl	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^macro_rules! scalar_float_impl {$/;"	M
+scale	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_float.rs	/^    scale: X,$/;"	m	struct:UniformFloat
+secret	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    secret: [u64; 4],$/;"	m	struct:WyHash
+secret	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    secret: [u64; 4],$/;"	m	struct:WyHasherBuilder
+seed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    seed: u64,$/;"	m	struct:WyHash
+seed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    seed: u64,$/;"	m	struct:WyHasherBuilder
+seed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^    seed: u64,$/;"	m	struct:WyHasherBuilder
+seed_from_u64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/small.rs	/^    fn seed_from_u64(state: u64) -> Self {$/;"	P	implementation:SmallRng
+seed_from_u64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro128plusplus.rs	/^    fn seed_from_u64(mut state: u64) -> Self {$/;"	P	implementation:Xoshiro128PlusPlus
+seed_from_u64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro256plusplus.rs	/^    fn seed_from_u64(mut state: u64) -> Self {$/;"	P	implementation:Xoshiro256PlusPlus
+seed_from_u64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    fn seed_from_u64(state: u64) -> Self {$/;"	P	implementation:WyRng
+seed_from_u64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^    fn seed_from_u64(state: u64) -> Self {$/;"	P	implementation:WyRng
+seq	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^pub mod seq;$/;"	n
+shuffle	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn shuffle<R>(&mut self, rng: &mut R)$/;"	P	implementation:T
+shuffle	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn shuffle<R>(&mut self, rng: &mut R)$/;"	P	interface:SliceRandom
+simd_impl	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^macro_rules! simd_impl {$/;"	M
+simd_impl	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^macro_rules! simd_impl {$/;"	M
+simd_wmul	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^mod simd_wmul {$/;"	n
+size	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    size: u64,$/;"	m	struct:WyHash
+size	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^    size: u64,$/;"	m	struct:WyHash
+size_hint	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    fn size_hint(&self) -> (usize, Option<usize>) {$/;"	f
+size_hint	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn size_hint(&self) -> (usize, Option<usize>) {$/;"	P	implementation:IndexVecIntoIter
+size_hint	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn size_hint(&self) -> (usize, Option<usize>) {$/;"	P	implementation:IndexVecIter
+size_hint	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        fn size_hint(&self) -> (usize, Option<usize>) {$/;"	P	implementation:test::ChunkHintedIterator
+size_hint	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        fn size_hint(&self) -> (usize, Option<usize>) {$/;"	P	implementation:test::WindowHintedIterator
+size_hint	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn size_hint(&self) -> (usize, Option<usize>) {$/;"	P	implementation:IndexedSamples
+slice	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/mod.rs	/^pub mod slice;$/;"	n
+slice	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/slice.rs	/^    slice: &'a [T],$/;"	m	struct:Choose
+slice	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/mod.rs	/^mod slice;$/;"	n
+slice	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    slice: &'a S,$/;"	m	struct:IndexedSamples
+small	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/mod.rs	/^mod small;$/;"	n
+splat	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^    fn splat(scalar: Self) -> Self {$/;"	P	interface:FloatAsSIMD
+splat	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^    fn splat(scalar: Self) -> Self {$/;"	P	interface:IntAsSIMD
+stable_seed_from_u64_and_from_seed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro128plusplus.rs	/^    fn stable_seed_from_u64_and_from_seed() {$/;"	f	module:tests
+stable_seed_from_u64_and_from_seed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro256plusplus.rs	/^    fn stable_seed_from_u64_and_from_seed() {$/;"	f	module:tests
+std	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/mod.rs	/^mod std;$/;"	n
+step_rng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^    pub fn step_rng(x: u64, increment: u64) -> StepRng {$/;"	f	module:test
+t	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_float.rs	/^        macro_rules! t {$/;"	M	function:tests::test_float_assertions
+t	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_float.rs	/^        macro_rules! t {$/;"	M	function:tests::test_floats
+t	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^        macro_rules! t {$/;"	M	function:tests::test_integers
+ten_dice_rolls_other_than_five	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^        fn ten_dice_rolls_other_than_five<R: Rng>(rng: &mut R) -> impl Iterator<Item = i32> + '_/;"	f	function:tests::test_make_an_iter
+test	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^mod test {$/;"	n
+test	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/slice.rs	/^mod test {$/;"	n
+test	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^mod test {$/;"	n
+test	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^mod test {$/;"	n
+test	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^mod test {$/;"	n
+test	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/std.rs	/^mod test {$/;"	n
+test	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^mod test {$/;"	n
+test	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^mod test {$/;"	n
+test	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^mod test {$/;"	n
+test	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^mod test {$/;"	n
+test_accepting_nan	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    fn test_accepting_nan() {$/;"	f	module:test
+test_alphabetic	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^    fn test_alphabetic() {$/;"	f	module:tests
+test_alphanumeric	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^    fn test_alphanumeric() {$/;"	f	module:tests
+test_average	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^    fn test_average() {$/;"	f	module:test
+test_chacha_counter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/std.rs	/^    fn test_chacha_counter() {$/;"	f	module:test
+test_chacha_true_values_1	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/std.rs	/^    fn test_chacha_true_values_1() {$/;"	f	module:test
+test_chacha_true_values_2	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/std.rs	/^    fn test_chacha_true_values_2() {$/;"	f	module:test
+test_chacha_true_values_3	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/std.rs	/^    fn test_chacha_true_values_3() {$/;"	f	module:test
+test_chacha_true_values_8	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/std.rs	/^    fn test_chacha_true_values_8() {$/;"	f	module:test
+test_char	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    fn test_char() {$/;"	f	module:tests
+test_chars	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^    fn test_chars() {$/;"	f	module:tests
+test_custom_uniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn test_custom_uniform() {$/;"	f	module:tests
+test_debug_output	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^    fn test_debug_output() {$/;"	f	module:test
+test_dist_string	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    fn test_dist_string() {$/;"	f	module:tests
+test_distributions_iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    fn test_distributions_iter() {$/;"	f	module:tests
+test_distributions_map	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    fn test_distributions_map() {$/;"	f	module:tests
+test_durations	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    fn test_durations() {$/;"	f	module:tests
+test_f32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/float.rs	/^    macro_rules! test_f32 {$/;"	M	module:tests
+test_f64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/float.rs	/^    macro_rules! test_f64 {$/;"	M	module:tests
+test_fill	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn test_fill() {$/;"	f	module:test
+test_fill_bytes_default	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn test_fill_bytes_default() {$/;"	f	module:test
+test_fill_empty	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn test_fill_empty() {$/;"	f	module:test
+test_float_assertions	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_float.rs	/^    fn test_float_assertions() {$/;"	f	module:tests
+test_float_overflow	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_float.rs	/^    fn test_float_overflow() {$/;"	f	module:tests
+test_float_overflow_single	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_float.rs	/^    fn test_float_overflow_single() {$/;"	f	module:tests
+test_floats	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_float.rs	/^    fn test_floats() {$/;"	f	module:tests
+test_gen_ratio_average	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn test_gen_ratio_average() {$/;"	f	module:test
+test_integers	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^    fn test_integers() {$/;"	f	module:tests
+test_integers	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn test_integers() {$/;"	f	module:tests
+test_iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        fn test_iter(iter: impl Iterator<Item = usize> + Clone) -> [i32; 9] {$/;"	f	function:test::test_iterator_choose_stable_stability
+test_iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        fn test_iter<R: Rng + ?Sized, Iter: Iterator<Item = usize> + Clone>(r: &mut R, iter: Ite/;"	f	function:test::test_iterator_choose
+test_iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        fn test_iter<R: Rng + ?Sized, Iter: Iterator<Item = usize> + Clone>(r: &mut R, iter: Ite/;"	f	function:test::test_iterator_choose_stable
+test_iterator_choose	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    fn test_iterator_choose() {$/;"	f	module:test
+test_iterator_choose_stable	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    fn test_iterator_choose_stable() {$/;"	f	module:test
+test_iterator_choose_stable_stability	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    fn test_iterator_choose_stable_stability() {$/;"	f	module:test
+test_make_an_iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^    fn test_make_an_iter() {$/;"	f	module:tests
+test_misc	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^    fn test_misc() {$/;"	f	module:tests
+test_multiple_weighted_distributions	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn test_multiple_weighted_distributions() {$/;"	f	module:test
+test_multiple_weighted_edge_cases	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn test_multiple_weighted_edge_cases() {$/;"	f	module:test
+test_partial_shuffle	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn test_partial_shuffle() {$/;"	f	module:test
+test_random	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^    fn test_random() {$/;"	f	module:test
+test_random_bool	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn test_random_bool() {$/;"	f	module:test
+test_random_range_float	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn test_random_range_float() {$/;"	f	module:test
+test_random_range_int	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn test_random_range_int() {$/;"	f	module:test
+test_random_range_panic_int	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn test_random_range_panic_int() {$/;"	f	module:test
+test_random_range_panic_usize	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn test_random_range_panic_usize() {$/;"	f	module:test
+test_range	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^    fn test_range() {$/;"	f	module:test
+test_rng_boxed_trait	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn test_rng_boxed_trait() {$/;"	f	module:test
+test_rng_mut_ref	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn test_rng_mut_ref() {$/;"	f	module:test
+test_rng_trait_object	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^    fn test_rng_trait_object() {$/;"	f	module:test
+test_sample_alg	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn test_sample_alg() {$/;"	f	module:test
+test_sample_boundaries	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn test_sample_boundaries() {$/;"	f	module:test
+test_sample_iter	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    fn test_sample_iter() {$/;"	f	module:test
+test_sample_weighted	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn test_sample_weighted() {$/;"	f	module:test
+test_samples	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/float.rs	/^        fn test_samples<T: Copy + core::fmt::Debug + PartialEq, D: Distribution<T>>($/;"	f	function:tests::value_stability
+test_samples	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^        fn test_samples<T: Copy + core::fmt::Debug + PartialEq>(zero: T, expected: &[T])$/;"	f	function:tests::value_stability
+test_samples	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^        fn test_samples<T: Copy + core::fmt::Debug + PartialEq, D: Distribution<T>>($/;"	f	function:tests::value_stability
+test_samples	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^        fn test_samples<T: SampleUniform + Copy + fmt::Debug + PartialEq>($/;"	f	function:tests::value_stability
+test_samples	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^        fn test_samples<T: SampleUniform + Copy + Debug + PartialEq + Add<T>>($/;"	f	function:tests::value_stability
+test_samples	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^        fn test_samples<X: Weight + SampleUniform + PartialOrd, I>($/;"	f	function:test::value_stability
+test_serialization_index_vec	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn test_serialization_index_vec() {$/;"	f	module:test
+test_serialization_uniform_duration	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^    fn test_serialization_uniform_duration() {$/;"	f	module:tests
+test_serializing_deserializing_bernoulli	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^    fn test_serializing_deserializing_bernoulli() {$/;"	f	module:test
+test_shuffle	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn test_shuffle() {$/;"	f	module:test
+test_slice_choose	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn test_slice_choose() {$/;"	f	module:test
+test_stdrng_construction	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/std.rs	/^    fn test_stdrng_construction() {$/;"	f	module:test
+test_thread_rng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^    fn test_thread_rng() {$/;"	f	module:test
+test_trivial	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^    fn test_trivial() {$/;"	f	module:test
+test_uniform_bad_limits_equal_int	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn test_uniform_bad_limits_equal_int() {$/;"	f	module:tests
+test_uniform_bad_limits_flipped_int	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn test_uniform_bad_limits_flipped_int() {$/;"	f	module:tests
+test_uniform_from_std_range	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_float.rs	/^    fn test_uniform_from_std_range() {$/;"	f	module:tests
+test_uniform_from_std_range	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn test_uniform_from_std_range() {$/;"	f	module:tests
+test_uniform_from_std_range_bad_limits	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_float.rs	/^    fn test_uniform_from_std_range_bad_limits() {$/;"	f	module:tests
+test_uniform_from_std_range_bad_limits	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn test_uniform_from_std_range_bad_limits() {$/;"	f	module:tests
+test_uniform_from_std_range_inclusive	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_float.rs	/^    fn test_uniform_from_std_range_inclusive() {$/;"	f	module:tests
+test_uniform_from_std_range_inclusive	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn test_uniform_from_std_range_inclusive() {$/;"	f	module:tests
+test_uniform_from_std_range_inclusive_bad_limits	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_float.rs	/^    fn test_uniform_from_std_range_inclusive_bad_limits() {$/;"	f	module:tests
+test_uniform_from_std_range_inclusive_bad_limits	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn test_uniform_from_std_range_inclusive_bad_limits() {$/;"	f	module:tests
+test_uniform_good_limits_equal_int	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn test_uniform_good_limits_equal_int() {$/;"	f	module:tests
+test_uniform_serialization	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn test_uniform_serialization() {$/;"	f	module:tests
+test_uniform_usize_constructors	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn test_uniform_usize_constructors() {$/;"	f	module:tests
+test_uniform_usize_deserialization	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn test_uniform_usize_deserialization() {$/;"	f	module:tests
+test_uniform_usize_deserialization_64bit	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn test_uniform_usize_deserialization_64bit() {$/;"	f	module:tests
+test_uniform_usize_deserialization_from_32bit	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn test_uniform_usize_deserialization_from_32bit() {$/;"	f	module:tests
+test_uniform_usize_empty_range	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn test_uniform_usize_empty_range() {$/;"	f	module:tests
+test_update_weights	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    fn test_update_weights() {$/;"	f	module:test
+test_update_weights_errors	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    fn test_update_weights_errors() {$/;"	f	module:test
+test_weight_at	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    fn test_weight_at() {$/;"	f	module:test
+test_weighted	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn test_weighted() {$/;"	f	module:test
+test_weightedindex	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    fn test_weightedindex() {$/;"	f	module:test
+test_weightedindex_serde	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    fn test_weightedindex_serde() {$/;"	f	module:test
+test_weights	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    fn test_weights() {$/;"	f	module:test
+tests	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/distribution.rs	/^mod tests {$/;"	n
+tests	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/float.rs	/^mod tests {$/;"	n
+tests	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^mod tests {$/;"	n
+tests	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^mod tests {$/;"	n
+tests	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^mod tests {$/;"	n
+tests	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_float.rs	/^mod tests {$/;"	n
+tests	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^mod tests {$/;"	n
+tests	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_other.rs	/^mod tests {$/;"	n
+tests	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro128plusplus.rs	/^mod tests {$/;"	n
+tests	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro256plusplus.rs	/^mod tests {$/;"	n
+tests	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/functions.rs	/^mod tests {$/;"	n
+tests	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/functions.rs	/^mod tests {$/;"	n
+thread	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/mod.rs	/^pub(crate) mod thread;$/;"	n
+thresh	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    thresh: X, \/\/ effectively 2.pow(max(64, uty_bits)) % range$/;"	m	struct:UniformInt
+thresh	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    thresh: usize,$/;"	m	struct:UniformUsize
+total_weight	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    pub fn total_weight(&self) -> X {$/;"	P	implementation:WeightedIndex
+total_weight	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    total_weight: X,$/;"	m	struct:WeightedIndex
+trace	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/log_macros.rs	/^macro_rules! trace { ($($x:tt)*) => ($/;"	M
+trace	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/lib.rs	/^pub mod trace;$/;"	n
+trace_enter	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_enter {$/;"	M
+trace_enter	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub fn trace_enter(function_name: &str) -> Result<(), String> {$/;"	f
+trace_exit	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_exit {$/;"	M
+trace_exit	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub fn trace_exit(function_name: &str) -> Result<(), String> {$/;"	f
+trace_guard	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_guard {$/;"	M
+trace_instant_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub fn trace_instant_print(ext_name: &str, fmt: &str) -> Result<(), String> {$/;"	f
+trace_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub fn trace_print(ext_name: &str, fmt: &str) -> Result<(), String> {$/;"	f
+trace_vchord_instant_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_vchord_instant_print {$/;"	M
+trace_vchord_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_vchord_print {$/;"	M
+traits	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/mod.rs	/^mod traits;$/;"	n
+traits	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/mod.rs	/^mod traits;$/;"	n
+try_fill_bytes	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^        fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Infallible> {$/;"	P	implementation:test::StepRng
+try_fill_bytes	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/small.rs	/^    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Infallible> {$/;"	P	implementation:SmallRng
+try_fill_bytes	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/std.rs	/^    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Infallible> {$/;"	P	implementation:StdRng
+try_fill_bytes	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Infallible> {$/;"	P	implementation:ThreadRng
+try_fill_bytes	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro128plusplus.rs	/^    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Infallible> {$/;"	P	implementation:Xoshiro128PlusPlus
+try_fill_bytes	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro256plusplus.rs	/^    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Infallible> {$/;"	P	implementation:Xoshiro256PlusPlus
+try_from	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn try_from(r: ::core::ops::RangeInclusive<X>) -> Result<Uniform<X>, Error> {$/;"	P	implementation:Uniform
+try_from	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn try_from(r: Range<X>) -> Result<Uniform<X>, Error> {$/;"	P	implementation:Uniform
+try_next_u32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^        fn try_next_u32(&mut self) -> Result<u32, Infallible> {$/;"	P	implementation:test::StepRng
+try_next_u32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/small.rs	/^    fn try_next_u32(&mut self) -> Result<u32, Infallible> {$/;"	P	implementation:SmallRng
+try_next_u32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/std.rs	/^    fn try_next_u32(&mut self) -> Result<u32, Infallible> {$/;"	P	implementation:StdRng
+try_next_u32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^    fn try_next_u32(&mut self) -> Result<u32, Infallible> {$/;"	P	implementation:ThreadRng
+try_next_u32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro128plusplus.rs	/^    fn try_next_u32(&mut self) -> Result<u32, Infallible> {$/;"	P	implementation:Xoshiro128PlusPlus
+try_next_u32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro256plusplus.rs	/^    fn try_next_u32(&mut self) -> Result<u32, Infallible> {$/;"	P	implementation:Xoshiro256PlusPlus
+try_next_u64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/lib.rs	/^        fn try_next_u64(&mut self) -> Result<u64, Infallible> {$/;"	P	implementation:test::StepRng
+try_next_u64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/small.rs	/^    fn try_next_u64(&mut self) -> Result<u64, Infallible> {$/;"	P	implementation:SmallRng
+try_next_u64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/std.rs	/^    fn try_next_u64(&mut self) -> Result<u64, Infallible> {$/;"	P	implementation:StdRng
+try_next_u64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^    fn try_next_u64(&mut self) -> Result<u64, Infallible> {$/;"	P	implementation:ThreadRng
+try_next_u64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro128plusplus.rs	/^    fn try_next_u64(&mut self) -> Result<u64, Infallible> {$/;"	P	implementation:Xoshiro128PlusPlus
+try_next_u64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/xoshiro256plusplus.rs	/^    fn try_next_u64(&mut self) -> Result<u64, Infallible> {$/;"	P	implementation:Xoshiro256PlusPlus
+try_to_reseed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/thread.rs	/^    fn try_to_reseed(&mut self) {$/;"	P	implementation:ReseedingCore
+tuple_impl	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^macro_rules! tuple_impl {$/;"	M
+tuple_impls	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^macro_rules! tuple_impls {$/;"	M
+u32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^impl IntAsSIMD for u32 {}$/;"	c
+u32	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^impl UInt for u32 {$/;"	c
+u64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^impl IntAsSIMD for u64 {}$/;"	c
+u64	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^impl UInt for u64 {$/;"	c
+u8	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^impl Fill for u8 {$/;"	c
+uniform	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/mod.rs	/^pub mod uniform;$/;"	n
+uniform_distributions_can_be_compared	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn uniform_distributions_can_be_compared() {$/;"	f	module:tests
+uniform_float_impl	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_float.rs	/^macro_rules! uniform_float_impl {$/;"	M
+uniform_int_impl	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^macro_rules! uniform_int_impl {$/;"	M
+uniform_simd_int_impl	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^macro_rules! uniform_simd_int_impl {$/;"	M
+update_weights	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    pub fn update_weights(&mut self, new_weights: &[(usize, &X)]) -> Result<(), Error>$/;"	P	implementation:WeightedIndex
+use_rng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rng.rs	/^        fn use_rng(mut r: impl RngExt) {$/;"	f	function:test::test_rng_mut_ref
+usize	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^impl SampleUniform for usize {$/;"	c
+utils	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/mod.rs	/^mod utils;$/;"	n
+v1	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/lib.rs	/^pub mod v1;$/;"	n
+value_stability	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/bernoulli.rs	/^    fn value_stability() {$/;"	f	module:test
+value_stability	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/float.rs	/^    fn value_stability() {$/;"	f	module:tests
+value_stability	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^    fn value_stability() {$/;"	f	module:tests
+value_stability	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/other.rs	/^    fn value_stability() {$/;"	f	module:tests
+value_stability	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/slice.rs	/^    fn value_stability() {$/;"	f	module:test
+value_stability	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^    fn value_stability() {$/;"	f	module:tests
+value_stability	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform_int.rs	/^    fn value_stability() {$/;"	f	module:tests
+value_stability	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    fn value_stability() {$/;"	f	module:test
+value_stability_choose	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    fn value_stability_choose() {$/;"	f	module:test
+value_stability_choose_stable	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    fn value_stability_choose_stable() {$/;"	f	module:test
+value_stability_sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn value_stability_sample() {$/;"	f	module:test
+value_stability_sample	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^    fn value_stability_sample() {$/;"	f	module:test
+value_stability_slice	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/slice.rs	/^    fn value_stability_slice() {$/;"	f	module:test
+warn	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/log_macros.rs	/^macro_rules! warn { ($($x:tt)*) => ($/;"	M
+weight	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    pub fn weight(&self, index: usize) -> Option<X>$/;"	P	implementation:WeightedIndex
+weight_distribution	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    weight_distribution: X::Sampler,$/;"	m	struct:WeightedIndex
+weighted	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/mod.rs	/^pub mod weighted;$/;"	n
+weighted_index	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/mod.rs	/^mod weighted_index;$/;"	n
+weighted_index	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    weighted_index: &'a WeightedIndex<X>,$/;"	m	struct:WeightedIndexIter
+weighted_index_distributions_can_be_compared	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    fn weighted_index_distributions_can_be_compared() {$/;"	f	module:test
+weights	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/weighted/weighted_index.rs	/^    pub fn weights(&self) -> WeightedIndexIter<'_, X>$/;"	P	implementation:WeightedIndex
+window_size	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/iterator.rs	/^        window_size: usize,$/;"	m	struct:test::WindowHintedIterator
+with_seed	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^    pub fn with_seed(seed: u64) -> Self {$/;"	P	implementation:WyHash
+wmul	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^    fn wmul(self, x: RHS) -> Self::Output;$/;"	P	interface:WideningMultiply
+wmul_impl	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^macro_rules! wmul_impl {$/;"	M
+wmul_impl_16	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^    macro_rules! wmul_impl_16 {$/;"	M	module:simd_wmul
+wmul_impl_large	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^macro_rules! wmul_impl_large {$/;"	M
+wmul_impl_usize	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/utils.rs	/^macro_rules! wmul_impl_usize {$/;"	M
+write	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/traits.rs	/^    fn write(&mut self, bytes: &[u8]) {$/;"	P	implementation:WyHash
+write	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/traits.rs	/^    fn write(&mut self, bytes: &[u8]) {$/;"	P	implementation:WyHash
+wyhash	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/functions.rs	/^pub fn wyhash(bytes: &[u8], seed: u64, secret: [u64; 4]) -> u64 {$/;"	f
+wyhash	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/functions.rs	/^pub fn wyhash(bytes: &[u8], seed: u64) -> u64 {$/;"	f
+wyhash_core	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/functions.rs	/^pub fn wyhash_core(bytes: &[u8], seed: u64, secret: [u64; 4]) -> (u64, u64, u64) {$/;"	f
+wyhash_core	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/functions.rs	/^pub(crate) fn wyhash_core(bytes: &[u8], mut seed: u64) -> u64 {$/;"	f
+wyhash_finish	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/functions.rs	/^pub fn wyhash_finish(a: u64, b: u64, seed: u64, length: u64, secret1: u64) -> u64 {$/;"	f
+wyhash_finish	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/functions.rs	/^pub(crate) fn wyhash_finish(length: u64, seed: u64) -> u64 {$/;"	f
+wymum	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/functions.rs	/^fn wymum(a: u64, b: u64) -> u64 {$/;"	f
+wymum	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/functions.rs	/^fn wymum(a: u64, b: u64) -> u64 {$/;"	f
+wyrng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/functions.rs	/^pub fn wyrng(seed: &mut u64) -> u64 {$/;"	f
+wyrng	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/v1/functions.rs	/^pub fn wyrng(seed: &mut u64) -> u64 {$/;"	f
+wyrotate	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/wyhash-0.6.0/src/final3/functions.rs	/^fn wyrotate(x: u64) -> u64 {$/;"	f
+x	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/uniform.rs	/^            x: f32,$/;"	m	struct:tests::test_custom_uniform::MyF32
+x86_integers	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/distr/integer.rs	/^    fn x86_integers() {$/;"	f	module:tests
+xoshiro128plusplus	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/mod.rs	/^mod xoshiro128plusplus;$/;"	n
+xoshiro256plusplus	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/rngs/mod.rs	/^mod xoshiro256plusplus;$/;"	n
+zero	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn zero() -> Self {$/;"	P	implementation:u32
+zero	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn zero() -> Self {$/;"	P	implementation:u64
+zero	/home/wangbin/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand-0.10.0/src/seq/index.rs	/^    fn zero() -> Self;$/;"	P	interface:UInt
+zero	/home/wangbin/work/github/VectorChord-1.1.1/crates/feistel/src/lib.rs	/^    fn zero() -> Self;$/;"	P	interface:Zero

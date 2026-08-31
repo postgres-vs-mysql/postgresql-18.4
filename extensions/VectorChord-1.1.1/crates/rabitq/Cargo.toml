@@ -1,0 +1,20 @@
+[package]
+name = "rabitq"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+trace = { path = "../trace" }
+simd = { path = "../simd" }
+
+rand.workspace = true
+rand_chacha.workspace = true
+zerocopy.workspace = true
+
+[build-dependencies]
+rand.workspace = true
+rand_chacha.workspace = true
+
+[lints]
+workspace = true

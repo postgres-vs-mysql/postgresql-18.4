@@ -1,0 +1,23 @@
+[package]
+name = "vchordg"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+always_equal = { path = "../always_equal" }
+distance = { path = "../distance" }
+index = { path = "../index" }
+rabitq = { path = "../rabitq" }
+simd = { path = "../simd" }
+vector = { path = "../vector" }
+trace = { path = "../trace" }
+
+min-max-heap = "1.3.0"
+rand.workspace = true
+serde.workspace = true
+validator.workspace = true
+zerocopy.workspace = true
+
+[lints]
+workspace = true

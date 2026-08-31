@@ -1,0 +1,89 @@
+statement ok
+SET enable_seqscan TO off;
+
+statement ok
+CREATE TABLE pg_temp.t (index serial primary key, val vector(64)[2]);
+
+statement ok
+INSERT INTO pg_temp.t (val)
+SELECT
+    ARRAY[
+        l2_normalize(ARRAY(
+            SELECT
+                ('x' || substring(md5((64 * i + j)::text), 1, 16))::bit(64)::bigint / 18446744073709551615.0
+            FROM generate_series(1, 64) d(j)
+        )::vector),
+        l2_normalize(ARRAY(
+            SELECT
+                ('x' || substring(md5((64 * i + j)::text), 1, 16))::bit(64)::bigint / 18446744073709551615.0
+            FROM generate_series(1, 64) d(j)
+        )::vector)
+    ]
+FROM generate_series(1, 2048) s(i);
+
+statement ok
+CREATE FUNCTION pg_temp.quantize_to_rabitq8(val vector[])
+RETURNS rabitq8[] AS $$
+    SELECT array_agg(public.quantize_to_rabitq8(x))
+    FROM unnest(val) AS x;
+$$ LANGUAGE sql IMMUTABLE;
+
+statement ok
+CREATE FUNCTION pg_temp.quantize_to_rabitq4(val vector[])
+RETURNS rabitq4[] AS $$
+    SELECT array_agg(public.quantize_to_rabitq4(x))
+    FROM unnest(val) AS x;
+$$ LANGUAGE sql IMMUTABLE;
+
+statement ok
+CREATE INDEX ti ON pg_temp.t USING vchordrq ((pg_temp.quantize_to_rabitq8(val)::rabitq8(64)[2]) rabitq8_maxsim_ops);
+
+query I
+SELECT index FROM pg_temp.t ORDER BY
+pg_temp.quantize_to_rabitq8(val)::rabitq8(64)[] @# ARRAY[
+    quantize_to_rabitq8(array_cat(ARRAY[0.6, 0.8], ARRAY(SELECT 0.0 FROM generate_series(1, 62)))::vector),
+    quantize_to_rabitq8(array_cat(ARRAY[0.3, 0.4], ARRAY(SELECT 0.0 FROM generate_series(1, 62)))::vector)
+]
+LIMIT 10;
+----
+1207
+919
+1821
+1639
+174
+79
+1076
+1125
+239
+194
+
+statement ok
+DROP INDEX pg_temp.ti;
+
+statement ok
+CREATE INDEX ti ON pg_temp.t USING vchordrq ((pg_temp.quantize_to_rabitq4(val)::rabitq4(64)[2]) rabitq4_maxsim_ops);
+
+query I
+SELECT index FROM pg_temp.t ORDER BY
+pg_temp.quantize_to_rabitq4(val)::rabitq4(64)[] @# ARRAY[
+    quantize_to_rabitq4(array_cat(ARRAY[0.6, 0.8], ARRAY(SELECT 0.0 FROM generate_series(1, 62)))::vector),
+    quantize_to_rabitq4(array_cat(ARRAY[0.3, 0.4], ARRAY(SELECT 0.0 FROM generate_series(1, 62)))::vector)
+]
+LIMIT 10;
+----
+1207
+919
+1821
+1639
+537
+174
+79
+194
+1920
+239
+
+statement ok
+DROP INDEX pg_temp.ti;
+
+statement ok
+DROP TABLE pg_temp.t;

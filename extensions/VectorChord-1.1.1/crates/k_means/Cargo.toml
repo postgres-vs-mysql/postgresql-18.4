@@ -1,0 +1,18 @@
+[package]
+name = "k_means"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+always_equal = { path = "../always_equal" }
+distance = { path = "../distance" }
+rabitq = { path = "../rabitq" }
+simd = { path = "../simd" }
+trace = { path = "../trace" }
+
+rand.workspace = true
+rayon.workspace = true
+
+[lints]
+workspace = true

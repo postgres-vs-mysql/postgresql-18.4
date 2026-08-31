@@ -1,0 +1,29 @@
+query I
+SELECT round(('[1,2,3]'::vector <-> '[2,3,4]'::vector):: numeric, 3);
+----
+1.732
+
+query I
+SELECT round(('[1,2,3]'::vector <#> '[2,3,4]'::vector):: numeric, 3);
+----
+-20.000
+
+query I
+SELECT round(('[1,2,3]'::vector <=> '[2,3,4]'::vector):: numeric, 3);
+----
+0.007
+
+query I
+SELECT round(('[1,2,3]'::halfvec <-> '[2,3,4]'::halfvec):: numeric, 3);
+----
+1.732
+
+query I
+SELECT round(('[1,2,3]'::halfvec <#> '[2,3,4]'::halfvec):: numeric, 3);
+----
+-20.000
+
+query I
+SELECT round(('[1,2,3]'::halfvec <=> '[2,3,4]'::halfvec):: numeric, 3);
+----
+0.007

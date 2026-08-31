@@ -1,0 +1,14 @@
+[package]
+name = "vector"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+distance = { path = "../distance" }
+rabitq = { path = "../rabitq" }
+simd = { path = "../simd" }
+trace = { path = "../trace" }
+
+[lints]
+workspace = true

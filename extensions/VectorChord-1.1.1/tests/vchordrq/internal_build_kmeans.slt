@@ -1,0 +1,19 @@
+statement ok
+CREATE TABLE t (val vector(3));
+
+statement ok
+CREATE INDEX ON t USING vchordrq (val vector_l2_ops)
+WITH (options = $$
+build.internal.lists = [1000]
+build.internal.kmeans_algorithm.lloyd = {}
+$$);
+
+statement ok
+CREATE INDEX ON t USING vchordrq (val vector_l2_ops)
+WITH (options = $$
+build.internal.lists = [1000]
+build.internal.kmeans_algorithm.hierarchical = {}
+$$);
+
+statement ok
+DROP TABLE t;

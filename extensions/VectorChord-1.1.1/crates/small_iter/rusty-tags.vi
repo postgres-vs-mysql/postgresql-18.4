@@ -1,0 +1,61 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+GLOBAL	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^        static GLOBAL: std::sync::Mutex<Vec<&'static [u32]>> = std::sync::Mutex::new(Vec::new())/;"	v	function:tests
+Heap	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^    Heap(HeapIter<'a, T>),$/;"	e	enum:Iter
+HeapIter	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^impl<'a, T: Copy> ExactSizeIterator for HeapIter<'a, T> {}$/;"	c
+HeapIter	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^impl<'a, T: Copy> HeapIter<'a, T> {$/;"	c
+HeapIter	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^impl<'a, T: Copy> Iterator for HeapIter<'a, T> {$/;"	c
+HeapIter	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^pub struct HeapIter<'a, T: Copy> {$/;"	s
+Item	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^    type Item = T;$/;"	t	implementation:HeapIter
+Item	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^    type Item = T;$/;"	t	implementation:Iter
+Item	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/stack.rs	/^    type Item = T;$/;"	t	implementation:StackIter
+Iter	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^impl<'a, T: Copy, const N: usize> ExactSizeIterator for Iter<'a, T, N> {}$/;"	c
+Iter	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^impl<'a, T: Copy, const N: usize> Iter<'a, T, N> {$/;"	c
+Iter	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^impl<'a, T: Copy, const N: usize> Iterator for Iter<'a, T, N> {$/;"	c
+Iter	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^pub enum Iter<'a, T: Copy, const N: usize> {$/;"	g
+Stack	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^    Stack(StackIter<T, N>),$/;"	e	enum:Iter
+StackIter	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/stack.rs	/^impl<T: Copy, const N: usize> ExactSizeIterator for StackIter<T, N> {}$/;"	c
+StackIter	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/stack.rs	/^impl<T: Copy, const N: usize> Iterator for StackIter<T, N> {$/;"	c
+StackIter	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/stack.rs	/^impl<T: Copy, const N: usize> StackIter<T, N> {$/;"	c
+StackIter	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/stack.rs	/^pub struct StackIter<T: Copy, const N: usize> {$/;"	s
+TraceGuard	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^impl Drop for TraceGuard {$/;"	c
+TraceGuard	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^impl TraceGuard {$/;"	c
+TraceGuard	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub struct TraceGuard {$/;"	s
+_phantom	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^    _phantom: PhantomData<&'a T>,$/;"	m	struct:HeapIter
+borrowed	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/lib.rs	/^pub mod borrowed;$/;"	n
+buffer	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/stack.rs	/^    buffer: [MaybeUninit<T>; N],$/;"	m	struct:StackIter
+drop	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    fn drop(&mut self) {$/;"	P	implementation:TraceGuard
+from_slice	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^    pub fn from_slice(slice: &[T], alloc: impl Fn(&[T]) -> &'a [T]) -> Self {$/;"	P	implementation:Iter
+from_slice	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^    pub(crate) fn from_slice(slice: &'a [T]) -> Self {$/;"	P	implementation:HeapIter
+from_slice	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/stack.rs	/^    pub(crate) fn from_slice(slice: &[T]) -> Self {$/;"	P	implementation:StackIter
+function_last_name	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! function_last_name {$/;"	M
+function_name	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    function_name: String,$/;"	m	struct:TraceGuard
+function_name	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! function_name {$/;"	M
+len	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^    len: u16,$/;"	m	struct:HeapIter
+len	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/stack.rs	/^    len: u16,$/;"	m	struct:StackIter
+new	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn new(function_name: &str) -> Self {$/;"	P	implementation:TraceGuard
+next	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^    fn next(&mut self) -> Option<Self::Item> {$/;"	P	implementation:HeapIter
+next	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^    fn next(&mut self) -> Option<Self::Item> {$/;"	P	implementation:Iter
+next	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/stack.rs	/^    fn next(&mut self) -> Option<Self::Item> {$/;"	P	implementation:StackIter
+off	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^    off: u16,$/;"	m	struct:HeapIter
+off	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/stack.rs	/^    off: u16,$/;"	m	struct:StackIter
+pointer	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^    pointer: NonNull<T>,$/;"	m	struct:HeapIter
+rust_trace_function_enter	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn rust_trace_function_enter(function: *const std::os::raw::c_char);$/;"	f
+rust_trace_function_exit	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn rust_trace_function_exit(function: *const std::os::raw::c_char);$/;"	f
+rust_trace_instant_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn rust_trace_instant_print($/;"	f
+rust_trace_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^    pub fn rust_trace_print($/;"	f
+size_hint	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^    fn size_hint(&self) -> (usize, Option<usize>) {$/;"	P	implementation:HeapIter
+size_hint	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^    fn size_hint(&self) -> (usize, Option<usize>) {$/;"	P	implementation:Iter
+size_hint	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/stack.rs	/^    fn size_hint(&self) -> (usize, Option<usize>) {$/;"	P	implementation:StackIter
+stack	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/lib.rs	/^pub mod stack;$/;"	n
+tests	/home/wangbin/work/github/VectorChord-1.1.1/crates/small_iter/src/borrowed.rs	/^fn tests() {$/;"	f
+trace	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/lib.rs	/^pub mod trace;$/;"	n
+trace_enter	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_enter {$/;"	M
+trace_enter	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub fn trace_enter(function_name: &str) -> Result<(), String> {$/;"	f
+trace_exit	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_exit {$/;"	M
+trace_exit	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub fn trace_exit(function_name: &str) -> Result<(), String> {$/;"	f
+trace_guard	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_guard {$/;"	M
+trace_instant_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub fn trace_instant_print(ext_name: &str, fmt: &str) -> Result<(), String> {$/;"	f
+trace_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^pub fn trace_print(ext_name: &str, fmt: &str) -> Result<(), String> {$/;"	f
+trace_vchord_instant_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_vchord_instant_print {$/;"	M
+trace_vchord_print	/home/wangbin/work/github/VectorChord-1.1.1/crates/trace/src/trace.rs	/^macro_rules! trace_vchord_print {$/;"	M

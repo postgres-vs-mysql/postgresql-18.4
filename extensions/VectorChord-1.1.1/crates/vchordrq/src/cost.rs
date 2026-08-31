@@ -1,0 +1,36 @@
+// This software is licensed under a dual license model:
+//
+// GNU Affero General Public License v3 (AGPLv3): You may use, modify, and
+// distribute this software under the terms of the AGPLv3.
+//
+// Elastic License v2 (ELv2): You may also use, modify, and distribute this
+// software under the Elastic License v2, which has specific restrictions.
+//
+// We welcome any commercial collaboration or support. For inquiries
+// regarding the licenses, please contact us at:
+// vectorchord-inquiry@tensorchord.ai
+//
+// Copyright (c) 2025 TensorChord Inc.
+
+use crate::tuples::{MetaTuple, WithReader};
+use index::relation::{Page, RelationRead};
+use trace::trace_guard;
+
+pub struct Cost {
+    pub dim: u32,
+    pub cells: Vec<u32>,
+}
+
+#[must_use]
+pub fn cost<R: RelationRead>(index: &R) -> Cost {
+    let _guard = trace_guard!("vchordrq::cost [rust]");
+    let meta_guard = index.read(0);
+    let meta_bytes = meta_guard.get(1).expect("data corruption");
+    let meta_tuple = MetaTuple::deserialize_ref(meta_bytes);
+    let dim = meta_tuple.dim();
+    let cells = meta_tuple.cells().to_vec();
+
+    drop(meta_guard);
+
+    Cost { dim, cells }
+}

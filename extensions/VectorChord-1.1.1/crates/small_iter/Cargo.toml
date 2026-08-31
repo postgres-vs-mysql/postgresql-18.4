@@ -1,0 +1,11 @@
+[package]
+name = "small_iter"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+trace = { path = "../trace" }
+
+[lints]
+workspace = true

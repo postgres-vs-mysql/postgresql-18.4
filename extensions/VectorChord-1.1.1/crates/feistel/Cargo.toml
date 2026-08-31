@@ -1,0 +1,15 @@
+[package]
+name = "feistel"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+trace = { path = "../trace" }
+
+[dev-dependencies]
+rand.workspace = true
+wyhash.workspace = true
+
+[lints]
+workspace = true

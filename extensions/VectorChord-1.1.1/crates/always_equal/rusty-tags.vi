@@ -1,0 +1,21 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_OUTPUT_EXCMD	mixed	/number, pattern, mixed, or combineV2/
+!_TAG_OUTPUT_FILESEP	slash	/slash or backslash/
+!_TAG_OUTPUT_MODE	u-ctags	/u-ctags or e-ctags/
+!_TAG_PATTERN_LENGTH_LIMIT	96	/0 for no limit/
+!_TAG_PROC_CWD	/home/wangbin/work/github/VectorChord-1.1.1/	//
+!_TAG_PROGRAM_AUTHOR	Universal Ctags Team	//
+!_TAG_PROGRAM_NAME	Universal Ctags	/Derived from Exuberant Ctags/
+!_TAG_PROGRAM_URL	https://ctags.io/	/official site/
+!_TAG_PROGRAM_VERSION	5.9.0	//
+AlwaysEqual	/home/wangbin/work/github/VectorChord-1.1.1/crates/always_equal/src/lib.rs	/^impl<T> Eq for AlwaysEqual<T> {}$/;"	c
+AlwaysEqual	/home/wangbin/work/github/VectorChord-1.1.1/crates/always_equal/src/lib.rs	/^impl<T> Hash for AlwaysEqual<T> {$/;"	c
+AlwaysEqual	/home/wangbin/work/github/VectorChord-1.1.1/crates/always_equal/src/lib.rs	/^impl<T> Ord for AlwaysEqual<T> {$/;"	c
+AlwaysEqual	/home/wangbin/work/github/VectorChord-1.1.1/crates/always_equal/src/lib.rs	/^impl<T> PartialEq for AlwaysEqual<T> {$/;"	c
+AlwaysEqual	/home/wangbin/work/github/VectorChord-1.1.1/crates/always_equal/src/lib.rs	/^impl<T> PartialOrd for AlwaysEqual<T> {$/;"	c
+AlwaysEqual	/home/wangbin/work/github/VectorChord-1.1.1/crates/always_equal/src/lib.rs	/^pub struct AlwaysEqual<T>(pub T);$/;"	s
+cmp	/home/wangbin/work/github/VectorChord-1.1.1/crates/always_equal/src/lib.rs	/^    fn cmp(&self, _: &Self) -> Ordering {$/;"	P	implementation:AlwaysEqual
+eq	/home/wangbin/work/github/VectorChord-1.1.1/crates/always_equal/src/lib.rs	/^    fn eq(&self, _: &Self) -> bool {$/;"	P	implementation:AlwaysEqual
+hash	/home/wangbin/work/github/VectorChord-1.1.1/crates/always_equal/src/lib.rs	/^    fn hash<H: std::hash::Hasher>(&self, _: &mut H) {}$/;"	P	implementation:AlwaysEqual
+partial_cmp	/home/wangbin/work/github/VectorChord-1.1.1/crates/always_equal/src/lib.rs	/^    fn partial_cmp(&self, _: &Self) -> Option<Ordering> {$/;"	P	implementation:AlwaysEqual
