@@ -200,6 +200,7 @@ read_stream_get_block(ReadStream *stream, void *per_buffer_data)
                                 per_buffer_data);
   }
 
+  DBUG_PRINT("info", "blocknum:%u", blocknum);
   return blocknum;
 }
 

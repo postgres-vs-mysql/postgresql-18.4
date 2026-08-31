@@ -426,6 +426,7 @@ index_beginscan_internal(Relation indexRelation,
   /*
    * Tell the AM to open a scan.
    */
+  DBUG_PRINT("info", "tell the AM to open a scan");
   scan = indexRelation->rd_indam->ambeginscan(indexRelation, nkeys,
          norderbys);
   /* Initialize information for parallel scan. */

@@ -277,7 +277,9 @@ clauselist_selectivity_ext(PlannerInfo *root,
   /*
    * Now scan the rangequery pair list.
    */
-  DBUG_PRINT("info", "now scan the rangequery pair list");
+  if (rqlist != NULL) {
+    DBUG_PRINT("info", "now scan the rangequery pair list");
+  }
 
   while (rqlist != NULL) {
     RangeQueryClause *rqnext;

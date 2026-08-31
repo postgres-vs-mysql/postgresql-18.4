@@ -305,7 +305,7 @@ internal_load_library(const char *libname)
     PG_init = (PG_init_t) dlsym(file_scanner->handle, "_PG_init");
 
     if (PG_init) {
-      DBUG_PRINT("info", "if the library has a _PG_init() function, call it");
+      DBUG_INSTANT_PRINT("info", "if the library has a _PG_init() function, call it");
       (*PG_init) ();
     }
 

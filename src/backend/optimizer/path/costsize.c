@@ -982,13 +982,14 @@ cost_index(IndexPath *path, PlannerInfo *root, double loop_count,
    * correlation to the main-table tuple order.  We need a cast here because
    * pathnodes.h uses a weak function type to avoid including amapi.h.
    */
-  DBUG_PRINT("info", "call index-access-method-specific code to estimate the processing cost for scanning the index");
   amcostestimate = (amcostestimate_function) index->amcostestimate;
+  DBUG_INSTANT_PRINT("info", "call index-access-method-specific code to estimate the processing cost for scanning the index");
   amcostestimate(root, path, loop_count,
                  &indexStartupCost, &indexTotalCost,
                  &indexSelectivity, &indexCorrelation,
                  &index_pages);
 
+  DBUG_INSTANT_PRINT("info", "call index-access-method-specific code over");
   /*
    * Save amcostestimate's results for possible use in bitmap scan planning.
    * We don't bother to save indexStartupCost or indexCorrelation, because a
