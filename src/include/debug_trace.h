@@ -9,15 +9,18 @@
 #include <fcntl.h>
 #include <sys/file.h>
 #include <string.h>
+#include <stdbool.h>
 
 #define MAX_STACK_DEPTH 1024
 #define MAX_COL_LEN 2048
 #define MAX_DBUG_BUF_LEN 16384
 #define TRACE_LOG_FAST_LIMIT 8192
 #define EXPECTED_TOP 2
+#define MAX_RUST_FUNC_LEN 256
 
 typedef struct {
   const char *func;
+  char rust_func[MAX_RUST_FUNC_LEN];
 } TraceFrame;
 
 typedef struct {
@@ -31,8 +34,21 @@ void set_trace_ctx_null(void);
 void trace_lock(void);
 void trace_unlock(void);
 void set_trace_enabled(void);
+int retrieve_max_trace_iterations(void);
+int retrieve_min_trace_iterations(void);
+int test_for_rust(void);
+int test_for_rust2(void);
+bool is_trace_enabled(void);
+bool is_trace_thread_mode(void);
 void set_trace_disabled(void);
-
+void set_trace_thread_mode(void);
+void set_trace_process_mode(void);
+void rust_trace_function_enter(const char *function, size_t len);
+void rust_trace_function_exit(const char *function, size_t len);
+void rust_trace_print(const char *fmt, ...)
+__attribute__((format(printf, 1, 2)));
+void rust_trace_instant_print(const char *fmt, ...)
+__attribute__((format(printf, 1, 2)));
 extern int trace_disabled;
 extern int trace_fp;
 extern int trace_process_slow_mode;
@@ -204,6 +220,39 @@ static inline void trace_info(unsigned int pid, int depth, const char *func, int
   } while (0)
 
 
+#define DBUG_PRINT_FOR_THREAD(keyword, msg, ...) \
+  do { \
+    __attribute__((unused)) ssize_t _ign; \
+    TraceContext *trace_ctx = get_trace_ctx(); \
+    int trace_written = 0; \
+    if (trace_disabled) { \
+      break; \
+    } \
+    if (trace_ctx->top >= MAX_STACK_DEPTH || trace_ctx->top < 0) { \
+        break; \
+    } \
+    trace_info(gettid(), trace_ctx->top, NULL, 0); \
+    last_sec_processed_logs++; \
+    if (sizeof((char[]){#__VA_ARGS__}) > 1) {  \
+      trace_written = snprintf(trace_buffer + trace_buffer_pos, MAX_COL_LEN, "%s: " msg "\n", keyword, ##__VA_ARGS__); \
+    } else { \
+      trace_written = snprintf(trace_buffer + trace_buffer_pos, MAX_COL_LEN, "%s: %s\n", keyword, msg); \
+    } \
+    if (trace_written >= MAX_COL_LEN) { \
+       trace_buffer_pos += (MAX_COL_LEN - 1); \
+       trace_buffer[trace_buffer_pos - 1] = '\n'; \
+    } else { \
+       trace_buffer_pos += trace_written; \
+    } \
+    if (trace_buffer_pos > MAX_DBUG_BUF_LEN || trace_process_slow_mode) { \
+      trace_lock(); \
+      _ign = write(trace_fp, trace_buffer, trace_buffer_pos); \
+      trace_unlock(); \
+      trace_buffer_pos = 0; \
+    } \
+  } while (0)
+
+
 typedef struct {
   const char *func;
   int level;
@@ -285,12 +334,85 @@ static inline void dbug_trace_exit(dbug_trace_t *t) {
   }
 }
 
+static inline dbug_trace_t dbug_trace_enter_for_rust(const char *func, size_t len) {
+  __attribute__((unused)) ssize_t _ign;
+  TraceContext *ctx = get_trace_ctx();
+  char* func_p;
+  if (trace_disabled) { 
+     return (dbug_trace_t){func, - 1};
+  }
+  if (ctx->top >= MAX_STACK_DEPTH || ctx->top < 0 || len > MAX_STACK_DEPTH) {
+     return (dbug_trace_t){func, - 1};
+  }
+  strncpy(ctx->stack[ctx->top].rust_func, func, len);
+  ctx->stack[ctx->top].rust_func[len] = '\0';
+  func_p = ctx->stack[ctx->top].rust_func;
+  if (!is_trace_thread_mode()) {
+    trace_info(getpid(), ctx->top, func_p, 1);
+  } else {
+    trace_info(gettid(), ctx->top, func_p, 1);
+  }
+  last_sec_processed_logs++;
+  if (trace_buffer_pos > MAX_DBUG_BUF_LEN) {
+    trace_buffer[trace_buffer_pos] = '\0';
+    trace_lock();
+    _ign = write(trace_fp, trace_buffer, trace_buffer_pos);
+    trace_unlock();
+    trace_buffer_pos = 0;
+  }
+  ctx->top++;
+  return (dbug_trace_t){func, ctx->top - 1};
+}
+
+static inline void dbug_trace_exit_for_rust(const char *func, size_t len) {
+  __attribute__((unused)) ssize_t _ign;
+  const char *orig_func;
+  TraceContext *ctx = get_trace_ctx();
+  if (trace_disabled) { 
+     return;
+  }
+  if (len > MAX_RUST_FUNC_LEN) {
+     return;
+  }
+  if (ctx->top > MAX_STACK_DEPTH || ctx->top < 0) {
+     fprintf(stderr, "exit, depth is too high:%d\n", ctx->top);
+     return;
+  }
+  orig_func = ctx->stack[--ctx->top].rust_func;
+  if (strncmp(func, orig_func, len) == 0) {
+    if (!is_trace_thread_mode()) {
+      trace_info(getpid(), ctx->top, orig_func, 0);
+    } else {
+      trace_info(gettid(), ctx->top, orig_func, 0);
+    }
+    last_sec_processed_logs++;
+    if (trace_buffer_pos > MAX_DBUG_BUF_LEN) {
+      trace_buffer[trace_buffer_pos] = '\0';
+      trace_lock();
+      _ign = write(trace_fp, trace_buffer, trace_buffer_pos);
+      trace_unlock();
+      trace_buffer_pos = 0;
+    }
+  } else {
+    const char *error = "stack error\n";
+    trace_lock();
+    _ign = write(trace_fp, error, strlen(error));
+    trace_unlock();
+  }
+}
+
 #define DBUG_ADJUST_TRACE \
   dbug_trace_t __trace_guard__ __attribute__((__cleanup__(dbug_trace_exit))) = dbug_special_trace_enter(__func__)
 
 #define DBUG_TRACE \
   dbug_trace_t __trace_guard__ __attribute__((__cleanup__(dbug_trace_exit))) = dbug_trace_enter(__func__)
 
+
+#define DBUG_TRACE_FUNC_ENTER(func_name, len) \
+    dbug_trace_enter_for_rust(func_name, len)
+
+#define DBUG_TRACE_FUNC_EXIT(func_name, len) \
+    dbug_trace_exit_for_rust(func_name, len)
 
 #endif // DEBUG_TRACE_H
 

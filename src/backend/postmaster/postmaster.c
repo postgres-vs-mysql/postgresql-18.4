@@ -4145,7 +4145,7 @@ StartBackgroundWorker(RegisteredBgWorker *rw)
           (errmsg_internal("starting background worker process \"%s\"",
                            rw->rw_worker.bgw_name)));
 
-  if (rw->rw_worker.bgw_debug_traced) {
+  if (rw->rw_worker.bgw_flags & BGWORKER_TRACE_ENABLED) {
     worker_pid = postmaster_child_launch_with_traced(B_BG_WORKER, bn->child_slot, &rw->rw_worker, sizeof(BackgroundWorker), NULL, true);
   } else {
     worker_pid = postmaster_child_launch(B_BG_WORKER, bn->child_slot, &rw->rw_worker, sizeof(BackgroundWorker), NULL);
@@ -4325,7 +4325,7 @@ maybe_start_bgworkers(void)
        * function will do that.
        */
 
-      if (rw->rw_worker.bgw_debug_traced) {
+      if (rw->rw_worker.bgw_flags & BGWORKER_TRACE_ENABLED) {
         DBUG_PRINT("info", "bgw_debug_traced is set");
         DBUG_PRINT("info", "worker info(bgw_name:%s, bgw_type:%s, bgw_notify_pid:%d", rw->rw_worker.bgw_name,
                    rw->rw_worker.bgw_type, rw->rw_worker.bgw_notify_pid);

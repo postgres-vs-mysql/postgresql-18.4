@@ -64,7 +64,6 @@ typedef struct FmgrInfo
   void     *fn_extra;   /* extra space for use by handler */
   MemoryContext fn_mcxt;    /* memory context to store fn_extra in */
   fmNodePtr fn_expr;    /* expression parse tree for call, or NULL */
-  int trace_disabled: 1;
 } FmgrInfo;
 
 /*

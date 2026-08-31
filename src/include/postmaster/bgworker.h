@@ -67,6 +67,9 @@
  */
 #define BGWORKER_CLASS_PARALLEL         0x0010
 /* add additional bgworker classes here */
+#define BGWORKER_TRACE_ENABLED 0x10000000
+
+#define BGWORKER_TRACE_DISABLED 0x0FFFFFFF
 
 
 typedef void (*bgworker_main_type) (Datum main_arg);
@@ -93,7 +96,6 @@ typedef struct BackgroundWorker
   int     bgw_flags;
   BgWorkerStartTime bgw_start_time;
   int     bgw_restart_time; /* in seconds, or BGW_NEVER_RESTART */
-  int     bgw_debug_traced; 
   char    bgw_library_name[MAXPGPATH];
   char    bgw_function_name[BGW_MAXLEN];
   Datum   bgw_main_arg;

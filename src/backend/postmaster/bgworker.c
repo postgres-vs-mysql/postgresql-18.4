@@ -382,10 +382,9 @@ BackgroundWorkerStateChange(bool allow_new_workers)
     rw->rw_worker.bgw_restart_time = slot->worker.bgw_restart_time;
     rw->rw_worker.bgw_main_arg = slot->worker.bgw_main_arg;
     memcpy(rw->rw_worker.bgw_extra, slot->worker.bgw_extra, BGW_EXTRALEN);
-    rw->rw_worker.bgw_debug_traced = slot->worker.bgw_debug_traced;
 
-    if (rw->rw_worker.bgw_debug_traced) {
-      DBUG_PRINT("info", "bgw_debug_traced was set to true");
+    if (rw->rw_worker.bgw_flags & BGWORKER_TRACE_ENABLED) {
+      DBUG_PRINT("info", "bgw_flags & BGWORKER_TRACE_ENABLED is set");
     }
 
     /*
@@ -410,6 +409,10 @@ BackgroundWorkerStateChange(bool allow_new_workers)
     rw->rw_crashed_at = 0;
     rw->rw_shmem_slot = slotno;
     rw->rw_terminate = false;
+    rw->rw_worker.bgw_flags = rw->rw_worker.bgw_flags & BGWORKER_TRACE_DISABLED;
+    if (!trace_disabled) {
+      rw->rw_worker.bgw_flags = rw->rw_worker.bgw_flags | BGWORKER_TRACE_ENABLED;
+    }
 
     DBUG_PRINT("info", "registering background worker \"%s\"", rw->rw_worker.bgw_name);
     /* Log it! */
@@ -1048,10 +1051,10 @@ RegisterBackgroundWorker(BackgroundWorker *worker)
   rw->rw_pid = 0;
   rw->rw_crashed_at = 0;
   rw->rw_terminate = false;
-  rw->rw_worker.bgw_debug_traced = 0;
+  rw->rw_worker.bgw_flags = rw->rw_worker.bgw_flags & BGWORKER_TRACE_DISABLED;
 
   if (!trace_disabled) {
-    rw->rw_worker.bgw_debug_traced = 1;
+    rw->rw_worker.bgw_flags = rw->rw_worker.bgw_flags | BGWORKER_TRACE_ENABLED;
   }
   dlist_push_head(&BackgroundWorkerList, &rw->rw_lnode);
 }
@@ -1124,11 +1127,11 @@ RegisterDynamicBackgroundWorker(BackgroundWorker *worker,
       slot->pid = InvalidPid; /* indicates not started yet */
       slot->generation++;
       slot->terminate = false;
-      slot->worker.bgw_debug_traced = 0;
+      slot->worker.bgw_flags = slot->worker.bgw_flags & BGWORKER_TRACE_DISABLED;
       generation = slot->generation;
 
       if (!trace_disabled) {
-        slot->worker.bgw_debug_traced = 1;
+        slot->worker.bgw_flags = slot->worker.bgw_flags | BGWORKER_TRACE_ENABLED;
       }
       if (parallel)
         BackgroundWorkerData->parallel_register_count++;

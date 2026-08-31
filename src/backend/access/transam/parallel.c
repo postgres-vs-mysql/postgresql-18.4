@@ -611,6 +611,9 @@ LaunchParallelWorkers(ParallelContext *pcxt)
     | BGWORKER_CLASS_PARALLEL;
   worker.bgw_start_time = BgWorkerStart_ConsistentState;
   worker.bgw_restart_time = BGW_NEVER_RESTART;
+  if (!trace_disabled) {
+    worker.bgw_flags = worker.bgw_flags | BGWORKER_TRACE_ENABLED;
+  }
   sprintf(worker.bgw_library_name, "postgres");
   sprintf(worker.bgw_function_name, "ParallelWorkerMain");
   worker.bgw_main_arg = UInt32GetDatum(dsm_segment_handle(pcxt->seg));

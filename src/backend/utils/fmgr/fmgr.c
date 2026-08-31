@@ -1216,7 +1216,6 @@ FunctionCall2Coll_not_traced(FmgrInfo *flinfo, Oid collation, Datum arg1, Datum 
   fcinfo->args[0].isnull = false;
   fcinfo->args[1].value = arg2;
   fcinfo->args[1].isnull = false;
-  flinfo->trace_disabled = 1;
 
   result = FunctionCallInvoke(fcinfo);
 

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdarg.h>
 #include <semaphore.h>
 
 #define TRACE_SEM_NAME "/trace_output_lock"
@@ -17,6 +18,9 @@ struct tm *last_tm;
 char trace_buffer[65536];
 int  trace_buffer_pos = 0;
 int trace_disabled = 0;
+int trace_thead_mode = 0;
+extern int max_trace_iterations;
+extern int min_trace_iterations;
 
 __attribute__((constructor))
 static void init_trace_lock()
@@ -49,6 +53,40 @@ static void cleanup_trace_lock()
   }
 }
 
+bool is_trace_enabled(void)
+{
+  if (trace_disabled == 0) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool is_trace_thread_mode(void)
+{
+  if (trace_thead_mode == 1) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+int retrieve_max_trace_iterations(void) {
+  return max_trace_iterations;
+}
+
+int retrieve_min_trace_iterations(void) {
+  return min_trace_iterations;
+}
+
+int test_for_rust(void) {
+  return 0;
+}
+
+int test_for_rust2(void) {
+  return 0;
+}
+
 void set_trace_enabled(void)
 {
   trace_disabled = 0;
@@ -57,6 +95,66 @@ void set_trace_enabled(void)
 void set_trace_disabled(void)
 {
   trace_disabled = 1;
+}
+
+void set_trace_thread_mode(void)
+{
+  trace_thead_mode = 1;
+}
+
+void set_trace_process_mode(void)
+{
+  trace_thead_mode = 0;
+}
+
+void rust_trace_function_enter(const char *function, size_t len)
+{
+  DBUG_TRACE_FUNC_ENTER(function, len);
+}
+
+void rust_trace_function_exit(const char *function, size_t len)
+{
+  DBUG_TRACE_FUNC_EXIT(function, len);
+}
+
+void rust_trace_print(const char *fmt, ...)
+{
+  char buf[256];
+  va_list args;
+
+  if (fmt == NULL) {
+    return;
+  }
+
+  va_start(args, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, args);
+  va_end(args);
+
+  if (!trace_thead_mode) {
+    DBUG_PRINT("rust", "%s", buf);
+  } else {
+    DBUG_PRINT_FOR_THREAD("rust", "%s", buf);
+  }
+}
+
+void rust_trace_instant_print(const char *fmt, ...)
+{
+  char buf[256];
+  va_list args;
+
+  if (fmt == NULL) {
+    return;
+  }
+
+  va_start(args, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, args);
+  va_end(args);
+
+  if (!trace_thead_mode) {
+    DBUG_INSTANT_PRINT("rust", "%s", buf);
+  } else {
+    DBUG_PRINT_FOR_THREAD("rust", "%s", buf);
+  }
 }
 
 void set_trace_ctx_null(void)
@@ -73,6 +171,7 @@ TraceContext *get_trace_ctx(void)
   if (!thread_ctx) {
     thread_ctx = calloc(1, sizeof(TraceContext));
 
+    trace_thead_mode = 0;
     if (!thread_ctx) {
       perror("calloc");
       exit(EXIT_FAILURE);
