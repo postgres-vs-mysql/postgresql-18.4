@@ -10,6 +10,11 @@
 #include <sys/file.h>
 #include <string.h>
 #include <stdbool.h>
+#include <sys/syscall.h>
+
+#ifndef gettid
+#define gettid() syscall(SYS_gettid)
+#endif
 
 #define MAX_STACK_DEPTH 128
 #define MAX_COL_LEN 2048
