@@ -10,14 +10,16 @@
 #include <sys/file.h>
 #include <string.h>
 
-#define MAX_STACK_DEPTH 1024
+#define MAX_STACK_DEPTH 128
 #define MAX_COL_LEN 2048
 #define MAX_DBUG_BUF_LEN 16384
 #define TRACE_LOG_FAST_LIMIT 8192
 #define EXPECTED_TOP 2
+#define MAX_RUST_FUNC_LEN 120
 
 typedef struct {
   const char *func;
+  char rust_func[MAX_RUST_FUNC_LEN];
 } TraceFrame;
 
 typedef struct {
